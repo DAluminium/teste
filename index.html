@@ -393,7 +393,7 @@ function showPortal(nome, modulos, isAdmin){
   renderModulos(modulos);
   // 1 módulo e não admin — entra direto
   if(modulos.length===1&&!isAdmin){
-    const URLS={compras:'https://daluminium.github.io/gestaodecompras/',financeiro:'https://daluminium.github.io/financeiro/'};
+    const URLS={compras:'https://daluminium.github.io/teste/compras.html',financeiro:'https://daluminium.github.io/teste/financeiro.html'};
     const TITULOS={compras:'Gestão de Compras',financeiro:'Financeiro'};
     const m=modulos[0];
     if(URLS[m]){ document.getElementById('portal').style.display='none'; abrirModulo(URLS[m],TITULOS[m]); }
@@ -403,8 +403,8 @@ function showPortal(nome, modulos, isAdmin){
 function renderModulos(modulos){
   const container=document.getElementById('modulos-container');
   const MODULOS={
-    compras:{icon:'🛒',title:'Gestão de Compras',desc:'Orçamentos, fornecedores, manutenção e controle de entregas das obras',url:'https://daluminium.github.io/gestaodecompras/',cls:'compras',badge:'badge-compras',badgeText:'Compras'},
-    financeiro:{icon:'💰',title:'Financeiro',desc:'Contas a pagar, contas a receber, fluxo de caixa e relatórios',url:'https://daluminium.github.io/financeiro/',cls:'financeiro',badge:'badge-financeiro',badgeText:'Financeiro'}
+    compras:{icon:'🛒',title:'Gestão de Compras',desc:'Orçamentos, fornecedores, manutenção e controle de entregas das obras',url:'https://daluminium.github.io/teste/compras.html',cls:'compras',badge:'badge-compras',badgeText:'Compras'},
+    financeiro:{icon:'💰',title:'Financeiro',desc:'Contas a pagar, contas a receber, fluxo de caixa e relatórios',url:'https://daluminium.github.io/teste/financeiro.html',cls:'financeiro',badge:'badge-financeiro',badgeText:'Financeiro'}
   };
   container.innerHTML=modulos.map(m=>{
     const mod=MODULOS[m];
