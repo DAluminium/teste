@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Portal TESTE · Daluminium</title>
+<title>Portal · Daluminium</title>
 <style>
 :root{
   --teal:#1FB6CF;--teal-dark:#0E8FA6;--teal-light:#E6F8FB;
@@ -34,7 +34,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 /* PORTAL */
 .portal{display:none;min-height:100vh}
 .portal.active{display:block}
-.topbar{background:#8B4513;color:white;padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
+.topbar{background:var(--teal-dark);color:white;padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
 .topbar-logo{font-size:16px;font-weight:700;letter-spacing:.04em}
 .topbar-logo span{opacity:.7;font-weight:400;font-size:12px;margin-left:8px}
 .topbar-user{display:flex;align-items:center;gap:12px;font-size:13px}
@@ -113,10 +113,6 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
 
 /* UPDATE */
 @keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
-#update-banner{position:fixed;bottom:20px;right:20px;background:var(--teal-dark);color:white;padding:14px 18px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.25);font-size:13px;font-family:inherit;z-index:9999;animation:slideIn .3s ease;min-width:260px}
-#update-progress-bar{height:6px;background:rgba(255,255,255,.2);border-radius:3px;margin-top:10px;overflow:hidden;display:none}
-#update-progress-fill{height:100%;width:0%;background:white;border-radius:3px;transition:width .1s linear}
-#update-progress-pct{font-size:11px;color:rgba(255,255,255,.8);margin-top:4px;display:none}
 </style>
 </head>
 <body>
@@ -138,7 +134,7 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
 <!-- PORTAL -->
 <div class="portal" id="portal">
   <div class="topbar">
-    <div class="topbar-logo">DALUMINIUM <span style="background:#FFD700;color:#8B4513;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">TESTE</span></div>
+    <div class="topbar-logo">DALUMINIUM <span>Portal</span></div>
     <div class="topbar-user">
       <strong id="topbar-nome"></strong>
       <button class="btn-sair" onclick="doLogout()">
@@ -167,6 +163,19 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
           <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           Alterar minha senha
         </div>
+        <div class="admin-card" onclick="openSessoes()">
+          <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          Sessões ativas
+        </div>
+      </div>
+
+      <!-- SESSÕES ATIVAS -->
+      <div id="sessoes-panel" style="display:none;margin-top:1.5rem;background:white;border-radius:12px;padding:1.2rem;box-shadow:var(--shadow)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700">👥 Sessões ativas agora</div>
+          <button onclick="loadSessoes()" class="btn btn-outline" style="font-size:11px;padding:4px 10px">🔄 Atualizar</button>
+        </div>
+        <div id="sessoes-lista"><p style="font-size:13px;color:var(--gray-4);text-align:center">Carregando...</p></div>
       </div>
     </div>
   </div>
@@ -230,10 +239,7 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
 <script>
 // ---- CONFIG ----
 const WORKER_URL = 'https://daluminium-api.daluminium2.workers.dev';
-const ADMINS = [
-  {user:'ander reis', pass:'@nd3r_R3is', name:'Ander Reis', modulos:['compras','financeiro'], role:'admin', tempPass:false},
-  {user:'aretusa',    pass:'Dal321',     name:'Aretusa Sendeski', modulos:['compras','financeiro'], role:'admin', tempPass:true},
-];
+// Admins validados via Cloudflare Worker — senhas protegidas fora do código
 const MAX_TENT=5, BLOQ_MS=5*60*1000;
 
 // ---- HELPERS ----
@@ -308,25 +314,25 @@ async function doLogin(){
 
   btn.textContent='Verificando...'; btn.disabled=true;
 
-  // Check admins
-  const admin=ADMINS.find(a=>a.user===user);
-  if(admin){
-    const saved=getAdminPass(admin.user);
-    const correct=saved||admin.pass;
-    const isTemp=!saved&&admin.tempPass;
-    if(await verificarSenha(pass,correct)){
+  // Check admins via Worker (senhas protegidas)
+  try{
+    const adminResp=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      headers:{'X-Action':'validate-admin','X-User':user,'X-Pass':pass,'Origin':'https://daluminium.github.io'}
+    });
+    const adminResult=await adminResp.json();
+    if(adminResult.ok){
       resetTent();
       sessionStorage.setItem('portal-logged','true');
-      sessionStorage.setItem('portal-user',admin.name);
+      sessionStorage.setItem('portal-user',adminResult.name);
       sessionStorage.setItem('portal-role','admin');
-      sessionStorage.setItem('portal-modulos',JSON.stringify(admin.modulos));
-      sessionStorage.setItem('portal-admin-key',admin.user);
+      sessionStorage.setItem('portal-modulos',JSON.stringify(['compras','financeiro']));
+      sessionStorage.setItem('portal-admin-key',user);
       btn.textContent='Entrar'; btn.disabled=false;
-      if(isTemp) setTimeout(()=>trocarSenhaAdmin(admin),500);
-      showPortal(admin.name, admin.modulos, true);
+      if(adminResult.tempPass) setTimeout(()=>trocarSenhaAdminRemoto(user,adminResult.name),500);
+      showPortal(adminResult.name, ['compras','financeiro'], true);
       return;
     }
-  }
+  }catch(e){ console.warn('Erro ao validar admin:', e); }
 
   // Check regular users
   await loadPortalData();
@@ -380,7 +386,7 @@ function showPortal(nome, modulos, isAdmin){
   renderModulos(modulos);
   // 1 módulo e não admin — entra direto
   if(modulos.length===1&&!isAdmin){
-    const URLS={compras:'https://daluminium.github.io/teste/compras.html',financeiro:'https://daluminium.github.io/teste/financeiro.html'};
+    const URLS={compras:'https://daluminium.github.io/gestaodecompras/',financeiro:'https://daluminium.github.io/financeiro/'};
     const TITULOS={compras:'Gestão de Compras',financeiro:'Financeiro'};
     const m=modulos[0];
     if(URLS[m]){ document.getElementById('portal').style.display='none'; abrirModulo(URLS[m],TITULOS[m]); }
@@ -390,8 +396,8 @@ function showPortal(nome, modulos, isAdmin){
 function renderModulos(modulos){
   const container=document.getElementById('modulos-container');
   const MODULOS={
-    compras:{icon:'🛒',title:'Gestão de Compras',desc:'Orçamentos, fornecedores, manutenção e controle de entregas das obras',url:'https://daluminium.github.io/teste/compras.html',cls:'compras',badge:'badge-compras',badgeText:'Compras'},
-    financeiro:{icon:'💰',title:'Financeiro',desc:'Contas a pagar, contas a receber, fluxo de caixa e relatórios',url:'https://daluminium.github.io/teste/financeiro.html',cls:'financeiro',badge:'badge-financeiro',badgeText:'Financeiro'}
+    compras:{icon:'🛒',title:'Gestão de Compras',desc:'Orçamentos, fornecedores, manutenção e controle de entregas das obras',url:'https://daluminium.github.io/gestaodecompras/',cls:'compras',badge:'badge-compras',badgeText:'Compras'},
+    financeiro:{icon:'💰',title:'Financeiro',desc:'Contas a pagar, contas a receber, fluxo de caixa e relatórios',url:'https://daluminium.github.io/financeiro/',cls:'financeiro',badge:'badge-financeiro',badgeText:'Financeiro'}
   };
   container.innerHTML=modulos.map(m=>{
     const mod=MODULOS[m];
@@ -487,7 +493,7 @@ function changeMyPass(){
   if(role==='admin'){
     const key=sessionStorage.getItem('portal-admin-key')||'';
     const saved=JSON.parse(localStorage.getItem('portal-admin-passes')||'{}');
-    sha256(nova.trim()).then(h=>{ saved[key]=h; localStorage.setItem('portal-admin-passes',JSON.stringify(saved)); alert('Senha alterada! ✅'); });
+    sha256(nova.trim()).then(h=>{ saved[key]=h; localStorage.setItem('portal-admin-passes',JSON.stringify(saved)); alert('Senha alterada localmente! ✅\nNota: para tornar permanente, peça ao Ander para atualizar o Worker.'); });
   } else {
     const nome=sessionStorage.getItem('portal-user')||'';
     const idx=portalData.usuarios.findIndex(u=>u.name===nome);
@@ -495,6 +501,10 @@ function changeMyPass(){
   }
 }
 
+function trocarSenhaAdminRemoto(adminUser, adminName){
+  const admin={user:adminUser,name:adminName};
+  trocarSenhaAdmin(admin);
+}
 function trocarSenhaAdmin(admin){
   const nova=prompt(`Bem-vinda(o), ${admin.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
   if(!nova||nova.trim().length<6){ alert('Senha não alterada. Será solicitada no próximo login.'); return; }
@@ -515,6 +525,64 @@ function trocarSenhaUser(found){
 document.getElementById('usuarios-overlay').addEventListener('click',function(e){ if(e.target===this) closeUsuarios(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeUsuarios(); });
 document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
+
+
+
+// ---- SESSÕES ATIVAS ----
+function openSessoes(){
+  document.getElementById('sessoes-panel').style.display='block';
+  loadSessoes();
+}
+
+async function loadSessoes(){
+  const lista=document.getElementById('sessoes-lista');
+  lista.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center">Carregando...</p>';
+  try{
+    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}
+    });
+    if(!r.ok){ lista.innerHTML='<p style="font-size:13px;color:var(--red);text-align:center">Erro ao carregar sessões.</p>'; return; }
+    const d=await r.json();
+    const ativas=(d.ativas||[]).filter(s=>Date.now()-s.ts<8*60*60*1000);
+    if(!ativas.length){
+      lista.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center">Nenhum usuário ativo no momento.</p>';
+      return;
+    }
+    const sistemaLabel={compras:'🛒 Gestão de Compras',financeiro:'💰 Financeiro'};
+    lista.innerHTML=ativas.map(s=>{
+      const minutos=Math.floor((Date.now()-s.ts)/60000);
+      const tempo=minutos<60?minutos+'min atrás':Math.floor(minutos/60)+'h atrás';
+      return`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--gray-1);border-radius:8px;border:1px solid var(--gray-2);margin-bottom:6px">
+        <div style="width:8px;height:8px;border-radius:50%;background:#1A7A45;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px">${s.nome}</div>
+          <div style="font-size:11px;color:var(--gray-4)">${sistemaLabel[s.sistema]||s.sistema} · Logado há ${tempo}</div>
+        </div>
+        <button onclick="forceLogout('${s.sessionId}','${s.nome}')" style="background:var(--red);color:white;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600">Deslogar</button>
+      </div>`;
+    }).join('');
+  }catch(e){
+    lista.innerHTML='<p style="font-size:13px;color:var(--red);text-align:center">Erro ao carregar sessões.</p>';
+  }
+}
+
+async function forceLogout(sessionId, nome){
+  if(!confirm('Deslogar '+nome+'? O usuário será redirecionado para o login.')) return;
+  try{
+    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}
+    });
+    const d=await r.json();
+    d.forceLogout=[...(d.forceLogout||[]),sessionId];
+    await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+      body:JSON.stringify({data:d})
+    });
+    alert(nome+' será deslogado(a) em até 30 segundos. ✅');
+    setTimeout(loadSessoes,2000);
+  }catch(e){ alert('Erro ao deslogar usuário.'); }
+}
 
 // ---- SSO ----
 function setSSOToken(nome,role,modulos){
@@ -546,51 +614,6 @@ window.addEventListener('message',function(e){
   }
 });
 
-// ---- AUTO UPDATE ----
-let _updateCheckInterval=null;
-const PORTAL_SHA='4d224ca04045';
-async function checkForUpdates(){
-  try{
-    const r=await fetch('https://api.github.com/repos/DAluminium/portal/commits/main',{
-      headers:{'Accept':'application/vnd.github.v3+json'},cache:'no-store'
-    });
-    if(!r.ok) return;
-    const d=await r.json();
-    if(d.sha?.slice(0,12)!==PORTAL_SHA) showUpdateBanner();
-  }catch(e){}
-}
-function showUpdateBanner(){
-  if(document.getElementById('update-banner')) return;
-  const b=document.createElement('div');
-  b.id='update-banner';
-  b.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><span>🔄 Nova versão disponível</span><div style="display:flex;gap:6px"><button id="update-btn" onclick="iniciarAtualizacao()" style="background:white;color:var(--teal-dark);border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Atualizar</button><button onclick="this.parentElement.remove()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:6px;padding:5px 8px;font-size:12px;cursor:pointer">✕</button></div></div><div id="update-progress-bar"><div id="update-progress-fill"></div></div><div id="update-progress-pct"></div>`;
-  document.body.appendChild(b);
-}
-function iniciarAtualizacao(){
-  const btn=document.getElementById('update-btn');
-  const bar=document.getElementById('update-progress-bar');
-  const fill=document.getElementById('update-progress-fill');
-  const pct=document.getElementById('update-progress-pct');
-  btn.disabled=true; btn.textContent='Atualizando...';
-  bar.style.display='block'; pct.style.display='block';
-  let p=0;
-  const etapas=[{ate:30,v:80},{ate:60,v:200},{ate:85,v:300},{ate:95,v:500},{ate:100,v:150}];
-  let ei=0;
-  const av=()=>{
-    if(p>=etapas[ei].ate){ ei++; }
-    if(ei>=etapas.length){ fill.style.width='100%'; pct.textContent='✅ Concluído! Recarregando...'; setTimeout(()=>location.reload(),600); return; }
-    p=Math.min(p+1,etapas[ei].ate);
-    fill.style.width=p+'%'; pct.textContent=`Baixando atualização... ${p}%`;
-    setTimeout(av,etapas[ei]?.v||150);
-  };
-  av();
-}
-function startUpdateCheck(){
-  if(_updateCheckInterval) return;
-  _updateCheckInterval=setInterval(checkForUpdates,30000);
-  setTimeout(checkForUpdates,10000);
-}
-
 if(sessionStorage.getItem('portal-logged')==='true'){
   const nome=sessionStorage.getItem('portal-user')||'';
   const role=sessionStorage.getItem('portal-role')||'';
@@ -598,10 +621,8 @@ if(sessionStorage.getItem('portal-logged')==='true'){
   document.getElementById('login-screen').classList.remove('active');
   showPortal(nome, modulos, role==='admin');
   loadPortalData();
-  startUpdateCheck();
 } else {
   setTimeout(()=>document.getElementById('login-user').focus(),300);
-  startUpdateCheck();
 }
 </script>
 </body>
