@@ -599,7 +599,7 @@ function voltarPortal(){
 function abrirModulo(url,titulo){
   document.getElementById('portal').style.display='none';
   document.getElementById('frame-title').textContent=titulo;
-  document.getElementById('frame-iframe').src=url;
+  document.getElementById('frame-iframe').src=url+(url.includes('?')?'&':'?')+'v='+Date.now();
   document.getElementById('frame-container').classList.add('active');
 }
 window.addEventListener('message',function(e){
