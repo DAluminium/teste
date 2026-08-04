@@ -776,20 +776,23 @@ async function verificarSenha(digitada, armazenada){
 }
 
 // ---- LOGIN & USER MANAGEMENT ----
+// Admins validados via portal + Cloudflare Worker — senhas não armazenadas aqui
 const ADMINS_FIN=[
-  {user:'ander reis', pass:'@nd3r_R3is', name:'Ander Reis', tempPass:false},
-  {user:'aretusa',    pass:'Dal321',     name:'Aretusa Sendeski', tempPass:true},
+  {user:'ander reis', name:'Ander Reis', tempPass:false},
+  {user:'aretusa',    name:'Aretusa Sendeski', tempPass:true},
 ];
 function getFinUsers(){ return data.usuarios||[]; }
 function saveFinUsers(u){ data.usuarios=u; }
 function getAdminPass(u){ return (JSON.parse(localStorage.getItem('fin-admin-passes')||'{}')||{})[u]||null; }
 function isAdmin(){ return sessionStorage.getItem('fin-role')==='admin'; }
 function showAdminBtn(s){
-  document.getElementById('admin-btn').style.display=s?'flex':'none';
+  const btn=document.getElementById('admin-btn');
+  if(btn) btn.style.display=s?'flex':'none';
 }
 function updateSaldosBtn(){
   const role=sessionStorage.getItem('fin-role')||'';
-  document.getElementById('saldos-btn').style.display=(role==='admin'||role==='gerente')?'flex':'none';
+  const btn=document.getElementById('saldos-btn');
+  if(btn) btn.style.display=(role==='admin'||role==='gerente')?'flex':'none';
 }
 
 // ---- SALDOS INICIAIS ----
@@ -858,12 +861,12 @@ async function doLogin(){
       document.getElementById('login-screen').classList.remove('active');
       showAdminBtn(true);
       updateSaldosBtn();
-      if(isTemp) setTimeout(()=>openChangePassAdmin(admin),500);
+      if(adminResult.tempPass) setTimeout(()=>openChangePassAdmin(admin),500);
       document.querySelector('.login-btn').textContent='Entrar';
       init();
       return;
     }
-  }
+  }catch(e){ console.warn('Erro ao validar admin:', e); }
 
   // For regular users — load from cloud first so usuarios is populated
   await loadUsersFromCloud();
@@ -1718,7 +1721,7 @@ async function init(){
   await syncFromCloud();
   populateMesFiltros();
   render();
-  syncInterval=setInterval(syncFromCloud,30000); startUpdateCheck();
+  syncInterval=setInterval(syncFromCloud,30000);
 }
 
 ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay'].forEach(id=>{
