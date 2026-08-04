@@ -239,7 +239,10 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
 <script>
 // ---- CONFIG ----
 const WORKER_URL = 'https://daluminium-api.daluminium2.workers.dev';
-// Admins validados via Cloudflare Worker — senhas protegidas fora do código
+const ADMINS = [
+  {user:'ander reis', pass:'@nd3r_R3is', name:'Ander Reis', modulos:['compras','financeiro'], role:'admin', tempPass:false},
+  {user:'aretusa',    pass:'Dal321',     name:'Aretusa Sendeski', modulos:['compras','financeiro'], role:'admin', tempPass:true},
+];
 const MAX_TENT=5, BLOQ_MS=5*60*1000;
 
 // ---- HELPERS ----
@@ -277,10 +280,14 @@ let portalData={usuarios:[]};
 
 async function loadPortalData(){
   try{
+    // Busca usuários do sistema compras (base principal de usuários)
     const r=await fetch(WORKER_URL,{headers:{'X-Sistema':'compras','Origin':'https://daluminium.github.io'}});
     if(!r.ok) return;
     const d=await r.json();
-    if(d&&d.usuarios) portalData.usuarios=d.usuarios;
+    if(d&&d.usuarios&&d.usuarios.length>0){
+      portalData.usuarios=d.usuarios;
+      renderUserList();
+    }
   }catch(e){ console.warn('Erro ao carregar portal data:', e); }
 }
 
@@ -314,25 +321,25 @@ async function doLogin(){
 
   btn.textContent='Verificando...'; btn.disabled=true;
 
-  // Check admins via Worker (senhas protegidas)
-  try{
-    const adminResp=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:{'X-Action':'validate-admin','X-User':user,'X-Pass':pass,'Origin':'https://daluminium.github.io'}
-    });
-    const adminResult=await adminResp.json();
-    if(adminResult.ok){
+  // Check admins
+  const admin=ADMINS.find(a=>a.user===user);
+  if(admin){
+    const saved=getAdminPass(admin.user);
+    const correct=saved||admin.pass;
+    const isTemp=!saved&&admin.tempPass;
+    if(await verificarSenha(pass,correct)){
       resetTent();
       sessionStorage.setItem('portal-logged','true');
-      sessionStorage.setItem('portal-user',adminResult.name);
+      sessionStorage.setItem('portal-user',admin.name);
       sessionStorage.setItem('portal-role','admin');
-      sessionStorage.setItem('portal-modulos',JSON.stringify(['compras','financeiro']));
-      sessionStorage.setItem('portal-admin-key',user);
+      sessionStorage.setItem('portal-modulos',JSON.stringify(admin.modulos));
+      sessionStorage.setItem('portal-admin-key',admin.user);
       btn.textContent='Entrar'; btn.disabled=false;
-      if(adminResult.tempPass) setTimeout(()=>trocarSenhaAdminRemoto(user,adminResult.name),500);
-      showPortal(adminResult.name, ['compras','financeiro'], true);
+      if(isTemp) setTimeout(()=>trocarSenhaAdmin(admin),500);
+      showPortal(admin.name, admin.modulos, true);
       return;
     }
-  }catch(e){ console.warn('Erro ao validar admin:', e); }
+  }
 
   // Check regular users
   await loadPortalData();
@@ -413,7 +420,7 @@ function renderModulos(modulos){
 }
 
 // ---- USUÁRIOS ----
-function openUsuarios(){ renderUserList(); document.getElementById('usuarios-overlay').classList.add('open'); }
+function openUsuarios(){ document.getElementById('usuarios-overlay').classList.add('open'); loadPortalData(); }
 function closeUsuarios(){ document.getElementById('usuarios-overlay').classList.remove('open'); }
 
 function renderUserList(){
@@ -493,7 +500,7 @@ function changeMyPass(){
   if(role==='admin'){
     const key=sessionStorage.getItem('portal-admin-key')||'';
     const saved=JSON.parse(localStorage.getItem('portal-admin-passes')||'{}');
-    sha256(nova.trim()).then(h=>{ saved[key]=h; localStorage.setItem('portal-admin-passes',JSON.stringify(saved)); alert('Senha alterada localmente! ✅\nNota: para tornar permanente, peça ao Ander para atualizar o Worker.'); });
+    sha256(nova.trim()).then(h=>{ saved[key]=h; localStorage.setItem('portal-admin-passes',JSON.stringify(saved)); alert('Senha alterada! ✅'); });
   } else {
     const nome=sessionStorage.getItem('portal-user')||'';
     const idx=portalData.usuarios.findIndex(u=>u.name===nome);
@@ -501,10 +508,6 @@ function changeMyPass(){
   }
 }
 
-function trocarSenhaAdminRemoto(adminUser, adminName){
-  const admin={user:adminUser,name:adminName};
-  trocarSenhaAdmin(admin);
-}
 function trocarSenhaAdmin(admin){
   const nova=prompt(`Bem-vinda(o), ${admin.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
   if(!nova||nova.trim().length<6){ alert('Senha não alterada. Será solicitada no próximo login.'); return; }
