@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Financeiro · Daluminium · TESTE</title>
+<title>Financeiro · Daluminium</title>
 <style>
 :root{
   --teal:#1FB6CF;--teal-dark:#0E8FA6;--teal-light:#E6F8FB;
@@ -19,7 +19,7 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--gray-1);color:var(--gray-6);font-size:14px;min-height:100vh}
 
 /* LOGIN */
-.login-screen{display:none;position:fixed;inset:0;background:#8B4513;z-index:9999;align-items:center;justify-content:center}
+.login-screen{display:none;position:fixed;inset:0;background:var(--teal-dark);z-index:9999;align-items:center;justify-content:center}
 .login-screen.active{display:flex}
 .login-box{background:white;border-radius:16px;padding:2rem;width:min(380px,90vw);box-shadow:0 8px 40px rgba(0,0,0,0.25);text-align:center}
 .login-logo{font-size:26px;font-weight:700;color:var(--teal-dark);letter-spacing:.04em;margin-bottom:4px}
@@ -190,9 +190,7 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
   <div class="topbar-logo">DALUMINIUM <span>Financeiro</span></div>
   <div class="topbar-actions">
     <span id="sync-status" style="font-size:11px;opacity:.8"></span>
-    <button id="admin-btn" class="btn btn-ghost btn-sm" onclick="openUserAdmin()" style="display:none">
-      <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Usuários
-    </button>
+
     <button id="saldos-btn" class="btn btn-ghost btn-sm" onclick="openSaldosIniciais()" style="display:none" title="Configurar saldos iniciais dos bancos">
       <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Saldos iniciais
     </button>
@@ -647,90 +645,6 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
   if(saved){ const s=JSON.parse(saved); Object.entries(s).forEach(([k,v])=>sessionStorage.setItem(k,v)); localStorage.removeItem('fin-reload-sess'); }
 })();
 
-// ---- AUTO UPDATE ----
-const REPO_OWNER='DAluminium';
-let _updateCheckInterval=null;
-
-async function checkForUpdates(repo, currentSha){
-  try{
-    const r=await fetch(`https://api.github.com/repos/${REPO_OWNER}/${repo}/commits/main`,{
-      headers:{'Accept':'application/vnd.github.v3+json'},
-      cache:'no-store'
-    });
-    if(!r.ok) return;
-    const d=await r.json();
-    const latestSha=d.sha?.slice(0,12);
-    if(latestSha&&latestSha!==currentSha) showUpdateBanner();
-  }catch(e){}
-}
-
-function showUpdateBanner(){
-  if(document.getElementById('update-banner')) return;
-  const banner=document.createElement('div');
-  banner.id='update-banner';
-  banner.innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-      <span>🔄 Nova versão disponível</span>
-      <div style="display:flex;gap:6px">
-        <button id="update-btn" onclick="iniciarAtualizacao()" style="background:white;color:var(--teal-dark);border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Atualizar</button>
-        <button onclick="document.getElementById('update-banner').remove()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:6px;padding:5px 8px;font-size:12px;cursor:pointer;font-family:inherit">✕</button>
-      </div>
-    </div>
-    <div id="update-progress-bar"><div id="update-progress-fill"></div></div>
-    <div id="update-progress-pct">Baixando atualização... 0%</div>
-  `;
-  document.body.appendChild(banner);
-}
-
-function iniciarAtualizacao(){
-  const btn=document.getElementById('update-btn');
-  const bar=document.getElementById('update-progress-bar');
-  const fill=document.getElementById('update-progress-fill');
-  const pct=document.getElementById('update-progress-pct');
-  btn.disabled=true;
-  btn.textContent='Atualizando...';
-  bar.style.display='block';
-  pct.style.display='block';
-
-  let progress=0;
-  // Simula progresso realista: rápido no início, desacelera no meio, rápido no fim
-  const etapas=[
-    {ate:30, velocidade:80},
-    {ate:60, velocidade:200},
-    {ate:85, velocidade:300},
-    {ate:95, velocidade:500},
-    {ate:100, velocidade:150},
-  ];
-  let etapaIdx=0;
-
-  const avançar=()=>{
-    const etapa=etapas[etapaIdx];
-    if(progress>=etapa.ate){ etapaIdx++; if(etapaIdx>=etapas.length){ recarregar(); return; } }
-    progress=Math.min(progress+1, etapa.ate);
-    fill.style.width=progress+'%';
-    pct.textContent=`Baixando atualização... ${progress}%`;
-    setTimeout(avançar, etapas[etapaIdx]?.velocidade||150);
-  };
-  avançar();
-}
-
-function recarregar(){
-  const fill=document.getElementById('update-progress-fill');
-  const pct=document.getElementById('update-progress-pct');
-  fill.style.width='100%';
-  pct.textContent='✅ Concluído! Recarregando...';
-  const sess={};
-  ['fin-logged','fin-user','fin-role','fin-admin-key'].forEach(k=>{ const v=sessionStorage.getItem(k); if(v) sess[k]=v; });
-  localStorage.setItem('fin-reload-sess',JSON.stringify(sess));
-  setTimeout(()=>location.reload(),600);
-}
-
-
-function startUpdateCheck(){
-  if(_updateCheckInterval) return;
-  _updateCheckInterval=setInterval(()=>checkForUpdates('financeiro','659955fcbecd'),30000);
-  setTimeout(()=>checkForUpdates('financeiro','659955fcbecd'),10000);
-}
 // ---- DATA ----
 const SUPA_URL='https://jirtkaaflnkwasorbita.supabase.co';
 const SUPA_KEY='sb_publishable_D50BtCRtBblorV3j1_Z68A_S2T8goU8';
@@ -758,6 +672,74 @@ let pagarEditId = null, receberEditId = null, baixaType = null, baixaIdx = null;
   }
 })();
 
+
+
+
+// ---- SESSÕES ----
+const _sessionId = Math.random().toString(36).slice(2)+Date.now().toString(36);
+
+async function registrarSessao(nome, username){
+  try{
+    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}
+    });
+    if(!r.ok) return;
+    const d=await r.json();
+    const ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&s.username!==username);
+    ativas.push({sessionId:_sessionId,username:username||'ander',nome,sistema:'financeiro',ts:Date.now()});
+    d.ativas=ativas;
+    await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+      body:JSON.stringify({data:d})
+    });
+  }catch(e){}
+}
+
+async function removerSessao(){
+  try{
+    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}
+    });
+    if(!r.ok) return;
+    const d=await r.json();
+    d.ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId);
+    await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+      body:JSON.stringify({data:d})
+    });
+  }catch(e){}
+}
+
+async function checkForceLogout(){
+  try{
+    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}
+    });
+    if(!r.ok) return;
+    const d=await r.json();
+    const forced=(d.forceLogout||[]);
+    if(forced.includes(_sessionId)){
+      // Remove da lista e faz logout
+      d.forceLogout=forced.filter(s=>s!==_sessionId);
+      d.ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId);
+      await fetch('https://daluminium-api.daluminium2.workers.dev',{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+        body:JSON.stringify({data:d})
+      });
+      alert('Sua sessão foi encerrada pelo administrador.');
+      doLogout();
+    }
+  }catch(e){}
+}
+
+let _forceLogoutInterval=null;
+function startSessionCheck(){
+  if(_forceLogoutInterval) return;
+  _forceLogoutInterval=setInterval(checkForceLogout, 30000);
+}
 
 // ---- SEGURANÇA ----
 async function hashSenha(senha){
@@ -894,6 +876,7 @@ async function doLogin(){
   }
   if(found){
     resetTentativas();
+    registrarSessao(found.name,found.username); startSessionCheck();
     sessionStorage.setItem('fin-logged','true');
     sessionStorage.setItem('fin-user',found.name);
     sessionStorage.setItem('fin-role',found.role||'user');
@@ -926,8 +909,9 @@ async function loadUsersFromCloud(){
   }catch(e){ console.warn('Erro ao carregar usuários:', e); }
 }
 
-function doLogout(){
+async function doLogout(){
   if(!confirm('Deseja sair do sistema?')) return;
+  await removerSessao();
   ['fin-logged','fin-user','fin-role','fin-admin-key'].forEach(k=>sessionStorage.removeItem(k));
   localStorage.removeItem('dalum-sso');
   if(window.self!==window.top){
