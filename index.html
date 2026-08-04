@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal TESTE · Daluminium</title>
+<style>
+:root{
+  --teal:#1FB6CF;--teal-dark:#0E8FA6;--teal-light:#E6F8FB;
+  --red:#C0392B;--red-light:#FDF0EE;
+  --green:#1A7A45;--green-light:#EDFAF3;
+  --amber:#B9770E;--amber-light:#FEF7E6;
+  --purple:#7B2D8B;--purple-light:#F3E8FF;
+  --gray-1:#F7F8F9;--gray-2:#EEF0F2;--gray-3:#DEE1E5;
+  --gray-4:#9AA1AB;--gray-5:#5A6370;--gray-6:#23282F;
+  --radius:10px;--shadow:0 2px 8px rgba(0,0,0,0.08);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--gray-1);color:var(--gray-6);min-height:100vh}
+
+/* LOGIN */
+.login-screen{display:none;position:fixed;inset:0;background:linear-gradient(135deg,var(--teal-dark) 0%,#0a6678 100%);z-index:9999;align-items:center;justify-content:center}
+.login-screen.active{display:flex}
+.login-box{background:white;border-radius:16px;padding:2.5rem;width:min(400px,90vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center}
+.login-logo{font-size:32px;font-weight:800;color:var(--teal-dark);letter-spacing:.04em;margin-bottom:4px}
+.login-tagline{font-size:13px;color:var(--gray-4);margin-bottom:2rem}
+.login-label{font-size:11px;font-weight:700;color:var(--gray-5);text-align:left;display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.login-input{width:100%;padding:11px 14px;border-radius:var(--radius);border:1.5px solid var(--gray-3);font-size:14px;font-family:inherit;margin-bottom:12px;transition:border-color .15s}
+.login-input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(31,182,207,.12)}
+.login-btn{width:100%;padding:12px;border-radius:var(--radius);border:none;background:var(--teal-dark);color:white;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;margin-top:4px;transition:background .15s}
+.login-btn:hover{background:var(--teal)}
+.login-error{font-size:12px;color:var(--red);margin-top:10px;display:none;padding:8px 12px;background:var(--red-light);border-radius:6px}
+
+/* PORTAL */
+.portal{display:none;min-height:100vh}
+.portal.active{display:block}
+.topbar{background:#8B4513;color:white;padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
+.topbar-logo{font-size:16px;font-weight:700;letter-spacing:.04em}
+.topbar-logo span{opacity:.7;font-weight:400;font-size:12px;margin-left:8px}
+.topbar-user{display:flex;align-items:center;gap:12px;font-size:13px}
+.topbar-user strong{opacity:.9}
+.btn-sair{background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.25);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;transition:background .15s}
+.btn-sair:hover{background:rgba(255,255,255,.25)}
+
+.portal-main{max-width:900px;margin:0 auto;padding:3rem 1rem}
+.portal-greeting{text-align:center;margin-bottom:3rem}
+.portal-greeting h1{font-size:26px;font-weight:700;color:var(--gray-6);margin-bottom:6px}
+.portal-greeting p{font-size:14px;color:var(--gray-4)}
+
+.modulos{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;justify-content:center}
+.modulo-card{background:white;border-radius:14px;padding:2rem;box-shadow:var(--shadow);cursor:pointer;transition:all .2s;text-decoration:none;color:inherit;display:flex;flex-direction:column;align-items:center;text-align:center;border:2px solid transparent;position:relative;overflow:hidden}
+.modulo-card:hover{transform:translateY(-4px);box-shadow:0 8px 24px rgba(0,0,0,0.12)}
+.modulo-card.compras{border-top:4px solid var(--teal-dark)}
+.modulo-card.compras:hover{border-color:var(--teal-dark)}
+.modulo-card.financeiro{border-top:4px solid var(--purple)}
+.modulo-card.financeiro:hover{border-color:var(--purple)}
+.modulo-icon{font-size:52px;margin-bottom:1rem}
+.modulo-title{font-size:18px;font-weight:700;margin-bottom:6px}
+.modulo-desc{font-size:13px;color:var(--gray-4);line-height:1.5}
+.modulo-badge{position:absolute;top:12px;right:12px;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px}
+.badge-compras{background:var(--teal-light);color:var(--teal-dark)}
+.badge-financeiro{background:var(--purple-light);color:var(--purple)}
+.modulo-arrow{margin-top:1.5rem;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
+.modulo-card.compras .modulo-arrow{color:var(--teal-dark)}
+.modulo-card.financeiro .modulo-arrow{color:var(--purple)}
+
+/* ADMIN */
+.admin-section{margin-top:3rem;padding-top:2rem;border-top:1px solid var(--gray-2)}
+.admin-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);margin-bottom:1rem;text-align:center}
+.admin-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.admin-card{background:white;border-radius:10px;padding:1rem 1.2rem;box-shadow:var(--shadow);cursor:pointer;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:500;border:1px solid var(--gray-2);transition:all .15s}
+.admin-card:hover{border-color:var(--teal);color:var(--teal-dark);background:var(--teal-light)}
+.admin-card svg{flex-shrink:0;opacity:.6}
+
+/* MODAL USUÁRIOS */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center;padding:1rem}
+.modal-overlay.open{display:flex}
+.modal{background:white;border-radius:12px;width:min(560px,100%);max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.18)}
+.modal-header{padding:14px 18px 12px;border-bottom:1px solid var(--gray-2);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:white;z-index:2}
+.modal-title{font-size:14px;font-weight:600}
+.modal-body{padding:16px 18px}
+.modal-footer{padding:12px 18px;border-top:1px solid var(--gray-2);display:flex;justify-content:flex-end;gap:8px;background:white}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group.span2{grid-column:1/-1}
+label{font-size:11px;font-weight:700;color:var(--gray-5);text-transform:uppercase;letter-spacing:.04em}
+input[type=text],input[type=password],select{padding:8px 10px;border-radius:8px;border:1.5px solid var(--gray-3);font-size:13px;font-family:inherit;color:var(--gray-6);width:100%}
+input:focus,select:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(31,182,207,.12)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;border:1px solid transparent;font-size:13px;font-family:inherit;cursor:pointer;font-weight:500}
+.btn-teal{background:var(--teal-dark);color:white}.btn-teal:hover{background:var(--teal)}
+.btn-outline{background:white;color:var(--gray-6);border-color:var(--gray-3)}.btn-outline:hover{background:var(--gray-1)}
+.btn-red{background:var(--red);color:white}.btn-red:hover{opacity:.9}
+.act{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;border:1px solid var(--gray-3);background:transparent;cursor:pointer;color:var(--gray-4);font-size:13px;margin-left:3px}
+.act:hover{border-color:var(--gray-5);color:var(--gray-6);background:var(--gray-1)}
+.act-del:hover{border-color:var(--red);color:var(--red);background:var(--red-light)}
+.act-edit:hover{border-color:var(--teal);color:var(--teal-dark);background:var(--teal-light)}
+svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+.modulo-check{display:flex;gap:8px;align-items:center;margin-top:4px}
+.modulo-check label{font-size:12px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--gray-6);cursor:pointer;display:flex;align-items:center;gap:5px}
+.modulo-check input{width:14px;height:14px;cursor:pointer}
+
+@media(max-width:480px){.form-grid{grid-template-columns:1fr}.form-group.span2{grid-column:1}}
+
+/* IFRAME */
+.frame-container{display:none;position:fixed;inset:0;z-index:100;flex-direction:column}
+.frame-container.active{display:flex}
+.frame-topbar{background:var(--teal-dark);color:white;padding:0 1.2rem;display:flex;align-items:center;gap:12px;height:44px;flex-shrink:0}
+.frame-back{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:white;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;font-weight:500}
+.frame-back:hover{background:rgba(255,255,255,.3)}
+.frame-title{font-size:13px;font-weight:600;opacity:.9}
+.frame-iframe{flex:1;border:none;width:100%;height:100%}
+
+/* UPDATE */
+@keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+#update-banner{position:fixed;bottom:20px;right:20px;background:var(--teal-dark);color:white;padding:14px 18px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.25);font-size:13px;font-family:inherit;z-index:9999;animation:slideIn .3s ease;min-width:260px}
+#update-progress-bar{height:6px;background:rgba(255,255,255,.2);border-radius:3px;margin-top:10px;overflow:hidden;display:none}
+#update-progress-fill{height:100%;width:0%;background:white;border-radius:3px;transition:width .1s linear}
+#update-progress-pct{font-size:11px;color:rgba(255,255,255,.8);margin-top:4px;display:none}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-screen active" id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">DALUMINIUM</div>
+    <div class="login-tagline">Portal de Acesso · Equipe</div>
+    <label class="login-label">Usuário</label>
+    <input class="login-input" id="login-user" type="text" placeholder="Digite seu usuário" autocomplete="username">
+    <label class="login-label">Senha</label>
+    <input class="login-input" id="login-pass" type="password" placeholder="Digite sua senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Entrar</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- PORTAL -->
+<div class="portal" id="portal">
+  <div class="topbar">
+    <div class="topbar-logo">DALUMINIUM <span style="background:#FFD700;color:#8B4513;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">TESTE</span></div>
+    <div class="topbar-user">
+      <strong id="topbar-nome"></strong>
+      <button class="btn-sair" onclick="doLogout()">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sair
+      </button>
+    </div>
+  </div>
+
+  <div class="portal-main">
+    <div class="portal-greeting">
+      <h1>Olá, <span id="greeting-nome"></span>! 👋</h1>
+      <p>Escolha o módulo que deseja acessar</p>
+    </div>
+
+    <div class="modulos" id="modulos-container"></div>
+
+    <!-- ADMIN -->
+    <div class="admin-section" id="admin-section" style="display:none">
+      <div class="admin-title">⚙️ Administração</div>
+      <div class="admin-cards">
+        <div class="admin-card" onclick="openUsuarios()">
+          <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Gerenciar usuários
+        </div>
+        <div class="admin-card" onclick="changeMyPass()">
+          <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Alterar minha senha
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL USUÁRIOS -->
+<div class="modal-overlay" id="usuarios-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">👥 Gerenciar Usuários</div>
+      <button class="act" onclick="closeUsuarios()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--teal-light);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:16px">
+        🔐 <strong>Admins:</strong> Ander Reis · Aretusa Sendeski — acessos fixos.
+      </div>
+      <div id="user-list-portal" style="margin-bottom:16px"></div>
+      <div style="border-top:1px solid var(--gray-2);padding-top:14px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px">Novo usuário</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Nome completo</label><input id="nu-name" type="text" placeholder="Ex: Hyllary Fernandes"></div>
+          <div class="form-group"><label>Usuário (login)</label><input id="nu-username" type="text" placeholder="Ex: hyllary"></div>
+          <div class="form-group"><label>Senha temporária</label><input id="nu-pass" type="text" placeholder="Ex: senha123"></div>
+          <div class="form-group"><label>Função</label>
+            <select id="nu-role">
+              <option value="compras">Compras</option>
+              <option value="gerente">Gerente</option>
+              <option value="financeiro">Financeiro</option>
+              <option value="consulta">Consulta</option>
+            </select>
+          </div>
+          <div class="form-group span2">
+            <label>Acesso aos módulos</label>
+            <div class="modulo-check">
+              <label><input type="checkbox" id="nu-mod-compras" checked> 🛒 Gestão de Compras</label>
+              <label><input type="checkbox" id="nu-mod-financeiro"> 💰 Financeiro</label>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-teal" style="margin-top:10px" onclick="addUsuario()">
+          <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Adicionar usuário
+        </button>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="closeUsuarios()">Fechar</button></div>
+  </div>
+</div>
+
+<!-- IFRAME -->
+<div class="frame-container" id="frame-container">
+  <div class="frame-topbar">
+    <button class="frame-back" id="frame-back-btn" onclick="voltarPortal()">
+      <svg style="width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      Voltar ao Portal
+    </button>
+    <span class="frame-title" id="frame-title"></span>
+  </div>
+  <iframe class="frame-iframe" id="frame-iframe" src="about:blank"></iframe>
+</div>
+
+<script>
+// ---- CONFIG ----
+const WORKER_URL = 'https://daluminium-api.daluminium2.workers.dev';
+const ADMINS = [
+  {user:'ander reis', pass:'@nd3r_R3is', name:'Ander Reis', modulos:['compras','financeiro'], role:'admin', tempPass:false},
+  {user:'aretusa',    pass:'Dal321',     name:'Aretusa Sendeski', modulos:['compras','financeiro'], role:'admin', tempPass:true},
+];
+const MAX_TENT=5, BLOQ_MS=5*60*1000;
+
+// ---- HELPERS ----
+async function sha256(s){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function verificarSenha(digitada,armazenada){
+  if(!armazenada) return false;
+  if(/^[a-f0-9]{64}$/.test(armazenada)) return (await sha256(digitada))===armazenada;
+  return digitada===armazenada;
+}
+function getTent(){ try{return JSON.parse(localStorage.getItem('portal-tries')||'{"c":0,"t":0}');}catch{return{c:0,t:0};} }
+function setTent(o){ localStorage.setItem('portal-tries',JSON.stringify(o)); }
+function resetTent(){ localStorage.removeItem('portal-tries'); }
+function checkBloq(){
+  const t=getTent();
+  if(t.c>=MAX_TENT){
+    const r=Math.ceil((BLOQ_MS-(Date.now()-t.t))/1000/60);
+    if(r>0) return `Acesso bloqueado. Aguarde ${r} minuto${r>1?'s':''}.`;
+    resetTent();
+  }
+  return null;
+}
+function addFalha(){
+  const t=getTent(),now=Date.now();
+  if(now-t.t>BLOQ_MS){t.c=1;t.t=now;}else t.c++;
+  t.t=now; setTent(t);
+  return MAX_TENT-t.c;
+}
+function getAdminPass(u){ return(JSON.parse(localStorage.getItem('portal-admin-passes')||'{}')||{})[u]||null; }
+
+// ---- DADOS PORTAL (usuários unificados) ----
+let portalData={usuarios:[]};
+
+async function loadPortalData(){
+  try{
+    const r=await fetch(WORKER_URL,{headers:{'X-Sistema':'compras','Origin':'https://daluminium.github.io'}});
+    if(!r.ok) return;
+    const d=await r.json();
+    if(d&&d.usuarios) portalData.usuarios=d.usuarios;
+  }catch(e){ console.warn('Erro ao carregar portal data:', e); }
+}
+
+async function savePortalData(){
+  // Save usuarios to both sistemas
+  for(const sis of ['compras','financeiro']){
+    try{
+      const r=await fetch(WORKER_URL,{headers:{'X-Sistema':sis,'Origin':'https://daluminium.github.io'}});
+      if(!r.ok) continue;
+      const d=await r.json();
+      d.usuarios=portalData.usuarios;
+      await fetch(WORKER_URL,{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json','X-Sistema':sis,'Origin':'https://daluminium.github.io'},
+        body:JSON.stringify({data:d})
+      });
+    }catch(e){ console.warn('Erro ao salvar em '+sis, e); }
+  }
+}
+
+// ---- LOGIN ----
+async function doLogin(){
+  const user=document.getElementById('login-user').value.trim().toLowerCase();
+  const pass=document.getElementById('login-pass').value;
+  const err=document.getElementById('login-error');
+  err.style.display='none';
+  const btn=document.getElementById('login-btn');
+
+  const bloq=checkBloq();
+  if(bloq){ err.textContent=bloq; err.style.display='block'; return; }
+
+  btn.textContent='Verificando...'; btn.disabled=true;
+
+  // Check admins
+  const admin=ADMINS.find(a=>a.user===user);
+  if(admin){
+    const saved=getAdminPass(admin.user);
+    const correct=saved||admin.pass;
+    const isTemp=!saved&&admin.tempPass;
+    if(await verificarSenha(pass,correct)){
+      resetTent();
+      sessionStorage.setItem('portal-logged','true');
+      sessionStorage.setItem('portal-user',admin.name);
+      sessionStorage.setItem('portal-role','admin');
+      sessionStorage.setItem('portal-modulos',JSON.stringify(admin.modulos));
+      sessionStorage.setItem('portal-admin-key',admin.user);
+      btn.textContent='Entrar'; btn.disabled=false;
+      if(isTemp) setTimeout(()=>trocarSenhaAdmin(admin),500);
+      showPortal(admin.name, admin.modulos, true);
+      return;
+    }
+  }
+
+  // Check regular users
+  await loadPortalData();
+  const users=portalData.usuarios;
+  let found=null;
+  for(const u of users){
+    if(u.username.toLowerCase()===user&&u.active!==false){
+      if(await verificarSenha(pass,u.password)){ found=u; break; }
+    }
+  }
+
+  if(found){
+    resetTent();
+    const modulos=found.modulos||['compras'];
+    sessionStorage.setItem('portal-logged','true');
+    sessionStorage.setItem('portal-user',found.name);
+    sessionStorage.setItem('portal-role',found.role||'user');
+    sessionStorage.setItem('portal-modulos',JSON.stringify(modulos));
+    btn.textContent='Entrar'; btn.disabled=false;
+    if(found.tempPass) setTimeout(()=>trocarSenhaUser(found),500);
+    showPortal(found.name, modulos, false);
+  } else {
+    const r=addFalha();
+    err.textContent=r>0?`Usuário ou senha incorretos. ${r} tentativa${r>1?'s':''} restante${r>1?'s':''}.`:'Acesso bloqueado por 5 minutos.';
+    err.style.display='block';
+    document.getElementById('login-pass').value='';
+    btn.textContent='Entrar'; btn.disabled=false;
+  }
+}
+
+function doLogout(){
+  if(!confirm('Deseja sair?')) return;
+  localStorage.removeItem('dalum-sso');
+  ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key'].forEach(k=>sessionStorage.removeItem(k));
+  document.getElementById('login-screen').classList.add('active');
+  document.getElementById('portal').classList.remove('active');
+  document.getElementById('login-user').value='';
+  document.getElementById('login-pass').value='';
+}
+
+// ---- PORTAL UI ----
+function showPortal(nome, modulos, isAdmin){
+  document.getElementById('login-screen').classList.remove('active');
+  document.getElementById('portal').classList.add('active');
+  document.getElementById('portal').style.display='block';
+  document.getElementById('topbar-nome').textContent=nome;
+  document.getElementById('greeting-nome').textContent=nome.split(' ')[0];
+  if(isAdmin) document.getElementById('admin-section').style.display='block';
+  else document.getElementById('admin-section').style.display='none';
+  setSSOToken(nome, isAdmin?'admin':'user', modulos);
+  renderModulos(modulos);
+  // 1 módulo e não admin — entra direto
+  if(modulos.length===1&&!isAdmin){
+    const URLS={compras:'https://daluminium.github.io/teste/compras.html',financeiro:'https://daluminium.github.io/teste/financeiro.html'};
+    const TITULOS={compras:'Gestão de Compras',financeiro:'Financeiro'};
+    const m=modulos[0];
+    if(URLS[m]){ document.getElementById('portal').style.display='none'; abrirModulo(URLS[m],TITULOS[m]); }
+  }
+}
+
+function renderModulos(modulos){
+  const container=document.getElementById('modulos-container');
+  const MODULOS={
+    compras:{icon:'🛒',title:'Gestão de Compras',desc:'Orçamentos, fornecedores, manutenção e controle de entregas das obras',url:'https://daluminium.github.io/teste/compras.html',cls:'compras',badge:'badge-compras',badgeText:'Compras'},
+    financeiro:{icon:'💰',title:'Financeiro',desc:'Contas a pagar, contas a receber, fluxo de caixa e relatórios',url:'https://daluminium.github.io/teste/financeiro.html',cls:'financeiro',badge:'badge-financeiro',badgeText:'Financeiro'}
+  };
+  container.innerHTML=modulos.map(m=>{
+    const mod=MODULOS[m];
+    if(!mod) return '';
+    return`<div class="modulo-card ${mod.cls}" onclick="abrirModulo('${mod.url}','${mod.title}')">
+      <span class="modulo-badge ${mod.badge}">${mod.badgeText}</span>
+      <div class="modulo-icon">${mod.icon}</div>
+      <div class="modulo-title">${mod.title}</div>
+      <div class="modulo-desc">${mod.desc}</div>
+      <div class="modulo-arrow">Acessar →</div>
+    </div>`;
+  }).join('');
+}
+
+// ---- USUÁRIOS ----
+function openUsuarios(){ renderUserList(); document.getElementById('usuarios-overlay').classList.add('open'); }
+function closeUsuarios(){ document.getElementById('usuarios-overlay').classList.remove('open'); }
+
+function renderUserList(){
+  const users=portalData.usuarios;
+  const list=document.getElementById('user-list-portal');
+  const roleLabel={compras:'Compras',gerente:'Gerente',financeiro:'Financeiro',consulta:'Consulta'};
+  if(!users.length){ list.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center;padding:8px">Nenhum usuário cadastrado.</p>'; return; }
+  list.innerHTML='<div style="font-size:13px;font-weight:600;margin-bottom:8px">Usuários cadastrados</div>'+
+    users.map((u,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--gray-1);border-radius:8px;border:1px solid var(--gray-2);margin-bottom:6px">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px">${u.name} <span style="font-size:11px;color:var(--gray-4)">(${u.username})</span></div>
+        <div style="font-size:11px;color:var(--gray-4)">${roleLabel[u.role]||u.role} · Módulos: ${(u.modulos||['compras']).join(', ')} · Senha: ••••••••</div>
+      </div>
+      <span style="font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;${u.active!==false?'background:var(--green-light);color:var(--green)':'background:var(--gray-2);color:var(--gray-4)'}">${u.active!==false?'Ativo':'Inativo'}</span>
+      <button class="act act-edit" onclick="editUsuario(${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+      <button class="act" onclick="toggleUsuario(${i})" title="${u.active!==false?'Desativar':'Ativar'}">${u.active!==false?'🔒':'🔓'}</button>
+      <button class="act act-del" onclick="removeUsuario(${i})"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+    </div>`).join('');
+}
+
+async function addUsuario(){
+  const name=document.getElementById('nu-name').value.trim();
+  const username=document.getElementById('nu-username').value.trim().toLowerCase();
+  const pass=document.getElementById('nu-pass').value.trim();
+  const role=document.getElementById('nu-role').value;
+  const modulos=[];
+  if(document.getElementById('nu-mod-compras').checked) modulos.push('compras');
+  if(document.getElementById('nu-mod-financeiro').checked) modulos.push('financeiro');
+  if(!name||!username||!pass){ alert('Preencha nome, usuário e senha.'); return; }
+  if(ADMINS.find(a=>a.user===username)){ alert('Usuário reservado para administradores.'); return; }
+  if(portalData.usuarios.find(u=>u.username===username)){ alert('Usuário já cadastrado.'); return; }
+  if(!modulos.length){ alert('Selecione pelo menos 1 módulo.'); return; }
+  const passHash=await sha256(pass);
+  portalData.usuarios.push({name,username,password:passHash,role,modulos,active:true,tempPass:true});
+  await savePortalData();
+  ['nu-name','nu-username','nu-pass'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('nu-mod-compras').checked=true;
+  document.getElementById('nu-mod-financeiro').checked=false;
+  renderUserList();
+  alert('Usuário cadastrado e salvo! ✅');
+}
+
+async function editUsuario(idx){
+  const u=portalData.usuarios[idx];
+  const novoNome=prompt('Nome completo:',u.name); if(novoNome===null) return;
+  const novoRole=prompt('Função (compras/gerente/financeiro/consulta):',u.role); if(novoRole===null) return;
+  const novosMods=prompt('Módulos (compras,financeiro):' ,(u.modulos||['compras']).join(',')); if(novosMods===null) return;
+  const novaSenha=prompt('Nova senha (deixe em branco para manter):','');
+  portalData.usuarios[idx].name=novoNome.trim()||u.name;
+  portalData.usuarios[idx].role=novoRole.trim();
+  portalData.usuarios[idx].modulos=novosMods.split(',').map(m=>m.trim()).filter(m=>['compras','financeiro'].includes(m));
+  if(novaSenha&&novaSenha.trim().length>=6){ portalData.usuarios[idx].password=await sha256(novaSenha.trim()); portalData.usuarios[idx].tempPass=false; }
+  await savePortalData();
+  renderUserList();
+  alert('Usuário atualizado! ✅');
+}
+
+async function toggleUsuario(idx){
+  portalData.usuarios[idx].active=portalData.usuarios[idx].active===false?true:false;
+  await savePortalData();
+  renderUserList();
+}
+
+async function removeUsuario(idx){
+  if(!confirm(`Remover "${portalData.usuarios[idx].name}"?`)) return;
+  portalData.usuarios.splice(idx,1);
+  await savePortalData();
+  renderUserList();
+}
+
+// ---- SENHAS ----
+function changeMyPass(){
+  const nova=prompt('Nova senha (mínimo 6 caracteres):','');
+  if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
+  if(prompt('Confirme a nova senha:','')!==nova.trim()){ alert('Senhas não coincidem.'); return; }
+  const role=sessionStorage.getItem('portal-role');
+  if(role==='admin'){
+    const key=sessionStorage.getItem('portal-admin-key')||'';
+    const saved=JSON.parse(localStorage.getItem('portal-admin-passes')||'{}');
+    sha256(nova.trim()).then(h=>{ saved[key]=h; localStorage.setItem('portal-admin-passes',JSON.stringify(saved)); alert('Senha alterada! ✅'); });
+  } else {
+    const nome=sessionStorage.getItem('portal-user')||'';
+    const idx=portalData.usuarios.findIndex(u=>u.name===nome);
+    if(idx>=0){ sha256(nova.trim()).then(h=>{ portalData.usuarios[idx].password=h; portalData.usuarios[idx].tempPass=false; savePortalData(); alert('Senha alterada! ✅'); }); }
+  }
+}
+
+function trocarSenhaAdmin(admin){
+  const nova=prompt(`Bem-vinda(o), ${admin.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
+  if(!nova||nova.trim().length<6){ alert('Senha não alterada. Será solicitada no próximo login.'); return; }
+  if(prompt('Confirme:','')!==nova.trim()){ alert('Senhas não coincidem.'); return; }
+  const saved=JSON.parse(localStorage.getItem('portal-admin-passes')||'{}');
+  sha256(nova.trim()).then(h=>{ saved[admin.user]=h; localStorage.setItem('portal-admin-passes',JSON.stringify(saved)); alert('Senha alterada! ✅'); });
+}
+
+function trocarSenhaUser(found){
+  const nova=prompt(`Bem-vindo(a), ${found.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
+  if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
+  if(prompt('Confirme:','')!==nova.trim()){ alert('Senhas não coincidem.'); return; }
+  const idx=portalData.usuarios.findIndex(u=>u.username===found.username);
+  if(idx>=0){ sha256(nova.trim()).then(h=>{ portalData.usuarios[idx].password=h; portalData.usuarios[idx].tempPass=false; savePortalData(); alert('Senha alterada! ✅'); }); }
+}
+
+// ---- INIT ----
+document.getElementById('usuarios-overlay').addEventListener('click',function(e){ if(e.target===this) closeUsuarios(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeUsuarios(); });
+document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
+
+// ---- SSO ----
+function setSSOToken(nome,role,modulos){
+  localStorage.setItem('dalum-sso',JSON.stringify({nome,role,modulos,ts:Date.now()}));
+}
+function voltarPortal(){
+  document.getElementById('frame-container').classList.remove('active');
+  document.getElementById('frame-iframe').src='about:blank';
+  document.getElementById('portal').style.display='block';
+}
+function abrirModulo(url,titulo){
+  document.getElementById('portal').style.display='none';
+  document.getElementById('frame-title').textContent=titulo;
+  document.getElementById('frame-iframe').src=url;
+  document.getElementById('frame-container').classList.add('active');
+}
+window.addEventListener('message',function(e){
+  if(e.data==='voltarPortal') voltarPortal();
+  if(e.data==='logout'){
+    localStorage.removeItem('dalum-sso');
+    ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key'].forEach(k=>sessionStorage.removeItem(k));
+    document.getElementById('frame-container').classList.remove('active');
+    document.getElementById('frame-iframe').src='about:blank';
+    document.getElementById('portal').classList.remove('active');
+    document.getElementById('portal').style.display='none';
+    document.getElementById('login-screen').classList.add('active');
+    document.getElementById('login-user').value='';
+    document.getElementById('login-pass').value='';
+  }
+});
+
+// ---- AUTO UPDATE ----
+let _updateCheckInterval=null;
+const PORTAL_SHA='4d224ca04045';
+async function checkForUpdates(){
+  try{
+    const r=await fetch('https://api.github.com/repos/DAluminium/portal/commits/main',{
+      headers:{'Accept':'application/vnd.github.v3+json'},cache:'no-store'
+    });
+    if(!r.ok) return;
+    const d=await r.json();
+    if(d.sha?.slice(0,12)!==PORTAL_SHA) showUpdateBanner();
+  }catch(e){}
+}
+function showUpdateBanner(){
+  if(document.getElementById('update-banner')) return;
+  const b=document.createElement('div');
+  b.id='update-banner';
+  b.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><span>🔄 Nova versão disponível</span><div style="display:flex;gap:6px"><button id="update-btn" onclick="iniciarAtualizacao()" style="background:white;color:var(--teal-dark);border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Atualizar</button><button onclick="this.parentElement.remove()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:6px;padding:5px 8px;font-size:12px;cursor:pointer">✕</button></div></div><div id="update-progress-bar"><div id="update-progress-fill"></div></div><div id="update-progress-pct"></div>`;
+  document.body.appendChild(b);
+}
+function iniciarAtualizacao(){
+  const btn=document.getElementById('update-btn');
+  const bar=document.getElementById('update-progress-bar');
+  const fill=document.getElementById('update-progress-fill');
+  const pct=document.getElementById('update-progress-pct');
+  btn.disabled=true; btn.textContent='Atualizando...';
+  bar.style.display='block'; pct.style.display='block';
+  let p=0;
+  const etapas=[{ate:30,v:80},{ate:60,v:200},{ate:85,v:300},{ate:95,v:500},{ate:100,v:150}];
+  let ei=0;
+  const av=()=>{
+    if(p>=etapas[ei].ate){ ei++; }
+    if(ei>=etapas.length){ fill.style.width='100%'; pct.textContent='✅ Concluído! Recarregando...'; setTimeout(()=>location.reload(),600); return; }
+    p=Math.min(p+1,etapas[ei].ate);
+    fill.style.width=p+'%'; pct.textContent=`Baixando atualização... ${p}%`;
+    setTimeout(av,etapas[ei]?.v||150);
+  };
+  av();
+}
+function startUpdateCheck(){
+  if(_updateCheckInterval) return;
+  _updateCheckInterval=setInterval(checkForUpdates,30000);
+  setTimeout(checkForUpdates,10000);
+}
+
+if(sessionStorage.getItem('portal-logged')==='true'){
+  const nome=sessionStorage.getItem('portal-user')||'';
+  const role=sessionStorage.getItem('portal-role')||'';
+  const modulos=JSON.parse(sessionStorage.getItem('portal-modulos')||'["compras"]');
+  document.getElementById('login-screen').classList.remove('active');
+  showPortal(nome, modulos, role==='admin');
+  loadPortalData();
+  startUpdateCheck();
+} else {
+  setTimeout(()=>document.getElementById('login-user').focus(),300);
+  startUpdateCheck();
+}
+</script>
+</body>
+</html>
