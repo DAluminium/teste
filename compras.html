@@ -1971,6 +1971,7 @@ async function syncFromCloud(){
   try{
     setStatus('🔄 Sincronizando...');
     const remote=await fetchBin(cfg.apiKey,cfg.binId);
+    if(!remote||typeof remote!=='object'||Array.isArray(remote)) throw new Error('Resposta invalida do servidor');
     localStorage.setItem('dalum-data',JSON.stringify(remote));
     data=remote;
     dataReady=true;
@@ -2021,6 +2022,7 @@ async function load(){
   try{
     const saved=localStorage.getItem('dalum-data');
     data=saved?JSON.parse(saved):JSON.parse(JSON.stringify(INITIAL));
+    if(!data||typeof data!=='object'||Array.isArray(data)) data=JSON.parse(JSON.stringify(INITIAL));
   }catch{ data=JSON.parse(JSON.stringify(INITIAL)); }
   render();
   reclassifyAll();
