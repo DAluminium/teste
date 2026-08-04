@@ -1,0 +1,2579 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestão de Compras · Daluminium · TESTE</title>
+<style>
+:root{--teal:#1FB6CF;--teal-dark:#0E8FA6;--teal-light:#E6F8FB;--red:#C0392B;--red-light:#FDF0EE;--red-mid:#F5C4C4;--amber:#B9770E;--amber-light:#FEF7E6;--amber-mid:#F5D98A;--green:#1A7A45;--green-light:#EDFAF3;--green-mid:#A3D9B8;--gray-0:#FFFFFF;--gray-1:#F7F8F9;--gray-2:#EEF0F2;--gray-3:#DEE1E5;--gray-4:#9AA1AB;--gray-5:#5A6370;--gray-6:#23282F;--radius:8px;--shadow:0 1px 4px rgba(0,0,0,0.07),0 0 0 0.5px rgba(0,0,0,0.05)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--gray-1);color:var(--gray-6);font-size:14px;min-height:100vh}
+.topbar{background:#8B4513;color:white;padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:50;box-shadow:0 1px 6px rgba(0,0,0,0.15)}
+.topbar-logo{font-size:16px;font-weight:600;letter-spacing:.04em;display:flex;align-items:center;gap:10px}
+.topbar-logo span{opacity:.75;font-weight:400;font-size:13px}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:var(--radius);border:1px solid transparent;font-size:13px;font-family:inherit;cursor:pointer;font-weight:500;transition:background .1s;white-space:nowrap}
+.btn-ghost{background:rgba(255,255,255,.15);color:white;border-color:rgba(255,255,255,.25)}.btn-ghost:hover{background:rgba(255,255,255,.25)}
+.btn-outline{background:white;color:var(--gray-6);border-color:var(--gray-3)}.btn-outline:hover{background:var(--gray-1)}
+.btn-teal{background:var(--teal);color:white;border-color:var(--teal-dark)}.btn-teal:hover{background:var(--teal-dark)}
+.btn-red{background:var(--red);color:white;border-color:var(--red)}.btn-red:hover{opacity:.9}
+.btn-sm{padding:4px 10px;font-size:12px}
+.main{max-width:1150px;margin:0 auto;padding:1.5rem 1rem 3rem}
+.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:1.5rem}
+.card{background:white;border-radius:10px;padding:14px 16px;box-shadow:var(--shadow)}
+.card-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.card-count{font-size:12px;color:var(--gray-4);margin-bottom:3px}
+.card-value{font-size:20px;font-weight:600}
+.card-urgent{border-left:3px solid var(--red)}.card-urgent .card-label,.card-urgent .card-value{color:var(--red)}
+.card-important{border-left:3px solid var(--amber)}.card-important .card-label,.card-important .card-value{color:var(--amber)}
+.card-paid{border-left:3px solid var(--green)}.card-paid .card-label,.card-paid .card-value{color:var(--green)}
+.card-total{border-left:3px solid var(--teal-dark)}.card-total .card-label,.card-total .card-value{color:var(--teal-dark)}
+.tabs-bar{display:flex;gap:4px;margin-bottom:1rem;background:white;border-radius:10px;padding:5px;box-shadow:var(--shadow)}
+.tab-btn{flex:1;padding:8px 12px;border-radius:7px;border:none;font-size:13px;font-family:inherit;cursor:pointer;background:transparent;color:var(--gray-5);font-weight:500;transition:all .15s}
+.tab-btn.active{color:white}
+.tab-urgent.active{background:var(--red)}.tab-important.active{background:var(--amber)}.tab-paid.active{background:var(--green)}.tab-hist.active{background:var(--teal-dark)}
+.tab-manut.active{background:#7B2D8B}
+.pill-local{background:#EDFAF3;color:#1A7A45}
+.pill-buscando{background:#FEF7E6;color:#B9770E}
+.pill-fora{background:#FDF0EE;color:#C0392B}
+.pill-transporte{background:#E8F4FD;color:#1A5276}
+.pill-comprado{background:#E6F8FB;color:#0E8FA6}
+.pill-hoje{background:#FDF0EE;color:#C0392B;font-size:11px}
+.pill-semana{background:#FEF7E6;color:#B9770E;font-size:11px}
+.pill-sem-urgencia{background:#EDFAF3;color:#1A7A45;font-size:11px}
+.tab-btn:not(.active):hover{background:var(--gray-1);color:var(--gray-6)}
+.panel{background:white;border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--gray-2)}
+.panel-title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-urgent{background:var(--red-light);color:var(--red)}
+.badge-important{background:var(--amber-light);color:var(--amber)}
+.badge-paid{background:var(--green-light);color:var(--green)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{padding:9px 10px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-4);border-bottom:1px solid var(--gray-2);white-space:nowrap;background:var(--gray-1)}
+tbody td{padding:9px 10px;border-bottom:1px solid var(--gray-2);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--gray-1)}
+.td-num{color:var(--gray-4);font-size:11px;width:28px}
+.td-obra{font-weight:600;color:var(--gray-6)}
+.td-by{display:block;font-size:10px;font-weight:400;color:var(--gray-4)}
+.td-valor{font-weight:600;white-space:nowrap}
+.td-actions{white-space:nowrap;text-align:right}
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.pill-atrasada{background:var(--red-light);color:var(--red)}
+.pill-pago{background:var(--green-light);color:var(--green)}
+.pill-ok{background:#E8F5E9;color:#2E7D32}
+.pill-pendente{background:var(--gray-2);color:var(--gray-5)}
+.act{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;border:1px solid var(--gray-3);background:transparent;cursor:pointer;color:var(--gray-4);font-size:14px;transition:all .1s;margin-left:2px}
+.act:hover{border-color:var(--gray-4);color:var(--gray-6);background:var(--gray-1)}
+.act-pay:hover{border-color:var(--green-mid);color:var(--green);background:var(--green-light)}
+.act-del:hover{border-color:var(--red-mid);color:var(--red);background:var(--red-light)}
+.act-attach:hover{border-color:var(--teal);color:var(--teal-dark);background:var(--teal-light)}
+.act-attach.has-files{border-color:var(--teal);color:var(--teal-dark);background:var(--teal-light)}
+.act-move-urgent:hover{border-color:var(--red-mid);color:var(--red);background:var(--red-light)}
+.act-move-important:hover{border-color:var(--amber-mid);color:var(--amber);background:var(--amber-light)}
+.panel-footer{padding:10px 16px;border-top:1px solid var(--gray-2);background:var(--gray-1);text-align:right;font-size:12px;color:var(--gray-5)}
+.panel-footer strong{color:var(--gray-6)}
+.empty-row td{text-align:center;padding:3rem;color:var(--gray-4);font-size:13px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center;padding:1rem}
+.modal-overlay.open{display:flex}
+.modal{background:white;border-radius:12px;width:min(560px,100%);max-height:92vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.18)}
+.modal-header{padding:16px 20px 12px;border-bottom:1px solid var(--gray-2);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:white;z-index:2}
+.modal-title{font-size:15px;font-weight:600}
+.modal-body{padding:16px 20px}
+.modal-footer{padding:12px 20px;border-top:1px solid var(--gray-2);display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:white}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.span2{grid-column:1/-1}
+label{font-size:12px;font-weight:600;color:var(--gray-5)}
+input[type=text],input[type=date],select{padding:8px 10px;border-radius:var(--radius);border:1px solid var(--gray-3);font-size:13px;font-family:inherit;color:var(--gray-6);background:white;transition:border-color .15s;width:100%}
+input[type=text]:focus,input[type=date]:focus,select:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(31,182,207,.12)}
+.note{font-size:11px;color:var(--gray-4);font-style:italic;margin-top:2px}
+.section-divider{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding:10px 0 6px;margin-top:6px;border-top:1px solid var(--gray-2);grid-column:1/-1}
+.attach-zone{border:2px dashed var(--gray-3);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;transition:all .15s;background:var(--gray-1);grid-column:1/-1}
+.attach-zone:hover,.attach-zone.drag-over{border-color:var(--teal);background:var(--teal-light)}
+.attach-zone p{font-size:13px;color:var(--gray-4);margin-top:6px}
+.attach-zone strong{color:var(--gray-5)}
+.file-list{grid-column:1/-1;display:flex;flex-direction:column;gap:6px}
+.file-item{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--gray-1);border-radius:var(--radius);border:1px solid var(--gray-2)}
+.file-icon{width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
+.file-icon-pdf{background:#FDE8E8;color:#C0392B}
+.file-icon-img{background:var(--teal-light);color:var(--teal-dark)}
+.file-info{flex:1;min-width:0}
+.file-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-size{font-size:11px;color:var(--gray-4)}
+.file-actions{display:flex;gap:4px;flex-shrink:0}
+.sync-notice{background:var(--teal-light);border:1px solid rgba(31,182,207,.3);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:1rem;display:flex;align-items:flex-start;gap:8px}
+.attach-modal{width:min(680px,100%)}
+.attach-preview-img{max-width:100%;border-radius:var(--radius);border:1px solid var(--gray-2);margin-top:8px;display:block}
+.notif-banner{padding:10px 1.5rem;display:flex;align-items:flex-start;gap:12px;font-size:13px;border-bottom:1px solid rgba(0,0,0,0.08)}
+.notif-banner-error{background:#FDF0EE;color:#7a1f1f}
+.notif-banner-warning{background:#FEF7E6;color:#6b4100}
+.notif-banner-info{background:#E6F8FB;color:#0E8FA6}
+.notif-item{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid rgba(0,0,0,0.06)}
+.notif-item:last-child{border-bottom:none}
+.notif-close{margin-left:auto;cursor:pointer;opacity:0.6;font-size:16px;flex-shrink:0;padding:0 4px}
+.notif-close:hover{opacity:1}
+.badge-padrao{background:#E6F8FB;color:#0E8FA6;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600;white-space:nowrap}
+.badge-especial{background:#F3E8FF;color:#7B2D8B;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600;white-space:nowrap}
+.login-screen{display:none;position:fixed;inset:0;background:var(--teal-dark);z-index:9999;align-items:center;justify-content:center;flex-direction:column}
+.login-screen.active{display:flex}
+.login-box{background:white;border-radius:16px;padding:2rem;width:min(380px,90vw);box-shadow:0 8px 40px rgba(0,0,0,0.25);text-align:center}
+.login-logo{font-size:28px;font-weight:700;color:var(--teal-dark);letter-spacing:.04em;margin-bottom:4px}
+.login-sub{font-size:13px;color:var(--gray-4);margin-bottom:1.5rem}
+.login-label{font-size:12px;font-weight:600;color:var(--gray-5);text-align:left;display:block;margin-bottom:5px}
+.login-input{width:100%;padding:10px 12px;border-radius:var(--radius);border:1px solid var(--gray-3);font-size:14px;font-family:inherit;margin-bottom:12px}
+.login-input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(31,182,207,.15)}
+.login-btn{width:100%;padding:10px;border-radius:var(--radius);border:none;background:var(--teal-dark);color:white;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;margin-top:4px}
+.login-btn:hover{background:var(--teal)}
+.login-error{font-size:12px;color:var(--red);margin-top:8px;display:none}
+.login-hint{font-size:11px;color:var(--gray-4);margin-top:12px}
+.search-bar{display:flex;align-items:center;gap:10px;background:white;border-radius:10px;padding:10px 14px;box-shadow:var(--shadow);margin-bottom:1rem}
+.search-bar input{flex:1;border:none;outline:none;font-size:14px;font-family:inherit;color:var(--gray-6);background:transparent}
+.search-bar input::placeholder{color:var(--gray-4)}
+.search-bar svg{color:var(--gray-4);flex-shrink:0}
+.search-clear{cursor:pointer;color:var(--gray-4);font-size:18px;line-height:1;display:none}
+.search-clear.visible{display:block}
+.search-count{font-size:12px;color:var(--gray-4);white-space:nowrap}
+.highlight{background:#FFF176;border-radius:2px;padding:0 1px}
+svg.icon{width:14px;height:14px;vertical-align:middle;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:700px){.summary{grid-template-columns:1fr 1fr}.topbar-logo span{display:none}}
+@media(max-width:480px){.summary{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.form-group.span2{grid-column:1}}
+
+/* UPDATE BANNER */
+@keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+#update-banner{position:fixed;bottom:20px;right:20px;background:var(--teal-dark);color:white;padding:14px 18px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.25);font-size:13px;font-family:inherit;z-index:9999;animation:slideIn .3s ease;min-width:260px}
+#update-progress-bar{height:6px;background:rgba(255,255,255,.2);border-radius:3px;margin-top:10px;overflow:hidden;display:none}
+#update-progress-fill{height:100%;width:0%;background:white;border-radius:3px;transition:width .1s linear}
+#update-progress-pct{font-size:11px;color:rgba(255,255,255,.8);margin-top:4px;display:none}
+</style>
+</head>
+<body>
+
+<!-- TELA DE LOGIN -->
+<div class="login-screen active" id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">DALUMINIUM</div>
+    <div class="login-sub">Gestão de Compras · Acesso restrito</div>
+    <label class="login-label">Usuário</label>
+    <input class="login-input" id="login-user" type="text" placeholder="Digite seu usuário" autocomplete="username">
+    <label class="login-label">Senha</label>
+    <input class="login-input" id="login-pass" type="password" placeholder="Digite sua senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">Entrar</button>
+    <div class="login-error" id="login-error">Usuário ou senha incorretos.</div>
+    <div class="login-hint">Acesso exclusivo à equipe Daluminium</div>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="topbar-logo">DALUMINIUM <span>Gestão de Compras</span></div>
+  <div class="topbar-actions">
+    <span id="sync-status" style="font-size:12px;display:flex;align-items:center;gap:5px;opacity:.85"></span>
+    <button id="admin-btn" class="btn btn-ghost btn-sm" onclick="openUserAdmin()" style="display:none" title="Gerenciar usuários">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Usuários
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="changeMyPass()" title="Alterar minha senha">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Senha
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="doLogout()" title="Sair">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sair
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="imprimirCaderno()">
+      <svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Imprimir caderno
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="importData()">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Importar
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="exportData()">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Exportar
+    </button>
+  </div>
+</div>
+
+<div id="notif-banner" style="display:none"></div>
+
+<div class="main">
+  <div class="sync-notice">
+    <svg style="width:16px;height:16px;flex-shrink:0;margin-top:1px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span>Dados e anexos salvos neste navegador. Para compartilhar com a equipe use <strong>Exportar / Importar</strong>. O ícone <strong>📎</strong> em cada linha permite anexar PDFs, imagens e orçamentos para imprimir.</span>
+  </div>
+
+  <div class="summary">
+    <div class="card card-urgent"><div class="card-label">Urgentes</div><div class="card-count" id="c-u-count">0 obras</div><div class="card-value" id="c-u-val">R$ 0,00</div></div>
+    <div class="card card-important"><div class="card-label">Importantes</div><div class="card-count" id="c-i-count">0 obras</div><div class="card-value" id="c-i-val">R$ 0,00</div></div>
+    <div class="card card-paid"><div class="card-label">Obras pagas</div><div class="card-count" id="c-p-count">0 obras</div><div class="card-value" id="c-p-val">R$ 0,00</div></div>
+    <div class="card card-total"><div class="card-label">Total em aberto</div><div class="card-count">urgentes + importantes</div><div class="card-value" id="c-t-val">R$ 0,00</div></div>
+    <div class="card" style="border-left:3px solid #7B2D8B"><div class="card-label" style="color:#7B2D8B">Manutenção</div><div class="card-count" id="c-m-count">0 itens</div><div class="card-value" style="color:#7B2D8B" id="c-m-val">R$ 0,00</div></div>
+  </div>
+
+  <div class="tabs-bar">
+    <button class="tab-btn tab-urgent active" onclick="setTab('urgente',this)">🔴 Urgentes</button>
+    <button class="tab-btn tab-important" onclick="setTab('importante',this)">🟡 Importantes</button>
+    <button class="tab-btn tab-paid" onclick="setTab('pago',this)">🟢 Obras pagas</button>
+    <button class="tab-btn tab-manut" onclick="setTab('manutencao',this)">🔧 Manutenção</button>
+    <button class="tab-btn tab-hist" onclick="setTab('historico',this)">📋 Histórico</button>
+  </div>
+
+  <div class="search-bar">
+    <svg style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input id="search-input" type="text" placeholder="Buscar por obra, contrato, fornecedor, material..." oninput="onSearch(this.value)">
+    <span class="search-count" id="search-count"></span>
+    <span class="search-clear" id="search-clear" onclick="clearSearch()">✕</span>
+  </div>
+
+  <div id="panel-urgente" class="panel">
+    <div class="panel-header">
+      <div class="panel-title"><span class="badge badge-urgent" id="badge-u">0</span>Orçamentos urgentes</div>
+      <button class="btn btn-teal btn-sm" onclick="openModal('urgente')">
+        <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Novo orçamento
+      </button>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <tbody id="tbody-urgente"></tbody>
+    </table></div>
+    <div class="panel-footer">Total em aberto: <strong id="t-urgente">R$ 0,00</strong></div>
+  </div>
+
+  <div id="panel-importante" class="panel" style="display:none">
+    <div class="panel-header">
+      <div class="panel-title"><span class="badge badge-important" id="badge-i">0</span>Orçamentos importantes</div>
+      <button class="btn btn-sm" style="background:var(--amber);color:white;border-color:var(--amber)" onclick="openModal('importante')">
+        <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Novo orçamento
+      </button>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <tbody id="tbody-importante"></tbody>
+    </table></div>
+    <div class="panel-footer">Total: <strong id="t-importante">R$ 0,00</strong></div>
+  </div>
+
+  <div id="panel-pago" class="panel" style="display:none">
+    <div class="panel-header">
+      <div class="panel-title"><span class="badge badge-paid" id="badge-p">0</span>Obras pagas</div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Data Pag.</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <tbody id="tbody-pago"></tbody>
+    </table></div>
+    <div class="panel-footer">Total pago: <strong id="t-pago">R$ 0,00</strong></div>
+  </div>
+
+  <!-- MANUTENÇÃO -->
+  <div id="panel-manutencao" class="panel" style="display:none">
+    <div class="panel-header">
+      <div class="panel-title">🔧 Compras de Manutenção</div>
+      <button class="btn btn-sm" style="background:#7B2D8B;color:white;border-color:#7B2D8B" onclick="openModalManut()">
+        <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nova compra
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>Obra / Local</th><th>Materiais</th><th>Fornecedor</th><th>Total</th><th>Urgência</th><th>Situação de compra</th><th>Anexos</th><th style="text-align:right">Ações</th>
+        </tr></thead>
+        <tbody id="tbody-manutencao"></tbody>
+      </table>
+    </div>
+    <div class="panel-footer">Total manutenção em aberto: <strong id="t-manutencao">R$ 0,00</strong></div>
+
+    <!-- CONCLUÍDAS -->
+    <div style="padding:0 16px 16px">
+      <div style="margin-top:16px;border-top:1px solid var(--gray-2);padding-top:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleConcluidas()">
+          <span style="font-size:13px;font-weight:600;color:var(--gray-5)">✅ Compras concluídas (<span id="count-concluidas">0</span>)</span>
+          <span id="toggle-concluidas-icon" style="color:var(--gray-4);font-size:16px">▼</span>
+        </div>
+        <div id="panel-concluidas" style="display:none;margin-top:10px;overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr>
+              <th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-4);border-bottom:1px solid var(--gray-2);background:var(--gray-1)">#</th>
+              <th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-4);border-bottom:1px solid var(--gray-2);background:var(--gray-1)">Obra / Local</th>
+              <th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-4);border-bottom:1px solid var(--gray-2);background:var(--gray-1)">Materiais</th>
+              <th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-4);border-bottom:1px solid var(--gray-2);background:var(--gray-1)">Fornecedor</th>
+              <th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-4);border-bottom:1px solid var(--gray-2);background:var(--gray-1)">Total</th>
+              <th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-4);border-bottom:1px solid var(--gray-2);background:var(--gray-1)">Concluído por</th>
+              <th style="padding:6px 10px;text-align:right;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-4);border-bottom:1px solid var(--gray-2);background:var(--gray-1)">Ações</th>
+            </tr></thead>
+            <tbody id="tbody-concluidas"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTÓRICO -->
+  <div id="panel-historico" class="panel" style="display:none">
+    <div class="panel-header">
+      <div class="panel-title">📋 Histórico de alterações</div>
+      <button class="btn btn-outline btn-sm" onclick="exportHistorico()">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Exportar histórico
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Data / Hora</th><th>Usuário</th><th>Ação</th><th>Obra / Contrato</th><th>Detalhe</th>
+        </tr></thead>
+        <tbody id="tbody-historico"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL ORÇAMENTO -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Novo orçamento</div>
+      <button class="act" onclick="closeModal()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group span2"><label>Seu nome</label><input id="f-by" type="text" readonly style="background:var(--gray-1);color:var(--gray-5);cursor:default"><span class="note">Preenchido automaticamente com o usuário logado</span></div>
+        <div class="form-group span2"><label>Obra / Cliente <span style="color:var(--red)">*</span></label><input id="f-obra" type="text" placeholder="Ex: Wanderley — Casa 113"></div>
+        <div class="form-group span2"><label>Nº do Contrato <span style="color:var(--red)">*</span></label><input id="f-contrato" type="text" placeholder="Ex: 2026-0045"></div>
+        <div class="form-group"><label>Tipo de projeto <span style="color:var(--red)">*</span></label>
+          <select id="f-tipo">
+            <option value="padrao">Padrão — alerta 30 dias antes</option>
+            <option value="especial">Especial — alerta 60 dias antes</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Data de entrega da obra <span style="color:var(--red)">*</span></label><input id="f-entrega" type="date"></div>
+
+        <!-- NOTIFICAÇÃO -->
+        <div class="form-group span2" id="notif-group" style="background:var(--amber-light);border-radius:var(--radius);padding:10px 12px">
+          <label style="color:var(--amber)">📲 Notificar responsável via WhatsApp</label>
+          <select id="f-notificar" style="margin-top:6px;background:white">
+            <option value="">— Sem notificação —</option>
+          </select>
+          <span class="note" style="color:var(--amber);margin-top:4px">Envia mensagem WhatsApp ao responsável pelo próximo passo</span>
+        </div>
+        <div class="form-group span2" style="background:var(--teal-light);border-radius:var(--radius);padding:10px 12px">
+          <label style="color:var(--teal-dark)">📐 Data de medição <span style="font-weight:400;font-size:11px">(opcional — recalcula entrega automaticamente)</span></label>
+          <div style="display:grid;grid-template-columns:1fr 120px 1fr;gap:10px;margin-top:6px;align-items:center">
+            <input id="f-medicao" type="date" onchange="calcEntregaPorMedicao()" style="background:white">
+            <div>
+              <label style="font-size:11px;color:var(--teal-dark);font-weight:600;display:block;margin-bottom:4px">Dias úteis</label>
+              <input id="f-dias-uteis" type="number" placeholder="Ex: 15" min="1" max="365" onchange="calcEntregaPorMedicao()" style="background:white;width:100%;text-align:center;padding:7px 8px;border-radius:var(--radius);border:1px solid var(--gray-3);font-size:13px;font-family:inherit">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px;color:var(--teal-dark)">→ Nova entrega:</span>
+              <strong id="f-medicao-resultado" style="font-size:13px;color:var(--teal-dark)">—</strong>
+            </div>
+          </div>
+          <span class="note" style="color:var(--teal-dark);margin-top:6px">Medição + dias úteis (seg–sex). Ao salvar, atualiza a data de entrega automaticamente.</span>
+        </div>
+        <div class="form-group" id="pay-group" style="display:none"><label>Data do pagamento</label><input id="f-datapag" type="date"></div>
+        <div class="section-divider" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding:10px 0 6px;margin-top:6px;border-top:1px solid var(--gray-2);grid-column:1/-1">Dados adicionais (opcional)</div>
+        <div class="form-group"><label>Material</label><input id="f-material" type="text" placeholder="Ex: Perfil Alumínio"></div>
+        <div class="form-group"><label>Nº do orçamento</label><input id="f-nrorc" type="text" placeholder="Ex: 21547"></div>
+        <div class="form-group span2"><label>Fornecedor</label><input id="f-fornecedor" type="text" placeholder="Ex: Mirandex"></div>
+        <div class="form-group"><label>Valor (R$)</label><input id="f-valor" type="text" placeholder="Ex: 1.195,91"></div>
+        <div class="form-group" id="status-group"><label>Status</label>
+          <select id="f-status"><option value="Pendente">Pendente</option><option value="Atrasada">Atrasada</option><option value="OK">OK</option></select>
+        </div>
+        <div class="form-group"><label>Data do orçamento</label><input id="f-dataorc" type="date"></div>
+        <div class="section-divider" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding:10px 0 6px;margin-top:2px;border-top:1px solid var(--gray-2);grid-column:1/-1">Dados para pagamento (opcional)</div>
+        <div class="form-group span2"><label>Chave Pix</label><input id="f-pix" type="text" placeholder="CNPJ, CPF, e-mail, telefone ou chave aleatória"></div>
+        <div class="form-group span2"><label>Favorecido (nome na conta)</label><input id="f-pix-nome" type="text" placeholder="Ex: Morais Alumínio Ltda"></div>
+        <div class="form-group"><label>Banco</label><input id="f-banco" type="text" placeholder="Ex: Banco do Brasil"></div>
+        <div class="form-group"><label>Agência / Conta</label><input id="f-conta" type="text" placeholder="Ex: 1234-5 / 00012345-6"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-teal" onclick="saveEntry()">Salvar orçamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ANEXOS -->
+<div class="modal-overlay" id="attach-overlay">
+  <div class="modal attach-modal">
+    <div class="modal-header">
+      <div class="modal-title" id="attach-title">Anexos do orçamento</div>
+      <button class="act" onclick="closeAttach()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="attach-zone" id="attach-zone" onclick="document.getElementById('file-attach-input').click()" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFile(event)">
+        <svg style="width:28px;height:28px;color:var(--gray-3)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        <p><strong>Clique para adicionar</strong> ou arraste aqui</p>
+        <p>PDF, JPEG, PNG — sem limite de tamanho</p>
+      </div>
+      <input type="file" id="file-attach-input" accept=".pdf,.jpg,.jpeg,.png" multiple style="display:none" onchange="handleAttachFiles(event)">
+      <div id="attach-file-list" style="margin-top:12px;display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeAttach()">Fechar</button>
+      <button class="btn btn-teal" onclick="printAll()">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Baixar todos
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- SETUP MODAL -->
+<div class="modal-overlay" id="setup-overlay">
+  <div class="modal" style="width:min(500px,100%)">
+    <div class="modal-header">
+      <div class="modal-title" id="setup-title">Configurar sincronização em equipe</div>
+      <button class="act" onclick="closeSetup()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body" id="setup-body">
+      <div id="setup-step-choose">
+        <p style="font-size:13px;color:var(--gray-5);margin-bottom:1rem">Como você quer conectar?</p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button class="btn btn-teal" style="justify-content:flex-start;padding:12px 16px" onclick="showStep('criar')">
+            <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span><strong>Sou o primeiro</strong> — criar novo espaço da equipe</span>
+          </button>
+          <button class="btn btn-outline" style="justify-content:flex-start;padding:12px 16px" onclick="showStep('entrar')">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            <span><strong>Já tenho o código</strong> — entrar no espaço da equipe</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="setup-step-criar" style="display:none">
+        <p style="font-size:13px;color:var(--gray-5);margin-bottom:14px">
+          Cole aqui sua <strong>Master Key</strong> do JSONBin.io — encontrada em <em>Account → API Keys</em>.
+        </p>
+        <div class="form-group" style="margin-bottom:12px">
+          <label>Master Key do JSONBin</label>
+          <input id="s-apikey" type="password" placeholder="$2b$10$...">
+          <span class="note">Ela fica salva só neste computador, nunca é enviada para nenhum outro lugar além do JSONBin.</span>
+        </div>
+        <div id="setup-erro-criar" style="display:none;font-size:12px;color:var(--red);margin-top:6px"></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+          <button class="btn btn-outline" onclick="showStep('choose')">Voltar</button>
+          <button class="btn btn-teal" id="btn-criar" onclick="criarEspaco()">Criar espaço da equipe</button>
+        </div>
+      </div>
+
+      <div id="setup-step-entrar" style="display:none">
+        <p style="font-size:13px;color:var(--gray-5);margin-bottom:14px">
+          Cole o <strong>Código da Equipe</strong> que o responsável compartilhou com você.
+        </p>
+        <div class="form-group" style="margin-bottom:12px">
+          <label>Código da Equipe</label>
+          <input id="s-teamcode" type="text" placeholder="DALUM-xxxxxxxxxxxx-xxxxxxxxxxxx">
+        </div>
+        <div id="setup-erro-entrar" style="display:none;font-size:12px;color:var(--red);margin-top:6px"></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+          <button class="btn btn-outline" onclick="showStep('choose')">Voltar</button>
+          <button class="btn btn-teal" onclick="entrarEspaco()">Conectar</button>
+        </div>
+      </div>
+
+      <div id="setup-step-sucesso" style="display:none;text-align:center;padding:10px 0">
+        <div style="font-size:40px;margin-bottom:10px">✅</div>
+        <p style="font-weight:600;font-size:15px;margin-bottom:6px">Espaço criado com sucesso!</p>
+        <p style="font-size:13px;color:var(--gray-5);margin-bottom:16px">Compartilhe o código abaixo com sua equipe:</p>
+        <div style="background:var(--gray-1);border:1px solid var(--gray-3);border-radius:var(--radius);padding:12px 14px;font-family:monospace;font-size:13px;word-break:break-all;margin-bottom:10px" id="team-code-display"></div>
+        <button class="btn btn-teal" style="width:100%" onclick="copiarCodigo()">📋 Copiar código</button>
+        <p style="font-size:11px;color:var(--gray-4);margin-top:10px">Cada colaborador cola esse código na opção "Já tenho o código" ao abrir o app.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MANUTENÇÃO -->
+<div class="modal-overlay" id="manut-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="manut-title">Nova compra de manutenção</div>
+      <button class="act" onclick="closeModalManut()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group span2"><label>Seu nome <span style="color:var(--red)">*</span></label><input id="m-by" type="text" placeholder="Ex: Ander"></div>
+        <div class="form-group span2"><label>Obra / Local da manutenção <span style="color:var(--red)">*</span></label><input id="m-obra" type="text" placeholder="Ex: Casa 113 — janela sala"></div>
+        <div class="form-group"><label>Urgência</label>
+          <select id="m-urgencia">
+            <option value="hoje">🔴 Hoje</option>
+            <option value="semana">🟡 Esta semana</option>
+            <option value="sem-urgencia">🟢 Sem urgência</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Situação de compra</label>
+          <select id="m-situacao">
+            <option value="buscando">🟡 Buscando local</option>
+            <option value="local">🟢 Encontrado local</option>
+            <option value="fora">🔴 Comprar fora do estado</option>
+            <option value="transporte">🚚 Em transporte</option>
+            <option value="comprado">✅ Comprado</option>
+          </select>
+        </div>
+        <div class="form-group span2">
+          <label>Lista de materiais <span style="color:var(--red)">*</span> <span style="font-weight:400;font-size:11px;color:var(--gray-4)">(mínimo 1 item)</span></label>
+          <div id="m-itens-list" style="display:flex;flex-direction:column;gap:8px;margin-top:6px"></div>
+          <button type="button" onclick="addManutItem()" class="btn btn-outline btn-sm" style="margin-top:8px;align-self:flex-start">
+            <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Adicionar material
+          </button>
+          <div style="margin-top:8px;font-size:12px;color:var(--gray-5)">Total estimado: <strong id="m-total-preview">R$ 0,00</strong></div>
+        </div>
+        <div class="form-group span2" style="background:var(--gray-1);border-radius:var(--radius);padding:10px 12px">
+          <label style="color:var(--gray-5)">Fornecedor (quando definido)</label>
+          <input id="m-fornecedor" type="text" placeholder="Ex: Ferragem Central" style="margin-top:6px">
+        </div>
+        <div class="section-divider" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding:10px 0 6px;margin-top:2px;border-top:1px solid var(--gray-2);grid-column:1/-1">Dados para pagamento (opcional)</div>
+        <div class="form-group span2"><label>Chave Pix</label><input id="m-pix" type="text" placeholder="CNPJ, CPF, e-mail, telefone ou chave aleatória"></div>
+        <div class="form-group span2"><label>Favorecido (nome na conta)</label><input id="m-pix-nome" type="text" placeholder="Ex: Ferragem Central Ltda"></div>
+        <div class="form-group"><label>Banco</label><input id="m-banco" type="text" placeholder="Ex: Banco do Brasil"></div>
+        <div class="form-group"><label>Agência / Conta</label><input id="m-conta" type="text" placeholder="Ex: 1234-5 / 00012345-6"></div>
+        <div class="form-group span2"><label>Observação</label><input id="m-obs" type="text" placeholder="Ex: Verificar cor antes de comprar"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModalManut()">Cancelar</button>
+      <button class="btn btn-sm" style="background:#7B2D8B;color:white;border-color:#7B2D8B" onclick="saveManut()">Salvar compra</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL USUÁRIOS (admin only) -->
+<div class="modal-overlay" id="user-admin-overlay">
+  <div class="modal" style="width:min(500px,100%)">
+    <div class="modal-header">
+      <div class="modal-title">👥 Gerenciar Usuários</div>
+      <button class="act" onclick="closeUserAdmin()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--teal-light);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:16px">
+        🔐 <strong>Admins:</strong> Ander Reis · Aretusa Sendeski — acessos exclusivos, não podem ser alterados aqui.
+      </div>
+      <div id="user-list" style="margin-bottom:16px"></div>
+      <div style="border-top:1px solid var(--gray-2);padding-top:14px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px">Novo usuário</div>
+        <div class="form-grid">
+          <div class="form-group"><label>Nome completo</label><input id="nu-name" type="text" placeholder="Ex: Thielles Ricardo"></div>
+          <div class="form-group"><label>Usuário (login)</label><input id="nu-username" type="text" placeholder="Ex: thielles"></div>
+          <div class="form-group"><label>Senha</label><input id="nu-pass" type="text" placeholder="Ex: senha123"></div>
+          <div class="form-group"><label>Função</label>
+            <select id="nu-role">
+              <option value="compras">Compras</option>
+              <option value="gerente">Gerente</option>
+              <option value="consulta">Somente consulta</option>
+            </select>
+          </div>
+          <div class="form-group span2" style="background:var(--amber-light);border-radius:var(--radius);padding:10px 12px">
+            <label style="color:var(--amber)">📲 WhatsApp para notificações (opcional)</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+              <input id="nu-whatsapp" type="text" placeholder="Ex: 69999999999" style="background:white">
+              <input id="nu-apikey" type="text" placeholder="CallMeBot API Key" style="background:white">
+            </div>
+            <span style="font-size:10px;color:var(--amber);margin-top:4px;display:block">Número com DDD, sem espaços. API Key gerada pelo CallMeBot.</span>
+          </div>
+        </div>
+        <button class="btn btn-teal btn-sm" style="margin-top:10px" onclick="addUser()">
+          <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Adicionar usuário
+        </button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeUserAdmin()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL IMPRESSÃO -->
+<div class="modal-overlay" id="print-overlay">
+  <div class="modal" style="width:min(420px,100%)">
+    <div class="modal-header">
+      <div class="modal-title">🖨️ O que deseja imprimir?</div>
+      <button class="act" onclick="closePrintModal()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--gray-2);border-radius:var(--radius);cursor:pointer;font-size:13px;font-weight:500">
+          <input type="checkbox" id="p-capa" checked style="width:16px;height:16px;cursor:pointer">
+          📄 Capa principal (resumo geral + alertas)
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--gray-2);border-radius:var(--radius);cursor:pointer;font-size:13px;font-weight:500">
+          <input type="checkbox" id="p-urgentes" checked style="width:16px;height:16px;cursor:pointer">
+          🔴 Subcapa Urgentes (<span id="p-u-count">0</span> orçamentos)
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--gray-2);border-radius:var(--radius);cursor:pointer;font-size:13px;font-weight:500">
+          <input type="checkbox" id="p-importantes" checked style="width:16px;height:16px;cursor:pointer">
+          🟡 Subcapa Importantes (<span id="p-i-count">0</span> orçamentos)
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--gray-2);border-radius:var(--radius);cursor:pointer;font-size:13px;font-weight:500">
+          <input type="checkbox" id="p-pagas" style="width:16px;height:16px;cursor:pointer">
+          🟢 Subcapa Obras Pagas (<span id="p-p-count">0</span> obras)
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--gray-2);border-radius:var(--radius);cursor:pointer;font-size:13px;font-weight:500">
+          <input type="checkbox" id="p-manutencao" style="width:16px;height:16px;cursor:pointer">
+          🔧 Manutenção (<span id="p-m-count">0</span> itens)
+        </label>
+      </div>
+      <div style="margin-top:12px;font-size:12px;color:var(--gray-4);display:flex;gap:8px">
+        <span style="cursor:pointer;color:var(--teal-dark)" onclick="selectAllPrint(true)">Selecionar tudo</span> ·
+        <span style="cursor:pointer;color:var(--gray-4)" onclick="selectAllPrint(false)">Limpar seleção</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closePrintModal()">Cancelar</button>
+      <button class="btn btn-teal" onclick="confirmarImpressao()">
+        <svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Imprimir
+      </button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept=".json" style="display:none" onchange="handleImport(event)">
+
+<script>
+
+// Restaurar sessão após atualização
+(function(){
+  const saved=localStorage.getItem('dalum-reload-sess');
+  if(saved){ const s=JSON.parse(saved); Object.entries(s).forEach(([k,v])=>sessionStorage.setItem(k,v)); localStorage.removeItem('dalum-reload-sess'); }
+})();
+
+// ---- AUTO UPDATE ----
+const REPO_OWNER='DAluminium';
+let _updateCheckInterval=null;
+
+async function checkForUpdates(repo, currentSha){
+  try{
+    const r=await fetch(`https://api.github.com/repos/${REPO_OWNER}/${repo}/commits/main`,{
+      headers:{'Accept':'application/vnd.github.v3+json'},
+      cache:'no-store'
+    });
+    if(!r.ok) return;
+    const d=await r.json();
+    const latestSha=d.sha?.slice(0,12);
+    if(latestSha&&latestSha!==currentSha) showUpdateBanner();
+  }catch(e){}
+}
+
+function showUpdateBanner(){
+  if(document.getElementById('update-banner')) return;
+  const banner=document.createElement('div');
+  banner.id='update-banner';
+  banner.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <span>🔄 Nova versão disponível</span>
+      <div style="display:flex;gap:6px">
+        <button id="update-btn" onclick="iniciarAtualizacao()" style="background:white;color:var(--teal-dark);border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Atualizar</button>
+        <button onclick="document.getElementById('update-banner').remove()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:6px;padding:5px 8px;font-size:12px;cursor:pointer;font-family:inherit">✕</button>
+      </div>
+    </div>
+    <div id="update-progress-bar"><div id="update-progress-fill"></div></div>
+    <div id="update-progress-pct">Baixando atualização... 0%</div>
+  `;
+  document.body.appendChild(banner);
+}
+
+function iniciarAtualizacao(){
+  const btn=document.getElementById('update-btn');
+  const bar=document.getElementById('update-progress-bar');
+  const fill=document.getElementById('update-progress-fill');
+  const pct=document.getElementById('update-progress-pct');
+  btn.disabled=true;
+  btn.textContent='Atualizando...';
+  bar.style.display='block';
+  pct.style.display='block';
+
+  let progress=0;
+  // Simula progresso realista: rápido no início, desacelera no meio, rápido no fim
+  const etapas=[
+    {ate:30, velocidade:80},
+    {ate:60, velocidade:200},
+    {ate:85, velocidade:300},
+    {ate:95, velocidade:500},
+    {ate:100, velocidade:150},
+  ];
+  let etapaIdx=0;
+
+  const avançar=()=>{
+    const etapa=etapas[etapaIdx];
+    if(progress>=etapa.ate){ etapaIdx++; if(etapaIdx>=etapas.length){ recarregar(); return; } }
+    progress=Math.min(progress+1, etapa.ate);
+    fill.style.width=progress+'%';
+    pct.textContent=`Baixando atualização... ${progress}%`;
+    setTimeout(avançar, etapas[etapaIdx]?.velocidade||150);
+  };
+  avançar();
+}
+
+function recarregar(){
+  const fill=document.getElementById('update-progress-fill');
+  const pct=document.getElementById('update-progress-pct');
+  fill.style.width='100%';
+  pct.textContent='✅ Concluído! Recarregando...';
+  // Preservar sessão no localStorage antes de recarregar
+  const sess={};
+  ['dalum-logged','dalum-user','dalum-user-role','dalum-admin-key'].forEach(k=>{ const v=sessionStorage.getItem(k); if(v) sess[k]=v; });
+  localStorage.setItem('dalum-reload-sess',JSON.stringify(sess));
+  setTimeout(()=>location.reload(),600);
+}
+
+
+function startUpdateCheck(){
+  if(_updateCheckInterval) return;
+  _updateCheckInterval=setInterval(()=>checkForUpdates('gestaodecompras','f4e215604657'),30000);
+  setTimeout(()=>checkForUpdates('gestaodecompras','f4e215604657'),10000);
+}
+// ---- DATA STORE ----
+const INITIAL = {
+  urgente:[
+    {obra:"Osvaldo Canizares - INIG",material:"Perfil Alumínio",nrOrc:"75332",fornecedor:"Morais Alumínio",valor:25635,dataOrc:"2026-06-02",entrega:"2026-06-16",status:"Atrasada",by:"Ander"},
+    {obra:"Adolfo Theodoro",material:"Kit Cremona",nrOrc:"21685",fornecedor:"Mirandex",valor:2246.51,dataOrc:"2026-06-26",entrega:"2026-06-25",status:"Atrasada",by:"Ander"},
+    {obra:"Adi Bordignon/Cristiane Ferraz",material:"Perfil Alumínio",nrOrc:"19011",fornecedor:"Morais Alumínio",valor:11620,dataOrc:"2026-06-05",entrega:"2026-06-27",status:"Atrasada",by:"Ander"},
+    {obra:"Adolfo Theodoro",material:"Perfil Alumínio",nrOrc:"20634",fornecedor:"Mirandex",valor:4644.57,dataOrc:"2026-06-23",entrega:"2026-06-25",status:"Atrasada",by:"Ander"},
+    {obra:"Lui Contador",material:"Perfil Alumínio",nrOrc:"22758",fornecedor:"Mirandex",valor:7375,dataOrc:"2026-06-30",entrega:"2026-08-18",status:"Pendente",by:"Ander"},
+  ],
+  importante:[
+    {obra:"Lucas Niero",material:"Chapas ACM",nrOrc:"146670",fornecedor:"Projeto Alumínio",valor:14382.71,dataOrc:"2026-06-26",entrega:"2025-10-17",status:"Atrasada",by:"Ander"},
+    {obra:"Lucas Niero",material:"Acessórios",nrOrc:"CW33233/25",fornecedor:"Keso",valor:3377.42,dataOrc:"2026-07-01",entrega:"2025-10-17",status:"Atrasada",by:"Ander"},
+  ],
+  pago:[
+    {obra:"Paulo Adriano",material:"Silicone",nrOrc:"212169",fornecedor:"Distribuidora Cometal",valor:421,dataOrc:"2026-06-01",entrega:"2026-05-11",dataPag:"2026-07-03",by:"Ander"},
+    {obra:"Heverton Mendes Barbosa",material:"Perfil Alumínio",nrOrc:"21547",fornecedor:"Mirandex",valor:723.73,dataOrc:"2026-06-25",entrega:"2026-07-01",dataPag:"2026-07-03",by:"Ander"},
+    {obra:"Wanderley - Casa 89 e 113",material:"Acessórios",nrOrc:"21707",fornecedor:"Mirandex",valor:1195.91,dataOrc:"2026-06-26",entrega:"—",dataPag:"2026-07-03",by:"Ander"},
+  ]
+};
+
+let data = {urgente:[],importante:[],pago:[],manutencao:[],manutComprada:[],historico:[],usuarios:[]};
+let dataReady=false;
+let currentTab = 'urgente';
+let editId = null;
+let modalType = 'urgente';
+let lastBy = '';
+
+// ---- CLOUDINARY FILE STORAGE ----
+const CLOUD_NAME = 'ks3znltm';
+const UPLOAD_PRESET = 'daluminium';
+
+async function uploadToCloudinary(file){
+  const isPdf = file.type === 'application/pdf';
+  const resourceType = isPdf ? 'raw' : 'image';
+  const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`;
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('upload_preset', UPLOAD_PRESET);
+  fd.append('folder', 'daluminium_orcamentos');
+  const r = await fetch(uploadUrl, {method:'POST', body:fd});
+  if(!r.ok){ const t=await r.text(); throw new Error('Erro no upload: '+r.status+' '+t); }
+  const j = await r.json();
+  return { id: j.public_id, url: j.secure_url, name: file.name, type: file.type, size: file.size };
+}
+
+// ---- HELPERS ----
+function fmtBR(v){ return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtDate(d){ if(!d||d==='—')return'—'; try{ const[y,m,dd]=d.split('-'); return`${dd}/${m}/${y}`; }catch{ return d||'—'; } }
+function statusClass(s){ return s==='Atrasada'?'pill-atrasada':s==='OK'?'pill-ok':'pill-pendente'; }
+function genId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function fmtSize(b){ return b>1048576?(b/1048576).toFixed(1)+' MB':(b/1024).toFixed(0)+' KB'; }
+
+function load(){
+  try{ const s=localStorage.getItem('dalum-data'); data = s?JSON.parse(s):JSON.parse(JSON.stringify(INITIAL)); }
+  catch{ data = JSON.parse(JSON.stringify(INITIAL)); }
+  render();
+}
+function persist(){ localStorage.setItem('dalum-data',JSON.stringify(data)); }
+
+function reclassifyAll(){
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  function getDiff(r){
+    if(!r.entrega||r.entrega==='—') return null;
+    const dt=new Date(r.entrega); dt.setHours(0,0,0,0);
+    return Math.round((dt-today)/(1000*60*60*24));
+  }
+
+  // Move importante → urgente when lead time is compromised
+  const toUrgente=[];
+  data.importante.forEach((r,i)=>{
+    const diff=getDiff(r); if(diff===null) return;
+    const threshold=r.tipo==='especial'?60:30;
+    if(diff<=threshold) toUrgente.push(i);
+  });
+  toUrgente.reverse().forEach(i=>{
+    const r=data.importante[i];
+    data.urgente.push({...r, status:'Atrasada'});
+    data.importante.splice(i,1);
+  });
+
+  // Move urgente → importante when still within safe lead time
+  const toImportante=[];
+  data.urgente.forEach((r,i)=>{
+    const diff=getDiff(r); if(diff===null) return;
+    const threshold=r.tipo==='especial'?60:30;
+    if(diff>threshold) toImportante.push(i);
+  });
+  toImportante.reverse().forEach(i=>{
+    const r=data.urgente[i];
+    data.importante.push({...r, status:'Pendente'});
+    data.urgente.splice(i,1);
+  });
+}
+
+function render(){
+  renderTable('urgente',false);
+  renderTable('importante',false);
+  renderTable('pago',true);
+  updateSummary();
+}
+
+function renderTable(type,isPago){
+  const tbody = document.getElementById('tbody-'+type);
+  const allRows = data[type];
+  const rows = searchTerm ? allRows.filter(matchesSearch) : allRows;
+
+  if(searchTerm){
+    const total=[...data.urgente,...data.importante,...data.pago].filter(matchesSearch).length;
+    document.getElementById('search-count').textContent=total+' resultado'+(total!==1?'s encontrados':'');
+  } else {
+    document.getElementById('search-count').textContent='';
+  }
+
+  if(!rows.length){
+    const msg=searchTerm?`Nenhum resultado para "<strong>${searchTerm}</strong>"`:'Nenhum orçamento. Clique em "Novo orçamento" para começar.';
+    tbody.innerHTML=`<tr class="empty-row"><td colspan="11">${msg}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r)=>{
+    const i = allRows.indexOf(r); // always use original index for edit/delete/actions
+    const val='R$\u00a0'+fmtBR(r.valor);
+    const byLabel=r.by?`<span class="td-by">por ${r.by}</span>`:'';
+    const contratoLabel=r.contrato?`<span class="td-by" style="color:var(--teal-dark);font-weight:600">Contrato: ${r.contrato}</span>`:'';
+    const tipoLabel=!isPago?(r.tipo==='especial'
+      ?`<span class="badge-especial">✦ Especial</span> `
+      :`<span class="badge-padrao">Padrão</span> `):'';
+    const statusCell=isPago?`<td><span class="pill pill-pago">Pago</span></td>`:`<td>${tipoLabel}<span class="pill ${statusClass(r.status)}">${r.status||'Pendente'}</span></td>`;
+    const extraCol=isPago?`<td>${fmtDate(r.dataPag)}</td>`:'';
+    const hasFiles=(r.attachments&&r.attachments.length>0);
+    const attachBtn=`<td><button class="act act-attach ${hasFiles?'has-files':''}" onclick="openAttach('${type}',${i})" title="${hasFiles?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+      ${hasFiles?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
+    </button></td>`;
+    const actions=isPago
+      ?`<td class="td-actions"><button class="act act-del" onclick="removeEntry('${type}',${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`
+      :`<td class="td-actions">
+        <button class="act" onclick="editEntry('${type}',${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        ${type==='importante'?`<button class="act act-move-urgent" onclick="moveEntry('importante','urgente',${i})" title="Mover para Urgentes 🔴"><svg class="icon" viewBox="0 0 24 24"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg></button>`:''}
+        ${type==='urgente'?`<button class="act act-move-important" onclick="moveEntry('urgente','importante',${i})" title="Mover para Importantes 🟡"><svg class="icon" viewBox="0 0 24 24"><polyline points="17 6 12 11 7 6"/><polyline points="17 13 12 18 7 13"/></svg></button>`:''}
+        <button class="act act-pay" onclick="markPaid('${type}',${i})" title="Marcar como pago"><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>
+        <button class="act act-del" onclick="removeEntry('${type}',${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+      </td>`;
+    const pixInfo=r.pix?`<span class="td-by" style="display:flex;align-items:center;gap:3px"><svg style="width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>${r.pix}</span>`:'';
+    return`<tr>
+      <td class="td-num">${i+1}</td>
+      <td class="td-obra">${highlight(r.obra)}${contratoLabel}${byLabel}</td>
+      <td>${r.material||'—'}</td>
+      <td style="color:var(--gray-4)">${r.nrOrc||'—'}</td>
+      <td>${r.fornecedor}${pixInfo}</td>
+      <td class="td-valor">${val}</td>
+      <td>${fmtDate(r.dataOrc)}</td>
+      <td>${fmtDate(r.entrega)}${r.medicao?`<span class="td-by" style="color:var(--teal-dark)">📐 Med: ${fmtDate(r.medicao)}</span>`:''}</td>
+      ${extraCol}
+      ${statusCell}
+      ${attachBtn}
+      ${actions}
+    </tr>`;
+  }).join('');
+}
+
+function updateSummary(){
+  const su=data.urgente.reduce((a,r)=>a+Number(r.valor||0),0);
+  const si=data.importante.reduce((a,r)=>a+Number(r.valor||0),0);
+  const sp=data.pago.reduce((a,r)=>a+Number(r.valor||0),0);
+  document.getElementById('c-u-count').textContent=data.urgente.length+' obra'+(data.urgente.length!==1?'s':'');
+  document.getElementById('c-i-count').textContent=data.importante.length+' obra'+(data.importante.length!==1?'s':'');
+  document.getElementById('c-p-count').textContent=data.pago.length+' obra'+(data.pago.length!==1?'s':'');
+  document.getElementById('c-u-val').textContent='R$ '+fmtBR(su);
+  document.getElementById('c-i-val').textContent='R$ '+fmtBR(si);
+  document.getElementById('c-p-val').textContent='R$ '+fmtBR(sp);
+  document.getElementById('c-t-val').textContent='R$ '+fmtBR(su+si);
+  document.getElementById('t-urgente').textContent='R$ '+fmtBR(su);
+  document.getElementById('t-importante').textContent='R$ '+fmtBR(si);
+  document.getElementById('t-pago').textContent='R$ '+fmtBR(sp);
+  const sm=(data.manutencao||[]).reduce((a,r)=>a+Number(r.valor||0),0);
+  document.getElementById('c-m-count').textContent=(data.manutencao||[]).length+' item'+((data.manutencao||[]).length!==1?'s':'');
+  document.getElementById('c-m-val').textContent='R$ '+fmtBR(sm);
+  document.getElementById('t-manutencao').textContent='R$ '+fmtBR(sm);
+  document.getElementById('badge-u').textContent=data.urgente.length;
+  document.getElementById('badge-i').textContent=data.importante.length;
+  document.getElementById('badge-p').textContent=data.pago.length;
+}
+
+function setTab(tab,el){
+  currentTab=tab;
+  document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  ['urgente','importante','pago','manutencao','historico'].forEach(t=>{
+    document.getElementById('panel-'+t).style.display=t===tab?'block':'none';
+  });
+  if(tab==='historico') renderHistorico();
+  if(tab==='manutencao'){ renderManutencao(); document.getElementById('count-concluidas').textContent=(data.manutComprada||[]).length; }
+}
+
+// ---- ENTRY MODAL ----
+function openModal(type,idx=null){
+  modalType=type; editId=idx;
+  const isPago=type==='pago';
+  document.getElementById('pay-group').style.display=isPago?'flex':'none';
+  document.getElementById('status-group').style.display=isPago?'none':'flex';
+  if(idx!==null){
+    const r=data[type][idx];
+    document.getElementById('f-by').value=r.by||sessionStorage.getItem('dalum-user')||lastBy||'';
+    document.getElementById('f-obra').value=r.obra||'';
+    document.getElementById('f-contrato').value=r.contrato||'';
+    document.getElementById('f-material').value=r.material||'';
+    document.getElementById('f-nrorc').value=r.nrOrc||'';
+    document.getElementById('f-fornecedor').value=r.fornecedor||'';
+    document.getElementById('f-valor').value=fmtBR(r.valor);
+    document.getElementById('f-dataorc').value=r.dataOrc||'';
+    document.getElementById('f-entrega').value=(r.entrega&&r.entrega!=='—')?r.entrega:'';
+    document.getElementById('f-medicao').value=r.medicao||'';
+    document.getElementById('f-dias-uteis').value=r.diasUteis||'';
+    document.getElementById('f-medicao-resultado').textContent=r.medicao?addWorkdays(new Date(r.medicao),r.diasUteis||0).toLocaleDateString('pt-BR'):'—';
+    document.getElementById('f-status').value=r.status||'Pendente';
+    document.getElementById('f-tipo').value=r.tipo||'padrao';
+    document.getElementById('f-datapag').value=r.dataPag||'';
+    document.getElementById('f-pix').value=r.pix||'';
+    document.getElementById('f-pix-nome').value=r.pixNome||'';
+    document.getElementById('f-banco').value=r.banco||'';
+    document.getElementById('f-conta').value=r.conta||'';
+    document.getElementById('modal-title').textContent='Editar orçamento';
+  } else {
+    ['f-obra','f-contrato','f-material','f-nrorc','f-fornecedor','f-valor','f-dataorc','f-entrega','f-datapag','f-pix','f-pix-nome','f-banco','f-conta','f-medicao'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('f-medicao-resultado').textContent='—';
+    document.getElementById('f-dias-uteis').value='';
+    popularNotificarSelect();
+    document.getElementById('f-notificar').value='';
+    // Auto-fill nome do usuário logado
+  const _nomeLogado=sessionStorage.getItem('dalum-user')||lastBy||'';
+  document.getElementById('f-by').value=_nomeLogado;
+  lastBy=_nomeLogado;
+    document.getElementById('f-status').value='Pendente';
+    document.getElementById('f-tipo').value='padrao';
+    document.getElementById('modal-title').textContent='Novo orçamento — '+(type==='urgente'?'Urgente':type==='importante'?'Importante':'Pago');
+  }
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('f-obra').focus(),100);
+}
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('open'); editId=null; }
+
+function saveEntry(){
+  const valorRaw=document.getElementById('f-valor').value.replace(/\./g,'').replace(',','.');
+  const byVal=document.getElementById('f-by').value.trim();
+  if(!byVal){ alert('O campo "Seu nome" é obrigatório.'); document.getElementById('f-by').focus(); return; }
+  if(byVal) lastBy=byVal;
+  const entry={
+    obra:document.getElementById('f-obra').value.trim(),
+    contrato:document.getElementById('f-contrato').value.trim(),
+    material:document.getElementById('f-material').value.trim(),
+    nrOrc:document.getElementById('f-nrorc').value.trim(),
+    fornecedor:document.getElementById('f-fornecedor').value.trim(),
+    valor:parseFloat(valorRaw)||0,
+    dataOrc:document.getElementById('f-dataorc').value,
+    entrega:document.getElementById('f-entrega').value||'—',
+    medicao:document.getElementById('f-medicao').value||'',
+    diasUteis:parseInt(document.getElementById('f-dias-uteis').value)||0,
+    status:document.getElementById('f-status').value,
+    tipo:document.getElementById('f-tipo').value||'padrao',
+    by:byVal,
+    pix:document.getElementById('f-pix').value.trim(),
+    pixNome:document.getElementById('f-pix-nome').value.trim(),
+    banco:document.getElementById('f-banco').value.trim(),
+    conta:document.getElementById('f-conta').value.trim(),
+    attachments: editId!==null ? (data[modalType][editId].attachments||[]) : [],
+  };
+  if(modalType==='pago') entry.dataPag=document.getElementById('f-datapag').value;
+  if(!entry.obra||!entry.contrato){ alert('Obra / Cliente e Nº do Contrato são obrigatórios.'); return; }
+  if(!entry.entrega||entry.entrega==='—'){ alert('Data de entrega da obra é obrigatória.'); document.getElementById('f-entrega').focus(); return; }
+  const isEdit = editId!==null;
+  if(isEdit){ data[modalType][editId]=entry; } else { data[modalType].push(entry); }
+  logAction(byVal, isEdit?'Editou':'Criou', entry, isEdit?'Dados atualizados':'Novo orçamento lançado');
+  reclassifyAll();
+  persist(); render(); checkNotifications(); closeModal();
+
+  // WhatsApp: notificar responsável apenas em novo lançamento
+  if(!isEdit){
+    const sel=document.getElementById('f-notificar');
+    const idx=sel.value;
+    if(idx!==''){
+      try{
+        const responsaveis=JSON.parse(sel.dataset.responsaveis||'[]');
+        const para=responsaveis[parseInt(idx)];
+        if(para){
+          const tipoLabel=entry.tipo==='especial'?'✦ Especial':'Padrão';
+          const entregaFmt=entry.entrega&&entry.entrega!=='—'?entry.entrega.split('-').reverse().join('/'):'Não definida';
+          const msg=`🏗️ Nova obra lançada - Daluminium\n\nObra: ${entry.obra}\nContrato: ${entry.contrato||'—'}\nEntrega: ${entregaFmt}\nTipo: ${tipoLabel}\nLançado por: ${byVal}\n\nAcesse: https://daluminium.github.io/portal/`;
+          enviarWhatsApp(para, msg);
+        }
+      }catch(e){ console.warn('Erro notificação:', e); }
+    }
+  }
+}
+function editEntry(type,idx){ openModal(type,idx); }
+function removeEntry(type,idx){
+  const r=data[type][idx];
+  const user=prompt('Seu nome (obrigatório para registrar a remoção):',lastBy||'');
+  if(!user||!user.trim()){ alert('Nome obrigatório para registrar a remoção.'); return; }
+  if(!confirm(`Remover "${r.obra}" e todos os seus anexos?`)) return;
+  (r.attachments||[]).forEach(()=>{});
+  logAction(user.trim(),'Removeu',r,`Valor: R$ ${fmtBR(r.valor)}`);
+  data[type].splice(idx,1);
+  persist(); render();
+}
+function markPaid(type,idx){
+  const r=data[type][idx];
+  const user=prompt('Seu nome (obrigatório para registrar o pagamento):',lastBy||'');
+  if(!user||!user.trim()){ alert('Nome obrigatório para registrar o pagamento.'); return; }
+  const paid={...r,dataPag:new Date().toISOString().slice(0,10)};
+  delete paid.status;
+  data.pago.push(paid);
+  data[type].splice(idx,1);
+  logAction(user.trim(),'Marcou como Pago',r,`Valor: R$ ${fmtBR(r.valor)}`);
+  persist(); render();
+  setTab('pago',document.querySelectorAll('.tab-btn')[2]);
+}
+function moveEntry(from,to,idx){
+  const labels={urgente:'Urgentes 🔴',importante:'Importantes 🟡'};
+  const r=data[from][idx];
+  const user=prompt('Seu nome (obrigatório para registrar a alteração):','');
+  if(!user||!user.trim()){ alert('Nome obrigatório para registrar a movimentação.'); return; }
+  if(!confirm(`Mover "${r.obra}" para ${labels[to]}?`)) return;
+  if(to==='urgente') r.status=r.status==='Pendente'?'Atrasada':r.status;
+  data[to].push({...r});
+  data[from].splice(idx,1);
+  logAction(user.trim(), `Moveu para ${to==='urgente'?'Urgentes':'Importantes'}`, r, `De: ${from==='urgente'?'Urgentes':'Importantes'}`);
+  persist(); render(); checkNotifications();
+  const tabIdx=to==='urgente'?0:1;
+  setTab(to,document.querySelectorAll('.tab-btn')[tabIdx]);
+}
+
+// ---- ATTACH MODAL ----
+let attachType=null, attachIdx=null;
+function openAttach(type,idx){
+  attachType=type; attachIdx=idx;
+  const r=data[type][idx];
+  document.getElementById('attach-title').textContent='Anexos — '+r.obra;
+  document.getElementById('attach-overlay').classList.add('open');
+  renderAttachList();
+}
+function closeAttach(){ document.getElementById('attach-overlay').classList.remove('open'); }
+
+function renderAttachList(){
+  const r=data[attachType][attachIdx];
+  const list=document.getElementById('attach-file-list');
+  if(!r.attachments||!r.attachments.length){
+    list.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center;padding:8px 0">Nenhum anexo ainda. Adicione PDFs ou imagens acima.</p>';
+    return;
+  }
+  list.innerHTML=r.attachments.map((a,i)=>{
+    const isPdf=a.type==='application/pdf';
+    const iconClass=isPdf?'file-icon-pdf':'file-icon-img';
+    const iconLabel=isPdf?'PDF':'IMG';
+    const isOld=!a.url||a.url==='undefined';
+    return`<div class="file-item" style="${isOld?'border-color:#F5D98A;background:#FFFBF0':''}">
+      <div class="file-icon ${iconClass}">${iconLabel}</div>
+      <div class="file-info">
+        <div class="file-name">${a.name}${isOld?' ⚠️':''}</div>
+        <div class="file-size">${isOld?'<span style="color:#B9770E">Re-anexar necessário</span>':fmtSize(a.size)}</div>
+      </div>
+      <div class="file-actions">
+        ${isOld?'':`<button class="btn btn-outline btn-sm" onclick="viewFile('${a.id}','${a.type}','${a.name}','${a.url}')">${isPdf?'Baixar':'Ver'}</button>`}
+        ${isOld?'':`<button class="btn btn-outline btn-sm" onclick="downloadFile('${a.id}','${a.type}','${a.name}','${a.url}')" title="Baixar"><svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`}
+        <button class="act act-del" onclick="removeAttach(${i})" title="Remover anexo"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function handleAttachFiles(e){
+  const files=Array.from(e.target.files);
+  if(!files.length) return;
+  const r=data[attachType][attachIdx];
+  if(!r.attachments) r.attachments=[];
+  const zone=document.getElementById('attach-zone');
+  const origHTML=zone.innerHTML;
+  zone.innerHTML='<p style="color:var(--teal-dark);font-weight:600">⏳ Enviando para a nuvem...</p>';
+  try{
+    for(const file of files){
+      const att=await uploadToCloudinary(file);
+      r.attachments.push(att);
+    }
+    await persist(); render(); if(attachType==="manutencao") renderManutencao(); renderAttachList();
+  }catch(err){
+    alert('Erro ao enviar: '+err.message);
+    zone.innerHTML=origHTML;
+  }
+  e.target.value='';
+}
+
+function dragOver(e){ e.preventDefault(); document.getElementById('attach-zone').classList.add('drag-over'); }
+function dragLeave(){ document.getElementById('attach-zone').classList.remove('drag-over'); }
+async function dropFile(e){
+  e.preventDefault(); dragLeave();
+  const files=Array.from(e.dataTransfer.files).filter(f=>['application/pdf','image/jpeg','image/png'].includes(f.type));
+  if(!files.length){ alert('Apenas PDF, JPEG e PNG são aceitos.'); return; }
+  const r=data[attachType][attachIdx];
+  if(!r.attachments) r.attachments=[];
+  const zone=document.getElementById('attach-zone');
+  const origHTML=zone.innerHTML;
+  zone.innerHTML='<p style="color:var(--teal-dark);font-weight:600">⏳ Enviando para a nuvem...</p>';
+  try{
+    for(const file of files){
+      const att=await uploadToCloudinary(file);
+      r.attachments.push(att);
+    }
+    await persist(); render(); if(attachType==="manutencao") renderManutencao(); renderAttachList();
+  }catch(err){
+    alert('Erro ao enviar: '+err.message);
+    zone.innerHTML=origHTML;
+  }
+}
+
+async function viewFile(id,type,name,url){
+  if(!url||url==='undefined'){
+    alert('Este anexo foi salvo antes da atualização para a nuvem.\nPor favor remova-o (🗑️) e anexe novamente.');
+    return;
+  }
+  const isPdf=(type||'').includes('pdf');
+  if(isPdf){
+    // Open Cloudinary URL directly — raw files download automatically
+    const a=document.createElement('a');
+    a.href=url; a.target='_blank'; a.rel='noopener';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  } else {
+    showImagePreview(url,name);
+  }
+}
+
+function downloadFile(id,type,name,url){
+  if(!url||url==='undefined'){
+    alert('Este anexo foi salvo antes da atualização para a nuvem.\nPor favor remova-o (🗑️) e anexe novamente.');
+    return;
+  }
+  const a=document.createElement('a');
+  a.href=url; a.download=name||'arquivo'; a.target='_blank';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+function showImagePreview(url,name){
+  let overlay=document.getElementById('img-preview-overlay');
+  if(!overlay){
+    overlay=document.createElement('div');
+    overlay.id='img-preview-overlay';
+    overlay.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:500;align-items:center;justify-content:center;flex-direction:column;padding:1rem';
+    overlay.innerHTML=`
+      <div style="position:absolute;top:16px;right:16px;display:flex;gap:8px">
+        <button id="img-dl-btn" class="btn btn-outline btn-sm">Baixar</button>
+        <button onclick="closeImagePreview()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:6px 12px;border-radius:8px;font-size:13px;cursor:pointer">✕ Fechar</button>
+      </div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-bottom:10px;max-width:90vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="img-preview-name"></div>
+      <img id="img-preview-img" style="max-width:90vw;max-height:80vh;border-radius:8px;object-fit:contain" src="">`;
+    overlay.addEventListener('click',function(e){if(e.target===this)closeImagePreview();});
+    document.body.appendChild(overlay);
+  }
+  document.getElementById('img-preview-name').textContent=name||'';
+  document.getElementById('img-preview-img').src=url;
+  document.getElementById('img-dl-btn').onclick=()=>{const a=document.createElement('a');a.href=url;a.download=name||'imagem';a.click();};
+  overlay.style.display='flex';
+}
+function closeImagePreview(){
+  const o=document.getElementById('img-preview-overlay');
+  if(o) o.style.display='none';
+}
+
+function printAll(){
+  const r=data[attachType][attachIdx];
+  if(!r.attachments||!r.attachments.length){ alert('Nenhum anexo.'); return; }
+  r.attachments.forEach(a=>window.open(a.url,'_blank'));
+}
+
+async function removeAttach(idx){
+  if(!confirm('Remover este anexo?')) return;
+  const r=data[attachType][attachIdx];
+  r.attachments.splice(idx,1);
+  await persist(); render(); if(attachType==="manutencao") renderManutencao(); renderAttachList();
+}
+
+// ---- IMPRIMIR CADERNO ----
+function imprimirCaderno(){
+  // Show counts in modal
+  document.getElementById('p-u-count').textContent=data.urgente.length;
+  document.getElementById('p-i-count').textContent=data.importante.length;
+  document.getElementById('p-p-count').textContent=data.pago.length;
+  document.getElementById('p-m-count').textContent=(data.manutencao||[]).length;
+  document.getElementById('print-overlay').classList.add('open');
+}
+
+function closePrintModal(){ document.getElementById('print-overlay').classList.remove('open'); }
+
+function selectAllPrint(val){
+  ['p-capa','p-urgentes','p-importantes','p-pagas','p-manutencao'].forEach(id=>{
+    document.getElementById(id).checked=val;
+  });
+}
+
+function confirmarImpressao(){
+  const opts={
+    capa:     document.getElementById('p-capa').checked,
+    urgentes: document.getElementById('p-urgentes').checked,
+    importantes: document.getElementById('p-importantes').checked,
+    pagas:    document.getElementById('p-pagas').checked,
+    manutencao: document.getElementById('p-manutencao').checked,
+  };
+  if(!opts.capa&&!opts.urgentes&&!opts.importantes&&!opts.pagas&&!opts.manutencao){
+    alert('Selecione pelo menos uma seção para imprimir.');
+    return;
+  }
+  closePrintModal();
+  gerarImpressao(opts);
+}
+
+function gerarImpressao(opts){
+  const su=data.urgente.reduce((a,r)=>a+Number(r.valor||0),0);
+  const si=data.importante.reduce((a,r)=>a+Number(r.valor||0),0);
+  const sp=data.pago.reduce((a,r)=>a+Number(r.valor||0),0);
+
+  // Build alert lists for print
+  const today=new Date(); today.setHours(0,0,0,0);
+  const overdue=[],dueToday=[],dueSoon=[];
+  [...data.urgente,...data.importante].forEach(r=>{
+    if(!r.entrega||r.entrega==='—') return;
+    const dt=new Date(r.entrega); dt.setHours(0,0,0,0);
+    const diff=Math.round((dt-today)/(1000*60*60*24));
+    const threshold=r.tipo==='especial'?60:30;
+    const tipoLabel=r.tipo==='especial'?'✦ Especial':'Padrão';
+    const label=`${r.obra} — ${r.fornecedor} [${tipoLabel}] (R$ ${Number(r.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})})`;
+    const entregaStr=r.entrega?r.entrega.split('-').reverse().join('/'):'';
+    if(diff<0) overdue.push({label,days:Math.abs(diff),entrega:entregaStr});
+    else if(diff===0) dueToday.push({label,entrega:entregaStr});
+    else if(diff<=threshold) dueSoon.push({label,days:diff,threshold,entrega:entregaStr});
+  });
+
+  function alertSection(){
+    if(!overdue.length&&!dueToday.length&&!dueSoon.length) return '';
+    let html=`<div style="margin-top:16px">
+      <div style="font-size:13px;font-weight:700;color:#23282F;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #DEE1E5">
+        📋 PAINEL DE ALERTAS — DATA DE HOJE: ${today.toLocaleDateString('pt-BR')}
+      </div>`;
+    if(overdue.length){
+      html+=`<div style="background:#FDF0EE;border-left:4px solid #C0392B;border-radius:4px;padding:8px 12px;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;color:#C0392B;margin-bottom:6px">🚨 ENTREGA ATRASADA (${overdue.length})</div>
+        <table style="width:100%;border-collapse:collapse;font-size:10px">
+          ${overdue.map(o=>`<tr><td style="padding:3px 0;border-bottom:1px solid #f5c4c4;width:65%">${o.label}</td><td style="text-align:right;color:#C0392B;font-weight:700;padding:3px 0;border-bottom:1px solid #f5c4c4">Entrega: ${o.entrega} · ${o.days} dia${o.days>1?'s':''} atrasado</td></tr>`).join('')}
+        </table></div>`;
+    }
+    if(dueToday.length){
+      html+=`<div style="background:#FEF7E6;border-left:4px solid #B9770E;border-radius:4px;padding:8px 12px;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;color:#B9770E;margin-bottom:6px">📅 ENTREGA HOJE (${dueToday.length})</div>
+        <table style="width:100%;border-collapse:collapse;font-size:10px">
+          ${dueToday.map(o=>`<tr><td style="padding:3px 0;border-bottom:1px solid #f5d98a;width:65%">${o.label}</td><td style="text-align:right;color:#B9770E;font-weight:700;padding:3px 0;border-bottom:1px solid #f5d98a">Entrega: ${o.entrega}</td></tr>`).join('')}
+        </table></div>`;
+    }
+    if(dueSoon.length){
+      html+=`<div style="background:#FFF0F0;border-left:4px solid #8B0000;border-radius:4px;padding:8px 12px;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;color:#8B0000;margin-bottom:2px">🔴 LEAD TIME COMPROMETIDO — COMPRA URGENTE! (${dueSoon.length})</div>
+        <div style="font-size:9px;color:#8B0000;margin-bottom:6px">O prazo de entrega do material já passou. Compre imediatamente!</div>
+        <table style="width:100%;border-collapse:collapse;font-size:10px">
+          ${dueSoon.map(o=>`<tr><td style="padding:3px 0;border-bottom:1px solid #f5c4c4;width:60%">${o.label}</td><td style="text-align:right;color:#8B0000;font-weight:700;padding:3px 0;border-bottom:1px solid #f5c4c4">Entrega: ${o.entrega} · em ${o.days}d · compra atrasada ${o.threshold-o.days}d (lead ${o.threshold}d)</td></tr>`).join('')}
+        </table></div>`;
+    }
+    html+=`</div>`;
+    return html;
+  }
+
+  function fD(d){if(!d||d==='—')return'—';try{const[y,m,dd]=d.split('-');return`${dd}/${m}/${y}`}catch{return d||'—'}}
+  function fV(v){return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}
+  function sClass(s){return s==='Atrasada'?'color:#C0392B;font-weight:600':s==='OK'?'color:#1A7A45;font-weight:600':'color:#5A6370'}
+
+  function buildTable(rows, isPago){
+    const cols = isPago
+      ? ['#','Obra / Cliente','Material','Nº Orç.','Fornecedor','Valor','Data Orç.','Entrega','Data Pag.']
+      : ['#','Obra / Cliente','Material','Nº Orç.','Fornecedor','Valor','Data Orç.','Entrega','Status'];
+    const widths = isPago
+      ? ['4%','18%','11%','8%','13%','9%','8%','8%','8%']
+      : ['4%','18%','11%','8%','13%','9%','8%','8%','8%'];
+    let html=`<table><thead><tr>${cols.map((c,i)=>`<th style="width:${widths[i]}">${c}</th>`).join('')}</tr></thead><tbody>`;
+    if(!rows.length){
+      html+=`<tr><td colspan="${cols.length}" style="text-align:center;color:#9AA1AB;padding:16px">Nenhum orçamento cadastrado.</td></tr>`;
+    } else {
+      rows.forEach((r,i)=>{
+        const extra = isPago
+          ? `<td>${fD(r.dataPag)}</td>`
+          : `<td style="${sClass(r.status)}">${r.status||'Pendente'}</td>`;
+        html+=`<tr>
+          <td style="color:#9AA1AB">${i+1}</td>
+          <td><strong>${r.obra}</strong>${r.by?`<br><span style="font-size:9px;color:#9AA1AB">por ${r.by}</span>`:''}</td>
+          <td>${r.material||'—'}</td>
+          <td style="color:#9AA1AB">${r.nrOrc||'—'}</td>
+          <td>${r.fornecedor}${r.pix?`<br><span style="font-size:9px;color:#9AA1AB">PIX: ${r.pix}</span>`:''}</td>
+          <td><strong>R$ ${fV(r.valor)}</strong></td>
+          <td>${fD(r.dataOrc)}</td>
+          <td>${fD(r.entrega)}</td>
+          ${extra}
+        </tr>`;
+      });
+    }
+    html+=`</tbody></table>`;
+    return html;
+  }
+
+  function totalRow(label, count, value, color){
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:${color}15;border-left:3px solid ${color};border-radius:4px;margin-bottom:8px">
+      <span style="font-size:12px;font-weight:600;color:${color}">${label} <span style="font-weight:400;color:#5A6370">(${count} obra${count!==1?'s':''})</span></span>
+      <span style="font-size:14px;font-weight:700;color:${color}">R$ ${fV(value)}</span>
+    </div>`;
+  }
+
+  const now = new Date().toLocaleDateString('pt-BR');
+
+  const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Gestão de Compras · Daluminium · TESTE</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:11px;color:#23282F;background:white}
+.page{width:100%;padding:20mm 16mm 16mm;page-break-after:always;min-height:270mm}
+.page:last-child{page-break-after:avoid}
+.page-header{display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;border-bottom:2px solid #0E8FA6;margin-bottom:16px}
+.page-header-left h1{font-size:22px;font-weight:700;color:#0E8FA6;letter-spacing:.04em}
+.page-header-left p{font-size:11px;color:#9AA1AB;margin-top:2px}
+.page-header-right{font-size:10px;color:#9AA1AB;text-align:right}
+.section-title{font-size:15px;font-weight:700;margin-bottom:10px;padding:8px 12px;border-radius:6px;display:flex;align-items:center;justify-content:space-between}
+.section-urgent{background:#FDF0EE;color:#C0392B;border-left:4px solid #C0392B}
+.section-important{background:#FEF7E6;color:#B9770E;border-left:4px solid #B9770E}
+.section-paid{background:#EDFAF3;color:#1A7A45;border-left:4px solid #1A7A45}
+.section-cover{background:#E6F8FB;color:#0E8FA6;border-left:4px solid #0E8FA6}
+table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:12px}
+thead th{padding:6px 8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9AA1AB;border-bottom:1px solid #DEE1E5;background:#F7F8F9;white-space:nowrap}
+tbody td{padding:7px 8px;border-bottom:1px solid #EEF0F2;vertical-align:top}
+tbody tr:last-child td{border-bottom:none}
+.total-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:4px;margin-top:4px;font-size:11px}
+.fields-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
+.field-box{border:1px solid #DEE1E5;border-radius:6px;padding:10px 12px}
+.field-box .label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.field-box .count{font-size:10px;color:#9AA1AB;margin-bottom:3px}
+.field-box .value{font-size:16px;font-weight:700}
+.footer{margin-top:12px;padding-top:8px;border-top:1px solid #EEF0F2;display:flex;justify-content:space-between;font-size:9px;color:#9AA1AB}
+@media print{
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .page{padding:15mm 12mm 12mm}
+}
+</style>
+</head><body>
+
+<!-- CAPA PRINCIPAL -->
+${opts.capa?`<div class="page">
+  <div class="page-header">
+    <div class="page-header-left">
+      <h1>DALUMINIUM</h1>
+      <p>Gestão de Compras · Emitido em ${now}</p>
+    </div>
+    <div class="page-header-right">Ciclo / Período: ____________________________<br>Responsável: ______________________________</div>
+  </div>
+
+  <div class="section-title section-cover" style="margin-bottom:16px">
+    <span>RESUMO GERAL — TODAS AS OBRAS</span>
+    <span style="font-size:18px;font-weight:700">R$ ${fV(su+si)}</span>
+  </div>
+
+  <div class="fields-row">
+    <div class="field-box" style="border-left:3px solid #C0392B">
+      <div class="label" style="color:#C0392B">Urgentes</div>
+      <div class="count">${data.urgente.length} obra${data.urgente.length!==1?'s':''} em aberto</div>
+      <div class="value" style="color:#C0392B">R$ ${fV(su)}</div>
+    </div>
+    <div class="field-box" style="border-left:3px solid #B9770E">
+      <div class="label" style="color:#B9770E">Importantes</div>
+      <div class="count">${data.importante.length} obra${data.importante.length!==1?'s':''}</div>
+      <div class="value" style="color:#B9770E">R$ ${fV(si)}</div>
+    </div>
+    <div class="field-box" style="border-left:3px solid #1A7A45">
+      <div class="label" style="color:#1A7A45">Obras pagas</div>
+      <div class="count">${data.pago.length} obra${data.pago.length!==1?'s':''}</div>
+      <div class="value" style="color:#1A7A45">R$ ${fV(sp)}</div>
+    </div>
+  </div>
+
+  ${totalRow('ORÇAMENTOS URGENTES',data.urgente.length,su,'#C0392B')}
+  ${totalRow('ORÇAMENTOS IMPORTANTES',data.importante.length,si,'#B9770E')}
+  ${totalRow('OBRAS PAGAS',data.pago.length,sp,'#1A7A45')}
+
+  ${alertSection()}
+
+  <div class="footer">
+    <span>Daluminium · Gestão de Compras</span>
+    <span>Capa Principal · ${now}</span>
+  </div>
+</div>`:''}
+
+<!-- SUBCAPA URGENTES -->
+${opts.urgentes?`<div class="page">
+  <div class="page-header">
+    <div class="page-header-left"><h1>DALUMINIUM</h1><p>Gestão de Compras · Emitido em ${now}</p></div>
+    <div class="page-header-right">Atualizado em: _______________<br>Ciclo: _______________________</div>
+  </div>
+  <div class="section-title section-urgent"><span>ORÇAMENTOS URGENTES</span><span>${data.urgente.length} obra${data.urgente.length!==1?'s':''}</span></div>
+  ${buildTable(data.urgente,false)}
+  <div class="total-bar" style="background:#FDF0EE;color:#C0392B"><strong>TOTAL GERAL — URGENTES</strong><strong>R$ ${fV(su)}</strong></div>
+  <div class="footer"><span>Daluminium · Gestão de Compras</span><span>Subcapa Urgentes · ${now}</span></div>
+</div>`:''}
+
+<!-- SUBCAPA IMPORTANTES -->
+${opts.importantes?`<div class="page">
+  <div class="page-header">
+    <div class="page-header-left"><h1>DALUMINIUM</h1><p>Gestão de Compras · Emitido em ${now}</p></div>
+    <div class="page-header-right">Atualizado em: _______________<br>Ciclo: _______________________</div>
+  </div>
+  <div class="section-title section-important"><span>ORÇAMENTOS IMPORTANTES</span><span>${data.importante.length} obra${data.importante.length!==1?'s':''}</span></div>
+  ${buildTable(data.importante,false)}
+  <div class="total-bar" style="background:#FEF7E6;color:#B9770E"><strong>TOTAL GERAL — IMPORTANTES</strong><strong>R$ ${fV(si)}</strong></div>
+  <div class="footer"><span>Daluminium · Gestão de Compras</span><span>Subcapa Importantes · ${now}</span></div>
+</div>`:''}
+
+<!-- SUBCAPA PAGAS -->
+${opts.pagas?`<div class="page">
+  <div class="page-header">
+    <div class="page-header-left"><h1>DALUMINIUM</h1><p>Gestão de Compras · Emitido em ${now}</p></div>
+    <div class="page-header-right">Atualizado em: _______________<br>Ciclo: _______________________</div>
+  </div>
+  <div class="section-title section-paid"><span>OBRAS PAGAS</span><span>${data.pago.length} obra${data.pago.length!==1?'s':''}</span></div>
+  ${buildTable(data.pago,true)}
+  <div class="total-bar" style="background:#EDFAF3;color:#1A7A45"><strong>TOTAL GERAL — PAGAS</strong><strong>R$ ${fV(sp)}</strong></div>
+  <div class="footer"><span>Daluminium · Gestão de Compras</span><span>Subcapa Pagas · ${now}</span></div>
+</div>`:''}
+
+<!-- MANUTENÇÃO -->
+${opts.manutencao&&(data.manutencao||[]).length?`<div class="page">
+  <div class="page-header">
+    <div class="page-header-left"><h1>DALUMINIUM</h1><p>Gestão de Compras · Emitido em ${now}</p></div>
+    <div class="page-header-right">Atualizado em: _______________<br>Ciclo: _______________________</div>
+  </div>
+  <div class="section-title" style="background:#F3E8FF;color:#7B2D8B;border-left:4px solid #7B2D8B"><span>🔧 MANUTENÇÃO</span><span>${(data.manutencao||[]).length} item${(data.manutencao||[]).length!==1?'ns':''}</span></div>
+  <table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:12px">
+    <thead><tr>
+      <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;color:#9AA1AB;border-bottom:1px solid #DEE1E5;background:#F7F8F9">#</th>
+      <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;color:#9AA1AB;border-bottom:1px solid #DEE1E5;background:#F7F8F9">Obra / Local</th>
+      <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;color:#9AA1AB;border-bottom:1px solid #DEE1E5;background:#F7F8F9">Materiais</th>
+      <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;color:#9AA1AB;border-bottom:1px solid #DEE1E5;background:#F7F8F9">Fornecedor</th>
+      <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;color:#9AA1AB;border-bottom:1px solid #DEE1E5;background:#F7F8F9">Total</th>
+      <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;color:#9AA1AB;border-bottom:1px solid #DEE1E5;background:#F7F8F9">Urgência</th>
+      <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;color:#9AA1AB;border-bottom:1px solid #DEE1E5;background:#F7F8F9">Situação</th>
+    </tr></thead>
+    <tbody>${(data.manutencao||[]).map((r,i)=>{
+      const itens=(r.itens||[]).map(it=>it.material+(it.qtd?' ('+it.qtd+')':'')).join(', ');
+      const urgLabel={hoje:'🔴 Hoje',semana:'🟡 Esta semana','sem-urgencia':'🟢 Sem urgência'}[r.urgencia||'hoje'];
+      const sitLabel={buscando:'🟡 Buscando local',local:'🟢 Encontrado local',fora:'🔴 Fora do estado',transporte:'🚚 Transporte',comprado:'✅ Comprado'}[r.situacao||'buscando'];
+      return`<tr><td style="padding:6px 8px;border-bottom:1px solid #EEF0F2;color:#9AA1AB">${i+1}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #EEF0F2;font-weight:700">${r.obra}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #EEF0F2">${itens||'—'}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #EEF0F2">${r.fornecedor||'—'}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #EEF0F2;font-weight:700">${r.valor?'R$ '+fV(r.valor):'—'}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #EEF0F2">${urgLabel}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #EEF0F2">${sitLabel}</td>
+      </tr>`;}).join('')}
+    </tbody>
+  </table>
+  <div class="footer"><span>Daluminium · Gestão de Compras</span><span>Manutenção · ${now}</span></div>
+</div>`:''}
+
+<script>window.onload=function(){window.print()}<\/script>
+</body></html>`;
+
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+}
+
+// ---- MEDIÇÃO + 20 DIAS ÚTEIS ----
+function addWorkdays(date, days){
+  let d = new Date(date);
+  let added = 0;
+  while(added < days){
+    d.setDate(d.getDate()+1);
+    const dow = d.getDay();
+    if(dow !== 0 && dow !== 6) added++;
+  }
+  return d;
+}
+
+function calcEntregaPorMedicao(){
+  const medicao = document.getElementById('f-medicao').value;
+  const diasEl = document.getElementById('f-dias-uteis');
+  const dias = parseInt(diasEl.value)||0;
+  if(!dias){ resultado.textContent='—'; return; }
+  const resultado = document.getElementById('f-medicao-resultado');
+  if(!medicao){ resultado.textContent='—'; return; }
+  const novaEntrega = addWorkdays(new Date(medicao), dias);
+  const fmt = novaEntrega.toLocaleDateString('pt-BR');
+  const iso = novaEntrega.toISOString().slice(0,10);
+  resultado.textContent = fmt;
+  document.getElementById('f-entrega').value = iso;
+}
+
+// ---- WHATSAPP NOTIFICAÇÃO ----
+async function enviarWhatsApp(para, mensagem){
+  if(!para.whatsapp||!para.apikey) return;
+  const url=`https://api.callmebot.com/whatsapp.php?phone=${para.whatsapp}&text=${encodeURIComponent(mensagem)}&apikey=${para.apikey}`;
+  try{ await fetch(url); }catch(e){ console.warn('WhatsApp erro:', e); }
+}
+
+function getResponsaveis(){
+  const todos=[];
+  // Admins com whatsapp
+  ADMINS.forEach(a=>{ if(a.whatsapp&&a.apikey) todos.push({name:a.name,whatsapp:a.whatsapp,apikey:a.apikey}); });
+  // Usuários cadastrados com whatsapp
+  getUsers().forEach(u=>{ if(u.active!==false&&u.whatsapp&&u.apikey) todos.push({name:u.name,whatsapp:u.whatsapp,apikey:u.apikey}); });
+  return todos;
+}
+
+function popularNotificarSelect(){
+  const sel=document.getElementById('f-notificar');
+  const responsaveis=getResponsaveis();
+  const logado=sessionStorage.getItem('dalum-user')||'';
+  sel.innerHTML='<option value="">— Sem notificação —</option>';
+  responsaveis
+    .filter(r=>r.name!==logado) // não notifica a si mesmo
+    .forEach((r,i)=>{ sel.innerHTML+=`<option value="${i}">${r.name}</option>`; });
+  sel.dataset.responsaveis=JSON.stringify(responsaveis.filter(r=>r.name!==logado));
+  // Mostrar campo só se tiver quem notificar
+  document.getElementById('notif-group').style.display=responsaveis.filter(r=>r.name!==logado).length?'block':'none';
+}
+
+// ---- MANUTENÇÃO ----
+let manutEditId=null;
+
+function addManutItem(material='',qtd='',valor=''){
+  const list=document.getElementById('m-itens-list');
+  const idx=list.children.length;
+  const div=document.createElement('div');
+  div.style.cssText='display:grid;grid-template-columns:1fr 100px 110px 32px;gap:8px;align-items:center';
+  div.innerHTML=`
+    <input type="text" placeholder="Material / Descrição (ex: Silicone neutro)" value="${material}"
+      style="padding:7px 10px;border-radius:var(--radius);border:1px solid var(--gray-3);font-size:13px;font-family:inherit"
+      oninput="calcManutTotal()">
+    <input type="text" placeholder="Qtd." value="${qtd}"
+      style="padding:7px 10px;border-radius:var(--radius);border:1px solid var(--gray-3);font-size:13px;font-family:inherit;text-align:center"
+      oninput="calcManutTotal()">
+    <input type="text" placeholder="R$ unit." value="${valor}"
+      style="padding:7px 10px;border-radius:var(--radius);border:1px solid var(--gray-3);font-size:13px;font-family:inherit;text-align:right"
+      oninput="calcManutTotal()">
+    <button type="button" onclick="this.parentElement.remove();calcManutTotal()"
+      style="width:32px;height:32px;border-radius:6px;border:1px solid var(--gray-3);background:transparent;cursor:pointer;color:var(--red);font-size:16px;display:flex;align-items:center;justify-content:center">✕</button>`;
+  list.appendChild(div);
+  calcManutTotal();
+}
+
+function calcManutTotal(){
+  const list=document.getElementById('m-itens-list');
+  let total=0;
+  Array.from(list.children).forEach(div=>{
+    const inputs=div.querySelectorAll('input');
+    const val=parseFloat((inputs[2].value||'0').replace(/\./g,'').replace(',','.'))||0;
+    total+=val;
+  });
+  document.getElementById('m-total-preview').textContent='R$ '+total.toLocaleString('pt-BR',{minimumFractionDigits:2});
+}
+
+function getManutItens(){
+  const list=document.getElementById('m-itens-list');
+  return Array.from(list.children).map(div=>{
+    const inputs=div.querySelectorAll('input');
+    return {
+      material:inputs[0].value.trim(),
+      qtd:inputs[1].value.trim(),
+      valor:parseFloat((inputs[2].value||'0').replace(/\./g,'').replace(',','.'))||0
+    };
+  }).filter(i=>i.material);
+}
+
+function openModalManut(idx=null){
+  manutEditId=idx;
+  document.getElementById('m-itens-list').innerHTML='';
+  if(idx!==null){
+    const r=data.manutencao[idx];
+    document.getElementById('m-by').value=r.by||'';
+    document.getElementById('m-obra').value=r.obra||'';
+    document.getElementById('m-fornecedor').value=r.fornecedor||'';
+    document.getElementById('m-pix').value=r.pix||'';
+    document.getElementById('m-pix-nome').value=r.pixNome||'';
+    document.getElementById('m-banco').value=r.banco||'';
+    document.getElementById('m-conta').value=r.conta||'';
+    document.getElementById('m-obs').value=r.obs||'';
+    document.getElementById('m-urgencia').value=r.urgencia||'hoje';
+    document.getElementById('m-situacao').value=r.situacao||'buscando';
+    (r.itens||[{material:r.material||'',qtd:r.qtd||'',valor:r.valor||0}]).forEach(it=>addManutItem(it.material,it.qtd,it.valor?fmtBR(it.valor):''));
+    document.getElementById('manut-title').textContent='Editar compra de manutenção';
+  } else {
+    ['m-by','m-obra','m-fornecedor','m-obs','m-pix','m-pix-nome','m-banco','m-conta'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('m-by').value=lastBy||'';
+    document.getElementById('m-urgencia').value='hoje';
+    document.getElementById('m-situacao').value='buscando';
+    addManutItem();
+    document.getElementById('manut-title').textContent='Nova compra de manutenção';
+  }
+  calcManutTotal();
+  document.getElementById('manut-overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('m-obra').focus(),100);
+}
+
+function closeModalManut(){ document.getElementById('manut-overlay').classList.remove('open'); manutEditId=null; }
+
+async function saveManut(){
+  const byVal=document.getElementById('m-by').value.trim();
+  if(!byVal){ alert('O campo "Seu nome" é obrigatório.'); document.getElementById('m-by').focus(); return; }
+  const obra=document.getElementById('m-obra').value.trim();
+  if(!obra){ alert('Obra/Local é obrigatório.'); return; }
+  const itens=getManutItens();
+  if(!itens.length){ alert('Adicione pelo menos 1 material.'); return; }
+  const totalValor=itens.reduce((a,i)=>a+i.valor,0);
+  const entry={
+    by:byVal, obra,
+    itens,
+    valor:totalValor,
+    fornecedor:document.getElementById('m-fornecedor').value.trim(),
+    pix:document.getElementById('m-pix').value.trim(),
+    pixNome:document.getElementById('m-pix-nome').value.trim(),
+    banco:document.getElementById('m-banco').value.trim(),
+    conta:document.getElementById('m-conta').value.trim(),
+    obs:document.getElementById('m-obs').value.trim(),
+    urgencia:document.getElementById('m-urgencia').value,
+    situacao:document.getElementById('m-situacao').value,
+    ts:new Date().toISOString()
+  };
+  if(!data.manutencao) data.manutencao=[];
+  const isEdit=manutEditId!==null;
+  if(isEdit){ data.manutencao[manutEditId]=entry; } else { data.manutencao.push(entry); }
+  if(byVal) lastBy=byVal;
+  logAction(byVal,isEdit?'Editou':'Criou',{obra,contrato:'Manutenção'},`${itens.length} material(is): ${itens.map(i=>i.material).join(', ')}`);
+  await persist(); renderManutencao(); updateSummary(); closeModalManut();
+}
+
+async function removeManut(idx){
+  const r=data.manutencao[idx];
+  const user=prompt('Seu nome (obrigatório para registrar a remoção):',lastBy||'');
+  if(!user||!user.trim()){ alert('Nome obrigatório.'); return; }
+  if(!confirm(`Remover compra de manutenção de "${r.obra}"?`)) return;
+  logAction(user.trim(),'Removeu',{obra:r.obra,contrato:'Manutenção'},`Manutenção removida`);
+  data.manutencao.splice(idx,1);
+  await persist(); renderManutencao(); updateSummary();
+}
+
+async function updateManutSituacao(idx,val){
+  const r=data.manutencao[idx];
+  const user=prompt('Seu nome (obrigatório):',lastBy||'');
+  if(!user||!user.trim()){ alert('Nome obrigatório.'); renderManutencao(); return; }
+  const labels={buscando:'Buscando local',local:'Encontrado local',fora:'Comprar fora do estado',transporte:'Em transporte',comprado:'Comprado'};
+  logAction(user.trim(),'Editou',{obra:r.obra,contrato:'Manutenção'},`Situação: ${labels[val]}`);
+  if(user) lastBy=user.trim();
+
+  if(val==='comprado'){
+    // Move to concluídas
+    if(!data.manutComprada) data.manutComprada=[];
+    data.manutComprada.unshift({...r, situacao:'comprado', concluidoPor:user.trim(), concluidoEm:new Date().toISOString()});
+    data.manutencao.splice(idx,1);
+  } else {
+    r.situacao=val;
+  }
+  await persist(); renderManutencao(); updateSummary();
+}
+
+function toggleConcluidas(){
+  const panel=document.getElementById('panel-concluidas');
+  const icon=document.getElementById('toggle-concluidas-icon');
+  if(panel.style.display==='none'){
+    panel.style.display='block';
+    icon.textContent='▲';
+    renderConcluidas();
+  } else {
+    panel.style.display='none';
+    icon.textContent='▼';
+  }
+}
+
+function renderConcluidas(){
+  if(!data.manutComprada) data.manutComprada=[];
+  const rows=data.manutComprada;
+  document.getElementById('count-concluidas').textContent=rows.length;
+  const tbody=document.getElementById('tbody-concluidas');
+  if(!rows.length){
+    tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:1rem;color:var(--gray-4)">Nenhuma compra concluída ainda.</td></tr>';
+    return;
+  }
+  tbody.innerHTML=rows.map((r,i)=>{
+    const itens=(r.itens||[]).map(it=>it.material+(it.qtd?' ('+it.qtd+')':'')).join(', ');
+    const dt=r.concluidoEm?new Date(r.concluidoEm).toLocaleDateString('pt-BR'):'—';
+    return`<tr style="background:var(--green-light)">
+      <td style="padding:6px 10px;color:var(--gray-4)">${i+1}</td>
+      <td style="padding:6px 10px;font-weight:600">${r.obra}</td>
+      <td style="padding:6px 10px">${itens||r.material||'—'}</td>
+      <td style="padding:6px 10px">${r.fornecedor||'—'}</td>
+      <td style="padding:6px 10px;font-weight:600">${r.valor?'R$\u00a0'+fmtBR(r.valor):'—'}</td>
+      <td style="padding:6px 10px"><strong>${r.concluidoPor||'—'}</strong><br><span style="font-size:10px;color:var(--gray-4)">${dt}</span></td>
+      <td style="padding:6px 10px;text-align:right">
+        <button class="act" onclick="restoreManut(${i})" title="Reabrir" style="font-size:10px">↩</button>
+        <button class="act act-del" onclick="removeConcluidaManut(${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function restoreManut(idx){
+  const r=data.manutComprada[idx];
+  if(!confirm(`Reabrir "${r.obra}" na lista de manutenção?`)) return;
+  data.manutencao.push({...r, situacao:'buscando', concluidoPor:undefined, concluidoEm:undefined});
+  data.manutComprada.splice(idx,1);
+  logAction(lastBy||'—','Editou',{obra:r.obra,contrato:'Manutenção'},'Reaberto na lista de manutenção');
+  await persist(); renderManutencao(); renderConcluidas(); updateSummary();
+}
+
+async function removeConcluidaManut(idx){
+  if(!confirm('Remover permanentemente este registro?')) return;
+  data.manutComprada.splice(idx,1);
+  await persist(); renderConcluidas();
+}
+
+function renderManutencao(){
+  if(!data.manutencao) data.manutencao=[];
+  const tbody=document.getElementById('tbody-manutencao');
+  const rows=data.manutencao;
+  if(!rows.length){
+    tbody.innerHTML='<tr class="empty-row"><td colspan="8">Nenhuma compra de manutenção cadastrada.</td></tr>';
+    return;
+  }
+  const urgLabels={hoje:'🔴 Hoje',semana:'🟡 Esta semana','sem-urgencia':'🟢 Sem urgência'};
+  tbody.innerHTML=rows.map((r,i)=>{
+    const itens=r.itens||[{material:r.material||'—',qtd:r.qtd||'',valor:r.valor||0}];
+    const itensHtml=itens.map(it=>`<div style="font-size:12px;padding:2px 0;border-bottom:1px solid var(--gray-2)">${it.material}${it.qtd?' · '+it.qtd:''}${it.valor?' · R$ '+fmtBR(it.valor):''}</div>`).join('');
+    return`<tr>
+      <td class="td-num">${i+1}</td>
+      <td class="td-obra">${r.obra}${r.by?`<span class="td-by">por ${r.by}</span>`:''}</td>
+      <td style="min-width:200px">${itensHtml}${r.obs?`<span class="td-by" style="margin-top:4px;display:block">💬 ${r.obs}</span>`:''}</td>
+      <td>${r.fornecedor||'—'}${r.pix?`<span class="td-by" style="color:var(--teal-dark)">PIX: ${r.pix}</span>`:''}</td>
+      <td class="td-valor">${r.valor?'R$\u00a0'+fmtBR(r.valor):'—'}</td>
+      <td><span class="pill pill-${r.urgencia||'hoje'}">${urgLabels[r.urgencia||'hoje']}</span></td>
+      <td>
+        <select onchange="updateManutSituacao(${i},this.value)" style="font-size:11px;padding:3px 6px;border-radius:20px;border:1px solid var(--gray-3);font-family:inherit">
+          <option value="buscando" ${r.situacao==='buscando'?'selected':''}>🟡 Buscando local</option>
+          <option value="local" ${r.situacao==='local'?'selected':''}>🟢 Encontrado local</option>
+          <option value="fora" ${r.situacao==='fora'?'selected':''}>🔴 Fora do estado</option>
+          <option value="transporte" ${r.situacao==='transporte'?'selected':''}>🚚 Em transporte</option>
+          <option value="comprado">✅ Marcar como comprado</option>
+        </select>
+      </td>
+      <td><button class="act act-attach ${(r.attachments&&r.attachments.length)?'has-files':''}" onclick="openAttach('manutencao',${i})" title="${(r.attachments&&r.attachments.length)?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        ${(r.attachments&&r.attachments.length)?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
+      </button></td>
+      <td class="td-actions">
+        <button class="act" onclick="openModalManut(${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button class="act act-del" onclick="removeManut(${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ---- AUDIT LOG ----
+function logAction(user, action, r, detail){
+  if(!data.historico) data.historico=[];
+  data.historico.unshift({
+    ts: new Date().toISOString(),
+    user: user||'—',
+    action,
+    obra: r.obra||'—',
+    contrato: r.contrato||'—',
+    detail: detail||''
+  });
+  // Keep last 500 entries
+  if(data.historico.length>500) data.historico=data.historico.slice(0,500);
+}
+
+function renderHistorico(){
+  if(!data.historico||!data.historico.length){
+    document.getElementById('tbody-historico').innerHTML='<tr class="empty-row"><td colspan="5">Nenhuma alteração registrada ainda.</td></tr>';
+    return;
+  }
+  const actionColor={
+    'Criou':'#1A7A45','Editou':'#0E8FA6','Moveu para Urgentes':'#C0392B',
+    'Moveu para Importantes':'#B9770E','Marcou como Pago':'#1A7A45','Removeu':'#C0392B'
+  };
+  document.getElementById('tbody-historico').innerHTML=data.historico.map(h=>{
+    const dt=new Date(h.ts);
+    const dtFmt=dt.toLocaleDateString('pt-BR')+' '+dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    const color=actionColor[h.action]||'var(--gray-5)';
+    return`<tr>
+      <td style="white-space:nowrap;font-size:12px;color:var(--gray-4)">${dtFmt}</td>
+      <td style="font-weight:600">${h.user}</td>
+      <td><span style="color:${color};font-weight:600">${h.action}</span></td>
+      <td>${h.obra}<span class="td-by">Contrato: ${h.contrato}</span></td>
+      <td style="font-size:12px;color:var(--gray-5)">${h.detail}</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportHistorico(){
+  if(!data.historico||!data.historico.length){ alert('Nenhum histórico para exportar.'); return; }
+  const rows=[['Data/Hora','Usuário','Ação','Obra','Contrato','Detalhe']];
+  data.historico.forEach(h=>{
+    const dt=new Date(h.ts);
+    rows.push([dt.toLocaleDateString('pt-BR')+' '+dt.toLocaleTimeString('pt-BR'),h.user,h.action,h.obra,h.contrato,h.detail]);
+  });
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const dt=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
+  a.href=url; a.download=`historico_daluminium_${dt}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---- SEARCH ----
+let searchTerm = '';
+
+function onSearch(val){
+  searchTerm = val.trim().toLowerCase();
+  document.getElementById('search-clear').classList.toggle('visible', searchTerm.length > 0);
+  render();
+}
+
+function clearSearch(){
+  searchTerm = '';
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-clear').classList.remove('visible');
+  document.getElementById('search-count').textContent = '';
+  render();
+}
+
+function matchesSearch(r){
+  if(!searchTerm) return true;
+  const fields = [r.obra, r.contrato, r.fornecedor, r.material, r.nrOrc, r.by, r.pix, r.pixNome, r.banco].join(' ').toLowerCase();
+  return fields.includes(searchTerm);
+}
+
+function highlight(text){
+  if(!searchTerm || !text) return text||'';
+  const re = new RegExp('('+searchTerm.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')', 'gi');
+  return String(text).replace(re,'<span class="highlight">$1</span>');
+}
+
+// ---- NOTIFICATION SYSTEM ----
+function checkNotifications(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const overdue=[], dueToday=[], leadCompromised=[];
+
+  [...data.urgente, ...data.importante].forEach(r=>{
+    if(!r.entrega || r.entrega==='—') return;
+    const dt = new Date(r.entrega); dt.setHours(0,0,0,0);
+    const diff = Math.round((dt-today)/(1000*60*60*24));
+    const threshold = r.tipo==='especial' ? 60 : 30;
+    const tipoLabel = r.tipo==='especial' ? '✦ Especial' : 'Padrão';
+    const label = `${r.obra} — ${r.fornecedor} [${tipoLabel}] (R$ ${fmtBR(r.valor)})`;
+    if(diff < 0) overdue.push({label, days: Math.abs(diff), tipo: r.tipo||'padrao'});
+    else if(diff === 0) dueToday.push({label, tipo: r.tipo||'padrao'});
+    else if(diff <= threshold) leadCompromised.push({label, days: diff, threshold, tipo: r.tipo||'padrao'});
+  });
+
+  // Manutenção pendentes (não compradas)
+  const manutHoje=[], manutSemana=[], manutFora=[], manutTransporte=[];
+  (data.manutencao||[]).forEach(r=>{
+    if(r.situacao==='comprado') return;
+    const itensStr=(r.itens||[]).map(i=>i.material+(i.qtd?' ('+i.qtd+')':'')).join(', ');
+    const label=`${r.obra} — ${itensStr}${r.valor?' — R$ '+fmtBR(r.valor):''}`;
+    if(r.situacao==='transporte') manutTransporte.push({label});
+    else if(r.situacao==='fora') manutFora.push({label});
+    else if(r.urgencia==='hoje') manutHoje.push({label});
+    else if(r.urgencia==='semana') manutSemana.push({label});
+  });
+
+  showBanner(overdue, dueToday, leadCompromised, manutHoje, manutSemana, manutFora, manutTransporte);
+  sendBrowserNotifications(overdue, dueToday, leadCompromised, manutHoje, manutFora);
+}
+
+function showBanner(overdue, dueToday, leadCompromised, manutHoje, manutSemana, manutFora, manutTransporte){
+  const banner = document.getElementById('notif-banner');
+  const hasAny = overdue.length||dueToday.length||leadCompromised.length||manutHoje.length||manutSemana.length||manutFora.length||(manutTransporte&&manutTransporte.length);
+  if(!hasAny){ banner.style.display='none'; return; }
+
+  let html='';
+
+  if(overdue.length){
+    html+=`<div class="notif-banner notif-banner-error">
+      <div style="flex:1">
+        <strong>🚨 ${overdue.length} obra${overdue.length>1?'s':''} com entrega ATRASADA</strong>
+        <div style="margin-top:6px">
+          ${overdue.map(o=>`<div class="notif-item">⚠️ ${o.label} — <strong>${o.days} dia${o.days>1?'s':''} de atraso</strong></div>`).join('')}
+        </div>
+      </div>
+      <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
+    </div>`;
+  }
+
+  if(dueToday.length){
+    html+=`<div class="notif-banner notif-banner-warning">
+      <div style="flex:1">
+        <strong>📅 ${dueToday.length} obra${dueToday.length>1?'s':''} com entrega HOJE</strong>
+        <div style="margin-top:6px">
+          ${dueToday.map(o=>`<div class="notif-item">🔔 ${o.label}</div>`).join('')}
+        </div>
+      </div>
+      <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
+    </div>`;
+  }
+
+  if(leadCompromised.length){
+    const especial = leadCompromised.filter(o=>o.tipo==='especial');
+    const padrao = leadCompromised.filter(o=>o.tipo!=='especial');
+    html+=`<div class="notif-banner notif-banner-error" style="background:#FFF0F0;border-left-color:#8B0000">
+      <div style="flex:1">
+        <strong>🔴 ${leadCompromised.length} obra${leadCompromised.length>1?'s':''} com LEAD TIME COMPROMETIDO — compra urgente!</strong>
+        <div style="font-size:11px;color:#8B0000;margin:4px 0 8px">O prazo de entrega do material já está comprometido. Compre imediatamente!</div>
+        ${padrao.length?`<div style="font-size:11px;font-weight:700;color:#8B0000;margin-bottom:4px">📦 Padrão (Lead Time 30 dias)</div>
+          ${padrao.map(o=>`<div class="notif-item">🔴 ${o.label} — entrega em <strong>${o.days} dia${o.days>1?'s':''}</strong> — compra atrasada ${o.threshold-o.days} dia${o.threshold-o.days>1?'s':''}</div>`).join('')}`:''}
+        ${especial.length?`<div style="font-size:11px;font-weight:700;color:#8B0000;margin-top:6px;margin-bottom:4px">✦ Especial (Lead Time 60 dias)</div>
+          ${especial.map(o=>`<div class="notif-item">🔴 ${o.label} — entrega em <strong>${o.days} dia${o.days>1?'s':''}</strong> — compra atrasada ${o.threshold-o.days} dia${o.threshold-o.days>1?'s':''}</div>`).join('')}`:''}
+      </div>
+      <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
+    </div>`;
+  }
+
+  if(manutHoje.length){
+    html+=`<div class="notif-banner" style="background:#FFF0F0;border-left:4px solid #C0392B">
+      <div style="flex:1">
+        <strong>🔧 ${manutHoje.length} compra${manutHoje.length>1?'s':''} de manutenção URGENTE — comprar HOJE</strong>
+        <div style="margin-top:6px">
+          ${manutHoje.map(o=>`<div class="notif-item">🔴 ${o.label}</div>`).join('')}
+        </div>
+      </div>
+      <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
+    </div>`;
+  }
+
+  if(manutSemana.length){
+    html+=`<div class="notif-banner" style="background:#FEF7E6;border-left:4px solid #B9770E">
+      <div style="flex:1">
+        <strong>🔧 ${manutSemana.length} compra${manutSemana.length>1?'s':''} de manutenção — comprar ESTA SEMANA</strong>
+        <div style="margin-top:6px">
+          ${manutSemana.map(o=>`<div class="notif-item">🟡 ${o.label}</div>`).join('')}
+        </div>
+      </div>
+      <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
+    </div>`;
+  }
+
+  if(manutFora.length){
+    html+=`<div class="notif-banner" style="background:#F3E8FF;border-left:4px solid #7B2D8B">
+      <div style="flex:1">
+        <strong>🚚 ${manutFora.length} compra${manutFora.length>1?'s':''} de manutenção — COMPRAR FORA DO ESTADO</strong>
+        <div style="font-size:11px;color:#7B2D8B;margin:4px 0 8px">Não encontrado localmente — acionar fornecedor externo.</div>
+        <div style="margin-top:6px">
+          ${manutFora.map(o=>`<div class="notif-item">🔴 ${o.label}</div>`).join('')}
+        </div>
+      </div>
+      <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
+    </div>`;
+  }
+
+  if(manutTransporte&&manutTransporte.length){
+    html+=`<div class="notif-banner" style="background:#E8F4FD;border-left:4px solid #1A5276">
+      <div style="flex:1">
+        <strong>🚚 ${manutTransporte.length} compra${manutTransporte.length>1?'s':''} de manutenção EM TRANSPORTE</strong>
+        <div style="margin-top:6px">
+          ${manutTransporte.map(o=>`<div class="notif-item">🚚 ${o.label}</div>`).join('')}
+        </div>
+      </div>
+      <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
+    </div>`;
+  }
+
+  banner.innerHTML=html;
+  banner.style.display='block';
+}
+
+async function sendBrowserNotifications(overdue, dueToday, leadCompromised, manutHoje, manutFora){
+  if(!('Notification' in window)) return;
+  let permission = Notification.permission;
+  if(permission==='default') permission = await Notification.requestPermission();
+  if(permission!=='granted') return;
+
+  const send=(title,body)=>{
+    try{ new Notification(title,{body,icon:'/favicon.ico',tag:title}); }catch(e){}
+  };
+
+  overdue.forEach(o=>send('🚨 Entrega Atrasada — Daluminium',`${o.label} — ${o.days} dia${o.days>1?'s':''} de atraso!`));
+  dueToday.forEach(o=>send('📅 Entrega Hoje — Daluminium', o.label));
+  leadCompromised.forEach(o=>send('🔴 Lead Time Comprometido — Daluminium',`${o.label} — entrega em ${o.days} dias!`));
+  if(manutHoje.length) send('🔧 Manutenção Urgente — Daluminium',`${manutHoje.length} compra${manutHoje.length>1?'s':''} para comprar HOJE!`);
+  if(manutFora.length) send('🚚 Manutenção Fora do Estado — Daluminium',`${manutFora.length} item${manutFora.length>1?'ns':''} sem fornecedor local.`);
+}
+
+// ---- JSONBIN SYNC ----
+const SUPA_URL='https://jirtkaaflnkwasorbita.supabase.co';
+const SUPA_KEY='sb_publishable_D50BtCRtBblorV3j1_Z68A_S2T8goU8';
+const SUPA_SISTEMA='compras_teste';
+let syncInterval = null;
+let isSyncing = false;
+
+function getCfg(){ return {apiKey:SUPA_KEY,binId:SUPA_SISTEMA}; }
+function saveCfg(cfg){}
+
+function setStatus(msg, color='rgba(255,255,255,0.8)'){
+  const el=document.getElementById('sync-status');
+  el.innerHTML=msg; el.style.color=color;
+}
+
+async function fetchBin(apiKey, binId){
+  const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+    headers:{'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'}
+  });
+  if(!r.ok) throw new Error('Erro Worker: '+r.status);
+  return await r.json();
+}
+
+async function pushBin(apiKey, binId, payload){
+  const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json','X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'},
+    body:JSON.stringify({data:payload})
+  });
+  if(!r.ok) throw new Error('Erro Worker: '+r.status);
+}
+
+async function createBin(apiKey, payload){
+  const r=await fetch(BIN_API,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-Master-Key':apiKey,'X-Bin-Name':'Daluminium Orcamentos','X-Bin-Private':'true'},
+    body:JSON.stringify(payload)
+  });
+  if(!r.ok){ const t=await r.text(); throw new Error('Erro ao criar bin: '+r.status+' '+t); }
+  const j=await r.json();
+  return j.metadata.id;
+}
+
+async function syncFromCloud(){
+  const cfg=getCfg(); if(!cfg) return;
+  if(isSyncing) return;
+  isSyncing=true;
+  try{
+    setStatus('🔄 Sincronizando...');
+    const remote=await fetchBin(cfg.apiKey,cfg.binId);
+    localStorage.setItem('dalum-data',JSON.stringify(remote));
+    data=remote;
+    dataReady=true;
+    reclassifyAll();
+    render();
+    checkNotifications();
+    setStatus('🟢 Sincronizado · '+new Date().toLocaleTimeString('pt-BR'));
+  }catch(e){
+    setStatus('🔴 Sem conexão — dados locais','#ffcccc');
+  }
+  isSyncing=false;
+}
+
+// Salva apenas usuarios na nuvem (sem depender do dataReady)
+async function persistUsers(){
+  localStorage.setItem('dalum-data',JSON.stringify(data));
+  const cfg=getCfg();
+  if(!cfg) return;
+  try{
+    await pushBin(SUPA_KEY, SUPA_SISTEMA, data);
+  }catch(e){ console.warn('Erro ao salvar usuários:', e); }
+}
+
+async function persist(){
+  if(!dataReady) return; // Nunca salva antes de carregar da nuvem
+  const totalItems=(data.urgente||[]).length+(data.importante||[]).length+(data.pago||[]).length+(data.manutencao||[]).length+(data.historico||[]).length+(data.usuarios||[]).length;
+  const hasSaldo=Object.values(data.saldosIniciais||{}).some(v=>v>0);
+  if(totalItems===0&&!hasSaldo) return;
+  localStorage.setItem('dalum-data',JSON.stringify(data));
+  const cfg=getCfg();
+  if(!cfg){ return; }
+  try{
+    setStatus('🔄 Salvando...');
+    await pushBin(cfg.apiKey,cfg.binId,data);
+    setStatus('🟢 Salvo · '+new Date().toLocaleTimeString('pt-BR'));
+  }catch(e){
+    setStatus('🔴 Erro ao salvar — salvo localmente','#ffcccc');
+  }
+}
+
+function startAutoSync(){
+  if(syncInterval) clearInterval(syncInterval);
+  syncInterval=setInterval(syncFromCloud,30000);
+}
+
+async function load(){
+  const cfg=getCfg();
+  try{
+    const saved=localStorage.getItem('dalum-data');
+    data=saved?JSON.parse(saved):JSON.parse(JSON.stringify(INITIAL));
+  }catch{ data=JSON.parse(JSON.stringify(INITIAL)); }
+  render();
+  reclassifyAll();
+  render();
+  checkNotifications();
+  // Always sync automatically — config is embedded
+  await syncFromCloud();
+  startAutoSync(); startUpdateCheck();
+  setStatus('🟢 Sincronizado · '+new Date().toLocaleTimeString('pt-BR'));
+}
+
+// ---- SETUP MODAL ----
+function openSetup(){ showStep('choose'); document.getElementById('setup-overlay').classList.add('open'); }
+function closeSetup(){ document.getElementById('setup-overlay').classList.remove('open'); }
+function showStep(step){
+  ['choose','criar','entrar','sucesso'].forEach(s=>{
+    document.getElementById('setup-step-'+s).style.display=s===step?'block':'none';
+  });
+}
+
+async function criarEspaco(){
+  const apiKey=document.getElementById('s-apikey').value.trim();
+  const erroEl=document.getElementById('setup-erro-criar');
+  erroEl.style.display='none';
+  if(!apiKey){ erroEl.textContent='Cole sua Master Key antes de continuar.'; erroEl.style.display='block'; return; }
+  const btn=document.getElementById('btn-criar');
+  btn.textContent='Criando...'; btn.disabled=true;
+  try{
+    const payload=data.urgente.length?data:JSON.parse(JSON.stringify(INITIAL));
+    const binId=await createBin(apiKey,payload);
+    saveCfg({apiKey,binId});
+    data=payload;
+    persist();
+    const code='DALUM-'+btoa(apiKey).replace(/=/g,'')+'-'+binId;
+    document.getElementById('team-code-display').textContent=code;
+    showStep('sucesso');
+    startAutoSync(); startUpdateCheck();
+    setStatus('🟢 Conectado');
+  }catch(e){
+    erroEl.textContent='Erro: '+e.message+'. Verifique a Master Key.';
+    erroEl.style.display='block';
+  }
+  btn.textContent='Criar espaço da equipe'; btn.disabled=false;
+}
+
+function entrarEspaco(){
+  const raw=document.getElementById('s-teamcode').value.trim();
+  const erroEl=document.getElementById('setup-erro-entrar');
+  erroEl.style.display='none';
+  try{
+    if(!raw.startsWith('DALUM-')) throw new Error('Código inválido.');
+    const parts=raw.replace('DALUM-','').split('-');
+    if(parts.length<2) throw new Error('Código incompleto.');
+    const binId=parts[parts.length-1];
+    const b64=parts.slice(0,-1).join('-');
+    const apiKey=atob(b64);
+    saveCfg({apiKey,binId});
+    closeSetup();
+    syncFromCloud().then(()=>startAutoSync());
+    setStatus('🟢 Conectado');
+  }catch(e){
+    erroEl.textContent='Código inválido. Peça para o responsável reenviar.';
+    erroEl.style.display='block';
+  }
+}
+
+function copiarCodigo(){
+  const code=document.getElementById('team-code-display').textContent;
+  navigator.clipboard.writeText(code).then(()=>alert('Código copiado! Cole no WhatsApp para compartilhar com a equipe.'));
+}
+
+// ---- IMPORT / EXPORT ----
+function exportData(){
+  const json=JSON.stringify(data,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const dt=new Date().toLocaleDateString('pt-BR').replace(/\//g,'-');
+  a.href=url; a.download=`daluminium_orcamentos_${dt}.json`; a.click();
+  URL.revokeObjectURL(url);
+}
+function importData(){ document.getElementById('file-input').click(); }
+function handleImport(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const imported=JSON.parse(ev.target.result);
+      if(!imported.urgente||!imported.importante||!imported.pago) throw new Error();
+      if(!confirm(`Importar?\nUrgentes: ${imported.urgente.length}\nImportantes: ${imported.importante.length}\nPagas: ${imported.pago.length}\n\nSubstitui os dados atuais.`)) return;
+      data=imported; persist(); render(); alert('Importado com sucesso!');
+    }catch{ alert('Arquivo inválido.'); }
+  };
+  reader.readAsText(file);
+  e.target.value='';
+}
+
+// ---- USER MANAGEMENT (admin only) ----
+function openUserAdmin(){
+  if(!isAdmin()){ alert('Acesso restrito ao administrador.'); return; }
+  renderUserList();
+  document.getElementById('user-admin-overlay').classList.add('open');
+}
+function closeUserAdmin(){ document.getElementById('user-admin-overlay').classList.remove('open'); }
+
+function renderUserList(){
+  const users=getUsers();
+  const list=document.getElementById('user-list');
+  if(!users.length){
+    list.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center;padding:8px">Nenhum usuário cadastrado ainda.</p>';
+    return;
+  }
+  const roleLabel={compras:'Compras',gerente:'Gerente',consulta:'Consulta'};
+  list.innerHTML=`<div style="font-size:13px;font-weight:600;margin-bottom:8px">Usuários cadastrados</div>`+
+  users.map((u,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--gray-1);border-radius:var(--radius);border:1px solid var(--gray-2);margin-bottom:6px">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px">${u.name} <span style="font-size:11px;color:var(--gray-4)">(${u.username})</span></div>
+        <div style="font-size:11px;color:var(--gray-4)">${roleLabel[u.role]||u.role} · Senha: ••••••••</div>
+      </div>
+      <span style="font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;${u.active!==false?'background:#EDFAF3;color:#1A7A45':'background:var(--gray-2);color:var(--gray-4)'}">${u.active!==false?'Ativo':'Inativo'}</span>
+      <button class="act act-edit" onclick="editUser(${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+      <button class="act" onclick="toggleUserActive(${i})" title="${u.active!==false?'Desativar':'Ativar'}">
+        ${u.active!==false?'🔒':'🔓'}
+      </button>
+      <button class="act act-del" onclick="removeUser(${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+    </div>`).join('');
+}
+
+async function editUser(idx){
+  const u=getUsers()[idx];
+  const novoNome=prompt('Nome completo:',u.name);
+  if(novoNome===null) return;
+  const novoRole=prompt('Função (compras / gerente / consulta):',u.role);
+  if(novoRole===null) return;
+  const roles=['compras','gerente','consulta'];
+  if(!roles.includes(novoRole.toLowerCase().trim())){ alert('Função inválida. Use: compras, gerente ou consulta.'); return; }
+  const novaSenha=prompt('Nova senha (deixe em branco para manter a atual):','');
+  const users=getUsers();
+  users[idx].name=novoNome.trim()||u.name;
+  users[idx].role=novoRole.toLowerCase().trim();
+  if(novaSenha&&novaSenha.trim().length>=6){ users[idx].password=await hashSenha(novaSenha.trim()); users[idx].tempPass=false; }
+  saveUsers(users);
+  await persistUsers();
+  renderUserList();
+  alert('Usuário atualizado com sucesso! ✅');
+}
+
+async function addUser(){
+  const name=document.getElementById('nu-name').value.trim();
+  const username=document.getElementById('nu-username').value.trim().toLowerCase();
+  const pass=document.getElementById('nu-pass').value.trim();
+  const role=document.getElementById('nu-role').value;
+  if(!name||!username||!pass){ alert('Preencha nome, usuário e senha.'); return; }
+  if(ADMINS.find(a=>a.user===username)){ alert('Este usuário é reservado para administradores.'); return; }
+  const users=getUsers();
+  if(users.find(u=>u.username===username)){ alert('Usuário já cadastrado.'); return; }
+  const passHash=await hashSenha(pass);
+  users.push({name,username,password:passHash,role,active:true,tempPass:true,
+    whatsapp:document.getElementById('nu-whatsapp').value.trim().replace(/\D/g,''),
+    apikey:document.getElementById('nu-apikey').value.trim()
+  });
+  saveUsers(users);
+  await persistUsers();
+  logAction('Ander Reis','Criou usuário',{obra:name,contrato:'Sistema'},`Usuário: ${username} (${role})`);
+  ['nu-name','nu-username','nu-pass','nu-whatsapp','nu-apikey'].forEach(id=>document.getElementById(id).value='');
+  renderUserList();
+  alert('Usuário cadastrado e salvo na nuvem! ✅');
+}
+
+async function toggleUserActive(idx){
+  const users=getUsers();
+  users[idx].active=users[idx].active===false?true:false;
+  saveUsers(users);
+  await persistUsers();
+  logAction('Ander Reis',users[idx].active?'Ativou usuário':'Desativou usuário',{obra:users[idx].name,contrato:'Sistema'},`Usuário: ${users[idx].username}`);
+  renderUserList();
+}
+
+async function removeUser(idx){
+  const users=getUsers();
+  if(!confirm(`Remover usuário "${users[idx].name}"?`)) return;
+  logAction('Ander Reis','Removeu usuário',{obra:users[idx].name,contrato:'Sistema'},`Usuário: ${users[idx].username}`);
+  users.splice(idx,1);
+  saveUsers(users);
+  await persistUsers();
+  renderUserList();
+}
+
+
+// ---- VERIFICAÇÃO SSO OBRIGATÓRIA ----
+(function(){
+  // Se não está dentro do portal (iframe) e não tem SSO válido, redireciona
+  const isInIframe = window.self !== window.top;
+  if(isInIframe) return; // está dentro do portal, ok
+
+  const sso=JSON.parse(localStorage.getItem('dalum-sso')||'null');
+  const validSSO=sso&&sso.nome&&(Date.now()-sso.ts<8*60*60*1000);
+  const logado=sessionStorage.getItem('dalum-logged')==='true';
+
+  if(!validSSO&&!logado){
+    window.location.href='https://daluminium.github.io/portal/';
+  }
+})();
+
+
+// ---- SEGURANÇA ----
+// SHA-256 hash para senhas
+async function hashSenha(senha){
+  const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(senha));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// Controle de tentativas de login
+const MAX_TENTATIVAS=5, BLOQUEIO_MS=5*60*1000; // 5 min
+function getTentativas(){ try{ return JSON.parse(localStorage.getItem('dalum-login-tries')||'{"count":0,"ts":0}'); }catch{ return {count:0,ts:0}; } }
+function setTentativas(obj){ localStorage.setItem('dalum-login-tries',JSON.stringify(obj)); }
+function resetTentativas(){ localStorage.removeItem('dalum-login-tries'); }
+function verificarBloqueio(){
+  const t=getTentativas();
+  if(t.count>=MAX_TENTATIVAS){
+    const restante=Math.ceil((BLOQUEIO_MS-(Date.now()-t.ts))/1000/60);
+    if(restante>0) return `Acesso bloqueado. Tente novamente em ${restante} minuto${restante>1?'s':''}.`;
+    resetTentativas();
+  }
+  return null;
+}
+function registrarFalha(){
+  const t=getTentativas();
+  const agora=Date.now();
+  if(agora-t.ts>BLOQUEIO_MS){ t.count=1; t.ts=agora; }
+  else t.count++;
+  t.ts=agora;
+  setTentativas(t);
+  return MAX_TENTATIVAS-t.count;
+}
+
+// Migrar senha em texto para hash (compatibilidade)
+async function verificarSenha(senhaDigitada, senhaArmazenada){
+  if(!senhaArmazenada) return false;
+  // Se já é hash (64 chars hex), compara direto
+  if(/^[a-f0-9]{64}$/.test(senhaArmazenada)){
+    return (await hashSenha(senhaDigitada))===senhaArmazenada;
+  }
+  // Senha em texto puro (legado) — compara direto
+  return senhaDigitada===senhaArmazenada;
+}
+
+// ---- LOGIN ----
+const ADMINS = [
+  { user: 'ander reis',  pass: '@nd3r_R3is',  name: 'Ander Reis',       tempPass: false, whatsapp:'', apikey:'' },
+  { user: 'aretusa',     pass: 'Dal321',       name: 'Aretusa Sendeski', tempPass: true,  whatsapp:'', apikey:'' },
+];
+
+function getUsers(){ return data.usuarios||[]; }
+function saveUsers(users){ data.usuarios=users; }
+
+function checkLogin(){
+  const logged = sessionStorage.getItem('dalum-logged');
+  if(logged === 'true') document.getElementById('login-screen').classList.remove('active');
+}
+
+function isAdmin(){ return sessionStorage.getItem('dalum-user-role')==='admin'; }
+
+function getAdminPass(adminUser){
+  const saved=JSON.parse(localStorage.getItem('dalum-admin-passes')||'{}');
+  return saved[adminUser]||null;
+}
+
+async function doLogin(){
+  const user = document.getElementById('login-user').value.trim().toLowerCase();
+  const pass = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display='none';
+
+  const bloqueio=verificarBloqueio();
+  if(bloqueio){ errEl.textContent=bloqueio; errEl.style.display='block'; return; }
+
+  document.querySelector('.login-btn').textContent='Verificando...';
+
+  const admin = ADMINS.find(a=>a.user===user);
+  if(admin){
+    const savedPass=getAdminPass(admin.user);
+    const correctPass=savedPass||admin.pass;
+    const isTempPass=!savedPass&&admin.tempPass;
+    const ok=await verificarSenha(pass, correctPass);
+    if(ok){
+      resetTentativas();
+      sessionStorage.setItem('dalum-logged','true');
+      sessionStorage.setItem('dalum-user', admin.name);
+      sessionStorage.setItem('dalum-user-role','admin');
+      sessionStorage.setItem('dalum-admin-key', admin.user);
+      lastBy=admin.name;
+      document.getElementById('login-screen').classList.remove('active');
+      showAdminBtn(true);
+      updateSaldosBtn();
+      if(isTempPass) setTimeout(()=>openChangePassAdmin(admin),500);
+      document.querySelector('.login-btn').textContent='Entrar';
+      load();
+      return;
+    }
+  }
+
+  await loadUsersFromCloud();
+  const users=getUsers();
+  let found=null;
+  for(const u of users){
+    if(u.username.toLowerCase()===user && u.active!==false){
+      if(await verificarSenha(pass, u.password)){ found=u; break; }
+    }
+  }
+  if(found){
+    resetTentativas();
+    sessionStorage.setItem('dalum-logged','true');
+    sessionStorage.setItem('dalum-user', found.name);
+    sessionStorage.setItem('dalum-user-role', found.role==='gerente'?'gerente':'user');
+    lastBy=found.name;
+    document.getElementById('login-screen').classList.remove('active');
+    showAdminBtn(false);
+    updateSaldosBtn();
+    if(found.tempPass) setTimeout(()=>openChangePassUser(found),500);
+    document.querySelector('.login-btn').textContent='Entrar';
+    load();
+  } else {
+    const restante=registrarFalha();
+    errEl.textContent=restante>0
+      ? `Usuário ou senha incorretos. ${restante} tentativa${restante>1?'s':''} restante${restante>1?'s':''}.`
+      : 'Acesso bloqueado por 5 minutos.';
+    errEl.style.display='block';
+    document.getElementById('login-pass').value='';
+    document.getElementById('login-pass').focus();
+    document.querySelector('.login-btn').textContent='Entrar';
+  }
+}
+
+async function loadUsersFromCloud(){
+  try{
+    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      headers:{'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'}
+    });
+    if(!r.ok) return;
+    const remote=await r.json();
+    if(remote&&remote.usuarios) data.usuarios=remote.usuarios;
+  }catch(e){ console.warn('Erro ao carregar usuários:', e); }
+}
+
+function openChangePassAdmin(admin){
+  const nova=prompt('Bem-vinda(o), '+admin.name+'!\n\nVocê está usando uma senha temporária.\nDigite sua nova senha (mínimo 6 caracteres):', '');
+  if(!nova||nova.trim().length<6){ alert('Senha não alterada. Você será solicitado novamente no próximo login.'); return; }
+  const conf=prompt('Confirme a nova senha:','');
+  if(nova.trim()!==conf){ alert('As senhas não coincidem. Tente novamente no próximo login.'); return; }
+  const saved=JSON.parse(localStorage.getItem('dalum-admin-passes')||'{}');
+  hashSenha(nova.trim()).then(h=>{ saved[admin.user]=h; localStorage.setItem('dalum-admin-passes', JSON.stringify(saved)); });
+  alert('Senha alterada com sucesso! ✅');
+}
+
+function openChangePassUser(found){
+  const nova=prompt('Bem-vindo(a), '+found.name+'!\n\nVocê está usando uma senha temporária.\nDigite sua nova senha (mínimo 6 caracteres):', '');
+  if(!nova||nova.trim().length<6){ alert('Senha não alterada. Você será solicitado novamente no próximo login.'); return; }
+  const conf=prompt('Confirme a nova senha:','');
+  if(nova.trim()!==conf){ alert('As senhas não coincidem. Tente novamente no próximo login.'); return; }
+  const users=getUsers();
+  const idx=users.findIndex(u=>u.username===found.username);
+  if(idx>=0){ hashSenha(nova.trim()).then(h=>{ users[idx].password=h; users[idx].tempPass=false; saveUsers(users); persistUsers(); }); }
+  alert('Senha alterada com sucesso! ✅');
+}
+
+function changeMyPass(){
+  const role=sessionStorage.getItem('dalum-user-role');
+  const nova=prompt('Digite sua nova senha (mínimo 6 caracteres):','');
+  if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
+  const conf=prompt('Confirme a nova senha:','');
+  if(nova.trim()!==conf){ alert('As senhas não coincidem.'); return; }
+  if(role==='admin'){
+    const adminKey=sessionStorage.getItem('dalum-admin-key')||'';
+    const saved=JSON.parse(localStorage.getItem('dalum-admin-passes')||'{}');
+    saved[adminKey]=nova.trim();
+    localStorage.setItem('dalum-admin-passes',JSON.stringify(saved));
+  } else {
+    const userName=sessionStorage.getItem('dalum-user')||'';
+    const users=getUsers();
+    const idx=users.findIndex(u=>u.name===userName);
+    if(idx>=0){ hashSenha(nova.trim()).then(h=>{ users[idx].password=h; users[idx].tempPass=false; saveUsers(users); persistUsers(); }); }
+  }
+  alert('Senha alterada com sucesso! ✅');
+}
+
+function showAdminBtn(show){
+  const btn=document.getElementById('admin-btn');
+  if(btn) btn.style.display=show?'flex':'none';
+}
+function updateSaldosBtn(){} // compras não tem saldo inicial
+
+function doLogout(){
+  if(!confirm('Deseja sair do sistema?')) return;
+  sessionStorage.removeItem('dalum-logged');
+  sessionStorage.removeItem('dalum-user');
+  sessionStorage.removeItem('dalum-user-role');
+  localStorage.removeItem('dalum-sso');
+  if(window.self!==window.top){
+    window.parent.postMessage('logout','*');
+  } else {
+    window.location.href='https://daluminium.github.io/portal/';
+  }
+}
+
+
+// ---- SSO AUTO-LOGIN ----
+function checkSSO(){
+  try{
+    const sso=JSON.parse(localStorage.getItem('dalum-sso')||'null');
+    if(!sso||!sso.nome) return false;
+    // Token válido por 8 horas
+    if(Date.now()-sso.ts>8*60*60*1000){ localStorage.removeItem('dalum-sso'); return false; }
+    sessionStorage.setItem('dalum-logged','true');
+    sessionStorage.setItem('dalum-user',sso.nome);
+    sessionStorage.setItem('dalum-user-role',sso.role||'user');
+    lastBy=sso.nome;
+    document.getElementById('login-screen').classList.remove('active');
+    showAdminBtn(sso.role==='admin');
+    updateSaldosBtn();
+    // Adicionar botão voltar ao portal
+    // Só mostra botão voltar se tiver mais de 1 módulo
+    const ssoCheck=JSON.parse(localStorage.getItem('dalum-sso')||'null');
+    const inIframe=window.self!==window.top;
+    if(inIframe&&ssoCheck&&(ssoCheck.modulos||[]).length>1) addPortalBackBtn();
+    return true;
+  }catch(e){ return false; }
+}
+
+function addPortalBackBtn(){
+  // Não mostrar se usuário tem só 1 módulo
+  const _sso=JSON.parse(localStorage.getItem('dalum-sso')||'null');
+  if(!_sso||(_sso.modulos||[]).length<=1) return;
+  if(document.getElementById('portal-back-btn')) return;
+  const btn=document.createElement('button');
+  btn.id='portal-back-btn';
+  btn.className='btn btn-ghost btn-sm';
+  btn.innerHTML='<svg style="width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg> Portal';
+  btn.onclick=()=>window.parent.postMessage('voltarPortal','*');
+  btn.style.cssText='position:fixed;top:8px;left:8px;z-index:999;background:rgba(255,255,255,.2);color:white;border:1px solid rgba(255,255,255,.3);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;font-family:inherit';
+  document.body.appendChild(btn);
+}
+
+// ---- INIT ----
+document.getElementById('manut-overlay').addEventListener('click',function(e){ if(e.target===this) closeModalManut(); });
+document.getElementById('modal-overlay').addEventListener('click',function(e){ if(e.target===this) closeModal(); });
+document.getElementById('attach-overlay').addEventListener('click',function(e){ if(e.target===this) closeAttach(); });
+document.getElementById('setup-overlay').addEventListener('click',function(e){ if(e.target===this) closeSetup(); });
+document.getElementById('user-admin-overlay').addEventListener('click',function(e){ if(e.target===this) closeUserAdmin(); });
+document.getElementById('print-overlay').addEventListener('click',function(e){ if(e.target===this) closePrintModal(); });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeModal(); closeAttach(); closeSetup(); closeModalManut(); closeUserAdmin(); closePrintModal(); } });
+
+// Verifica login ao iniciar
+if(checkSSO()){
+  load();
+} else if(sessionStorage.getItem('dalum-logged')==='true'){
+  const savedUser=sessionStorage.getItem('dalum-user')||'';
+  const savedRole=sessionStorage.getItem('dalum-user-role')||'';
+  if(savedUser) lastBy=savedUser;
+  document.getElementById('login-screen').classList.remove('active');
+  showAdminBtn(savedRole==='admin');
+  load();
+} else {
+  setTimeout(()=>document.getElementById('login-user').focus(), 300);
+}
+</script>
+</body>
+</html>
