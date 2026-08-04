@@ -2028,7 +2028,7 @@ async function load(){
   checkNotifications();
   // Always sync automatically — config is embedded
   await syncFromCloud();
-  startAutoSync(); startUpdateCheck();
+  startAutoSync();
   setStatus('🟢 Sincronizado · '+new Date().toLocaleTimeString('pt-BR'));
 }
 
@@ -2057,7 +2057,7 @@ async function criarEspaco(){
     const code='DALUM-'+btoa(apiKey).replace(/=/g,'')+'-'+binId;
     document.getElementById('team-code-display').textContent=code;
     showStep('sucesso');
-    startAutoSync(); startUpdateCheck();
+    startAutoSync();
     setStatus('🟢 Conectado');
   }catch(e){
     erroEl.textContent='Erro: '+e.message+'. Verifique a Master Key.';
@@ -2338,9 +2338,10 @@ async function verificarSenha(senhaDigitada, senhaArmazenada){
 }
 
 // ---- LOGIN ----
+// Admins validados via portal + Cloudflare Worker — senhas não armazenadas aqui
 const ADMINS = [
-  { user: 'ander reis',  pass: '@nd3r_R3is',  name: 'Ander Reis',       tempPass: false, whatsapp:'', apikey:'' },
-  { user: 'aretusa',     pass: 'Dal321',       name: 'Aretusa Sendeski', tempPass: true,  whatsapp:'', apikey:'' },
+  { user: 'ander reis',  name: 'Ander Reis',       tempPass: false, whatsapp:'', apikey:'' },
+  { user: 'aretusa',     name: 'Aretusa Sendeski', tempPass: true,  whatsapp:'', apikey:'' },
 ];
 
 function getUsers(){ return data.usuarios||[]; }
