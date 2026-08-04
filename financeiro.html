@@ -861,12 +861,12 @@ async function doLogin(){
       document.getElementById('login-screen').classList.remove('active');
       showAdminBtn(true);
       updateSaldosBtn();
-      if(adminResult.tempPass) setTimeout(()=>openChangePassAdmin(admin),500);
+      if(isTemp) setTimeout(()=>openChangePassAdmin(admin),500);
       document.querySelector('.login-btn').textContent='Entrar';
       init();
       return;
     }
-  }catch(e){ console.warn('Erro ao validar admin:', e); }
+  }
 
   // For regular users — load from cloud first so usuarios is populated
   await loadUsersFromCloud();
