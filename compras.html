@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gestão de Compras · Daluminium · TESTE</title>
+<title>Gestão de Compras · Daluminium</title>
 <style>
 :root{--teal:#1FB6CF;--teal-dark:#0E8FA6;--teal-light:#E6F8FB;--red:#C0392B;--red-light:#FDF0EE;--red-mid:#F5C4C4;--amber:#B9770E;--amber-light:#FEF7E6;--amber-mid:#F5D98A;--green:#1A7A45;--green-light:#EDFAF3;--green-mid:#A3D9B8;--gray-0:#FFFFFF;--gray-1:#F7F8F9;--gray-2:#EEF0F2;--gray-3:#DEE1E5;--gray-4:#9AA1AB;--gray-5:#5A6370;--gray-6:#23282F;--radius:8px;--shadow:0 1px 4px rgba(0,0,0,0.07),0 0 0 0.5px rgba(0,0,0,0.05)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--gray-1);color:var(--gray-6);font-size:14px;min-height:100vh}
-.topbar{background:#8B4513;color:white;padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:50;box-shadow:0 1px 6px rgba(0,0,0,0.15)}
+.topbar{background:var(--teal-dark);color:white;padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:50;box-shadow:0 1px 6px rgba(0,0,0,0.15)}
 .topbar-logo{font-size:16px;font-weight:600;letter-spacing:.04em;display:flex;align-items:center;gap:10px}
 .topbar-logo span{opacity:.75;font-weight:400;font-size:13px}
 .topbar-actions{display:flex;align-items:center;gap:8px}
@@ -170,9 +170,7 @@ svg.icon{width:14px;height:14px;vertical-align:middle;fill:none;stroke:currentCo
   <div class="topbar-logo">DALUMINIUM <span>Gestão de Compras</span></div>
   <div class="topbar-actions">
     <span id="sync-status" style="font-size:12px;display:flex;align-items:center;gap:5px;opacity:.85"></span>
-    <button id="admin-btn" class="btn btn-ghost btn-sm" onclick="openUserAdmin()" style="display:none" title="Gerenciar usuários">
-      <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Usuários
-    </button>
+
     <button class="btn btn-ghost btn-sm" onclick="changeMyPass()" title="Alterar minha senha">
       <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Senha
     </button>
@@ -634,91 +632,6 @@ svg.icon{width:14px;height:14px;vertical-align:middle;fill:none;stroke:currentCo
   if(saved){ const s=JSON.parse(saved); Object.entries(s).forEach(([k,v])=>sessionStorage.setItem(k,v)); localStorage.removeItem('dalum-reload-sess'); }
 })();
 
-// ---- AUTO UPDATE ----
-const REPO_OWNER='DAluminium';
-let _updateCheckInterval=null;
-
-async function checkForUpdates(repo, currentSha){
-  try{
-    const r=await fetch(`https://api.github.com/repos/${REPO_OWNER}/${repo}/commits/main`,{
-      headers:{'Accept':'application/vnd.github.v3+json'},
-      cache:'no-store'
-    });
-    if(!r.ok) return;
-    const d=await r.json();
-    const latestSha=d.sha?.slice(0,12);
-    if(latestSha&&latestSha!==currentSha) showUpdateBanner();
-  }catch(e){}
-}
-
-function showUpdateBanner(){
-  if(document.getElementById('update-banner')) return;
-  const banner=document.createElement('div');
-  banner.id='update-banner';
-  banner.innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-      <span>🔄 Nova versão disponível</span>
-      <div style="display:flex;gap:6px">
-        <button id="update-btn" onclick="iniciarAtualizacao()" style="background:white;color:var(--teal-dark);border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Atualizar</button>
-        <button onclick="document.getElementById('update-banner').remove()" style="background:rgba(255,255,255,.2);color:white;border:none;border-radius:6px;padding:5px 8px;font-size:12px;cursor:pointer;font-family:inherit">✕</button>
-      </div>
-    </div>
-    <div id="update-progress-bar"><div id="update-progress-fill"></div></div>
-    <div id="update-progress-pct">Baixando atualização... 0%</div>
-  `;
-  document.body.appendChild(banner);
-}
-
-function iniciarAtualizacao(){
-  const btn=document.getElementById('update-btn');
-  const bar=document.getElementById('update-progress-bar');
-  const fill=document.getElementById('update-progress-fill');
-  const pct=document.getElementById('update-progress-pct');
-  btn.disabled=true;
-  btn.textContent='Atualizando...';
-  bar.style.display='block';
-  pct.style.display='block';
-
-  let progress=0;
-  // Simula progresso realista: rápido no início, desacelera no meio, rápido no fim
-  const etapas=[
-    {ate:30, velocidade:80},
-    {ate:60, velocidade:200},
-    {ate:85, velocidade:300},
-    {ate:95, velocidade:500},
-    {ate:100, velocidade:150},
-  ];
-  let etapaIdx=0;
-
-  const avançar=()=>{
-    const etapa=etapas[etapaIdx];
-    if(progress>=etapa.ate){ etapaIdx++; if(etapaIdx>=etapas.length){ recarregar(); return; } }
-    progress=Math.min(progress+1, etapa.ate);
-    fill.style.width=progress+'%';
-    pct.textContent=`Baixando atualização... ${progress}%`;
-    setTimeout(avançar, etapas[etapaIdx]?.velocidade||150);
-  };
-  avançar();
-}
-
-function recarregar(){
-  const fill=document.getElementById('update-progress-fill');
-  const pct=document.getElementById('update-progress-pct');
-  fill.style.width='100%';
-  pct.textContent='✅ Concluído! Recarregando...';
-  // Preservar sessão no localStorage antes de recarregar
-  const sess={};
-  ['dalum-logged','dalum-user','dalum-user-role','dalum-admin-key'].forEach(k=>{ const v=sessionStorage.getItem(k); if(v) sess[k]=v; });
-  localStorage.setItem('dalum-reload-sess',JSON.stringify(sess));
-  setTimeout(()=>location.reload(),600);
-}
-
-
-function startUpdateCheck(){
-  if(_updateCheckInterval) return;
-  _updateCheckInterval=setInterval(()=>checkForUpdates('gestaodecompras','f4e215604657'),30000);
-  setTimeout(()=>checkForUpdates('gestaodecompras','f4e215604657'),10000);
-}
 // ---- DATA STORE ----
 const INITIAL = {
   urgente:[
@@ -1331,7 +1244,7 @@ function gerarImpressao(opts){
   const now = new Date().toLocaleDateString('pt-BR');
 
   const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
-<title>Gestão de Compras · Daluminium · TESTE</title>
+<title>Gestão de Compras · Daluminium</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:11px;color:#23282F;background:white}
@@ -2314,6 +2227,74 @@ async function removeUser(idx){
 })();
 
 
+
+
+// ---- SESSÕES ----
+const _sessionId = Math.random().toString(36).slice(2)+Date.now().toString(36);
+
+async function registrarSessao(nome, username){
+  try{
+    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}
+    });
+    if(!r.ok) return;
+    const d=await r.json();
+    const ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&s.username!==username);
+    ativas.push({sessionId:_sessionId,username:username||'ander',nome,sistema:'compras',ts:Date.now()});
+    d.ativas=ativas;
+    await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+      body:JSON.stringify({data:d})
+    });
+  }catch(e){}
+}
+
+async function removerSessao(){
+  try{
+    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}
+    });
+    if(!r.ok) return;
+    const d=await r.json();
+    d.ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId);
+    await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+      body:JSON.stringify({data:d})
+    });
+  }catch(e){}
+}
+
+async function checkForceLogout(){
+  try{
+    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+      headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}
+    });
+    if(!r.ok) return;
+    const d=await r.json();
+    const forced=(d.forceLogout||[]);
+    if(forced.includes(_sessionId)){
+      // Remove da lista e faz logout
+      d.forceLogout=forced.filter(s=>s!==_sessionId);
+      d.ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId);
+      await fetch('https://daluminium-api.daluminium2.workers.dev',{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+        body:JSON.stringify({data:d})
+      });
+      alert('Sua sessão foi encerrada pelo administrador.');
+      doLogout();
+    }
+  }catch(e){}
+}
+
+let _forceLogoutInterval=null;
+function startSessionCheck(){
+  if(_forceLogoutInterval) return;
+  _forceLogoutInterval=setInterval(checkForceLogout, 30000);
+}
+
 // ---- SEGURANÇA ----
 // SHA-256 hash para senhas
 async function hashSenha(senha){
@@ -2401,6 +2382,8 @@ async function doLogin(){
       sessionStorage.setItem('dalum-user-role','admin');
       sessionStorage.setItem('dalum-admin-key', admin.user);
       lastBy=admin.name;
+      registrarSessao(admin.name,'ander reis');
+      startSessionCheck();
       document.getElementById('login-screen').classList.remove('active');
       showAdminBtn(true);
       updateSaldosBtn();
@@ -2425,6 +2408,8 @@ async function doLogin(){
     sessionStorage.setItem('dalum-user', found.name);
     sessionStorage.setItem('dalum-user-role', found.role==='gerente'?'gerente':'user');
     lastBy=found.name;
+    registrarSessao(found.name,found.username);
+    startSessionCheck();
     document.getElementById('login-screen').classList.remove('active');
     showAdminBtn(false);
     updateSaldosBtn();
@@ -2495,14 +2480,12 @@ function changeMyPass(){
   alert('Senha alterada com sucesso! ✅');
 }
 
-function showAdminBtn(show){
-  const btn=document.getElementById('admin-btn');
-  if(btn) btn.style.display=show?'flex':'none';
-}
+function showAdminBtn(show){} // Gerenciamento centralizado no portal
 function updateSaldosBtn(){} // compras não tem saldo inicial
 
-function doLogout(){
+async function doLogout(){
   if(!confirm('Deseja sair do sistema?')) return;
+  await removerSessao();
   sessionStorage.removeItem('dalum-logged');
   sessionStorage.removeItem('dalum-user');
   sessionStorage.removeItem('dalum-user-role');
