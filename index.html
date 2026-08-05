@@ -704,6 +704,7 @@ function abrirModulo(url,titulo){
 window.addEventListener('message',function(e){
   if(e.data==='voltarPortal') voltarPortal();
   if(e.data==='logout'){
+    removerSessaoPortal();
     localStorage.removeItem('dalum-sso');
     ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key'].forEach(k=>sessionStorage.removeItem(k));
     document.getElementById('frame-container').classList.remove('active');
@@ -713,6 +714,7 @@ window.addEventListener('message',function(e){
     document.getElementById('login-screen').classList.add('active');
     document.getElementById('login-user').value='';
     document.getElementById('login-pass').value='';
+    telaEncerrada();
   }
 });
 
