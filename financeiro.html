@@ -1214,8 +1214,20 @@ async function addCategoria(){
 }
 async function renomearCategoria(i){
   const cats=getCategorias();
+  const uso=usoCategoria(cats[i].id);
   const novo=prompt('Novo nome da conta:',cats[i].label);
   if(!novo||!novo.trim()) return;
+  if(novo.trim()===cats[i].label) return;
+  if(uso>0){
+    const ok=confirm(
+      'ATENÇÃO\n\n'+
+      'A conta "'+cats[i].label+'" já tem '+uso+' lançamento(s).\n\n'+
+      'Renomear vale também para trás: todos esses lançamentos passarão a aparecer '+
+      'como "'+novo.trim()+'" nos relatórios e no histórico.\n\n'+
+      'Se a intenção é criar uma conta diferente, cancele e use "Adicionar" — '+
+      'depois desative esta.\n\nConfirma a renomeação?');
+    if(!ok) return;
+  }
   cats[i].label=novo.trim();
   await salvarCategorias();
 }
