@@ -600,8 +600,9 @@ async function registrarSessaoPortal(nome, username){
     const r=await fetch(WORKER_SESS,{headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}});
     if(!r.ok) return;
     const d=await r.json();
-    const ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&s.username!==username);
-    ativas.push({sessionId:_sessionId,username:username||nome,nome,sistema:'portal',ts:Date.now()});
+    const _u=(username||nome||'').toLowerCase().trim();
+    const ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&(s.username||'').toLowerCase().trim()!==_u);
+    ativas.push({sessionId:_sessionId,username:_u,nome,sistema:'portal',ts:Date.now()});
     d.ativas=ativas;
     await fetch(WORKER_SESS,{method:'PATCH',
       headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},

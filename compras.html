@@ -2250,8 +2250,9 @@ async function registrarSessao(nome, username){
     });
     if(!r.ok) return;
     const d=await r.json();
-    const ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&s.username!==username);
-    ativas.push({sessionId:_sessionId,username:username||'ander',nome,sistema:'compras',ts:Date.now()});
+    const _u=(username||nome||'').toLowerCase().trim();
+    const ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&(s.username||'').toLowerCase().trim()!==_u);
+    ativas.push({sessionId:_sessionId,username:_u,nome,sistema:'compras',ts:Date.now()});
     d.ativas=ativas;
     await fetch('https://daluminium-api.daluminium2.workers.dev',{
       method:'PATCH',
