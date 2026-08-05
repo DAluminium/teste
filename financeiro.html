@@ -66,6 +66,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .tab-receber.active{background:var(--teal-dark)}
 .tab-caixa.active{background:var(--green)}
 .tab-relatorio.active{background:var(--purple)}
+.tab-apagar.active{background:#B9770E}
+.per-btn{font-size:12px;padding:5px 10px;border-radius:var(--radius);border:1px solid var(--gray-3);background:white;cursor:pointer;color:var(--gray-5)}
+.per-btn.on{background:#B9770E;color:white;border-color:#B9770E;font-weight:600}
+.ap-venc{font-weight:600}.ap-atraso{color:var(--red);font-weight:700}
 .tab-btn:not(.active):hover{background:var(--gray-1);color:var(--gray-6)}
 
 /* PANEL */
@@ -244,6 +248,7 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
     <button class="tab-btn tab-receber" onclick="setTab('receber',this)">💰 Contas a Receber</button>
     <button class="tab-btn tab-caixa" onclick="setTab('caixa',this)">🏦 Fluxo de Caixa</button>
     <button class="tab-btn tab-relatorio" onclick="setTab('relatorio',this)">📊 Relatório</button>
+    <button class="tab-btn tab-apagar" onclick="setTab('apagar',this)">📅 A Pagar por Período</button>
   </div>
 
   <!-- CONTAS A PAGAR -->
@@ -359,6 +364,33 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
       </div>
     </div>
     <div id="relatorio-content"></div>
+  </div>
+
+  <!-- A PAGAR POR PERIODO -->
+  <div id="panel-apagar" class="panel" style="display:none">
+    <div class="panel-header">
+      <div class="panel-title">📅 Contas a Pagar por Período</div>
+      <div class="panel-actions">
+        <button class="btn btn-outline btn-sm" onclick="printRelatorio()">
+          <svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Imprimir
+        </button>
+      </div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px 0 12px">
+      <button class="per-btn on" id="pb-semana" onclick="setPeriodo('semana',this)">Esta semana</button>
+      <button class="per-btn" id="pb-prox" onclick="setPeriodo('prox',this)">Próxima semana</button>
+      <button class="per-btn" id="pb-mes" onclick="setPeriodo('mes',this)">Este mês</button>
+      <button class="per-btn" id="pb-livre" onclick="setPeriodo('livre',this)">Escolher datas</button>
+      <span id="ap-datas" style="display:none;gap:6px;align-items:center">
+        <input type="date" id="ap-de" onchange="renderAPagar()" style="font-size:12px;padding:4px 6px;border-radius:var(--radius);border:1px solid var(--gray-3)">
+        <span style="color:var(--gray-4);font-size:12px">até</span>
+        <input type="date" id="ap-ate" onchange="renderAPagar()" style="font-size:12px;padding:4px 6px;border-radius:var(--radius);border:1px solid var(--gray-3)">
+      </span>
+      <label style="margin-left:auto;font-size:12px;color:var(--gray-5);display:flex;align-items:center;gap:5px;cursor:pointer">
+        <input type="checkbox" id="ap-vencidas" checked onchange="renderAPagar()"> incluir vencidas em aberto
+      </label>
+    </div>
+    <div id="apagar-content"></div>
   </div>
 </div>
 
@@ -1228,11 +1260,12 @@ function getParcelas(){
 function setTab(tab,el){
   document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
-  ['pagar','receber','caixa','relatorio'].forEach(t=>{
+  ['pagar','receber','caixa','relatorio','apagar'].forEach(t=>{
     document.getElementById('panel-'+t).style.display=t===tab?'block':'none';
   });
   if(tab==='caixa') renderCaixa();
   if(tab==='relatorio') renderRelatorio();
+  if(tab==='apagar') renderAPagar();
 }
 
 // ---- RENDER ----
@@ -1664,6 +1697,101 @@ function renderRelatorio(){
 }
 
 function printRelatorio(){ window.print(); }
+
+// ---- A PAGAR POR PERIODO ----
+let apPeriodo='semana';
+function setPeriodo(tipo,el){
+  apPeriodo=tipo;
+  document.querySelectorAll('.per-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('ap-datas').style.display = tipo==='livre'?'inline-flex':'none';
+  if(tipo==='livre'){
+    const r=rangePeriodo('semana');
+    if(!document.getElementById('ap-de').value) document.getElementById('ap-de').value=r.de;
+    if(!document.getElementById('ap-ate').value) document.getElementById('ap-ate').value=r.ate;
+  }
+  renderAPagar();
+}
+function iso(d){ return d.toISOString().slice(0,10); }
+function rangePeriodo(tipo){
+  const hoje=new Date(); hoje.setHours(0,0,0,0);
+  if(tipo==='livre'){
+    return {de:document.getElementById('ap-de').value||iso(hoje),
+            ate:document.getElementById('ap-ate').value||iso(hoje)};
+  }
+  if(tipo==='mes'){
+    const de=new Date(hoje.getFullYear(),hoje.getMonth(),1);
+    const ate=new Date(hoje.getFullYear(),hoje.getMonth()+1,0);
+    return {de:iso(de),ate:iso(ate)};
+  }
+  // semana: segunda a domingo
+  const dow=(hoje.getDay()+6)%7;
+  const seg=new Date(hoje); seg.setDate(hoje.getDate()-dow);
+  if(tipo==='prox') seg.setDate(seg.getDate()+7);
+  const dom=new Date(seg); dom.setDate(seg.getDate()+6);
+  return {de:iso(seg),ate:iso(dom)};
+}
+function renderAPagar(){
+  const r=rangePeriodo(apPeriodo);
+  const incVenc=document.getElementById('ap-vencidas').checked;
+  const hoje=today();
+  const abertas=data.pagar.filter(x=>!x.dtPag&&x.venc);
+  const noPeriodo=abertas.filter(x=>x.venc>=r.de&&x.venc<=r.ate);
+  const vencidas=incVenc?abertas.filter(x=>x.venc<r.de&&x.venc<hoje):[];
+  const lista=[...vencidas,...noPeriodo].sort((a,b)=>a.venc.localeCompare(b.venc));
+
+  const total=lista.reduce((a,x)=>a+Number(x.valor||0),0);
+  const totalVenc=vencidas.reduce((a,x)=>a+Number(x.valor||0),0);
+  const totalPer=noPeriodo.reduce((a,x)=>a+Number(x.valor||0),0);
+
+  const porCat={},porConta={};
+  lista.forEach(x=>{ porCat[x.cat]=(porCat[x.cat]||0)+Number(x.valor||0);
+                     porConta[x.conta]=(porConta[x.conta]||0)+Number(x.valor||0); });
+
+  const per=`${fmtDate(r.de)} a ${fmtDate(r.ate)}`;
+  let html=`<div class="rel-section">
+    <div class="rel-title">📅 PERÍODO: ${per}</div>
+    ${vencidas.length?`<div class="rel-row"><span>🚨 Vencidas em aberto (${vencidas.length})</span><span class="rel-neg">R$ ${fmtBR(totalVenc)}</span></div>`:''}
+    <div class="rel-row"><span>A vencer no período (${noPeriodo.length})</span><span class="rel-neg">R$ ${fmtBR(totalPer)}</span></div>
+    <div class="rel-row total"><span>TOTAL A PAGAR</span><span class="rel-neg">R$ ${fmtBR(total)}</span></div>
+  </div>`;
+
+  if(!lista.length){
+    html+=`<div class="rel-section"><div class="rel-row" style="color:var(--gray-4)">Nenhuma conta a pagar neste período. 🎉</div></div>`;
+    document.getElementById('apagar-content').innerHTML=html;
+    return;
+  }
+
+  html+=`<div class="rel-section"><div class="rel-title">📋 DETALHAMENTO</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="border-bottom:1px solid var(--gray-3);color:var(--gray-5);text-align:left">
+        <th style="padding:6px 4px">Vencimento</th><th style="padding:6px 4px">Fornecedor</th>
+        <th style="padding:6px 4px">Descrição</th><th style="padding:6px 4px">Categoria</th>
+        <th style="padding:6px 4px">Conta</th><th style="padding:6px 4px;text-align:right">Valor</th>
+      </tr></thead><tbody>`;
+  lista.forEach(x=>{
+    const atrasada=x.venc<hoje;
+    const dias=Math.round((new Date(hoje)-new Date(x.venc))/86400000);
+    html+=`<tr style="border-bottom:1px solid var(--gray-2)">
+      <td style="padding:6px 4px" class="${atrasada?'ap-atraso':'ap-venc'}">${fmtDate(x.venc)}${atrasada?`<br><span style="font-size:10px">${dias} dia${dias>1?'s':''} em atraso</span>`:''}</td>
+      <td style="padding:6px 4px">${x.forn||'—'}</td>
+      <td style="padding:6px 4px">${x.desc||'—'}${x.parcelaDesc?`<br><span style="font-size:10px;color:var(--gray-4)">${x.parcelaDesc}</span>`:''}${x.obs?`<br><span style="font-size:10px;color:var(--purple)">📝 ${x.obs}</span>`:''}</td>
+      <td style="padding:6px 4px;color:var(--gray-5)">${CAT_LABEL[x.cat]||x.cat||'—'}</td>
+      <td style="padding:6px 4px;color:var(--gray-5)">${CONTA_LABEL[x.conta]||x.conta||'—'}</td>
+      <td style="padding:6px 4px;text-align:right;font-weight:600">R$ ${fmtBR(x.valor)}</td>
+    </tr>`;
+  });
+  html+=`</tbody></table></div>`;
+
+  html+=`<div class="rel-section"><div class="rel-title">🏷️ POR CATEGORIA</div>
+    ${Object.entries(porCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<div class="rel-row"><span>${CAT_LABEL[c]||c||'—'}</span><span class="rel-neg">R$ ${fmtBR(v)}</span></div>`).join('')}
+  </div>
+  <div class="rel-section"><div class="rel-title">🏦 POR CONTA DE SAÍDA</div>
+    ${Object.entries(porConta).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<div class="rel-row"><span>${CONTA_LABEL[c]||c||'—'}</span><span class="rel-neg">R$ ${fmtBR(v)}</span></div>`).join('')}
+  </div>`;
+  document.getElementById('apagar-content').innerHTML=html;
+}
+
 function exportRelatorio(){
   const json=JSON.stringify(data,null,2);
   const blob=new Blob([json],{type:'application/json'});
