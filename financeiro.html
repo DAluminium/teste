@@ -1855,6 +1855,9 @@ function checkSSO(){
     const ssoCheck=JSON.parse(localStorage.getItem('dalum-sso')||'null');
     const inIframe=window.self!==window.top;
     if(inIframe&&ssoCheck&&(ssoCheck.modulos||[]).length>1) addPortalBackBtn();
+    // Entrada via portal tambem conta como sessao ativa
+    registrarSessao(sso.nome, sso.username||sso.nome);
+    startSessionCheck();
     return true;
   }catch(e){ return false; }
 }

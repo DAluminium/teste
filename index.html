@@ -588,7 +588,8 @@ async function forceLogout(sessionId, nome){
 
 // ---- SSO ----
 function setSSOToken(nome,role,modulos){
-  localStorage.setItem('dalum-sso',JSON.stringify({nome,role,modulos,ts:Date.now()}));
+  const username=sessionStorage.getItem('portal-admin-key')||nome;
+  localStorage.setItem('dalum-sso',JSON.stringify({nome,username,role,modulos,ts:Date.now()}));
 }
 function voltarPortal(){
   document.getElementById('frame-container').classList.remove('active');
