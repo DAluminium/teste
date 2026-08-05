@@ -371,6 +371,7 @@ async function doLogin(){
 
 function doLogout(){
   if(!confirm('Deseja sair?')) return;
+  removerSessaoPortal();
   localStorage.removeItem('dalum-sso');
   ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key'].forEach(k=>sessionStorage.removeItem(k));
   document.getElementById('login-screen').classList.add('active');
@@ -389,6 +390,8 @@ function showPortal(nome, modulos, isAdmin){
   if(isAdmin) document.getElementById('admin-section').style.display='block';
   else document.getElementById('admin-section').style.display='none';
   setSSOToken(nome, isAdmin?'admin':'user', modulos);
+  registrarSessaoPortal(nome, sessionStorage.getItem('portal-admin-key')||nome);
+  startSessionCheckPortal();
   renderModulos(modulos);
   // 1 módulo e não admin — entra direto
   if(modulos.length===1&&!isAdmin){
@@ -550,7 +553,7 @@ async function loadSessoes(){
       lista.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center">Nenhum usuário ativo no momento.</p>';
       return;
     }
-    const sistemaLabel={compras:'🛒 Gestão de Compras',financeiro:'💰 Financeiro'};
+    const sistemaLabel={compras:'🛒 Gestão de Compras',financeiro:'💰 Financeiro',portal:'🏠 Portal'};
     lista.innerHTML=ativas.map(s=>{
       const minutos=Math.floor((Date.now()-s.ts)/60000);
       const tempo=minutos<60?minutos+'min atrás':Math.floor(minutos/60)+'h atrás';
@@ -587,6 +590,63 @@ async function forceLogout(sessionId, nome){
 }
 
 // ---- SSO ----
+
+// ---- SESSAO DO PROPRIO PORTAL ----
+const WORKER_SESS='https://daluminium-api.daluminium2.workers.dev';
+const _sessionId = Math.random().toString(36).slice(2)+Date.now().toString(36);
+let _sessCheck=null;
+async function registrarSessaoPortal(nome, username){
+  try{
+    const r=await fetch(WORKER_SESS,{headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}});
+    if(!r.ok) return;
+    const d=await r.json();
+    const ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&s.username!==username);
+    ativas.push({sessionId:_sessionId,username:username||nome,nome,sistema:'portal',ts:Date.now()});
+    d.ativas=ativas;
+    await fetch(WORKER_SESS,{method:'PATCH',
+      headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+      body:JSON.stringify({data:d})});
+  }catch(e){}
+}
+async function removerSessaoPortal(){
+  try{
+    const r=await fetch(WORKER_SESS,{headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}});
+    if(!r.ok) return;
+    const d=await r.json();
+    d.ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId);
+    await fetch(WORKER_SESS,{method:'PATCH',
+      headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+      body:JSON.stringify({data:d})});
+  }catch(e){}
+}
+async function checkForceLogoutPortal(){
+  try{
+    const r=await fetch(WORKER_SESS,{headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}});
+    if(!r.ok) return;
+    const d=await r.json();
+    const forced=(d.forceLogout||[]);
+    if(forced.includes(_sessionId)){
+      d.forceLogout=forced.filter(x=>x!==_sessionId);
+      d.ativas=(d.ativas||[]).filter(x=>x.sessionId!==_sessionId);
+      await fetch(WORKER_SESS,{method:'PATCH',
+        headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+        body:JSON.stringify({data:d})});
+      alert('Sua sessão foi encerrada pelo administrador.');
+      forcarSaida();
+    }
+  }catch(e){}
+}
+function startSessionCheckPortal(){
+  if(_sessCheck) return;
+  _sessCheck=setInterval(checkForceLogoutPortal,30000);
+}
+function forcarSaida(){
+  localStorage.removeItem('dalum-sso');
+  ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key'].forEach(k=>sessionStorage.removeItem(k));
+  location.reload();
+}
+window.addEventListener('beforeunload',()=>{ try{ removerSessaoPortal(); }catch(e){} });
+
 function setSSOToken(nome,role,modulos){
   const username=sessionStorage.getItem('portal-admin-key')||nome;
   localStorage.setItem('dalum-sso',JSON.stringify({nome,username,role,modulos,ts:Date.now()}));
