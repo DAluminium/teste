@@ -204,6 +204,9 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
     <button id="saldos-btn" class="btn btn-ghost btn-sm" onclick="openSaldosIniciais()" style="display:none" title="Configurar saldos iniciais dos bancos">
       <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Saldos iniciais
     </button>
+    <button id="cat-btn" class="btn btn-ghost btn-sm" onclick="openCategorias()" style="display:none" title="Cadastrar contas de despesa">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Contas
+    </button>
     <button class="btn btn-ghost btn-sm" onclick="changeMyPass()">
       <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Senha
     </button>
@@ -404,6 +407,29 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
     <div id="apagar-content"></div>
   </div>
 
+</div>
+
+
+<!-- MODAL CATEGORIAS -->
+<div class="modal-overlay" id="cat-overlay">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <div class="modal-title">🏷️ Contas de Despesa</div>
+      <button class="btn btn-outline btn-sm" onclick="closeCategorias()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <input id="cat-nova" type="text" placeholder="Nome da nova conta (ex: Energia)"
+          style="flex:1;padding:9px 11px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:13px"
+          onkeydown="if(event.key==='Enter')addCategoria()">
+        <button class="btn btn-teal" onclick="addCategoria()">Adicionar</button>
+      </div>
+      <div style="font-size:11.5px;color:var(--gray-4);margin-bottom:10px;line-height:1.5">
+        Contas já usadas em lançamentos não podem ser excluídas — desative-as. Elas somem do formulário mas continuam aparecendo no histórico.
+      </div>
+      <div id="cat-lista"></div>
+    </div>
+  </div>
 </div>
 
 <!-- MODAL DESPESA -->
@@ -837,6 +863,8 @@ function updateSaldosBtn(){
   const role=sessionStorage.getItem('fin-role')||'';
   const btn=document.getElementById('saldos-btn');
   if(btn) btn.style.display=(role==='admin'||role==='gerente')?'flex':'none';
+  const cb=document.getElementById('cat-btn');
+  if(cb) cb.style.display=(role==='admin'||role==='gerente')?'flex':'none';
 }
 
 // ---- SALDOS INICIAIS ----
@@ -1107,6 +1135,7 @@ async function persistUsers(){
   }catch(e){ console.warn('Erro ao salvar usuários:', e); }
 }
 
+function _garanteCat(){ try{ buildCatLabel(); popularSelectCat(); }catch(e){} }
 async function persist(){
   if(!dataReady) return; // Nunca salva antes de carregar da nuvem
   const totalItems=(data.pagar||[]).length+(data.receber||[]).length+(data.usuarios||[]).length;
@@ -1124,6 +1153,68 @@ async function persist(){
   }catch(e){ setStatus('🔴 Erro ao salvar'); }
 }
 
+
+// ---- CADASTRO DE CONTAS DE DESPESA ----
+function slugCat(t){
+  return t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
+          .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
+}
+function usoCategoria(id){ return (data.pagar||[]).filter(r=>r.cat===id).length; }
+function openCategorias(){ renderCategorias(); document.getElementById('cat-overlay').classList.add('open'); }
+function closeCategorias(){ document.getElementById('cat-overlay').classList.remove('open'); }
+function renderCategorias(){
+  const cats=getCategorias();
+  const el=document.getElementById('cat-lista');
+  el.innerHTML=cats.map((c,i)=>{
+    const uso=usoCategoria(c.id);
+    const off=c.ativo===false;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--gray-2);${off?'opacity:.5':''}">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600">${c.label}${off?' <span style="font-size:10px;font-weight:400;color:var(--gray-4)">(desativada)</span>':''}</div>
+        <div style="font-size:10.5px;color:var(--gray-4)">${uso?uso+' lançamento(s)':'sem uso'}</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="renomearCategoria(${i})">Renomear</button>
+      <button class="btn btn-outline btn-sm" onclick="toggleCategoria(${i})">${off?'Ativar':'Desativar'}</button>
+      ${uso?'':`<button class="btn btn-red btn-sm" onclick="removerCategoria(${i})">Excluir</button>`}
+    </div>`;
+  }).join('');
+}
+async function salvarCategorias(){
+  buildCatLabel(); popularSelectCat(); renderCategorias(); render();
+  await persist();
+}
+async function addCategoria(){
+  const inp=document.getElementById('cat-nova');
+  const nome=(inp.value||'').trim();
+  if(!nome){ inp.focus(); return; }
+  const id=slugCat(nome);
+  if(!id){ alert('Nome inválido.'); return; }
+  const cats=getCategorias();
+  if(cats.some(c=>c.id===id)){ alert('Já existe uma conta com esse nome.'); return; }
+  cats.push({id,label:nome,ativo:true});
+  inp.value='';
+  await salvarCategorias();
+}
+async function renomearCategoria(i){
+  const cats=getCategorias();
+  const novo=prompt('Novo nome da conta:',cats[i].label);
+  if(!novo||!novo.trim()) return;
+  cats[i].label=novo.trim();
+  await salvarCategorias();
+}
+async function toggleCategoria(i){
+  const cats=getCategorias();
+  cats[i].ativo=(cats[i].ativo===false);
+  await salvarCategorias();
+}
+async function removerCategoria(i){
+  const cats=getCategorias();
+  if(usoCategoria(cats[i].id)>0){ alert('Esta conta já tem lançamentos. Use Desativar.'); return; }
+  if(!confirm(`Excluir a conta "${cats[i].label}"?`)) return;
+  cats.splice(i,1);
+  await salvarCategorias();
+}
+
 function setStatus(msg){ document.getElementById('sync-status').textContent=msg; }
 
 // ---- HELPERS ----
@@ -1135,7 +1226,13 @@ function mesLabel(d){ const dt=new Date(d+'T00:00:00'); return dt.toLocaleDateSt
 function genId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 
 const CONTA_LABEL={pagbank:'PagBank',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa',antecipacao:'Antecip. Boleto'};
-const CAT_LABEL={energia:'Energia',agua:'Água',salarios:'Salários',fornecedores:'Fornecedores',aluguel:'Aluguel Máq./Equip.',software:'Software',prestadores:'Prestadores',telefone:'Telefone',internet:'Internet','despesas-pessoal':'Desp. Pessoal','despesas-cliente':'Desp. Cliente',outros:'Outros'};
+const CAT_PADRAO=[{"id": "energia", "label": "Energia", "ativo": true}, {"id": "agua", "label": "Água", "ativo": true}, {"id": "salarios", "label": "Salários", "ativo": true}, {"id": "fornecedores", "label": "Fornecedores", "ativo": true}, {"id": "aluguel", "label": "Aluguel Máq./Equip.", "ativo": true}, {"id": "software", "label": "Software", "ativo": true}, {"id": "prestadores", "label": "Prestadores", "ativo": true}, {"id": "telefone", "label": "Telefone", "ativo": true}, {"id": "internet", "label": "Internet", "ativo": true}, {"id": "despesas-pessoal", "label": "Desp. Pessoal", "ativo": true}, {"id": "despesas-cliente", "label": "Desp. Cliente", "ativo": true}, {"id": "seguro", "label": "Seguro", "ativo": true}, {"id": "marketing", "label": "Marketing", "ativo": true}, {"id": "uso-consumo", "label": "Uso e consumo", "ativo": true}, {"id": "fgts", "label": "FGTS", "ativo": true}, {"id": "inss", "label": "INSS", "ativo": true}, {"id": "simples-nacional", "label": "Simples Nacional", "ativo": true}, {"id": "pis", "label": "PIS", "ativo": true}, {"id": "cofins", "label": "COFINS", "ativo": true}, {"id": "parcelamento-federal", "label": "Parcelamento federal", "ativo": true}, {"id": "parcelamento-estadual", "label": "Parcelamento estadual", "ativo": true}, {"id": "multa-juros", "label": "Multa e juros", "ativo": true}, {"id": "taxas", "label": "Taxas", "ativo": true}, {"id": "consultorias", "label": "Consultorias", "ativo": true}, {"id": "retirada-socia", "label": "Retirada sócia", "ativo": true}, {"id": "pro-labore", "label": "Pró-labore", "ativo": true}, {"id": "comissao", "label": "Comissão", "ativo": true}, {"id": "combustivel", "label": "Combustível", "ativo": true}, {"id": "manutencao-veiculo", "label": "Manutenção de veículo", "ativo": true}, {"id": "manutencao-predial", "label": "Manutenção predial", "ativo": true}, {"id": "honorarios-advocaticios", "label": "Honorários advocatícios", "ativo": true}, {"id": "honorarios-contabeis", "label": "Honorários contábeis", "ativo": true}, {"id": "ferias", "label": "Férias", "ativo": true}, {"id": "rescisao", "label": "Rescisão", "ativo": true}, {"id": "outros", "label": "Outros", "ativo": true}];
+let CAT_LABEL={};
+function getCategorias(){ if(!Array.isArray(data.categorias)||!data.categorias.length) data.categorias=JSON.parse(JSON.stringify(CAT_PADRAO)); return data.categorias; }
+function buildCatLabel(){ CAT_LABEL={}; getCategorias().forEach(c=>{ CAT_LABEL[c.id]=c.label; }); }
+function popularSelectCat(){ const sel=document.getElementById('p-cat'); if(!sel) return; const atual=sel.value;
+  sel.innerHTML=getCategorias().filter(c=>c.ativo!==false).map(c=>`<option value="${c.id}">${c.label}</option>`).join('');
+  if(atual) sel.value=atual; }
 
 function pillStatus(s){
   if(s==='pago'||s==='recebido') return`<span class="pill pill-pago">${s==='pago'?'Pago':'Recebido'}</span>`;
@@ -1387,6 +1484,7 @@ function renderPagar(){
 
 function openModalPagar(idx=null){
   pagarEditId=idx;
+  _garanteCat();
   document.getElementById('p-parcelas-list').innerHTML='';
   if(idx!==null){
     const r=data.pagar[idx];
@@ -1887,6 +1985,8 @@ async function init(){
   }catch{}
   await ensureBin();
   await syncFromCloud();
+  buildCatLabel();
+  popularSelectCat();
   populateMesFiltros();
   render();
   syncInterval=setInterval(syncFromCloud,30000);
