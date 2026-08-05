@@ -369,15 +369,33 @@ async function doLogin(){
   }
 }
 
-function doLogout(){
+async function doLogout(){
   if(!confirm('Deseja sair?')) return;
-  removerSessaoPortal();
+  await removerSessaoPortal();
   localStorage.removeItem('dalum-sso');
   ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key'].forEach(k=>sessionStorage.removeItem(k));
   document.getElementById('login-screen').classList.add('active');
   document.getElementById('portal').classList.remove('active');
   document.getElementById('login-user').value='';
   document.getElementById('login-pass').value='';
+  telaEncerrada();
+}
+function telaEncerrada(){
+  // Tenta fechar a aba. O navegador so permite se ela foi aberta por script.
+  try{ window.close(); }catch(e){}
+  setTimeout(function(){
+    if(document.hidden) return;
+    document.body.innerHTML='<div style="position:fixed;inset:0;background:#0E8FA6;color:#fff;'+
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;'+
+      'font-family:system-ui,-apple-system,\'Segoe UI\',sans-serif;text-align:center;padding:24px">'+
+      '<div style="font-size:22px;font-weight:600;letter-spacing:.04em">DALUMINIUM</div>'+
+      '<div style="font-size:15px;opacity:.9">Sessão encerrada com segurança.</div>'+
+      '<div style="font-size:13px;opacity:.7">Você já pode fechar esta aba.</div>'+
+      '<button onclick="location.reload()" style="margin-top:8px;background:rgba(255,255,255,.2);'+
+      'border:1px solid rgba(255,255,255,.35);color:#fff;padding:9px 20px;border-radius:8px;'+
+      'font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Entrar novamente</button>'+
+      '</div>';
+  },400);
 }
 
 // ---- PORTAL UI ----
@@ -656,6 +674,9 @@ function voltarPortal(){
   document.getElementById('frame-container').classList.remove('active');
   document.getElementById('frame-iframe').src='about:blank';
   document.getElementById('portal').style.display='block';
+  // volta a constar como "no portal" na lista de sessoes
+  const nome=sessionStorage.getItem('portal-user')||'';
+  if(nome) registrarSessaoPortal(nome, sessionStorage.getItem('portal-admin-key')||nome);
 }
 function abrirModulo(url,titulo){
   document.getElementById('portal').style.display='none';
