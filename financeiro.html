@@ -69,7 +69,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .tab-apagar.active{background:#B9770E}
 .per-btn{font-size:12px;padding:5px 10px;border-radius:var(--radius);border:1px solid var(--gray-3);background:white;cursor:pointer;color:var(--gray-5)}
 .per-btn.on{background:#B9770E;color:white;border-color:#B9770E;font-weight:600}
+.mod-btn{font-size:13px;font-weight:600;padding:8px 18px;border:1px solid var(--gray-3);background:white;cursor:pointer;color:var(--gray-4);font-family:inherit}
+.mod-btn:first-child{border-radius:var(--radius) 0 0 var(--radius)}
+.mod-btn:last-child{border-radius:0 var(--radius) var(--radius) 0;border-left:none}
+#mb-pagar.on{background:var(--red);color:white;border-color:var(--red)}
+#mb-receber.on{background:var(--green);color:white;border-color:var(--green)}
 .ap-venc{font-weight:600}.ap-atraso{color:var(--red);font-weight:700}
+
 .tab-btn:not(.active):hover{background:var(--gray-1);color:var(--gray-6)}
 
 /* PANEL */
@@ -248,7 +254,8 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
     <button class="tab-btn tab-receber" onclick="setTab('receber',this)">💰 Contas a Receber</button>
     <button class="tab-btn tab-caixa" onclick="setTab('caixa',this)">🏦 Fluxo de Caixa</button>
     <button class="tab-btn tab-relatorio" onclick="setTab('relatorio',this)">📊 Relatório</button>
-    <button class="tab-btn tab-apagar" onclick="setTab('apagar',this)">📅 A Pagar por Período</button>
+    <button class="tab-btn tab-apagar" onclick="setTab('apagar',this)">📅 Por Período</button>
+
   </div>
 
   <!-- CONTAS A PAGAR -->
@@ -369,12 +376,16 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
   <!-- A PAGAR POR PERIODO -->
   <div id="panel-apagar" class="panel" style="display:none">
     <div class="panel-header">
-      <div class="panel-title">📅 Contas a Pagar por Período</div>
+      <div class="panel-title" id="ap-titulo">📅 Contas a Pagar por Período</div>
       <div class="panel-actions">
         <button class="btn btn-outline btn-sm" onclick="printRelatorio()">
           <svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Imprimir
         </button>
       </div>
+    </div>
+    <div style="display:flex;gap:0;padding:12px 0 4px">
+      <button class="mod-btn on" id="mb-pagar" onclick="setModo('pagar',this)">🔴 A Pagar</button>
+      <button class="mod-btn" id="mb-receber" onclick="setModo('receber',this)">💰 A Receber</button>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px 0 12px">
       <button class="per-btn on" id="pb-semana" onclick="setPeriodo('semana',this)">Esta semana</button>
@@ -387,11 +398,12 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
         <input type="date" id="ap-ate" onchange="renderAPagar()" style="font-size:12px;padding:4px 6px;border-radius:var(--radius);border:1px solid var(--gray-3)">
       </span>
       <label style="margin-left:auto;font-size:12px;color:var(--gray-5);display:flex;align-items:center;gap:5px;cursor:pointer">
-        <input type="checkbox" id="ap-vencidas" checked onchange="renderAPagar()"> incluir vencidas em aberto
+        <input type="checkbox" id="ap-vencidas" checked onchange="renderAPagar()"> <span id="ap-lbl-venc">incluir vencidas em aberto</span>
       </label>
     </div>
     <div id="apagar-content"></div>
   </div>
+
 </div>
 
 <!-- MODAL DESPESA -->
@@ -808,7 +820,6 @@ async function verificarSenha(digitada, armazenada){
 }
 
 // ---- LOGIN & USER MANAGEMENT ----
-// Admins validados via portal + Cloudflare Worker — senhas não armazenadas aqui
 const ADMINS_FIN=[
   {user:'ander reis', name:'Ander Reis', tempPass:false},
   {user:'aretusa',    name:'Aretusa Sendeski', tempPass:true},
@@ -1731,11 +1742,26 @@ function rangePeriodo(tipo){
   const dom=new Date(seg); dom.setDate(seg.getDate()+6);
   return {de:iso(seg),ate:iso(dom)};
 }
+let apModo='pagar';
+function setModo(m,el){
+  apModo=m;
+  document.querySelectorAll('.mod-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('ap-titulo').textContent = m==='pagar'
+    ? '📅 Contas a Pagar por Período' : '📅 Contas a Receber por Período';
+  document.getElementById('ap-lbl-venc').textContent = m==='pagar'
+    ? 'incluir vencidas em aberto' : 'incluir atrasadas em aberto';
+  renderAPagar();
+}
 function renderAPagar(){
   const r=rangePeriodo(apPeriodo);
   const incVenc=document.getElementById('ap-vencidas').checked;
   const hoje=today();
-  const abertas=data.pagar.filter(x=>!x.dtPag&&x.venc);
+  const pag = apModo==='pagar';
+  const cor = pag?'rel-neg':'rel-pos';
+
+  const abertas = pag ? data.pagar.filter(x=>!x.dtPag&&x.venc)
+                      : data.receber.filter(x=>!x.dtRec&&x.venc);
   const noPeriodo=abertas.filter(x=>x.venc>=r.de&&x.venc<=r.ate);
   const vencidas=incVenc?abertas.filter(x=>x.venc<r.de&&x.venc<hoje):[];
   const lista=[...vencidas,...noPeriodo].sort((a,b)=>a.venc.localeCompare(b.venc));
@@ -1744,20 +1770,23 @@ function renderAPagar(){
   const totalVenc=vencidas.reduce((a,x)=>a+Number(x.valor||0),0);
   const totalPer=noPeriodo.reduce((a,x)=>a+Number(x.valor||0),0);
 
-  const porCat={},porConta={};
-  lista.forEach(x=>{ porCat[x.cat]=(porCat[x.cat]||0)+Number(x.valor||0);
-                     porConta[x.conta]=(porConta[x.conta]||0)+Number(x.valor||0); });
+  const porGrupo={},porConta={};
+  lista.forEach(x=>{
+    const g = pag ? (CAT_LABEL[x.cat]||x.cat||'—') : (x.cliente||'—');
+    porGrupo[g]=(porGrupo[g]||0)+Number(x.valor||0);
+    porConta[x.conta]=(porConta[x.conta]||0)+Number(x.valor||0);
+  });
 
   const per=`${fmtDate(r.de)} a ${fmtDate(r.ate)}`;
   let html=`<div class="rel-section">
     <div class="rel-title">📅 PERÍODO: ${per}</div>
-    ${vencidas.length?`<div class="rel-row"><span>🚨 Vencidas em aberto (${vencidas.length})</span><span class="rel-neg">R$ ${fmtBR(totalVenc)}</span></div>`:''}
-    <div class="rel-row"><span>A vencer no período (${noPeriodo.length})</span><span class="rel-neg">R$ ${fmtBR(totalPer)}</span></div>
-    <div class="rel-row total"><span>TOTAL A PAGAR</span><span class="rel-neg">R$ ${fmtBR(total)}</span></div>
+    ${vencidas.length?`<div class="rel-row"><span>🚨 ${pag?'Vencidas':'Atrasadas'} em aberto (${vencidas.length})</span><span class="${cor}">R$ ${fmtBR(totalVenc)}</span></div>`:''}
+    <div class="rel-row"><span>${pag?'A vencer':'A receber'} no período (${noPeriodo.length})</span><span class="${cor}">R$ ${fmtBR(totalPer)}</span></div>
+    <div class="rel-row total"><span>TOTAL ${pag?'A PAGAR':'A RECEBER'}</span><span class="${cor}">R$ ${fmtBR(total)}</span></div>
   </div>`;
 
   if(!lista.length){
-    html+=`<div class="rel-section"><div class="rel-row" style="color:var(--gray-4)">Nenhuma conta a pagar neste período. 🎉</div></div>`;
+    html+=`<div class="rel-section"><div class="rel-row" style="color:var(--gray-4)">Nenhum lançamento neste período. 🎉</div></div>`;
     document.getElementById('apagar-content').innerHTML=html;
     return;
   }
@@ -1765,32 +1794,37 @@ function renderAPagar(){
   html+=`<div class="rel-section"><div class="rel-title">📋 DETALHAMENTO</div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr style="border-bottom:1px solid var(--gray-3);color:var(--gray-5);text-align:left">
-        <th style="padding:6px 4px">Vencimento</th><th style="padding:6px 4px">Fornecedor</th>
-        <th style="padding:6px 4px">Descrição</th><th style="padding:6px 4px">Categoria</th>
-        <th style="padding:6px 4px">Conta</th><th style="padding:6px 4px;text-align:right">Valor</th>
+        <th style="padding:6px 4px">Vencimento</th>
+        <th style="padding:6px 4px">${pag?'Fornecedor':'Cliente'}</th>
+        <th style="padding:6px 4px">Descrição</th>
+        <th style="padding:6px 4px">${pag?'Categoria':'Contrato'}</th>
+        <th style="padding:6px 4px">Conta</th>
+        <th style="padding:6px 4px;text-align:right">Valor</th>
       </tr></thead><tbody>`;
   lista.forEach(x=>{
     const atrasada=x.venc<hoje;
     const dias=Math.round((new Date(hoje)-new Date(x.venc))/86400000);
+    const formas=!pag?[x.avista?'à vista':'',x.cartao?'cartão':'',x.boleto?'boleto':''].filter(Boolean).join(' + '):'';
     html+=`<tr style="border-bottom:1px solid var(--gray-2)">
       <td style="padding:6px 4px" class="${atrasada?'ap-atraso':'ap-venc'}">${fmtDate(x.venc)}${atrasada?`<br><span style="font-size:10px">${dias} dia${dias>1?'s':''} em atraso</span>`:''}</td>
-      <td style="padding:6px 4px">${x.forn||'—'}</td>
-      <td style="padding:6px 4px">${x.desc||'—'}${x.parcelaDesc?`<br><span style="font-size:10px;color:var(--gray-4)">${x.parcelaDesc}</span>`:''}${x.obs?`<br><span style="font-size:10px;color:var(--purple)">📝 ${x.obs}</span>`:''}</td>
-      <td style="padding:6px 4px;color:var(--gray-5)">${CAT_LABEL[x.cat]||x.cat||'—'}</td>
+      <td style="padding:6px 4px">${(pag?x.forn:x.cliente)||'—'}</td>
+      <td style="padding:6px 4px">${x.desc||'—'}${x.parcelaDesc?`<br><span style="font-size:10px;color:var(--gray-4)">${x.parcelaDesc}</span>`:''}${formas?`<br><span style="font-size:10px;color:var(--gray-4)">${formas}</span>`:''}${x.obs?`<br><span style="font-size:10px;color:var(--purple)">📝 ${x.obs}</span>`:''}</td>
+      <td style="padding:6px 4px;color:var(--gray-5)">${pag?(CAT_LABEL[x.cat]||x.cat||'—'):(x.contrato||'—')}</td>
       <td style="padding:6px 4px;color:var(--gray-5)">${CONTA_LABEL[x.conta]||x.conta||'—'}</td>
       <td style="padding:6px 4px;text-align:right;font-weight:600">R$ ${fmtBR(x.valor)}</td>
     </tr>`;
   });
   html+=`</tbody></table></div>`;
 
-  html+=`<div class="rel-section"><div class="rel-title">🏷️ POR CATEGORIA</div>
-    ${Object.entries(porCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<div class="rel-row"><span>${CAT_LABEL[c]||c||'—'}</span><span class="rel-neg">R$ ${fmtBR(v)}</span></div>`).join('')}
+  html+=`<div class="rel-section"><div class="rel-title">${pag?'🏷️ POR CATEGORIA':'👤 POR CLIENTE'}</div>
+    ${Object.entries(porGrupo).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<div class="rel-row"><span>${c}</span><span class="${cor}">R$ ${fmtBR(v)}</span></div>`).join('')}
   </div>
-  <div class="rel-section"><div class="rel-title">🏦 POR CONTA DE SAÍDA</div>
-    ${Object.entries(porConta).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<div class="rel-row"><span>${CONTA_LABEL[c]||c||'—'}</span><span class="rel-neg">R$ ${fmtBR(v)}</span></div>`).join('')}
+  <div class="rel-section"><div class="rel-title">🏦 ${pag?'POR CONTA DE SAÍDA':'POR CONTA DE ENTRADA'}</div>
+    ${Object.entries(porConta).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<div class="rel-row"><span>${CONTA_LABEL[c]||c||'—'}</span><span class="${cor}">R$ ${fmtBR(v)}</span></div>`).join('')}
   </div>`;
   document.getElementById('apagar-content').innerHTML=html;
 }
+
 
 function exportRelatorio(){
   const json=JSON.stringify(data,null,2);
@@ -1826,6 +1860,8 @@ function checkSSO(){
 }
 
 function addPortalBackBtn(){
+  // Dentro do portal a barra superior ja tem o botao Voltar — nao duplicar
+  try{ if(window.self!==window.top) return; }catch(e){ return; }
   // Não mostrar se usuário tem só 1 módulo
   const _sso=JSON.parse(localStorage.getItem('dalum-sso')||'null');
   if(!_sso||(_sso.modulos||[]).length<=1) return;

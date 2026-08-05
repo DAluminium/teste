@@ -2349,7 +2349,6 @@ async function verificarSenha(senhaDigitada, senhaArmazenada){
 }
 
 // ---- LOGIN ----
-// Admins validados via portal + Cloudflare Worker — senhas não armazenadas aqui
 const ADMINS = [
   { user: 'ander reis',  name: 'Ander Reis',       tempPass: false, whatsapp:'', apikey:'' },
   { user: 'aretusa',     name: 'Aretusa Sendeski', tempPass: true,  whatsapp:'', apikey:'' },
@@ -2534,6 +2533,8 @@ function checkSSO(){
 }
 
 function addPortalBackBtn(){
+  // Dentro do portal a barra superior ja tem o botao Voltar — nao duplicar
+  try{ if(window.self!==window.top) return; }catch(e){ return; }
   // Não mostrar se usuário tem só 1 módulo
   const _sso=JSON.parse(localStorage.getItem('dalum-sso')||'null');
   if(!_sso||(_sso.modulos||[]).length<=1) return;
