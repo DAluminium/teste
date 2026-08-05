@@ -65,6 +65,7 @@ tbody tr:hover td{background:var(--gray-1)}
 .pill-pago{background:var(--green-light);color:var(--green)}
 .pill-ok{background:#E8F5E9;color:#2E7D32}
 .pill-pendente{background:var(--gray-2);color:var(--gray-5)}
+.pill-aguardando{background:#EDE7F6;color:#5E35B1}
 .act{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;border:1px solid var(--gray-3);background:transparent;cursor:pointer;color:var(--gray-4);font-size:14px;transition:all .1s;margin-left:2px}
 .act:hover{border-color:var(--gray-4);color:var(--gray-6);background:var(--gray-1)}
 .act-pay:hover{border-color:var(--green-mid);color:var(--green);background:var(--green-light)}
@@ -372,9 +373,10 @@ svg.icon{width:14px;height:14px;vertical-align:middle;fill:none;stroke:currentCo
         <div class="form-group span2"><label>Fornecedor</label><input id="f-fornecedor" type="text" placeholder="Ex: Mirandex"></div>
         <div class="form-group"><label>Valor (R$)</label><input id="f-valor" type="text" placeholder="Ex: 1.195,91"></div>
         <div class="form-group" id="status-group"><label>Status</label>
-          <select id="f-status"><option value="Pendente">Pendente</option><option value="Atrasada">Atrasada</option><option value="OK">OK</option></select>
+          <select id="f-status"><option value="Pendente">Pendente</option><option value="Atrasada">Atrasada</option><option value="Aguardando cliente">Aguardando cliente</option><option value="OK">OK</option></select>
         </div>
         <div class="form-group"><label>Data do orçamento</label><input id="f-dataorc" type="date"></div>
+        <div class="form-group span2"><label>Observação</label><textarea id="f-obs" rows="2" placeholder="Ex: aguardando o cliente concluir a alvenaria — prazo a redefinir" style="width:100%;padding:8px 10px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box"></textarea></div>
         <div class="section-divider" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding:10px 0 6px;margin-top:2px;border-top:1px solid var(--gray-2);grid-column:1/-1">Dados para pagamento (opcional)</div>
         <div class="form-group span2"><label>Chave Pix</label><input id="f-pix" type="text" placeholder="CNPJ, CPF, e-mail, telefone ou chave aleatória"></div>
         <div class="form-group span2"><label>Favorecido (nome na conta)</label><input id="f-pix-nome" type="text" placeholder="Ex: Morais Alumínio Ltda"></div>
@@ -680,7 +682,7 @@ async function uploadToCloudinary(file){
 // ---- HELPERS ----
 function fmtBR(v){ return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function fmtDate(d){ if(!d||d==='—')return'—'; try{ const[y,m,dd]=d.split('-'); return`${dd}/${m}/${y}`; }catch{ return d||'—'; } }
-function statusClass(s){ return s==='Atrasada'?'pill-atrasada':s==='OK'?'pill-ok':'pill-pendente'; }
+function statusClass(s){ return s==='Aguardando cliente'?'pill-aguardando':s==='Atrasada'?'pill-atrasada':s==='OK'?'pill-ok':'pill-pendente'; }
 function genId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function fmtSize(b){ return b>1048576?(b/1048576).toFixed(1)+' MB':(b/1024).toFixed(0)+' KB'; }
 
@@ -703,6 +705,7 @@ function reclassifyAll(){
   // Move importante → urgente when lead time is compromised
   const toUrgente=[];
   data.importante.forEach((r,i)=>{
+    if(r.status==='Aguardando cliente') return;
     const diff=getDiff(r); if(diff===null) return;
     const threshold=r.tipo==='especial'?60:30;
     if(diff<=threshold) toUrgente.push(i);
@@ -716,6 +719,7 @@ function reclassifyAll(){
   // Move urgente → importante when still within safe lead time
   const toImportante=[];
   data.urgente.forEach((r,i)=>{
+    if(r.status==='Aguardando cliente') return;
     const diff=getDiff(r); if(diff===null) return;
     const threshold=r.tipo==='especial'?60:30;
     if(diff>threshold) toImportante.push(i);
@@ -775,10 +779,11 @@ function renderTable(type,isPago){
         <button class="act act-pay" onclick="markPaid('${type}',${i})" title="Marcar como pago"><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>
         <button class="act act-del" onclick="removeEntry('${type}',${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
       </td>`;
+    const obsLabel=r.obs?`<span class="td-by" style="color:#5E35B1;display:block;margin-top:2px;white-space:normal">📝 ${r.obs}</span>`:'';
     const pixInfo=r.pix?`<span class="td-by" style="display:flex;align-items:center;gap:3px"><svg style="width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>${r.pix}</span>`:'';
     return`<tr>
       <td class="td-num">${i+1}</td>
-      <td class="td-obra">${highlight(r.obra)}${contratoLabel}${byLabel}</td>
+      <td class="td-obra">${highlight(r.obra)}${contratoLabel}${byLabel}${obsLabel}</td>
       <td>${r.material||'—'}</td>
       <td style="color:var(--gray-4)">${r.nrOrc||'—'}</td>
       <td>${r.fornecedor}${pixInfo}</td>
@@ -854,9 +859,10 @@ function openModal(type,idx=null){
     document.getElementById('f-pix-nome').value=r.pixNome||'';
     document.getElementById('f-banco').value=r.banco||'';
     document.getElementById('f-conta').value=r.conta||'';
+    document.getElementById('f-obs').value=r.obs||'';
     document.getElementById('modal-title').textContent='Editar orçamento';
   } else {
-    ['f-obra','f-contrato','f-material','f-nrorc','f-fornecedor','f-valor','f-dataorc','f-entrega','f-datapag','f-pix','f-pix-nome','f-banco','f-conta','f-medicao'].forEach(id=>document.getElementById(id).value='');
+    ['f-obra','f-contrato','f-material','f-nrorc','f-fornecedor','f-valor','f-dataorc','f-entrega','f-datapag','f-pix','f-pix-nome','f-banco','f-conta','f-medicao','f-obs'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('f-medicao-resultado').textContent='—';
     document.getElementById('f-dias-uteis').value='';
     popularNotificarSelect();
@@ -897,6 +903,7 @@ function saveEntry(){
     pixNome:document.getElementById('f-pix-nome').value.trim(),
     banco:document.getElementById('f-banco').value.trim(),
     conta:document.getElementById('f-conta').value.trim(),
+    obs:document.getElementById('f-obs').value.trim(),
     attachments: editId!==null ? (data[modalType][editId].attachments||[]) : [],
   };
   if(modalType==='pago') entry.dataPag=document.getElementById('f-datapag').value;
@@ -1155,6 +1162,7 @@ function gerarImpressao(opts){
   const overdue=[],dueToday=[],dueSoon=[];
   [...data.urgente,...data.importante].forEach(r=>{
     if(!r.entrega||r.entrega==='—') return;
+    if(r.status==='Aguardando cliente') return;
     const dt=new Date(r.entrega); dt.setHours(0,0,0,0);
     const diff=Math.round((dt-today)/(1000*60*60*24));
     const threshold=r.tipo==='especial'?60:30;
@@ -1219,7 +1227,7 @@ function gerarImpressao(opts){
           : `<td style="${sClass(r.status)}">${r.status||'Pendente'}</td>`;
         html+=`<tr>
           <td style="color:#9AA1AB">${i+1}</td>
-          <td><strong>${r.obra}</strong>${r.by?`<br><span style="font-size:9px;color:#9AA1AB">por ${r.by}</span>`:''}</td>
+          <td><strong>${r.obra}</strong>${r.by?`<br><span style="font-size:9px;color:#9AA1AB">por ${r.by}</span>`:''}${r.obs?`<br><span style="font-size:9px;color:#5E35B1">📝 ${r.obs}</span>`:''}</td>
           <td>${r.material||'—'}</td>
           <td style="color:#9AA1AB">${r.nrOrc||'—'}</td>
           <td>${r.fornecedor}${r.pix?`<br><span style="font-size:9px;color:#9AA1AB">PIX: ${r.pix}</span>`:''}</td>
@@ -1778,6 +1786,7 @@ function checkNotifications(){
 
   [...data.urgente, ...data.importante].forEach(r=>{
     if(!r.entrega || r.entrega==='—') return;
+    if(r.status==='Aguardando cliente') return;
     const dt = new Date(r.entrega); dt.setHours(0,0,0,0);
     const diff = Math.round((dt-today)/(1000*60*60*24));
     const threshold = r.tipo==='especial' ? 60 : 30;
