@@ -239,10 +239,7 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
 <script>
 // ---- CONFIG ----
 const WORKER_URL = 'https://daluminium-api.daluminium2.workers.dev';
-const ADMINS = [
-  {user:'ander reis', pass:'43f043d86be985276ccef4ae115f34b37b5bb0b17d0e4a103dab7b1855044134', name:'Ander Reis', modulos:['compras','financeiro'], role:'admin', tempPass:false},
-  {user:'aretusa',    pass:'e4065fde9b0ec23b9fb2b83d6ef986f626aad8200229f0ab374bfbf3ee40dc40', name:'Aretusa Sendeski', modulos:['compras','financeiro'], role:'admin', tempPass:true},
-];
+const ADMINS = []; // admins agora vivem na lista de usuarios do banco
 const MAX_TENT=5, BLOQ_MS=5*60*1000;
 
 // ---- HELPERS ----
@@ -281,7 +278,7 @@ let portalData={usuarios:[]};
 async function loadPortalData(){
   try{
     // Busca usuários do sistema compras (base principal de usuários)
-    const r=await fetch(WORKER_URL,{headers:{'X-Sistema':'compras','Origin':'https://daluminium.github.io'}});
+    const r=await fetch(WORKER_URL,{headers:{'X-Sistema':'compras_teste','Origin':'https://daluminium.github.io'}});
     if(!r.ok) return;
     const d=await r.json();
     if(d&&d.usuarios&&d.usuarios.length>0){
@@ -293,7 +290,7 @@ async function loadPortalData(){
 
 async function savePortalData(){
   // Save usuarios to both sistemas
-  for(const sis of ['compras','financeiro']){
+  for(const sis of ['compras_teste','financeiro_teste']){
     try{
       const r=await fetch(WORKER_URL,{headers:{'X-Sistema':sis,'Origin':'https://daluminium.github.io'}});
       if(!r.ok) continue;
@@ -353,14 +350,16 @@ async function doLogin(){
 
   if(found){
     resetTent();
+    const isAdmin=(found.role==='admin');
     const modulos=found.modulos||['compras'];
     sessionStorage.setItem('portal-logged','true');
     sessionStorage.setItem('portal-user',found.name);
     sessionStorage.setItem('portal-role',found.role||'user');
     sessionStorage.setItem('portal-modulos',JSON.stringify(modulos));
+    sessionStorage.setItem('portal-admin-key',found.username||'');
     btn.textContent='Entrar'; btn.disabled=false;
     if(found.tempPass) setTimeout(()=>trocarSenhaUser(found),500);
-    showPortal(found.name, modulos, false);
+    showPortal(found.name, modulos, isAdmin);
   } else {
     const r=addFalha();
     err.textContent=r>0?`Usuário ou senha incorretos. ${r} tentativa${r>1?'s':''} restante${r>1?'s':''}.`:'Acesso bloqueado por 5 minutos.';
@@ -496,16 +495,16 @@ function changeMyPass(){
   const nova=prompt('Nova senha (mínimo 6 caracteres):','');
   if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
   if(prompt('Confirme a nova senha:','')!==nova.trim()){ alert('Senhas não coincidem.'); return; }
-  const role=sessionStorage.getItem('portal-role');
-  if(role==='admin'){
-    const key=sessionStorage.getItem('portal-admin-key')||'';
-    const saved=JSON.parse(localStorage.getItem('portal-admin-passes')||'{}');
-    sha256(nova.trim()).then(h=>{ saved[key]=h; localStorage.setItem('portal-admin-passes',JSON.stringify(saved)); alert('Senha alterada! ✅'); });
-  } else {
-    const nome=sessionStorage.getItem('portal-user')||'';
-    const idx=portalData.usuarios.findIndex(u=>u.name===nome);
-    if(idx>=0){ sha256(nova.trim()).then(h=>{ portalData.usuarios[idx].password=h; portalData.usuarios[idx].tempPass=false; savePortalData(); alert('Senha alterada! ✅'); }); }
-  }
+  const nome=sessionStorage.getItem('portal-user')||'';
+  const key=sessionStorage.getItem('portal-admin-key')||'';
+  const idx=portalData.usuarios.findIndex(u=>u.username===key||u.name===nome);
+  if(idx<0){ alert('Usuário não encontrado na base. Senha não alterada.'); return; }
+  sha256(nova.trim()).then(h=>{
+    portalData.usuarios[idx].password=h;
+    portalData.usuarios[idx].tempPass=false;
+    savePortalData();
+    alert('Senha alterada! ✅ Vale em qualquer computador.');
+  });
 }
 
 function trocarSenhaAdmin(admin){
