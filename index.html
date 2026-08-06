@@ -119,6 +119,17 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
 .pass-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;
 cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-height:0}
 .pass-eye:hover{color:#5A6370}
+
+.man-intro{font-size:13px;color:var(--gray-5);line-height:1.6;background:var(--teal-light);border-radius:8px;padding:12px 14px;margin-bottom:16px}
+.man-box{border:1px solid var(--gray-2);border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.man-box.man-alerta{border-color:#F5D98A;background:#FEF7E6}
+.man-box.man-nota{border-color:var(--gray-3);background:var(--gray-1)}
+.man-h{font-size:13.5px;font-weight:700;color:var(--gray-6);margin-bottom:8px}
+.man-box p{font-size:12.5px;color:var(--gray-5);line-height:1.6;margin:6px 0}
+.man-box ol,.man-box ul{font-size:12.5px;color:var(--gray-5);line-height:1.7;margin:6px 0;padding-left:20px}
+.man-box code{display:block;background:var(--gray-6);color:#8FE9C8;font-family:ui-monospace,Consolas,monospace;
+font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.6;word-break:break-word}
+.man-box strong{color:var(--gray-6)}
 </style>
 </head>
 <body>
@@ -168,6 +179,10 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
         <div class="admin-card" onclick="changeMyPass()">
           <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           Alterar minha senha
+        </div>
+        <div class="admin-card" onclick="openManual()">
+          <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          Manual de emergência
         </div>
         <div class="admin-card" onclick="openSessoes()">
           <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
@@ -240,6 +255,124 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
     <span class="frame-title" id="frame-title"></span>
   </div>
   <iframe class="frame-iframe" id="frame-iframe" src="about:blank"></iframe>
+</div>
+
+
+<!-- MODAL MANUAL -->
+<div class="modal-overlay" id="manual-overlay">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-header">
+      <div class="modal-title">📖 Manual de Emergência</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-outline btn-sm" onclick="window.print()">Imprimir</button>
+        <button class="btn btn-outline btn-sm" onclick="closeManual()">Fechar</button>
+      </div>
+    </div>
+    <div class="modal-body" id="manual-body"><div class="man-intro">
+  Guia rápido para resolver problemas sem depender de ninguém. Leia o item que corresponde ao seu caso.
+  Os comandos SQL são executados no <strong>SQL Editor do Supabase</strong> — é preciso estar logado lá.
+</div>
+
+<div class="man-box man-alerta">
+  <div class="man-h">🚨 Regra de ouro</div>
+  <p>Antes de qualquer alteração no banco, tire um backup:</p>
+  <code>SELECT fazer_backup('manual');</code>
+  <p>Leva 1 segundo e é o que permite desfazer qualquer coisa.</p>
+</div>
+
+<div class="man-box">
+  <div class="man-h">1. O sistema abriu em branco / sumiram os dados</div>
+  <p><strong>Não cadastre nada e não salve nada.</strong> Provavelmente os dados estão intactos no banco e o problema é só de exibição.</p>
+  <p><strong>Passo 1 — confirme se os dados estão lá:</strong></p>
+  <code>SELECT id,<br>
+  jsonb_array_length(COALESCE(data-&gt;'urgente','[]'::jsonb)) AS urgentes,<br>
+  jsonb_array_length(COALESCE(data-&gt;'importante','[]'::jsonb)) AS importantes<br>
+FROM app_data WHERE id IN ('compras','financeiro');</code>
+  <p>Se os números vierem cheios, os dados estão salvos — siga para o passo 2. Se vierem zerados, vá para o item 2 (restaurar backup).</p>
+  <p><strong>Passo 2 — limpe a cópia local do navegador:</strong></p>
+  <ol>
+    <li>Aperte <strong>F12</strong> e vá na aba <strong>Application</strong></li>
+    <li>À esquerda, abra <strong>Local storage</strong> → clique no endereço do site</li>
+    <li>Clique com o botão direito na chave <strong>dalum-data</strong> (Compras) ou <strong>fin-data</strong> (Financeiro) → <strong>Delete</strong></li>
+    <li>Feche o F12 e recarregue com <strong>Ctrl+Shift+R</strong></li>
+  </ol>
+  <p><strong>Não apague</strong> a chave <strong>dalum-sso</strong> — é a sua sessão de login.</p>
+</div>
+
+<div class="man-box">
+  <div class="man-h">2. Restaurar um backup</div>
+  <p>O sistema faz backup sozinho duas vezes por dia e guarda 90 dias.</p>
+  <p><strong>Passo 1 — veja os backups disponíveis:</strong></p>
+  <code>SELECT id, sistema, origem,<br>
+  to_char(created_at at time zone 'America/Porto_Velho','DD/MM HH24:MI') AS quando<br>
+FROM app_backups ORDER BY created_at DESC LIMIT 20;</code>
+  <p><strong>Passo 2 — restaure pelo número da coluna <em>id</em>:</strong></p>
+  <code>SELECT restaurar_backup(123);</code>
+  <p>Atenção: cada backup é de um sistema só. Para voltar Compras e Financeiro, restaure os dois separadamente. A restauração tira um backup automático do estado atual antes de sobrescrever, então dá para voltar atrás.</p>
+</div>
+
+<div class="man-box">
+  <div class="man-h">3. Testar sem risco</div>
+  <p>Existe um ambiente de teste idêntico ao real, com dados próprios. Para deixá-lo com os dados atuais da produção:</p>
+  <code>SELECT copiar_producao_para_teste();</code>
+  <p>A cópia é só de ida. Nada que você fizer no teste afeta o sistema real.</p>
+</div>
+
+<div class="man-box">
+  <div class="man-h">4. Alguém não consegue entrar</div>
+  <ul>
+    <li><strong>Senha errada 5 vezes</strong> — o sistema bloqueia por alguns minutos. É só esperar.</li>
+    <li><strong>Esqueceu a senha</strong> — em <em>Gerenciar usuários</em>, defina uma senha nova para a pessoa e marque como temporária. Ela troca no primeiro acesso.</li>
+    <li><strong>Login não abre nada / tela travada</strong> — peça um <strong>Ctrl+Shift+R</strong>. Se persistir, veja o item 6.</li>
+  </ul>
+</div>
+
+<div class="man-box">
+  <div class="man-h">5. Encerrar a sessão de alguém</div>
+  <p>Em <em>Sessões ativas</em> aparece quem está logado e em qual módulo. O botão <strong>Deslogar</strong> encerra a sessão da pessoa em até 30 segundos.</p>
+</div>
+
+<div class="man-box">
+  <div class="man-h">6. Publiquei uma alteração e o sistema quebrou</div>
+  <p>Toda alteração do sistema fica registrada no GitHub, e voltar atrás leva 1 minuto:</p>
+  <ol>
+    <li>Abra o repositório do módulo que quebrou</li>
+    <li>Clique no arquivo <strong>index.html</strong> (ou o arquivo alterado)</li>
+    <li>Clique em <strong>History</strong></li>
+    <li>Escolha a versão anterior que funcionava</li>
+    <li>Abra o arquivo naquela versão, clique nos três pontos → <strong>Revert</strong> (ou copie o conteúdo e publique por cima)</li>
+  </ol>
+  <p>Depois aguarde 2 a 3 minutos e recarregue com <strong>Ctrl+Shift+R</strong> — a publicação não é instantânea.</p>
+</div>
+
+<div class="man-box">
+  <div class="man-h">7. Alterei algo e não vejo diferença</div>
+  <p>Quase sempre é cache. Nesta ordem:</p>
+  <ol>
+    <li><strong>Ctrl+Shift+R</strong> na página</li>
+    <li>Aguarde 3 minutos — a publicação demora um pouco</li>
+    <li>F12 → aba <strong>Network</strong> → marque <strong>Disable cache</strong> → recarregue</li>
+  </ol>
+</div>
+
+<div class="man-box">
+  <div class="man-h">8. Como o sistema é organizado</div>
+  <ul>
+    <li><strong>Portal</strong> — tela de entrada, login e cadastro de usuários</li>
+    <li><strong>Gestão de Compras</strong> e <strong>Financeiro</strong> — os dois módulos</li>
+    <li><strong>Teste</strong> — cópia completa para experimentar</li>
+    <li><strong>Banco de dados</strong> — guarda tudo; os módulos nunca falam com ele diretamente, sempre por um intermediário</li>
+    <li><strong>Backups</strong> — automáticos 2x ao dia, 90 dias de histórico</li>
+    <li><strong>Trava de segurança</strong> — o banco recusa gravar dados vazios por cima dos existentes</li>
+  </ul>
+</div>
+
+<div class="man-box man-nota">
+  <div class="man-h">Se nada disso resolver</div>
+  <p>Os dados provavelmente estão a salvo — a trava e os backups existem justamente para isso. Anote o que apareceu na tela, tire print do erro (F12 → aba Console) e não force alterações no sistema até entender a causa.</p>
+</div>
+</div>
+  </div>
 </div>
 
 <script>
@@ -569,6 +702,10 @@ document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==
 
 
 // ---- SESSÕES ATIVAS ----
+
+function openManual(){ document.getElementById('manual-overlay').classList.add('open'); }
+function closeManual(){ document.getElementById('manual-overlay').classList.remove('open'); }
+
 function openSessoes(){
   document.getElementById('sessoes-panel').style.display='block';
   loadSessoes();
