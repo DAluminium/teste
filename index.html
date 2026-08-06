@@ -54,12 +54,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .modulo-card.compras:hover{border-color:var(--teal-dark)}
 .modulo-card.financeiro{border-top:4px solid var(--purple)}
 .modulo-card.financeiro:hover{border-color:var(--purple)}
+.modulo-card.producao{border-top:4px solid var(--amber)}
+.modulo-card.producao:hover{border-color:var(--amber)}
 .modulo-icon{font-size:52px;margin-bottom:1rem}
 .modulo-title{font-size:18px;font-weight:700;margin-bottom:6px}
 .modulo-desc{font-size:13px;color:var(--gray-4);line-height:1.5}
 .modulo-badge{position:absolute;top:12px;right:12px;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px}
 .badge-compras{background:var(--teal-light);color:var(--teal-dark)}
 .badge-financeiro{background:var(--purple-light);color:var(--purple)}
+.badge-producao{background:var(--amber-light);color:var(--amber)}
 .modulo-arrow{margin-top:1.5rem;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
 .modulo-card.compras .modulo-arrow{color:var(--teal-dark)}
 .modulo-card.financeiro .modulo-arrow{color:var(--purple)}
@@ -258,6 +261,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
             <div class="modulo-check">
               <label><input type="checkbox" id="nu-mod-compras" checked> 🛒 Gestão de Compras</label>
               <label><input type="checkbox" id="nu-mod-financeiro"> 💰 Financeiro</label>
+              <label><input type="checkbox" id="nu-mod-producao"> 🏭 Produção</label>
             </div>
           </div>
         </div>
@@ -596,8 +600,8 @@ function showPortal(nome, modulos, isAdmin){
   renderModulos(modulos);
   // 1 módulo e não admin — entra direto
   if(modulos.length===1&&!isAdmin){
-    const URLS={compras:'https://daluminium.github.io/teste/compras.html',financeiro:'https://daluminium.github.io/teste/financeiro.html'};
-    const TITULOS={compras:'Gestão de Compras',financeiro:'Financeiro'};
+    const URLS={compras:'https://daluminium.github.io/teste/compras.html',financeiro:'https://daluminium.github.io/teste/financeiro.html',producao:'https://daluminium.github.io/teste/producao.html'};
+    const TITULOS={compras:'Gestão de Compras',financeiro:'Financeiro',producao:'Produção'};
     const m=modulos[0];
     if(URLS[m]){ document.getElementById('portal').style.display='none'; abrirModulo(URLS[m],TITULOS[m]); }
   }
@@ -607,7 +611,8 @@ function renderModulos(modulos){
   const container=document.getElementById('modulos-container');
   const MODULOS={
     compras:{icon:'🛒',title:'Gestão de Compras',desc:'Orçamentos, fornecedores, manutenção e controle de entregas das obras',url:'https://daluminium.github.io/teste/compras.html',cls:'compras',badge:'badge-compras',badgeText:'Compras'},
-    financeiro:{icon:'💰',title:'Financeiro',desc:'Contas a pagar, contas a receber, fluxo de caixa e relatórios',url:'https://daluminium.github.io/teste/financeiro.html',cls:'financeiro',badge:'badge-financeiro',badgeText:'Financeiro'}
+    financeiro:{icon:'💰',title:'Financeiro',desc:'Contas a pagar, contas a receber, fluxo de caixa e relatórios',url:'https://daluminium.github.io/teste/financeiro.html',cls:'financeiro',badge:'badge-financeiro',badgeText:'Financeiro'},
+    producao:{icon:'🏭',title:'Produção',desc:'Acompanhamento das obras da conferência técnica até a entrega ao cliente',url:'https://daluminium.github.io/teste/producao.html',cls:'producao',badge:'badge-producao',badgeText:'Produção'}
   };
   container.innerHTML=modulos.map(m=>{
     const mod=MODULOS[m];
@@ -661,6 +666,7 @@ async function addUsuario(){
   const modulos=[];
   if(document.getElementById('nu-mod-compras').checked) modulos.push('compras');
   if(document.getElementById('nu-mod-financeiro').checked) modulos.push('financeiro');
+  if(document.getElementById('nu-mod-producao').checked) modulos.push('producao');
   if(!name||!username||!pass){ alert('Preencha nome, usuário e senha.'); return; }
   if(ADMINS.find(a=>a.user===username)){ alert('Usuário reservado para administradores.'); return; }
   if(portalData.usuarios.find(u=>u.username===username)){ alert('Usuário já cadastrado.'); return; }
@@ -671,6 +677,7 @@ async function addUsuario(){
   ['nu-name','nu-username','nu-pass'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('nu-mod-compras').checked=true;
   document.getElementById('nu-mod-financeiro').checked=false;
+  document.getElementById('nu-mod-producao').checked=false;
   renderUserList();
   alert('Usuário cadastrado e salvo! ✅');
 }
@@ -683,7 +690,7 @@ async function editUsuario(idx){
   const novaSenha=prompt('Nova senha (deixe em branco para manter):','');
   portalData.usuarios[idx].name=novoNome.trim()||u.name;
   portalData.usuarios[idx].role=novoRole.trim();
-  portalData.usuarios[idx].modulos=novosMods.split(',').map(m=>m.trim()).filter(m=>['compras','financeiro'].includes(m));
+  portalData.usuarios[idx].modulos=novosMods.split(',').map(m=>m.trim()).filter(m=>['compras','financeiro','producao'].includes(m));
   if(novaSenha&&novaSenha.trim().length>=6){ portalData.usuarios[idx].password=await sha256(novaSenha.trim()); portalData.usuarios[idx].tempPass=false; }
   await savePortalData();
   renderUserList();
