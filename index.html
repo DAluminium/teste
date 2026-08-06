@@ -130,6 +130,24 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
 .man-box code{display:block;background:var(--gray-6);color:#8FE9C8;font-family:ui-monospace,Consolas,monospace;
 font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.6;word-break:break-word}
 .man-box strong{color:var(--gray-6)}
+
+@media print{
+  @page{margin:1.5cm}
+  body>*{display:none!important}
+  #manual-overlay{display:block!important;position:static!important;inset:auto!important;
+  background:none!important;padding:0!important;overflow:visible!important}
+  #manual-overlay .modal{width:100%!important;max-width:none!important;max-height:none!important;
+  overflow:visible!important;box-shadow:none!important;border-radius:0!important}
+  #manual-overlay .modal-header{position:static!important;padding:0 0 10px;margin-bottom:14px;
+  border-bottom:2px solid var(--gray-6)}
+  #manual-overlay .modal-header .btn{display:none!important}
+  #manual-overlay .modal-title{font-size:17px}
+  #manual-overlay .modal-body{padding:0!important}
+  .man-intro,.man-box{break-inside:avoid;page-break-inside:avoid}
+  .man-box code{background:#F2F2F2!important;color:#111!important;border:1px solid #CCC;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .man-intro,.man-box.man-alerta,.man-box.man-nota{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 </style>
 </head>
 <body>
