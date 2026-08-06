@@ -110,6 +110,13 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
 .frame-back:hover{background:rgba(255,255,255,.3)}
 .frame-title{font-size:13px;font-weight:600;opacity:.9}
 .frame-iframe{flex:1;border:none;width:100%;height:100%}
+.frame-loading{position:absolute;left:0;right:0;top:44px;bottom:0;z-index:1;display:none;
+flex-direction:column;align-items:center;justify-content:center;gap:14px;
+background:var(--gray-1);color:var(--gray-5);font-size:13px}
+.frame-loading.show{display:flex}
+.frame-spinner{width:28px;height:28px;border:3px solid var(--gray-3);border-top-color:var(--teal);
+border-radius:50%;animation:girar .7s linear infinite}
+@keyframes girar{to{transform:rotate(360deg)}}
 
 /* UPDATE */
 @keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -273,6 +280,10 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
     <span class="frame-title" id="frame-title"></span>
   </div>
   <iframe class="frame-iframe" id="frame-iframe" src="about:blank"></iframe>
+  <div class="frame-loading" id="frame-loading">
+    <div class="frame-spinner"></div>
+    <span id="frame-loading-text">Carregando módulo...</span>
+  </div>
 </div>
 
 
@@ -398,6 +409,10 @@ FROM app_backups ORDER BY created_at DESC LIMIT 20;</code>
 const WORKER_URL = 'https://daluminium-api.daluminium2.workers.dev';
 const ADMINS = []; // admins agora vivem na lista de usuarios do banco
 const MAX_TENT=5, BLOQ_MS=5*60*1000;
+// Versao dos modulos: calculada UMA vez por abertura do portal.
+// Assim o navegador reaproveita o arquivo ja baixado ao abrir o modulo de novo,
+// e um F5 no portal continua trazendo a versao mais nova.
+const FRAME_V = Date.now();
 
 // ---- HELPERS ----
 async function sha256(s){
@@ -605,6 +620,15 @@ function renderModulos(modulos){
       <div class="modulo-arrow">Acessar →</div>
     </div>`;
   }).join('');
+  // Baixa os modulos em segundo plano enquanto o usuario escolhe.
+  // Quando ele clicar, o arquivo ja esta no navegador e abre na hora.
+  setTimeout(function(){
+    modulos.forEach(function(m){
+      const mod=MODULOS[m];
+      if(!mod) return;
+      fetch(mod.url+(mod.url.includes('?')?'&':'?')+'v='+FRAME_V).catch(function(){});
+    });
+  },400);
 }
 
 // ---- USUÁRIOS ----
@@ -853,7 +877,12 @@ function voltarPortal(){
 function abrirModulo(url,titulo){
   document.getElementById('portal').style.display='none';
   document.getElementById('frame-title').textContent=titulo;
-  document.getElementById('frame-iframe').src=url+(url.includes('?')?'&':'?')+'v='+Date.now();
+  const load=document.getElementById('frame-loading');
+  document.getElementById('frame-loading-text').textContent='Carregando '+titulo+'...';
+  load.classList.add('show');
+  const frame=document.getElementById('frame-iframe');
+  frame.onload=function(){ load.classList.remove('show'); };
+  frame.src=url+(url.includes('?')?'&':'?')+'v='+FRAME_V;
   document.getElementById('frame-container').classList.add('active');
 }
 window.addEventListener('message',function(e){
