@@ -165,8 +165,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="fg"><label>Cliente</label><input id="f-cliente" placeholder="Ex.: Beatriz"></div>
-        <div class="fg"><label>Obra / Identificação</label><input id="f-obra" placeholder="Ex.: Rosana P3"></div>
+        <div class="fg"><label>Cliente <span style="color:var(--red)">*</span></label><input id="f-cliente" placeholder="Ex.: Beatriz"></div>
+        <div class="fg"><label>Obra / Identificação <span style="color:var(--red)">*</span></label><input id="f-obra" placeholder="Ex.: Rosana P3"></div>
         <div class="fg"><label>Tipo</label>
           <select id="f-tipo">
             <option>Esquadria</option><option>Fachada</option><option>Guarda-corpo</option><option>Outro</option>
@@ -182,7 +182,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="hist" id="ficha-hist"></div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-red btn-sm" onclick="excluirObra()">Excluir</button>
+      <div></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline btn-sm" onclick="fecharFicha()">Cancelar</button>
         <button class="btn btn-teal" onclick="salvarFicha()">Salvar</button>
@@ -453,12 +453,48 @@ function htmlLinhaEtapas(o){
     }).join('')+'</div>';
 }
 
+// Campos que entram no historico, com o nome que aparece para o usuario e
+// como cada valor deve ser mostrado (data vira 07/08/2026, etapa vira o nome).
+const CAMPOS={
+  cliente:     {rotulo:'Cliente'},
+  obra:        {rotulo:'Obra / Identificação'},
+  tipo:        {rotulo:'Tipo'},
+  responsavel: {rotulo:'Responsável'},
+  prazo:       {rotulo:'Prazo de entrega', mostrar:fmtData},
+  etapa:       {rotulo:'Etapa',            mostrar:etapaNome},
+  obs:         {rotulo:'Observações'}
+};
+
+function valorLegivel(campo,v){
+  if(v===undefined||v===null||v==='') return '';
+  const c=CAMPOS[campo];
+  return c&&c.mostrar ? c.mostrar(v) : String(v);
+}
+
+// Transforma um registro do historico numa frase em portugues.
+function fraseHistorico(x){
+  // Registros antigos, do formato anterior, continuam legiveis.
+  if(x.texto) return esc(x.texto);
+  if(x.evento==='criacao') return 'criou a obra';
+  const c=CAMPOS[x.campo];
+  const rotulo=c?c.rotulo:(x.campo||'campo');
+  const de=valorLegivel(x.campo,x.valorAntigo);
+  const para=valorLegivel(x.campo,x.valorNovo);
+  if(!de&&para)  return 'preencheu <strong>'+esc(rotulo)+'</strong> com '+esc(para);
+  if(de&&!para)  return 'limpou <strong>'+esc(rotulo)+'</strong> (era '+esc(de)+')';
+  return 'mudou <strong>'+esc(rotulo)+'</strong> de '+esc(de)+' para '+esc(para);
+}
+
 function htmlHistorico(o){
-  const h=(o.historico||[]).slice().reverse();
-  if(!h.length) return '<div style="font-size:12px;color:var(--gray-4)">Sem movimentações registradas.</div>';
-  return '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-5);margin-bottom:7px">Histórico</div>'+
-    h.map(x=>'<div class="hist-item"><span class="hist-quem">'+esc(x.por||'—')+'</span> '+esc(x.texto||'')+
-      '<span class="hist-quando"> · '+fmtQuando(x.em)+'</span></div>').join('');
+  const h=(o.historico||[]).slice().reverse(); // mais recente primeiro
+  if(!h.length) return '<div style="font-size:12px;color:var(--gray-4)">Sem alterações registradas.</div>';
+  return '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-5);margin-bottom:7px">Histórico de alterações</div>'+
+    h.map(x=>{
+      const quando=fmtQuando(x.quando||x.em);
+      const quem=esc(x.quem||x.por||'—');
+      return '<div class="hist-item"><span class="hist-quando">'+quando+'</span> — '+
+             '<span class="hist-quem">'+quem+'</span> '+fraseHistorico(x)+'</div>';
+    }).join('');
 }
 
 function fecharFicha(){ document.getElementById('ficha-ov').classList.remove('open'); fichaId=null; }
@@ -466,7 +502,15 @@ function fecharFicha(){ document.getElementById('ficha-ov').classList.remove('op
 async function salvarFicha(){
   const cliente=document.getElementById('f-cliente').value.trim();
   const obra=document.getElementById('f-obra').value.trim();
-  if(!cliente){ alert('Informe ao menos o cliente.'); return; }
+  // Cliente e identificacao da obra sao obrigatorios: sem eles nao da para
+  // saber de qual obra o lancamento e. Avisa e nao grava nada.
+  if(!cliente||!obra){
+    alert('Faltam dados obrigatórios:\n\n'+
+          (!cliente?'• Cliente\n':'')+(!obra?'• Obra / Identificação\n':'')+
+          '\nPreencha e salve de novo. Nada foi alterado.');
+    (!cliente?document.getElementById('f-cliente'):document.getElementById('f-obra')).focus();
+    return;
+  }
   const novo={
     cliente:cliente,
     obra:obra,
@@ -481,32 +525,25 @@ async function salvarFicha(){
     if(!id){
       const o=Object.assign({id:novoId(),criadoPor:usuario,criadoEm:agoraISO(),marcos:{},historico:[]},novo);
       o.marcos[o.etapa]=agoraISO();
-      o.historico=[{por:usuario,texto:'criou a obra em '+etapaNome(o.etapa),em:agoraISO()}];
+      o.historico=[{quando:agoraISO(),quem:usuario,evento:'criacao'}];
       base.obras.push(o);
     }else{
       const o=base.obras.find(x=>x.id===id);
       if(!o) return;
-      const etapaAnterior=o.etapa;
       if(!o.marcos) o.marcos={};
-      if(!o.historico) o.historico=[];
+      if(!Array.isArray(o.historico)) o.historico=[];
+      // Um registro por campo que realmente mudou. Campo igual nao entra.
+      const quando=agoraISO();
+      Object.keys(CAMPOS).forEach(function(campo){
+        const antes=o[campo]===undefined?'':o[campo];
+        const depois=novo[campo]===undefined?'':novo[campo];
+        if(antes===depois) return;
+        o.historico.push({quando:quando,quem:usuario,campo:campo,valorAntigo:antes,valorNovo:depois});
+        if(campo==='etapa') o.marcos[depois]=quando;
+      });
       Object.assign(o,novo);
-      if(etapaAnterior!==novo.etapa){
-        o.marcos[novo.etapa]=agoraISO();
-        o.historico.push({por:usuario,texto:'moveu de "'+etapaNome(etapaAnterior)+'" para "'+etapaNome(novo.etapa)+'"',em:agoraISO()});
-      }else{
-        o.historico.push({por:usuario,texto:'editou os dados',em:agoraISO()});
-      }
     }
   });
-  if(ok) fecharFicha();
-}
-
-async function excluirObra(){
-  if(!fichaId){ fecharFicha(); return; }
-  const o=dados.obras.find(x=>x.id===fichaId);
-  if(!confirm('Excluir a obra "'+((o&&o.cliente)||'')+'"?\n\nEsta ação não pode ser desfeita.')) return;
-  const id=fichaId;
-  const ok=await alterar(base=>{ base.obras=base.obras.filter(x=>x.id!==id); });
   if(ok) fecharFicha();
 }
 
