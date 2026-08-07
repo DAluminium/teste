@@ -172,7 +172,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="modal-body">
       <div class="form-grid">
         <div class="fg"><label>Cliente <span style="color:var(--red)">*</span></label><input id="f-cliente" placeholder="Ex.: Beatriz"></div>
-        <div class="fg"><label>Obra / Identificação <span style="color:var(--red)">*</span></label><input id="f-obra" placeholder="Ex.: Rosana P3"></div>
+        <div class="fg"><label>Contrato (CT) <span style="color:var(--red)">*</span></label><input id="f-obra" placeholder="Ex.: 0035"></div>
         <div class="fg"><label>Tipo</label>
           <select id="f-tipo">
             <option>Esquadria</option><option>Fachada</option><option>Guarda-corpo</option><option>Outro</option>
@@ -493,7 +493,9 @@ function htmlLinhaEtapas(o){
 // como cada valor deve ser mostrado (data vira 07/08/2026, etapa vira o nome).
 const CAMPOS={
   cliente:     {rotulo:'Cliente'},
-  obra:        {rotulo:'Obra / Identificação'},
+  // A chave continua 'obra' de proposito: mudar o nome interno exigiria
+  // converter os dados ja gravados. So o rotulo mudou.
+  obra:        {rotulo:'Contrato (CT)'},
   tipo:        {rotulo:'Tipo'},
   responsavel: {rotulo:'Responsável'},
   prazo:       {rotulo:'Prazo de entrega', mostrar:fmtData},
@@ -612,7 +614,7 @@ async function salvarFicha(){
   // saber de qual obra o lancamento e. Avisa e nao grava nada.
   if(!cliente||!obra){
     alert('Faltam dados obrigatórios:\n\n'+
-          (!cliente?'• Cliente\n':'')+(!obra?'• Obra / Identificação\n':'')+
+          (!cliente?'• Cliente\n':'')+(!obra?'• Contrato (CT)\n':'')+
           '\nPreencha e salve de novo. Nada foi alterado.');
     (!cliente?document.getElementById('f-cliente'):document.getElementById('f-obra')).focus();
     return;
