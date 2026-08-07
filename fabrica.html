@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Produção · Daluminium</title>
+<title>Fábrica · Daluminium</title>
 <style>
 :root{--teal:#1FB6CF;--teal-dark:#0E8FA6;--teal-light:#E6F8FB;--red:#C0392B;--red-light:#FDF0EE;--amber:#B9770E;--amber-light:#FEF7E6;--amber-mid:#F5D98A;--green:#1A7A45;--green-light:#EDFAF3;--purple:#7B2D8B;--purple-light:#F3E8FF;--gray-0:#FFFFFF;--gray-1:#F7F8F9;--gray-2:#EEF0F2;--gray-3:#DEE1E5;--gray-4:#9AA1AB;--gray-5:#5A6370;--gray-6:#23282F;--radius:8px;--shadow:0 1px 4px rgba(0,0,0,0.07),0 0 0 0.5px rgba(0,0,0,0.05)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -126,7 +126,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div style="font-size:34px;margin-bottom:10px">🔒</div>
     <div style="font-size:16px;font-weight:600;margin-bottom:7px">Acesso pelo portal</div>
     <p style="font-size:13px;color:var(--gray-5);line-height:1.55;margin-bottom:16px">
-      Este módulo usa o login do portal. Entre por lá para acessar a Produção.
+      Este módulo usa o login do portal. Entre por lá para acessar a Fábrica.
     </p>
     <a class="btn btn-teal btn-block" href="https://daluminium.github.io/teste/">Ir para o portal</a>
   </div>
@@ -135,7 +135,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <!-- APP -->
 <div id="app" style="display:none">
   <div class="topbar">
-    <div class="topbar-logo">DALUMINIUM <span>Produção</span></div>
+    <div class="topbar-logo">DALUMINIUM <span>Fábrica</span></div>
     <div class="topbar-actions">
       <span class="sync" id="sync"></span>
       <button class="btn btn-ghost btn-sm" onclick="novaObra()">
@@ -194,8 +194,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script>
 // ================= CONFIG =================
 const WORKER='https://daluminium-api.daluminium2.workers.dev';
-const SUPA_SISTEMA='producao_teste';
-const LS_KEY='dalum-producao';
+// Identificador do sistema no banco: SEM acento e SEM cedilha, porque vai
+// num cabeçalho HTTP (X-Sistema) e cabeçalho não aceita caractere acentuado.
+const SUPA_SISTEMA='fabrica_teste';
+const LS_KEY='dalum-fabrica';
 
 // As 13 etapas do fluxo (a venda fica no CEM, fora daqui)
 const ETAPAS=[
@@ -268,8 +270,27 @@ async function alterar(fn){
     if(!base) base=JSON.parse(JSON.stringify(dados));
     if(!Array.isArray(base.obras)) base.obras=[];
     fn(base);
+    // Carimbo usado para conferir, depois, se a gravação realmente aconteceu.
+    const carimbo=agoraISO();
+    base.atualizadoEm=carimbo;
+    base.atualizadoPor=usuario;
     await enviarRemoto(base);
-    dados=base; gravarLocal(); render();
+
+    // O Worker responde {"ok":true} mesmo quando NÃO grava nada — é o que
+    // acontece se o registro do módulo ainda não existir no banco. Por isso
+    // não dá para confiar na resposta dele: relemos e conferimos o carimbo.
+    let confere=null;
+    try{ confere=await buscarRemoto(); }catch(e){ confere=null; }
+    if(!confere || confere.atualizadoEm!==carimbo){
+      status('🔴 NÃO gravou no servidor','#ffcccc');
+      alert('ATENÇÃO — os dados NÃO foram salvos.\n\n'+
+            'O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+
+            'A causa mais comum é o registro do módulo ainda não ter sido criado no banco.\n\n'+
+            'Não continue cadastrando: o que você digitar será perdido. Avise o responsável pelo sistema.');
+      return false;
+    }
+
+    dados=confere; gravarLocal(); render();
     status('🟢 Salvo · '+agoraHora());
     return true;
   }catch(e){
@@ -341,7 +362,7 @@ function setView(v){
   view=v;
   document.getElementById('vb-quadro').classList.toggle('active',v==='quadro');
   document.getElementById('vb-lista').classList.toggle('active',v==='lista');
-  try{ localStorage.setItem('dalum-producao-view',v); }catch(e){}
+  try{ localStorage.setItem('dalum-fabrica-view',v); }catch(e){}
   render();
 }
 
@@ -497,8 +518,8 @@ async function excluirObra(){
   document.getElementById('app').style.display='block';
   preencherSelectEtapas();
   lerLocal();
-  try{ const v=localStorage.getItem('dalum-producao-view'); if(v) view=v; }catch(e){}
-  if(window.innerWidth<760 && !localStorage.getItem('dalum-producao-view')) view='lista';
+  try{ const v=localStorage.getItem('dalum-fabrica-view'); if(v) view=v; }catch(e){}
+  if(window.innerWidth<760 && !localStorage.getItem('dalum-fabrica-view')) view='lista';
   setView(view);
   sincronizar();
   document.getElementById('ficha-ov').addEventListener('click',function(e){ if(e.target===this) fecharFicha(); });
