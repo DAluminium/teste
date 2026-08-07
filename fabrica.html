@@ -178,6 +178,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="fg"><label>Contrato (CT) <span style="color:var(--red)">*</span></label><input id="f-obra" placeholder="Ex.: 0035"></div>
         <div class="fg"><label>Tipo</label>
           <select id="f-tipo"></select>
+          <span id="f-tipo-nota" style="display:none;font-size:11px;color:var(--amber);line-height:1.4"></span>
         </div>
         <div class="fg"><label>Responsável</label><input id="f-resp" placeholder="Quem toca agora"></div>
         <div class="fg"><label>Prazo de entrega</label><input type="date" id="f-prazo"></div>
@@ -213,9 +214,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <button class="btn btn-teal" onclick="addTipo()">Adicionar</button>
       </div>
       <div style="font-size:11.5px;color:var(--gray-4);margin-bottom:10px;line-height:1.5">
-        Tipos já usados em obras não podem ser excluídos — desative-os. Eles somem do
-        formulário, mas continuam aparecendo nas obras que já os usam.
+        Tipos já usados em obras não podem ser excluídos — desative-os. Um tipo desativado
+        sai do formulário das obras e passa a aparecer só aqui.
       </div>
+      <input id="tipo-busca" type="text" placeholder="Procurar tipo cadastrado..."
+        style="width:100%;padding:9px 11px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:14px;margin-bottom:8px"
+        oninput="renderTipos()">
       <div id="tipos-lista"></div>
     </div>
   </div>
@@ -490,18 +494,30 @@ function usoTipo(obj,label){
   return ((obj&&obj.obras)||[]).filter(function(o){ return (o.tipo||'')===label; }).length;
 }
 
-// Monta o select do formulario. Se a obra usa um tipo desativado, ele aparece
-// assim mesmo — senao o tipo dela mudaria sozinho ao salvar.
+// Monta o select do formulario SO com tipos ativos — desativado nao entra na
+// lista de escolha. Quando a obra ja usa um tipo desativado, ele nao vira
+// opcao: aparece como aviso, e a primeira opcao mantem o valor como esta.
+// Sem isso, abrir e salvar uma obra antiga trocaria o tipo dela sozinha.
 function popularSelectTipo(valorAtual){
   const sel=document.getElementById('f-tipo');
+  const nota=document.getElementById('f-tipo-nota');
   const lista=tiposDe(dados);
-  const opcoes=lista.filter(function(t){ return t.ativo!==false; }).map(function(t){ return t.label; });
-  if(valorAtual && opcoes.indexOf(valorAtual)<0) opcoes.unshift(valorAtual);
-  sel.innerHTML=opcoes.map(function(l){
-    const inativo=lista.some(function(t){ return t.label===l && t.ativo===false; });
-    return '<option value="'+esc(l)+'">'+esc(l)+(inativo?' (desativado)':'')+'</option>';
-  }).join('');
-  if(valorAtual) sel.value=valorAtual;
+  const ativos=lista.filter(function(t){ return t.ativo!==false; }).map(function(t){ return t.label; });
+  const atualDesativado = !!valorAtual && ativos.indexOf(valorAtual)<0;
+
+  let html='';
+  if(atualDesativado) html+='<option value="">— manter '+esc(valorAtual)+' —</option>';
+  html+=ativos.map(function(l){ return '<option value="'+esc(l)+'">'+esc(l)+'</option>'; }).join('');
+  sel.innerHTML=html;
+
+  if(atualDesativado){
+    sel.value='';
+    nota.style.display='block';
+    nota.textContent='O tipo "'+valorAtual+'" foi desativado. Salvando assim, ele é mantido. Escolha outro para trocar.';
+  }else{
+    nota.style.display='none';
+    sel.value = valorAtual || (ativos[0]||'');
+  }
 }
 
 function openTipos(){ renderTipos(); document.getElementById('tipos-ov').classList.add('open'); }
@@ -509,7 +525,18 @@ function closeTipos(){ document.getElementById('tipos-ov').classList.remove('ope
 
 function renderTipos(){
   const lista=tiposDe(dados);
-  document.getElementById('tipos-lista').innerHTML=lista.map(function(t,i){
+  const q=(document.getElementById('tipo-busca')?document.getElementById('tipo-busca').value:'').trim().toLowerCase();
+  // Guarda a posicao real na lista, para os botoes agirem no tipo certo
+  // mesmo com a busca filtrando o que aparece.
+  const visiveis=lista.map(function(t,i){ return {t:t,i:i}; })
+    .filter(function(x){ return !q || x.t.label.toLowerCase().indexOf(q)>=0; });
+  if(q && !visiveis.length){
+    document.getElementById('tipos-lista').innerHTML=
+      '<div style="font-size:12.5px;color:var(--gray-4);padding:14px 0;text-align:center">Nenhum tipo encontrado para "'+esc(q)+'".</div>';
+    return;
+  }
+  document.getElementById('tipos-lista').innerHTML=visiveis.map(function(x){
+    const t=x.t, i=x.i;
     const uso=usoTipo(dados,t.label);
     const off=t.ativo===false;
     return '<div style="display:flex;align-items:center;gap:8px;padding:9px 4px;border-bottom:1px solid var(--gray-2);'+(off?'opacity:.55':'')+'">'+
@@ -794,7 +821,8 @@ async function salvarFicha(){
   const novo={
     cliente:cliente,
     obra:obra,
-    tipo:document.getElementById('f-tipo').value,
+    // Vazio = a opcao "manter" de um tipo desativado: fica o que ja estava.
+    tipo:document.getElementById('f-tipo').value || ((fichaBase&&fichaBase.tipo)||''),
     responsavel:document.getElementById('f-resp').value.trim(),
     prazo:document.getElementById('f-prazo').value,
     etapa:document.getElementById('f-etapa').value,
