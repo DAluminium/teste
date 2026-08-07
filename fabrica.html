@@ -144,6 +144,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="topbar-logo">DALUMINIUM <span>Fábrica</span></div>
     <div class="topbar-actions">
       <span class="sync" id="sync"></span>
+      <button class="btn btn-ghost btn-sm" onclick="openTipos()" title="Gerenciar tipos de obra">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Tipos
+      </button>
       <button class="btn btn-ghost btn-sm" onclick="novaObra()">
         <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nova
       </button>
@@ -174,9 +177,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="fg"><label>Cliente <span style="color:var(--red)">*</span></label><input id="f-cliente" placeholder="Ex.: Beatriz"></div>
         <div class="fg"><label>Contrato (CT) <span style="color:var(--red)">*</span></label><input id="f-obra" placeholder="Ex.: 0035"></div>
         <div class="fg"><label>Tipo</label>
-          <select id="f-tipo">
-            <option>Esquadria</option><option>Fachada</option><option>Guarda-corpo</option><option>Outro</option>
-          </select>
+          <select id="f-tipo"></select>
         </div>
         <div class="fg"><label>Responsável</label><input id="f-resp" placeholder="Quem toca agora"></div>
         <div class="fg"><label>Prazo de entrega</label><input type="date" id="f-prazo"></div>
@@ -193,6 +194,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <button class="btn btn-outline btn-sm" onclick="fecharFicha()">Cancelar</button>
         <button class="btn btn-teal" onclick="salvarFicha()">Salvar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- TIPOS DE OBRA -->
+<div class="overlay" id="tipos-ov">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head">
+      <div class="modal-title">🏷️ Tipos de Obra</div>
+      <button class="btn btn-outline btn-sm" onclick="closeTipos()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <input id="tipo-novo" type="text" placeholder="Nome do novo tipo (ex.: Guarda-corpo)"
+          style="flex:1;padding:9px 11px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:14px"
+          onkeydown="if(event.key==='Enter')addTipo()">
+        <button class="btn btn-teal" onclick="addTipo()">Adicionar</button>
+      </div>
+      <div style="font-size:11.5px;color:var(--gray-4);margin-bottom:10px;line-height:1.5">
+        Tipos já usados em obras não podem ser excluídos — desative-os. Eles somem do
+        formulário, mas continuam aparecendo nas obras que já os usam.
+      </div>
+      <div id="tipos-lista"></div>
     </div>
   </div>
 </div>
@@ -440,6 +464,154 @@ function htmlLista(lista){
 }
 
 // ================= FICHA =================
+// ================= TIPOS DE OBRA =================
+// As obras guardam o NOME do tipo (era assim antes desta tela existir).
+// Mantivemos assim de proposito: mudar para codigo obrigaria a converter as
+// obras ja gravadas.
+const TIPOS_PADRAO=['Esquadria','Fachada','Guarda-corpo','Outro'];
+
+// Lista de tipos de um conjunto de dados. Se ainda nao existir, monta a partir
+// do que ja esta gravado nas obras, sem repetir e sem alterar obra nenhuma.
+function tiposDe(obj){
+  if(obj && Array.isArray(obj.tipos) && obj.tipos.length) return obj.tipos;
+  const vistos={}, lista=[];
+  ((obj&&obj.obras)||[]).forEach(function(o){
+    const t=(o.tipo||'').trim();
+    if(!t||vistos[t.toLowerCase()]) return;
+    vistos[t.toLowerCase()]=1; lista.push({label:t,ativo:true});
+  });
+  TIPOS_PADRAO.forEach(function(t){
+    if(vistos[t.toLowerCase()]) return;
+    vistos[t.toLowerCase()]=1; lista.push({label:t,ativo:true});
+  });
+  return lista;
+}
+function usoTipo(obj,label){
+  return ((obj&&obj.obras)||[]).filter(function(o){ return (o.tipo||'')===label; }).length;
+}
+
+// Monta o select do formulario. Se a obra usa um tipo desativado, ele aparece
+// assim mesmo — senao o tipo dela mudaria sozinho ao salvar.
+function popularSelectTipo(valorAtual){
+  const sel=document.getElementById('f-tipo');
+  const lista=tiposDe(dados);
+  const opcoes=lista.filter(function(t){ return t.ativo!==false; }).map(function(t){ return t.label; });
+  if(valorAtual && opcoes.indexOf(valorAtual)<0) opcoes.unshift(valorAtual);
+  sel.innerHTML=opcoes.map(function(l){
+    const inativo=lista.some(function(t){ return t.label===l && t.ativo===false; });
+    return '<option value="'+esc(l)+'">'+esc(l)+(inativo?' (desativado)':'')+'</option>';
+  }).join('');
+  if(valorAtual) sel.value=valorAtual;
+}
+
+function openTipos(){ renderTipos(); document.getElementById('tipos-ov').classList.add('open'); }
+function closeTipos(){ document.getElementById('tipos-ov').classList.remove('open'); }
+
+function renderTipos(){
+  const lista=tiposDe(dados);
+  document.getElementById('tipos-lista').innerHTML=lista.map(function(t,i){
+    const uso=usoTipo(dados,t.label);
+    const off=t.ativo===false;
+    return '<div style="display:flex;align-items:center;gap:8px;padding:9px 4px;border-bottom:1px solid var(--gray-2);'+(off?'opacity:.55':'')+'">'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:13.5px;font-weight:600;word-break:break-word">'+esc(t.label)+
+          (off?' <span style="font-size:10px;font-weight:400;color:var(--gray-4)">(desativado)</span>':'')+'</div>'+
+        '<div style="font-size:10.5px;color:var(--gray-4)">'+(uso?uso+(uso===1?' obra':' obras'):'sem uso')+'</div>'+
+      '</div>'+
+      '<button class="btn btn-outline btn-sm" onclick="renomearTipo('+i+')">Renomear</button>'+
+      '<button class="btn btn-outline btn-sm" onclick="toggleTipo('+i+')">'+(off?'Ativar':'Desativar')+'</button>'+
+      (uso?'':'<button class="btn btn-red btn-sm" onclick="removerTipo('+i+')">Excluir</button>')+
+    '</div>';
+  }).join('')||'<div style="font-size:12.5px;color:var(--gray-4);padding:10px 0">Nenhum tipo cadastrado.</div>';
+}
+
+async function addTipo(){
+  const inp=document.getElementById('tipo-novo');
+  const nome=(inp.value||'').trim();
+  if(!nome){ inp.focus(); return; }
+  if(tiposDe(dados).some(function(t){ return t.label.toLowerCase()===nome.toLowerCase(); })){
+    alert('Já existe um tipo com esse nome.'); return;
+  }
+  const ok=await alterar(function(base){
+    const lista=tiposDe(base);
+    if(lista.some(function(t){ return t.label.toLowerCase()===nome.toLowerCase(); })) { base.tipos=lista; return; }
+    lista.push({label:nome,ativo:true});
+    base.tipos=lista;
+  });
+  if(ok){ inp.value=''; renderTipos(); }
+}
+
+async function renomearTipo(i){
+  const lista=tiposDe(dados);
+  const atual=lista[i]; if(!atual) return;
+  const uso=usoTipo(dados,atual.label);
+  const novo=prompt('Novo nome do tipo:',atual.label);
+  if(!novo||!novo.trim()) return;
+  const nome=novo.trim();
+  if(nome===atual.label) return;
+  if(lista.some(function(t,j){ return j!==i && t.label.toLowerCase()===nome.toLowerCase(); })){
+    alert('Já existe um tipo com esse nome.'); return;
+  }
+  if(uso>0){
+    const ok=confirm(
+      'ATENÇÃO\n\n'+
+      'O tipo "'+atual.label+'" está em '+uso+(uso===1?' obra.':' obras.')+'\n\n'+
+      'Renomear vale também para trás: essas obras passarão a aparecer como "'+nome+'", '+
+      'e a mudança fica registrada no histórico de cada uma.\n\n'+
+      'Se a intenção é criar um tipo diferente, cancele e use "Adicionar" — depois desative este.\n\n'+
+      'Confirma a renomeação?');
+    if(!ok) return;
+  }
+  const antigo=atual.label;
+  const ok=await alterar(function(base){
+    const l=tiposDe(base);
+    const alvo=l.filter(function(t){ return t.label===antigo; })[0];
+    if(alvo) alvo.label=nome;
+    base.tipos=l;
+    // As obras guardam o nome, entao precisam acompanhar — senao ficariam
+    // apontando para um tipo que nao existe mais.
+    const quando=agoraISO();
+    (base.obras||[]).forEach(function(o){
+      if((o.tipo||'')!==antigo) return;
+      o.tipo=nome;
+      if(!Array.isArray(o.historico)) o.historico=[];
+      o.historico.push({quando:quando,quem:usuario,campo:'tipo',valorAntigo:antigo,valorNovo:nome});
+    });
+  });
+  if(ok) renderTipos();
+}
+
+async function toggleTipo(i){
+  const lista=tiposDe(dados);
+  const atual=lista[i]; if(!atual) return;
+  const alvo=atual.label, ligar=(atual.ativo===false);
+  const ok=await alterar(function(base){
+    const l=tiposDe(base);
+    const t=l.filter(function(x){ return x.label===alvo; })[0];
+    if(t) t.ativo=ligar;
+    base.tipos=l;
+  });
+  if(ok) renderTipos();
+}
+
+async function removerTipo(i){
+  const lista=tiposDe(dados);
+  const atual=lista[i]; if(!atual) return;
+  if(usoTipo(dados,atual.label)>0){ alert('Este tipo já está em uso por alguma obra. Use Desativar.'); return; }
+  if(!confirm('Excluir o tipo "'+atual.label+'"?')) return;
+  const alvo=atual.label;
+  const ok=await alterar(function(base){
+    // Confere de novo no que veio do banco: alguem pode ter usado o tipo
+    // enquanto esta tela estava aberta.
+    if(usoTipo(base,alvo)>0){ base.tipos=tiposDe(base); return; }
+    base.tipos=tiposDe(base).filter(function(t){ return t.label!==alvo; });
+  });
+  if(ok){
+    if(usoTipo(dados,alvo)>0) alert('O tipo não foi excluído: enquanto esta tela estava aberta, alguma obra passou a usá-lo.');
+    renderTipos();
+  }
+}
+
 function preencherSelectEtapas(){
   document.getElementById('f-etapa').innerHTML=ETAPAS.map(e=>'<option value="'+e.id+'">'+esc(e.nome)+'</option>').join('');
 }
@@ -450,7 +622,7 @@ function novaObra(){
   document.getElementById('ficha-titulo').textContent='Nova obra';
   document.getElementById('f-cliente').value='';
   document.getElementById('f-obra').value='';
-  document.getElementById('f-tipo').value='Esquadria';
+  popularSelectTipo('');
   document.getElementById('f-resp').value='';
   document.getElementById('f-prazo').value='';
   document.getElementById('f-etapa').value=ETAPAS[0].id;
@@ -468,7 +640,7 @@ function abrirFicha(id){
   document.getElementById('ficha-titulo').textContent=(o.cliente||'Obra')+(o.obra?' · '+o.obra:'');
   document.getElementById('f-cliente').value=o.cliente||'';
   document.getElementById('f-obra').value=o.obra||'';
-  document.getElementById('f-tipo').value=o.tipo||'Esquadria';
+  popularSelectTipo(o.tipo||'');
   document.getElementById('f-resp').value=o.responsavel||'';
   document.getElementById('f-prazo').value=o.prazo||'';
   document.getElementById('f-etapa').value=o.etapa||ETAPAS[0].id;
@@ -704,6 +876,7 @@ async function salvarFicha(){
   setView(view);
   sincronizar();
   document.getElementById('ficha-ov').addEventListener('click',function(e){ if(e.target===this) fecharFicha(); });
+  document.getElementById('tipos-ov').addEventListener('click',function(e){ if(e.target===this) closeTipos(); });
 })();
 </script>
 </body>
