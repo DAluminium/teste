@@ -388,6 +388,9 @@ function fmtQuando(iso){
 function etapaNome(id){ const e=ETAPAS.find(x=>x.id===id); return e?e.nome:id; }
 function etapaIndice(id){ return ETAPAS.findIndex(x=>x.id===id); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// Tira acento para a busca: procurar "zenital" tem de achar "Zenital",
+// e "eletrica" tem de achar "Elétrica".
+function semAcento(t){ return String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(); }
 
 function diasAte(prazo){
   if(!prazo) return null;
@@ -525,11 +528,11 @@ function closeTipos(){ document.getElementById('tipos-ov').classList.remove('ope
 
 function renderTipos(){
   const lista=tiposDe(dados);
-  const q=(document.getElementById('tipo-busca')?document.getElementById('tipo-busca').value:'').trim().toLowerCase();
+  const q=semAcento(document.getElementById('tipo-busca')?document.getElementById('tipo-busca').value:'').trim();
   // Guarda a posicao real na lista, para os botoes agirem no tipo certo
   // mesmo com a busca filtrando o que aparece.
   const visiveis=lista.map(function(t,i){ return {t:t,i:i}; })
-    .filter(function(x){ return !q || x.t.label.toLowerCase().indexOf(q)>=0; });
+    .filter(function(x){ return !q || semAcento(x.t.label).indexOf(q)>=0; });
   if(q && !visiveis.length){
     document.getElementById('tipos-lista').innerHTML=
       '<div style="font-size:12.5px;color:var(--gray-4);padding:14px 0;text-align:center">Nenhum tipo encontrado para "'+esc(q)+'".</div>';

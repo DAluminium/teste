@@ -433,6 +433,9 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
       <div style="font-size:11.5px;color:var(--gray-4);margin-bottom:10px;line-height:1.5">
         Contas já usadas em lançamentos não podem ser excluídas — desative-as. Elas somem do formulário mas continuam aparecendo no histórico.
       </div>
+      <input id="cat-busca" type="text" placeholder="Procurar conta cadastrada..."
+        style="width:100%;padding:9px 11px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:13px;margin-bottom:8px"
+        oninput="renderCategorias()">
       <div id="cat-lista"></div>
     </div>
   </div>
@@ -1176,13 +1179,25 @@ function slugCat(t){
   return t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
           .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
 }
+// Tira acento para a busca: procurar "eletrica" tem de achar "Elétrica".
+function semAcento(t){
+  return String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+}
 function usoCategoria(id){ return (data.pagar||[]).filter(r=>r.cat===id).length; }
 function openCategorias(){ renderCategorias(); document.getElementById('cat-overlay').classList.add('open'); }
 function closeCategorias(){ document.getElementById('cat-overlay').classList.remove('open'); }
 function renderCategorias(){
   const cats=getCategorias();
   const el=document.getElementById('cat-lista');
-  el.innerHTML=cats.map((c,i)=>{
+  const q=semAcento(document.getElementById('cat-busca')?document.getElementById('cat-busca').value:'').trim();
+  // Guarda a posicao real na lista, para os botoes agirem na conta certa
+  // mesmo com a busca filtrando o que aparece.
+  const visiveis=cats.map((c,i)=>({c,i})).filter(x=>!q||semAcento(x.c.label).indexOf(q)>=0);
+  if(q&&!visiveis.length){
+    el.innerHTML='<div style="font-size:12.5px;color:var(--gray-4);padding:14px 0;text-align:center">Nenhuma conta encontrada.</div>';
+    return;
+  }
+  el.innerHTML=visiveis.map(({c,i})=>{
     const uso=usoCategoria(c.id);
     const off=c.ativo===false;
     return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--gray-2);${off?'opacity:.5':''}">
