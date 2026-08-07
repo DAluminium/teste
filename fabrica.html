@@ -97,6 +97,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .hist-quando{color:var(--gray-4);font-size:11px}
 
 .aviso{background:var(--amber-light);border:1px solid var(--amber-mid);border-radius:8px;padding:11px 13px;font-size:12.5px;color:var(--gray-6);line-height:1.5;margin-bottom:12px}
+.conf-campo{font-size:15px;font-weight:700;color:var(--gray-6);margin-bottom:10px}
+.conf-lado{border:1px solid var(--gray-3);border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:12.5px;line-height:1.5}
+.conf-lado.deles{background:var(--amber-light);border-color:var(--amber-mid)}
+.conf-lado.meu{background:var(--teal-light);border-color:var(--teal)}
+.conf-quem{font-weight:600;color:var(--gray-6)}
+.conf-valor{display:block;margin-top:3px;font-size:14px;font-weight:700;color:var(--gray-6);word-break:break-word}
 .vazio{text-align:center;padding:50px 20px;color:var(--gray-4)}
 .vazio-t{font-size:15px;font-weight:600;color:var(--gray-5);margin-bottom:6px}
 
@@ -191,6 +197,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
+<!-- CONFLITO: duas pessoas mudaram o mesmo campo -->
+<div class="overlay" id="conf-ov">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-head">
+      <div class="modal-title">⚠️ Alterado ao mesmo tempo</div>
+      <span style="font-size:11.5px;color:var(--gray-4)" id="conf-passo"></span>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--gray-5);line-height:1.55;margin-bottom:14px">
+        Outra pessoa alterou este campo enquanto a sua tela estava aberta.
+        Escolha qual valor deve ficar gravado.
+      </p>
+      <div class="conf-campo" id="conf-campo"></div>
+      <div class="conf-lado" id="conf-deles"></div>
+      <div class="conf-lado" id="conf-meu"></div>
+    </div>
+    <div class="modal-foot" style="flex-direction:column;gap:8px">
+      <button class="btn btn-outline btn-block" id="conf-btn-deles"></button>
+      <button class="btn btn-teal btn-block" id="conf-btn-meu"></button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ================= CONFIG =================
 const WORKER='https://daluminium-api.daluminium2.workers.dev';
@@ -220,6 +249,9 @@ let dados={obras:[]};
 let usuario='';
 let view='quadro';
 let fichaId=null;
+// Versão da obra no momento em que a ficha foi aberta. É a referência para
+// saber quais campos EU mudei — e, por diferença, quais o colega mudou.
+let fichaBase=null;
 
 // ================= SESSÃO =================
 function lerSSO(){
@@ -269,7 +301,9 @@ async function alterar(fn){
     try{ base=await buscarRemoto(); }catch(e){ base=null; }
     if(!base) base=JSON.parse(JSON.stringify(dados));
     if(!Array.isArray(base.obras)) base.obras=[];
-    fn(base);
+    // A funcao pode ser assincrona: a juncao de alteracoes pode precisar
+    // perguntar ao usuario qual valor manter num campo em conflito.
+    await fn(base);
     // Carimbo usado para conferir, depois, se a gravação realmente aconteceu.
     const carimbo=agoraISO();
     base.atualizadoEm=carimbo;
@@ -412,6 +446,7 @@ function preencherSelectEtapas(){
 
 function novaObra(){
   fichaId=null;
+  fichaBase=null;
   document.getElementById('ficha-titulo').textContent='Nova obra';
   document.getElementById('f-cliente').value='';
   document.getElementById('f-obra').value='';
@@ -429,6 +464,7 @@ function abrirFicha(id){
   const o=dados.obras.find(x=>x.id===id);
   if(!o) return;
   fichaId=id;
+  fichaBase=JSON.parse(JSON.stringify(o));
   document.getElementById('ficha-titulo').textContent=(o.cliente||'Obra')+(o.obra?' · '+o.obra:'');
   document.getElementById('f-cliente').value=o.cliente||'';
   document.getElementById('f-obra').value=o.obra||'';
@@ -497,7 +533,77 @@ function htmlHistorico(o){
     }).join('');
 }
 
-function fecharFicha(){ document.getElementById('ficha-ov').classList.remove('open'); fichaId=null; }
+function fecharFicha(){ document.getElementById('ficha-ov').classList.remove('open'); fichaId=null; fichaBase=null; }
+
+// ---------- JUNÇÃO DE ALTERAÇÕES DE VÁRIAS PESSOAS ----------
+
+// Junta as duas listas de histórico sem perder linha de ninguém.
+// Nunca substituir uma pela outra: é aí que a linha do colega some.
+function unirHistorico(a,b){
+  const vistos={}, saida=[];
+  [].concat(a||[],b||[]).forEach(function(h){
+    if(!h) return;
+    const chave=(h.quando||h.em||'')+'|'+(h.quem||h.por||'')+'|'+(h.campo||h.evento||h.texto||'');
+    if(vistos[chave]) return;
+    vistos[chave]=1; saida.push(h);
+  });
+  saida.sort(function(x,y){ return String(x.quando||x.em||'').localeCompare(String(y.quando||y.em||'')); });
+  return saida;
+}
+
+// "há 5 minutos", a partir da data/hora da última alteração daquele campo.
+function tempoRelativo(iso){
+  if(!iso) return '';
+  const d=new Date(iso); if(isNaN(d)) return '';
+  const seg=Math.round((Date.now()-d.getTime())/1000);
+  if(seg<60)    return 'há instantes';
+  if(seg<3600)  { const m=Math.round(seg/60); return 'há '+m+(m===1?' minuto':' minutos'); }
+  if(seg<86400) { const h=Math.round(seg/3600); return 'há '+h+(h===1?' hora':' horas'); }
+  const dias=Math.round(seg/86400);
+  return 'há '+dias+(dias===1?' dia':' dias');
+}
+
+// Procura no histórico quem mexeu naquele campo por último, e quando.
+function ultimaAlteracao(obra,campo){
+  const h=(obra.historico||[]).filter(function(x){ return x.campo===campo; });
+  if(!h.length) return null;
+  h.sort(function(x,y){ return String(x.quando||'').localeCompare(String(y.quando||'')); });
+  return h[h.length-1];
+}
+
+// Mostra a escolha e espera o clique. Devolve 'deles' ou 'meu'.
+function pedirEscolha(conf,passo,total){
+  return new Promise(function(resolve){
+    const rot=(CAMPOS[conf.campo]&&CAMPOS[conf.campo].rotulo)||conf.campo;
+    const quem=conf.quem||'Outra pessoa';
+    const quando=conf.quando?tempoRelativo(conf.quando):'';
+    document.getElementById('conf-passo').textContent = total>1 ? ('campo '+passo+' de '+total) : '';
+    document.getElementById('conf-campo').textContent = rot;
+    document.getElementById('conf-deles').className='conf-lado deles';
+    document.getElementById('conf-deles').innerHTML=
+      '<span class="conf-quem">'+esc(quem)+'</span> alterou '+esc(quando)+' para'+
+      '<span class="conf-valor">'+esc(valorLegivel(conf.campo,conf.deles)||'(vazio)')+'</span>';
+    document.getElementById('conf-meu').className='conf-lado meu';
+    document.getElementById('conf-meu').innerHTML=
+      'Você está gravando'+
+      '<span class="conf-valor">'+esc(valorLegivel(conf.campo,conf.meu)||'(vazio)')+'</span>';
+
+    const bd=document.getElementById('conf-btn-deles');
+    const bm=document.getElementById('conf-btn-meu');
+    // "de Fulano" serve para qualquer nome — nao da para deduzir genero pelo nome.
+    bd.textContent = (quem==='Outra pessoa') ? 'Manter o da outra pessoa' : ('Manter o de '+quem);
+    bm.textContent='Gravar o meu';
+    const ov=document.getElementById('conf-ov');
+    function escolher(qual){
+      bd.onclick=null; bm.onclick=null;
+      ov.classList.remove('open');
+      resolve(qual);
+    }
+    bd.onclick=function(){ escolher('deles'); };
+    bm.onclick=function(){ escolher('meu'); };
+    ov.classList.add('open');
+  });
+}
 
 async function salvarFicha(){
   const cliente=document.getElementById('f-cliente').value.trim();
@@ -521,28 +627,64 @@ async function salvarFicha(){
     obs:document.getElementById('f-obs').value.trim()
   };
   const id=fichaId;
-  const ok=await alterar(base=>{
+  const ok=await alterar(async function(base){
     if(!id){
       const o=Object.assign({id:novoId(),criadoPor:usuario,criadoEm:agoraISO(),marcos:{},historico:[]},novo);
       o.marcos[o.etapa]=agoraISO();
       o.historico=[{quando:agoraISO(),quem:usuario,evento:'criacao'}];
       base.obras.push(o);
-    }else{
-      const o=base.obras.find(x=>x.id===id);
-      if(!o) return;
-      if(!o.marcos) o.marcos={};
-      if(!Array.isArray(o.historico)) o.historico=[];
-      // Um registro por campo que realmente mudou. Campo igual nao entra.
-      const quando=agoraISO();
-      Object.keys(CAMPOS).forEach(function(campo){
-        const antes=o[campo]===undefined?'':o[campo];
-        const depois=novo[campo]===undefined?'':novo[campo];
-        if(antes===depois) return;
-        o.historico.push({quando:quando,quem:usuario,campo:campo,valorAntigo:antes,valorNovo:depois});
-        if(campo==='etapa') o.marcos[depois]=quando;
-      });
-      Object.assign(o,novo);
+      return;
     }
+    let o=base.obras.find(x=>x.id===id);
+    // Obra sumiu do banco (nao deveria acontecer — nao existe excluir).
+    // Devolve a minha versao em vez de perder o registro.
+    if(!o){
+      o=Object.assign({id:id,marcos:{},historico:[]},fichaBase||{},novo);
+      base.obras.push(o);
+      return;
+    }
+    if(!o.marcos) o.marcos={};
+    if(!Array.isArray(o.historico)) o.historico=[];
+
+    // ----- juncao campo a campo -----
+    // Tres versoes em jogo: a do banco (deles), a da minha tela (meu) e a que
+    // eu tinha ao abrir a ficha (ref). Comparando com a ref da para saber quem
+    // mexeu no que.
+    const conflitos=[], resultado={};
+    Object.keys(CAMPOS).forEach(function(campo){
+      const ref  = (fichaBase&&fichaBase[campo]!==undefined)?fichaBase[campo]:'';
+      const meu  = novo[campo]===undefined?'':novo[campo];
+      const deles= o[campo]===undefined?'':o[campo];
+      if(meu===ref){ resultado[campo]=deles; return; }               // nao mexi: fica o dele
+      if(deles===ref||deles===meu){ resultado[campo]=meu; return; }  // so eu mexi
+      const ult=ultimaAlteracao(o,campo);                            // os dois mexeram
+      conflitos.push({campo:campo,meu:meu,deles:deles,
+                      quem:ult?ult.quem:null, quando:ult?ult.quando:null});
+    });
+
+    // Uma escolha por campo em conflito.
+    for(let i=0;i<conflitos.length;i++){
+      const c=conflitos[i];
+      const escolha=await pedirEscolha(c,i+1,conflitos.length);
+      resultado[c.campo] = (escolha==='meu') ? c.meu : c.deles;
+    }
+
+    // Uma linha de historico por campo que mudou em relacao ao que estava
+    // gravado. O historico final e a UNIAO das duas listas — nunca a
+    // substituicao de uma pela outra.
+    const quando=agoraISO();
+    const novasLinhas=[];
+    Object.keys(resultado).forEach(function(campo){
+      const deles=o[campo]===undefined?'':o[campo];
+      if(resultado[campo]===deles) return;
+      novasLinhas.push({quando:quando,quem:usuario,campo:campo,
+                        valorAntigo:deles,valorNovo:resultado[campo]});
+      if(campo==='etapa') o.marcos[resultado[campo]]=quando;
+    });
+    const historico=unirHistorico(o.historico,(fichaBase&&fichaBase.historico)||[]).concat(novasLinhas);
+
+    Object.assign(o,resultado);
+    o.historico=historico;
   });
   if(ok) fecharFicha();
 }
