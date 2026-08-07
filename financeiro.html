@@ -733,6 +733,9 @@ let JSONBIN_BIN_ID = SUPA_SISTEMA;
 let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inter:0,sicredi:0,caixa:0,antecipacao:0}, usuarios:[] };
 let dataReady=false;
 let syncInterval = null;
+// Retrato do que o servidor tinha na ultima vez que lemos. Serve para saber,
+// na hora de gravar, se outra pessoa mexeu nesse meio-tempo.
+let ultimoServidor = null;
 let pagarEditId = null, receberEditId = null, baixaType = null, baixaIdx = null;
 
 
@@ -1136,6 +1139,7 @@ async function syncFromCloud(){
     if(!r.ok) return;
     const remote=await r.json();
     if(!remote) return;
+    ultimoServidor=JSON.stringify(remote);
     data=remote;
     dataReady=true;
     localStorage.setItem('fin-data',JSON.stringify(data));
@@ -1164,13 +1168,50 @@ async function persist(){
   localStorage.setItem('fin-data',JSON.stringify(data));
   if(!JSONBIN_BIN_ID) return;
   try{
+    // Antes de gravar por cima, conferir se o servidor mudou desde a ultima
+    // leitura. Este modulo grava o documento INTEIRO: sem esta conferencia, o
+    // salvamento apaga a alteracao de outra pessoa sem ninguem perceber.
+    if(ultimoServidor!==null){
+      let atual=null;
+      try{ atual=await lerRemoto(); }catch(e){ atual=null; }
+      if(atual && JSON.stringify(atual)!==ultimoServidor){
+        const gravarAssimMesmo=confirm(
+          'ATENÇÃO — outra pessoa alterou os dados enquanto você trabalhava.\n\n'+
+          'Se gravar agora, o que ela fez pode ser apagado.\n\n'+
+          'OK = gravar assim mesmo (a alteração dela pode se perder)\n'+
+          'Cancelar = descartar o que você acabou de fazer e carregar a versão mais nova');
+        if(!gravarAssimMesmo){
+          setStatus('↩️ Carregando a versão mais nova...');
+          ultimoServidor=null;
+          await syncFromCloud();
+          return;
+        }
+      }
+    }
+
     await fetch(SUPA_URL+'/rest/v1/app_data?id=eq.'+SUPA_SISTEMA,{
       method:'PATCH',
       headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
       body:JSON.stringify({data:data,updated_at:new Date().toISOString()})
     });
+
+    // Rele para confirmar que gravou mesmo e para atualizar a referencia.
+    try{
+      const confere=await lerRemoto();
+      if(confere) ultimoServidor=JSON.stringify(confere);
+    }catch(e){}
+
     setStatus('🟢 '+new Date().toLocaleTimeString('pt-BR'));
   }catch(e){ setStatus('🔴 Erro ao salvar'); }
+}
+
+// Leitura pelo Worker, usada para conferir o servidor antes e depois de gravar.
+async function lerRemoto(){
+  const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+    headers:{'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'}
+  });
+  if(!r.ok) throw new Error('Worker '+r.status);
+  return await r.json();
 }
 
 

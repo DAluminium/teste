@@ -1942,6 +1942,9 @@ const SUPA_KEY='sb_publishable_D50BtCRtBblorV3j1_Z68A_S2T8goU8';
 const SUPA_SISTEMA='compras_teste';
 let syncInterval = null;
 let isSyncing = false;
+// Retrato do que o servidor tinha na ultima vez que lemos. Serve para saber,
+// na hora de gravar, se outra pessoa mexeu nesse meio-tempo.
+let ultimoServidor = null;
 
 function getCfg(){ return {apiKey:SUPA_KEY,binId:SUPA_SISTEMA}; }
 function saveCfg(cfg){}
@@ -1988,6 +1991,7 @@ async function syncFromCloud(){
     const remote=await fetchBin(cfg.apiKey,cfg.binId);
     if(!remote||typeof remote!=='object'||Array.isArray(remote)) throw new Error('Resposta invalida do servidor');
     localStorage.setItem('dalum-data',JSON.stringify(remote));
+    ultimoServidor=JSON.stringify(remote);
     data=remote;
     dataReady=true;
     reclassifyAll();
@@ -2020,7 +2024,37 @@ async function persist(){
   if(!cfg){ return; }
   try{
     setStatus('🔄 Salvando...');
+
+    // Antes de gravar por cima, conferir se o servidor mudou desde a ultima
+    // leitura. Este modulo grava o documento INTEIRO: sem esta conferencia, o
+    // salvamento apaga a alteracao de outra pessoa sem ninguem perceber.
+    if(ultimoServidor!==null){
+      let atual=null;
+      try{ atual=await fetchBin(cfg.apiKey,cfg.binId); }catch(e){ atual=null; }
+      if(atual && JSON.stringify(atual)!==ultimoServidor){
+        const gravarAssimMesmo=confirm(
+          'ATENÇÃO — outra pessoa alterou os dados enquanto você trabalhava.\n\n'+
+          'Se gravar agora, o que ela fez pode ser apagado.\n\n'+
+          'OK = gravar assim mesmo (a alteração dela pode se perder)\n'+
+          'Cancelar = descartar o que você acabou de fazer e carregar a versão mais nova');
+        if(!gravarAssimMesmo){
+          setStatus('↩️ Carregando a versão mais nova...');
+          ultimoServidor=null;
+          await syncFromCloud();
+          return;
+        }
+      }
+    }
+
     await pushBin(cfg.apiKey,cfg.binId,data);
+
+    // Rele para confirmar que gravou mesmo e para atualizar a referencia.
+    // O Worker chega a responder "ok" sem ter gravado.
+    try{
+      const confere=await fetchBin(cfg.apiKey,cfg.binId);
+      if(confere) ultimoServidor=JSON.stringify(confere);
+    }catch(e){}
+
     setStatus('🟢 Salvo · '+new Date().toLocaleTimeString('pt-BR'));
   }catch(e){
     setStatus('🔴 Erro ao salvar — salvo localmente','#ffcccc');
