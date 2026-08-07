@@ -144,6 +144,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="topbar-logo">DALUMINIUM <span>Fábrica</span></div>
     <div class="topbar-actions">
       <span class="sync" id="sync"></span>
+      <button class="btn btn-ghost btn-sm" onclick="atualizarDoBanco(true)" title="Buscar alterações de outras pessoas agora">
+        <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Atualizar
+      </button>
       <button class="btn btn-ghost btn-sm" onclick="openTipos()" title="Gerenciar tipos de obra">
         <svg class="icon" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Tipos
       </button>
@@ -302,7 +305,12 @@ function gravarLocal(){ localStorage.setItem(LS_KEY,JSON.stringify(dados)); }
 function status(txt,cor){ const e=document.getElementById('sync'); if(e){ e.textContent=txt; e.style.color=cor||'rgba(255,255,255,.85)'; } }
 
 async function buscarRemoto(){
-  const r=await fetch(WORKER,{headers:{'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'}});
+  // O Worker nao manda cabecalho de cache, entao o navegador decide sozinho por
+  // quanto tempo reaproveita a resposta — e chegava a devolver dados velhos na
+  // releitura feita logo apos gravar. Dois cintos de seguranca: no-store e um
+  // parametro que muda a cada chamada.
+  const url=WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7);
+  const r=await fetch(url,{cache:'no-store',headers:{'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'}});
   if(!r.ok) throw new Error('Worker '+r.status);
   const j=await r.json();
   if(!j||typeof j!=='object'||Array.isArray(j)) return null;
@@ -372,6 +380,34 @@ async function sincronizar(){
   }catch(e){
     render();
     status('🔴 Sem conexão — dados locais','#ffcccc');
+  }
+}
+
+// Alguma tela de edição aberta? Enquanto houver, não redesenhamos: trocar
+// valores por baixo de quem está digitando faria a pessoa perder o que escreveu.
+function telaAbertaParaEdicao(){
+  return ['ficha-ov','conf-ov','tipos-ov'].some(function(id){
+    const el=document.getElementById(id);
+    return el && el.classList.contains('open');
+  });
+}
+
+// Relê o banco e redesenha só se algo mudou. Roda sozinha a cada 60 segundos
+// e também pelo botão Atualizar.
+async function atualizarDoBanco(manual){
+  if(telaAbertaParaEdicao()){
+    if(manual) status('✋ Feche a ficha para atualizar','#ffe6a8');
+    return;
+  }
+  if(manual) status('🔄 Atualizando...');
+  try{
+    const r=await buscarRemoto();
+    if(!r){ status('🟢 Em dia · '+agoraHora()); return; }
+    const mudou = JSON.stringify(r)!==JSON.stringify(dados);
+    if(mudou){ dados=r; gravarLocal(); render(); }
+    status((mudou?'🟢 Atualizado · ':'🟢 Em dia · ')+agoraHora());
+  }catch(e){
+    if(manual) status('🔴 Sem conexão','#ffcccc');
   }
 }
 
@@ -908,6 +944,13 @@ async function salvarFicha(){
   sincronizar();
   document.getElementById('ficha-ov').addEventListener('click',function(e){ if(e.target===this) fecharFicha(); });
   document.getElementById('tipos-ov').addEventListener('click',function(e){ if(e.target===this) closeTipos(); });
+
+  // Busca alterações de outras pessoas a cada 60 segundos.
+  setInterval(function(){ atualizarDoBanco(false); },60000);
+  // Ao voltar para a aba depois de um tempo, atualiza sem esperar o minuto.
+  document.addEventListener('visibilitychange',function(){
+    if(!document.hidden) atualizarDoBanco(false);
+  });
 })();
 </script>
 </body>
