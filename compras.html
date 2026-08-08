@@ -2068,6 +2068,24 @@ function chavesTocadas(d){
   return [].concat(d.inc,d.rem,d.alt).map(function(x){ return x.lista+'|'+x.chave; });
 }
 
+function normalizarTxt(t){ return String(t||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+
+// Dois lancamentos NOVOS que tem o MESMO contrato+obra (ou so a mesma obra,
+// nas listas que nao usam contrato) sao tratados como o mesmo assunto, mesmo
+// tendo ids diferentes — pode ser lancamento duplicado por engano. Por isso,
+// mesmo sendo tecnicamente seguro juntar, preferimos perguntar.
+function chaveDuplicidade(lista,reg){
+  const obra=normalizarTxt(reg.obra);
+  if(!obra) return null;
+  const contrato = ('contrato' in reg) ? normalizarTxt(reg.contrato) : '';
+  return lista+'|'+obra+'|'+contrato;
+}
+function temDuplicidade(incDeles,incMeu){
+  const vistos={};
+  incDeles.forEach(function(x){ const k=chaveDuplicidade(x.lista,x.reg); if(k) vistos[k]=1; });
+  return incMeu.some(function(x){ const k=chaveDuplicidade(x.lista,x.reg); return !!(k && vistos[k]); });
+}
+
 function descreverReg(x){
   const r=x.reg||{};
   if(x.lista==='usuarios') return 'usuário '+(r.name||r.username||'');
@@ -2146,32 +2164,47 @@ async function persist(){
         const base=JSON.parse(ultimoServidor);
         const deles=diferencas(base,atual);   // o que a outra pessoa fez
         const meu=diferencas(base,data);      // o que eu fiz
-        // "Salvar os dois" aparece quando cada um mexeu em registros DIFERENTES.
-        // Se os dois mexeram no mesmo, a escolha continua manual. Registros
-        // antigos sem id sao comparados por conteudo, entao uma edicao neles
-        // conta como registros diferentes — por isso, para eles, so oferecemos
-        // a juncao quando nao houve remocao de nenhum lado.
         const dela=chavesTocadas(deles), minhas=chavesTocadas(meu);
         const mesmoRegistro=minhas.some(function(k){ return dela.indexOf(k)>=0; });
+        const duplicidade=temDuplicidade(deles.inc,meu.inc);
+        // Registros antigos sem id sao comparados por conteudo, entao uma
+        // edicao neles conta como registro diferente — por isso, so para eles,
+        // so juntamos quando nao houve remocao de nenhum lado.
         const temSemId=[].concat(deles.inc,deles.rem,deles.alt,meu.inc,meu.rem,meu.alt)
                          .some(function(x){ return x.chave.indexOf('conteudo:')===0; });
-        const podeJuntar = !mesmoRegistro &&
-                           (dela.length>0 || minhas.length>0) &&
-                           (!temSemId || (deles.rem.length===0 && meu.rem.length===0));
-        const escolha=await pedirDecisaoConcorrencia(deles,meu,podeJuntar);
-        if(escolha==='descartar'){
-          setStatus('↩️ Carregando a versão mais nova...');
-          ultimoServidor=null;
-          await syncFromCloud();
-          return;
-        }
-        if(escolha==='juntar'){
+        const seguro = !mesmoRegistro && !duplicidade &&
+                       (dela.length>0 || minhas.length>0) &&
+                       (!temSemId || (deles.rem.length===0 && meu.rem.length===0));
+
+        if(seguro){
+          // Cada um mexeu em algo diferente (obra/contrato diferentes) — junta
+          // sozinho, sem interromper quem esta lancando. E o caso normal de
+          // duas pessoas cadastrando orcamentos ao mesmo tempo.
           data=juntarAlteracoes(atual,meu);
           localStorage.setItem('dalum-data',JSON.stringify(data));
           reclassifyAll();
           render();
+        }else{
+          // So pergunta quando de fato pode haver problema: mesmo registro
+          // alterado pelos dois, ou dois lancamentos novos com o mesmo
+          // contrato+obra (possivel duplicidade).
+          const podeJuntar = !mesmoRegistro && (dela.length>0 || minhas.length>0) &&
+                             (!temSemId || (deles.rem.length===0 && meu.rem.length===0));
+          const escolha=await pedirDecisaoConcorrencia(deles,meu,podeJuntar);
+          if(escolha==='descartar'){
+            setStatus('↩️ Carregando a versão mais nova...');
+            ultimoServidor=null;
+            await syncFromCloud();
+            return;
+          }
+          if(escolha==='juntar'){
+            data=juntarAlteracoes(atual,meu);
+            localStorage.setItem('dalum-data',JSON.stringify(data));
+            reclassifyAll();
+            render();
+          }
+          // 'meu' = segue adiante e grava o que esta na tela, por cima
         }
-        // 'meu' = segue adiante e grava o que esta na tela, por cima
       }
     }
 
