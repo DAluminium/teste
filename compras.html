@@ -947,6 +947,16 @@ function saveEntry(){
   // distinguir uma edicao de uma inclusao. Ao editar, o id existente e
   // preservado (o registro e substituido inteiro logo abaixo).
   entry.id = isEdit ? ((data[modalType][editId]||{}).id || genId()) : genId();
+
+  // Mesmo contrato+obra+material ja lancado antes? Avisa e deixa a pessoa
+  // decidir — pega o caso de lancar duas vezes por engano, mesmo sem
+  // nenhuma concorrencia entre pessoas envolvida.
+  if(achaDuplicataExistente(entry, isEdit?entry.id:null)){
+    const ok=confirm('Já existe um lançamento para "'+entry.obra+'" — Contrato '+entry.contrato+
+                      (entry.material?' — material "'+entry.material+'"':'')+
+                      '.\n\nCadastrar mesmo assim?');
+    if(!ok) return;
+  }
   if(isEdit){ data[modalType][editId]=entry; } else { data[modalType].push(entry); }
   logAction(byVal, isEdit?'Editou':'Criou', entry, isEdit?'Dados atualizados':'Novo orçamento lançado');
   reclassifyAll();
@@ -2042,13 +2052,24 @@ async function syncFromCloud(){
     setStatus('🔄 Sincronizando...');
     const remote=await fetchBin(cfg.apiKey,cfg.binId);
     if(!remote||typeof remote!=='object'||Array.isArray(remote)) throw new Error('Resposta invalida do servidor');
-    localStorage.setItem('dalum-data',JSON.stringify(remote));
-    ultimoServidor=JSON.stringify(remote);
+    const remoteStr=JSON.stringify(remote);
+    // So o servidor mudou de verdade desde a ultima leitura? Reconstruir a
+    // lista sem necessidade fazia a pagina voltar pro topo sozinha a cada
+    // 10 segundos, mesmo sem ninguem ter alterado nada — reconstruir o HTML
+    // reseta a rolagem. Comparando com o que ja tinhamos, isso so acontece
+    // quando existe alteracao de verdade para mostrar.
+    const mudouNoServidor = remoteStr!==ultimoServidor;
+    localStorage.setItem('dalum-data',remoteStr);
+    ultimoServidor=remoteStr;
     data=remote;
     dataReady=true;
     reclassifyAll();
-    render();
-    checkNotifications();
+    if(mudouNoServidor){
+      const scrollY=window.scrollY;
+      render();
+      checkNotifications();
+      window.scrollTo(0,scrollY);
+    }
     setStatus('🟢 Sincronizado · '+new Date().toLocaleTimeString('pt-BR'));
   }catch(e){
     setStatus('🔴 Sem conexão — dados locais','#ffcccc');
@@ -2116,6 +2137,31 @@ function temDuplicidade(incDeles,incMeu){
   const vistos={};
   incDeles.forEach(function(x){ const k=chaveDuplicidade(x.lista,x.reg); if(k) vistos[k]=1; });
   return incMeu.some(function(x){ const k=chaveDuplicidade(x.lista,x.reg); return !!(k && vistos[k]); });
+}
+
+// Mesma ideia de chaveDuplicidade, mas SEM o nome da lista — usada para
+// avisar no momento do cadastro, quando a MESMA pessoa lanca o mesmo
+// contrato+obra+material duas vezes seguidas, na mesma aba. Isso nao passa
+// pelo fluxo de concorrencia (nao ha conflito nenhum entre sessoes), entao
+// precisa dessa checagem separada, rodando sempre que algo novo e salvo —
+// e olhando as tres listas de pedido juntas (urgente/importante/pago), nao
+// so a lista atual.
+function chaveDuplicidadeGeral(reg){
+  const obra=normalizarTxt(reg.obra);
+  if(!obra) return null;
+  const contrato = ('contrato' in reg) ? normalizarTxt(reg.contrato) : '';
+  const material = ('material' in reg) ? normalizarTxt(reg.material) : '';
+  return obra+'|'+contrato+'|'+material;
+}
+function achaDuplicataExistente(entryNovo,idIgnorar){
+  const chave=chaveDuplicidadeGeral(entryNovo);
+  if(!chave) return false;
+  return ['urgente','importante','pago'].some(function(L){
+    return (data[L]||[]).some(function(r){
+      if(idIgnorar && r.id===idIgnorar) return false; // nao compara consigo mesmo, ao editar
+      return chaveDuplicidadeGeral(r)===chave;
+    });
+  });
 }
 
 function descreverReg(x){

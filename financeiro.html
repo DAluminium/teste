@@ -1167,11 +1167,21 @@ async function syncFromCloud(){
     if(!r.ok) return;
     const remote=await r.json();
     if(!remote) return;
-    ultimoServidor=JSON.stringify(remote);
+    const remoteStr=JSON.stringify(remote);
+    // So o servidor mudou de verdade desde a ultima leitura? Reconstruir a
+    // lista sem necessidade fazia a pagina voltar pro topo sozinha a cada
+    // 10 segundos — reconstruir o HTML reseta a rolagem. So refazemos a
+    // tela quando ha alteracao de verdade para mostrar.
+    const mudouNoServidor = remoteStr!==ultimoServidor;
+    ultimoServidor=remoteStr;
     data=remote;
     dataReady=true;
     localStorage.setItem('fin-data',JSON.stringify(data));
-    render();
+    if(mudouNoServidor){
+      const scrollY=window.scrollY;
+      render();
+      window.scrollTo(0,scrollY);
+    }
     setStatus('🟢 '+new Date().toLocaleTimeString('pt-BR'));
   }catch(e){ setStatus('🔴 Sem conexão'); }
 }
