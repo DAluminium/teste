@@ -2070,15 +2070,22 @@ function chavesTocadas(d){
 
 function normalizarTxt(t){ return String(t||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
 
-// Dois lancamentos NOVOS que tem o MESMO contrato+obra (ou so a mesma obra,
-// nas listas que nao usam contrato) sao tratados como o mesmo assunto, mesmo
-// tendo ids diferentes — pode ser lancamento duplicado por engano. Por isso,
-// mesmo sendo tecnicamente seguro juntar, preferimos perguntar.
+// Dois lancamentos NOVOS que tem o MESMO contrato+obra+material sao tratados
+// como o mesmo assunto, mesmo tendo ids diferentes — pode ser lancamento
+// duplicado por engano. Por isso, mesmo sendo tecnicamente seguro juntar,
+// preferimos perguntar.
+//
+// O MATERIAL entra na chave de proposito: e normal um contrato ter varios
+// lancamentos legitimos (perfil aluminio, depois acessorios, depois vidro).
+// So contrato+obra iguais NAO bastam para suspeitar de duplicidade — sem o
+// material na comparacao, cada pessoa lancando uma etapa diferente do mesmo
+// contrato seria interrompida por engano.
 function chaveDuplicidade(lista,reg){
   const obra=normalizarTxt(reg.obra);
   if(!obra) return null;
   const contrato = ('contrato' in reg) ? normalizarTxt(reg.contrato) : '';
-  return lista+'|'+obra+'|'+contrato;
+  const material = ('material' in reg) ? normalizarTxt(reg.material) : '';
+  return lista+'|'+obra+'|'+contrato+'|'+material;
 }
 function temDuplicidade(incDeles,incMeu){
   const vistos={};
