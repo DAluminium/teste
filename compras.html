@@ -330,6 +330,28 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
 </div>
 
 <!-- MODAL ORÇAMENTO -->
+<!-- ALTERACAO SIMULTANEA -->
+<div class="modal-overlay" id="conc-overlay">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <div class="modal-title">⚠️ Duas pessoas alteraram ao mesmo tempo</div>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--gray-5);line-height:1.55;margin-bottom:14px">
+        Enquanto você trabalhava, outra pessoa gravou alterações. Veja o que cada
+        um fez e escolha como salvar.
+      </p>
+      <div id="conc-deles"></div>
+      <div id="conc-meu"></div>
+    </div>
+    <div class="modal-footer" style="flex-direction:column;gap:8px;align-items:stretch">
+      <button class="btn btn-teal" id="conc-btn-juntar" style="width:100%">Salvar os dois</button>
+      <button class="btn btn-outline" id="conc-btn-meu" style="width:100%">Gravar só o meu (apaga o da outra pessoa)</button>
+      <button class="btn btn-outline" id="conc-btn-descartar" style="width:100%">Descartar o meu e carregar o dela</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal">
     <div class="modal-header">
@@ -2014,6 +2036,88 @@ async function persistUsers(){
   }catch(e){ console.warn('Erro ao salvar usuários:', e); }
 }
 
+// ---- ALTERACAO SIMULTANEA: comparar, mostrar e deixar escolher ----
+const LISTAS_DADOS=['urgente','importante','pago','manutencao','historico','usuarios'];
+function assinaturaReg(r){ return JSON.stringify(r); }
+
+// O que mudou de uma versao para outra, lista por lista. Como os registros aqui
+// nao tem identificador proprio, a comparacao e pelo conteudo: detecta inclusao
+// e remocao com seguranca, mas uma edicao aparece como remocao + inclusao.
+function diferencas(antes,depois){
+  const inc=[], rem=[];
+  LISTAS_DADOS.forEach(function(L){
+    const listaA=(antes&&antes[L])||[], listaD=(depois&&depois[L])||[];
+    const sobraA={}; listaA.forEach(function(r){ const k=assinaturaReg(r); sobraA[k]=(sobraA[k]||0)+1; });
+    listaD.forEach(function(r){
+      const k=assinaturaReg(r);
+      if(sobraA[k]>0) sobraA[k]--; else inc.push({lista:L,reg:r});
+    });
+    const sobraD={}; listaD.forEach(function(r){ const k=assinaturaReg(r); sobraD[k]=(sobraD[k]||0)+1; });
+    listaA.forEach(function(r){
+      const k=assinaturaReg(r);
+      if(sobraD[k]>0) sobraD[k]--; else rem.push({lista:L,reg:r});
+    });
+  });
+  return {inc:inc,rem:rem};
+}
+
+function descreverReg(x){
+  const r=x.reg||{};
+  if(x.lista==='usuarios') return 'usuário '+(r.name||r.username||'');
+  const nome=r.obra||'(sem obra)';
+  const det=[r.material,r.fornecedor,r.nrOrc?('orç. '+r.nrOrc):''].filter(Boolean).join(' · ');
+  return nome+(det?' — '+det:'');
+}
+
+function htmlLadoConc(titulo,d,fundo,borda){
+  if(!d.inc.length&&!d.rem.length) return '';
+  const linha=function(x,sinal){
+    return '<div style="font-size:12px;padding:3px 0;line-height:1.4">'+sinal+' '+
+           descreverReg(x)+' <span style="color:var(--gray-4)">('+x.lista+')</span></div>';
+  };
+  return '<div style="border:1px solid '+borda+';background:'+fundo+';border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
+    '<div style="font-size:12px;font-weight:700;margin-bottom:6px">'+titulo+'</div>'+
+    d.inc.map(function(x){ return linha(x,'➕'); }).join('')+
+    d.rem.map(function(x){ return linha(x,'➖'); }).join('')+
+  '</div>';
+}
+
+function pedirDecisaoConcorrencia(deles,meu,podeJuntar){
+  return new Promise(function(resolve){
+    document.getElementById('conc-deles').innerHTML=
+      htmlLadoConc('A outra pessoa gravou:',deles,'#FEF7E6','#F5D98A')||
+      '<div style="font-size:12px;color:var(--gray-4);margin-bottom:10px">A outra pessoa alterou algo que não dá para detalhar.</div>';
+    document.getElementById('conc-meu').innerHTML=
+      htmlLadoConc('Você está gravando:',meu,'#E6F8FB','#1FB6CF')||
+      '<div style="font-size:12px;color:var(--gray-4);margin-bottom:10px">Você não incluiu nem removeu nada.</div>';
+    const bJ=document.getElementById('conc-btn-juntar');
+    const bM=document.getElementById('conc-btn-meu');
+    const bD=document.getElementById('conc-btn-descartar');
+    bJ.style.display = podeJuntar ? 'block' : 'none';
+    const ov=document.getElementById('conc-overlay');
+    function decidir(v){ bJ.onclick=bM.onclick=bD.onclick=null; ov.classList.remove('open'); resolve(v); }
+    bJ.onclick=function(){ decidir('juntar'); };
+    bM.onclick=function(){ decidir('meu'); };
+    bD.onclick=function(){ decidir('descartar'); };
+    ov.classList.add('open');
+  });
+}
+
+// Parte da versao do servidor e aplica por cima o que EU fiz.
+function juntarAlteracoes(servidor,minhas){
+  const res=JSON.parse(JSON.stringify(servidor));
+  minhas.inc.forEach(function(x){
+    if(!Array.isArray(res[x.lista])) res[x.lista]=[];
+    res[x.lista].push(x.reg);
+  });
+  minhas.rem.forEach(function(x){
+    const L=res[x.lista]; if(!Array.isArray(L)) return;
+    const k=assinaturaReg(x.reg);
+    for(let i=0;i<L.length;i++){ if(assinaturaReg(L[i])===k){ L.splice(i,1); break; } }
+  });
+  return res;
+}
+
 async function persist(){
   if(!dataReady) return; // Nunca salva antes de carregar da nuvem
   const totalItems=(data.urgente||[]).length+(data.importante||[]).length+(data.pago||[]).length+(data.manutencao||[]).length+(data.historico||[]).length+(data.usuarios||[]).length;
@@ -2032,17 +2136,28 @@ async function persist(){
       let atual=null;
       try{ atual=await fetchBin(cfg.apiKey,cfg.binId); }catch(e){ atual=null; }
       if(atual && JSON.stringify(atual)!==ultimoServidor){
-        const gravarAssimMesmo=confirm(
-          'ATENÇÃO — outra pessoa alterou os dados enquanto você trabalhava.\n\n'+
-          'Se gravar agora, o que ela fez pode ser apagado.\n\n'+
-          'OK = gravar assim mesmo (a alteração dela pode se perder)\n'+
-          'Cancelar = descartar o que você acabou de fazer e carregar a versão mais nova');
-        if(!gravarAssimMesmo){
+        const base=JSON.parse(ultimoServidor);
+        const deles=diferencas(base,atual);   // o que a outra pessoa fez
+        const meu=diferencas(base,data);      // o que eu fiz
+        // "Salvar os dois" so aparece quando os dois lados apenas INCLUIRAM.
+        // Havendo remocao ou edicao, juntar automaticamente poderia duplicar
+        // ou ressuscitar registro — nesse caso a escolha continua manual.
+        const podeJuntar = deles.rem.length===0 && meu.rem.length===0 &&
+                           (deles.inc.length>0 || meu.inc.length>0);
+        const escolha=await pedirDecisaoConcorrencia(deles,meu,podeJuntar);
+        if(escolha==='descartar'){
           setStatus('↩️ Carregando a versão mais nova...');
           ultimoServidor=null;
           await syncFromCloud();
           return;
         }
+        if(escolha==='juntar'){
+          data=juntarAlteracoes(atual,meu);
+          localStorage.setItem('dalum-data',JSON.stringify(data));
+          reclassifyAll();
+          render();
+        }
+        // 'meu' = segue adiante e grava o que esta na tela, por cima
       }
     }
 
@@ -2063,7 +2178,14 @@ async function persist(){
 
 function startAutoSync(){
   if(syncInterval) clearInterval(syncInterval);
-  syncInterval=setInterval(syncFromCloud,30000);
+  // A cada 10 segundos, mas NUNCA com um formulario aberto: a sincronizacao
+  // troca os dados por baixo de quem esta editando, e como a edicao aqui usa a
+  // POSICAO do registro na lista, salvar depois disso pode gravar no registro
+  // errado.
+  syncInterval=setInterval(function(){
+    if(document.querySelector('.modal-overlay.open')) return;
+    syncFromCloud();
+  },10000);
 }
 
 async function load(){
