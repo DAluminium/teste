@@ -157,6 +157,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 /* NOTIF */
 .notif-banner{padding:8px 14px;display:flex;align-items:flex-start;gap:10px;font-size:12px;border-bottom:1px solid rgba(0,0,0,0.06)}
 .notif-close{margin-left:auto;cursor:pointer;opacity:.6;font-size:15px;flex-shrink:0}
+.notif-resumo{padding:8px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;cursor:pointer;user-select:none}
+.notif-resumo:hover{filter:brightness(0.97)}
+.notif-resumo-acao{font-size:11.5px;font-weight:600;opacity:.85;white-space:nowrap;flex-shrink:0}
+.notif-detalhes{max-height:65vh;overflow-y:auto}
 
 svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
@@ -1632,15 +1636,38 @@ function calcSaldoConta(conta){
 }
 
 // ---- ALERTAS ----
+// Fica fechado por padrao: vira uma barra resumida, e so mostra a lista
+// inteira quando a pessoa clica. Sobrevive as atualizacoes automaticas
+// porque e uma variavel, nao algo recalculado do zero a cada render().
+let notifAberto=false;
+function toggleNotifFin(){
+  notifAberto=!notifAberto;
+  const det=document.getElementById('notif-detalhes');
+  const acao=document.getElementById('notif-acao');
+  if(det) det.style.display=notifAberto?'block':'none';
+  if(acao) acao.textContent=notifAberto?'Ocultar ▲':'Ver detalhes ▼';
+}
+
 function renderNotif(){
   const todayStr=today();
   const in3=new Date(); in3.setDate(in3.getDate()+3); const in3str=in3.toISOString().slice(0,10);
   const vencidos=data.pagar.filter(r=>!r.dtPag&&r.venc<todayStr);
   const vencendo3=data.pagar.filter(r=>!r.dtPag&&r.venc>=todayStr&&r.venc<=in3str);
+  const total=vencidos.length+vencendo3.length;
+  const area=document.getElementById('notif-area');
+  if(!total){ area.innerHTML=''; return; }
+
   let html='';
   if(vencidos.length) html+=`<div class="notif-banner" style="background:#FDF0EE;border-left:4px solid #C0392B"><div style="flex:1"><strong>🚨 ${vencidos.length} conta${vencidos.length>1?'s':''} a pagar VENCIDA${vencidos.length>1?'S':''}</strong> — ${vencidos.map(r=>r.desc+' (R$ '+fmtBR(r.valor)+')').join(' · ')}</div><span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span></div>`;
   if(vencendo3.length) html+=`<div class="notif-banner" style="background:#FEF7E6;border-left:4px solid #B9770E"><div style="flex:1"><strong>⏰ ${vencendo3.length} conta${vencendo3.length>1?'s':''} a pagar vence${vencendo3.length>1?'m':''} em até 3 dias</strong> — ${vencendo3.map(r=>r.desc+' '+fmtDate(r.venc)).join(' · ')}</div><span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span></div>`;
-  document.getElementById('notif-area').innerHTML=html;
+
+  const critico=vencidos.length>0;
+  area.innerHTML=
+    `<div class="notif-resumo" style="background:${critico?'#FDF0EE':'#FEF7E6'};color:${critico?'#7a1f1f':'#6b4100'}" onclick="toggleNotifFin()">
+      <strong>${critico?'🚨':'⏰'} ${total} aviso${total>1?'s':''} do financeiro</strong>
+      <span class="notif-resumo-acao" id="notif-acao">${notifAberto?'Ocultar ▲':'Ver detalhes ▼'}</span>
+    </div>
+    <div class="notif-detalhes" id="notif-detalhes" style="display:${notifAberto?'block':'none'}">${html}</div>`;
 }
 
 // ---- CONTAS A PAGAR ----
