@@ -1319,17 +1319,36 @@ async function persist(){
       }
     }
 
-    await fetch(SUPA_URL+'/rest/v1/app_data?id=eq.'+SUPA_SISTEMA,{
+    // Carimbo unico, usado logo abaixo para conferir se a gravacao realmente
+    // aconteceu. Vai junto no documento.
+    const carimbo=new Date().toISOString()+'-'+Math.random().toString(36).slice(2,8);
+    data.atualizadoEm=carimbo;
+    data.atualizadoPor=sessionStorage.getItem('fin-user')||'';
+
+    const resp=await fetch(SUPA_URL+'/rest/v1/app_data?id=eq.'+SUPA_SISTEMA,{
       method:'PATCH',
       headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
       body:JSON.stringify({data:data,updated_at:new Date().toISOString()})
     });
+    // A resposta nao era conferida: um erro do servidor passava batido e a
+    // tela mostrava "salvo" do mesmo jeito.
+    if(!resp.ok) throw new Error('Servidor recusou a gravação: '+resp.status);
 
-    // Rele para confirmar que gravou mesmo e para atualizar a referencia.
-    try{
-      const confere=await lerRemoto();
-      if(confere) ultimoServidor=JSON.stringify(confere);
-    }catch(e){}
+    // Mesmo com resposta ok, conferimos relendo: gravacao aceita nem sempre
+    // significa gravacao aplicada.
+    let confere=null;
+    try{ confere=await lerRemoto(); }catch(e){ confere=null; }
+    if(!confere || confere.atualizadoEm!==carimbo){
+      setStatus('🔴 NÃO gravou no servidor','#ffcccc');
+      alert('ATENÇÃO — os dados NÃO foram salvos no servidor.\n\n'+
+            'O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+
+            'O que você digitou continua nesta tela e no seu navegador, mas ainda NÃO está salvo '+
+            'para as outras pessoas.\n\n'+
+            'Não feche a página. Verifique a internet e tente salvar de novo. '+
+            'Se continuar, avise o responsável pelo sistema.');
+      return;
+    }
+    ultimoServidor=JSON.stringify(confere);
 
     setStatus('🟢 '+new Date().toLocaleTimeString('pt-BR'));
   }catch(e){ setStatus('🔴 Erro ao salvar'); }

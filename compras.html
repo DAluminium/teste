@@ -2286,14 +2286,30 @@ async function persist(){
       }
     }
 
+    // Carimbo unico, usado logo abaixo para conferir se a gravacao realmente
+    // aconteceu. Vai junto no documento.
+    const carimbo=new Date().toISOString()+'-'+Math.random().toString(36).slice(2,8);
+    data.atualizadoEm=carimbo;
+    data.atualizadoPor=sessionStorage.getItem('dalum-user')||lastBy||'';
+
     await pushBin(cfg.apiKey,cfg.binId,data);
 
-    // Rele para confirmar que gravou mesmo e para atualizar a referencia.
-    // O Worker chega a responder "ok" sem ter gravado.
-    try{
-      const confere=await fetchBin(cfg.apiKey,cfg.binId);
-      if(confere) ultimoServidor=JSON.stringify(confere);
-    }catch(e){}
+    // O servidor chega a responder "ok" sem ter gravado nada — acontece, por
+    // exemplo, quando o registro do modulo nao existe no banco. Por isso nao
+    // da para confiar na resposta dele: relemos e conferimos o carimbo.
+    let confere=null;
+    try{ confere=await fetchBin(cfg.apiKey,cfg.binId); }catch(e){ confere=null; }
+    if(!confere || confere.atualizadoEm!==carimbo){
+      setStatus('🔴 NÃO gravou no servidor','#ffcccc');
+      alert('ATENÇÃO — os dados NÃO foram salvos no servidor.\n\n'+
+            'O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+
+            'O que você digitou continua nesta tela e no seu navegador, mas ainda NÃO está salvo '+
+            'para as outras pessoas.\n\n'+
+            'Não feche a página. Verifique a internet e tente salvar de novo. '+
+            'Se continuar, avise o responsável pelo sistema.');
+      return;
+    }
+    ultimoServidor=JSON.stringify(confere);
 
     setStatus('🟢 Salvo · '+new Date().toLocaleTimeString('pt-BR'));
   }catch(e){
