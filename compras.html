@@ -938,6 +938,11 @@ function saveEntry(){
   if(!entry.obra||!entry.contrato){ alert('Obra / Cliente e Nº do Contrato são obrigatórios.'); return; }
   if(!entry.entrega||entry.entrega==='—'){ alert('Data de entrega da obra é obrigatória.'); document.getElementById('f-entrega').focus(); return; }
   const isEdit = editId!==null;
+  // Identificador proprio do registro. E o que permite saber, mais tarde, que
+  // duas versoes sao do MESMO lancamento — sem ele a juncao nao consegue
+  // distinguir uma edicao de uma inclusao. Ao editar, o id existente e
+  // preservado (o registro e substituido inteiro logo abaixo).
+  entry.id = isEdit ? ((data[modalType][editId]||{}).id || genId()) : genId();
   if(isEdit){ data[modalType][editId]=entry; } else { data[modalType].push(entry); }
   logAction(byVal, isEdit?'Editou':'Criou', entry, isEdit?'Dados atualizados':'Novo orçamento lançado');
   reclassifyAll();
@@ -2038,27 +2043,29 @@ async function persistUsers(){
 
 // ---- ALTERACAO SIMULTANEA: comparar, mostrar e deixar escolher ----
 const LISTAS_DADOS=['urgente','importante','pago','manutencao','historico','usuarios'];
-function assinaturaReg(r){ return JSON.stringify(r); }
+// Registro COM id e comparado pelo id: da para distinguir edicao de inclusao.
+// Registro antigo, ainda SEM id, cai na comparacao por conteudo — nesse caso
+// uma edicao aparece como remocao + inclusao, e por isso a juncao automatica
+// nao e oferecida.
+function chaveReg(r){ return (r&&r.id)?('id:'+r.id):('conteudo:'+JSON.stringify(r)); }
 
-// O que mudou de uma versao para outra, lista por lista. Como os registros aqui
-// nao tem identificador proprio, a comparacao e pelo conteudo: detecta inclusao
-// e remocao com seguranca, mas uma edicao aparece como remocao + inclusao.
 function diferencas(antes,depois){
-  const inc=[], rem=[];
+  const inc=[],rem=[],alt=[];
   LISTAS_DADOS.forEach(function(L){
-    const listaA=(antes&&antes[L])||[], listaD=(depois&&depois[L])||[];
-    const sobraA={}; listaA.forEach(function(r){ const k=assinaturaReg(r); sobraA[k]=(sobraA[k]||0)+1; });
-    listaD.forEach(function(r){
-      const k=assinaturaReg(r);
-      if(sobraA[k]>0) sobraA[k]--; else inc.push({lista:L,reg:r});
+    const A={},D={};
+    ((antes&&antes[L])||[]).forEach(function(r){ A[chaveReg(r)]=r; });
+    ((depois&&depois[L])||[]).forEach(function(r){ D[chaveReg(r)]=r; });
+    Object.keys(D).forEach(function(k){
+      if(!(k in A)) inc.push({lista:L,reg:D[k],chave:k});
+      else if(JSON.stringify(A[k])!==JSON.stringify(D[k])) alt.push({lista:L,reg:D[k],chave:k});
     });
-    const sobraD={}; listaD.forEach(function(r){ const k=assinaturaReg(r); sobraD[k]=(sobraD[k]||0)+1; });
-    listaA.forEach(function(r){
-      const k=assinaturaReg(r);
-      if(sobraD[k]>0) sobraD[k]--; else rem.push({lista:L,reg:r});
-    });
+    Object.keys(A).forEach(function(k){ if(!(k in D)) rem.push({lista:L,reg:A[k],chave:k}); });
   });
-  return {inc:inc,rem:rem};
+  return {inc:inc,rem:rem,alt:alt};
+}
+
+function chavesTocadas(d){
+  return [].concat(d.inc,d.rem,d.alt).map(function(x){ return x.lista+'|'+x.chave; });
 }
 
 function descreverReg(x){
@@ -2070,7 +2077,7 @@ function descreverReg(x){
 }
 
 function htmlLadoConc(titulo,d,fundo,borda){
-  if(!d.inc.length&&!d.rem.length) return '';
+  if(!d.inc.length&&!d.rem.length&&!d.alt.length) return '';
   const linha=function(x,sinal){
     return '<div style="font-size:12px;padding:3px 0;line-height:1.4">'+sinal+' '+
            descreverReg(x)+' <span style="color:var(--gray-4)">('+x.lista+')</span></div>';
@@ -2078,6 +2085,7 @@ function htmlLadoConc(titulo,d,fundo,borda){
   return '<div style="border:1px solid '+borda+';background:'+fundo+';border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
     '<div style="font-size:12px;font-weight:700;margin-bottom:6px">'+titulo+'</div>'+
     d.inc.map(function(x){ return linha(x,'➕'); }).join('')+
+    d.alt.map(function(x){ return linha(x,'✏️'); }).join('')+
     d.rem.map(function(x){ return linha(x,'➖'); }).join('')+
   '</div>';
 }
@@ -2106,15 +2114,14 @@ function pedirDecisaoConcorrencia(deles,meu,podeJuntar){
 // Parte da versao do servidor e aplica por cima o que EU fiz.
 function juntarAlteracoes(servidor,minhas){
   const res=JSON.parse(JSON.stringify(servidor));
-  minhas.inc.forEach(function(x){
-    if(!Array.isArray(res[x.lista])) res[x.lista]=[];
-    res[x.lista].push(x.reg);
-  });
-  minhas.rem.forEach(function(x){
-    const L=res[x.lista]; if(!Array.isArray(L)) return;
-    const k=assinaturaReg(x.reg);
-    for(let i=0;i<L.length;i++){ if(assinaturaReg(L[i])===k){ L.splice(i,1); break; } }
-  });
+  const acha=function(L,chave){
+    if(!Array.isArray(res[L])) res[L]=[];
+    for(let i=0;i<res[L].length;i++){ if(chaveReg(res[L][i])===chave) return i; }
+    return -1;
+  };
+  minhas.inc.forEach(function(x){ if(acha(x.lista,x.chave)<0) res[x.lista].push(x.reg); });
+  minhas.alt.forEach(function(x){ const i=acha(x.lista,x.chave); if(i>=0) res[x.lista][i]=x.reg; else res[x.lista].push(x.reg); });
+  minhas.rem.forEach(function(x){ const i=acha(x.lista,x.chave); if(i>=0) res[x.lista].splice(i,1); });
   return res;
 }
 
@@ -2139,11 +2146,18 @@ async function persist(){
         const base=JSON.parse(ultimoServidor);
         const deles=diferencas(base,atual);   // o que a outra pessoa fez
         const meu=diferencas(base,data);      // o que eu fiz
-        // "Salvar os dois" so aparece quando os dois lados apenas INCLUIRAM.
-        // Havendo remocao ou edicao, juntar automaticamente poderia duplicar
-        // ou ressuscitar registro — nesse caso a escolha continua manual.
-        const podeJuntar = deles.rem.length===0 && meu.rem.length===0 &&
-                           (deles.inc.length>0 || meu.inc.length>0);
+        // "Salvar os dois" aparece quando cada um mexeu em registros DIFERENTES.
+        // Se os dois mexeram no mesmo, a escolha continua manual. Registros
+        // antigos sem id sao comparados por conteudo, entao uma edicao neles
+        // conta como registros diferentes — por isso, para eles, so oferecemos
+        // a juncao quando nao houve remocao de nenhum lado.
+        const dela=chavesTocadas(deles), minhas=chavesTocadas(meu);
+        const mesmoRegistro=minhas.some(function(k){ return dela.indexOf(k)>=0; });
+        const temSemId=[].concat(deles.inc,deles.rem,deles.alt,meu.inc,meu.rem,meu.alt)
+                         .some(function(x){ return x.chave.indexOf('conteudo:')===0; });
+        const podeJuntar = !mesmoRegistro &&
+                           (dela.length>0 || minhas.length>0) &&
+                           (!temSemId || (deles.rem.length===0 && meu.rem.length===0));
         const escolha=await pedirDecisaoConcorrencia(deles,meu,podeJuntar);
         if(escolha==='descartar'){
           setStatus('↩️ Carregando a versão mais nova...');
