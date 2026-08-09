@@ -1182,8 +1182,8 @@ async function syncFromCloud(){
       render();
       window.scrollTo(0,scrollY);
     }
-    setStatus('🟢 '+new Date().toLocaleTimeString('pt-BR'));
-  }catch(e){ setStatus('🔴 Sem conexão'); }
+    setStatus('🟢 Sincronizado · '+new Date().toLocaleTimeString('pt-BR'));
+  }catch(e){ setStatus('🔴 Sem conexão','#ffcccc'); }
 }
 
 async function persistUsers(){
@@ -1350,8 +1350,8 @@ async function persist(){
     }
     ultimoServidor=JSON.stringify(confere);
 
-    setStatus('🟢 '+new Date().toLocaleTimeString('pt-BR'));
-  }catch(e){ setStatus('🔴 Erro ao salvar'); }
+    setStatus('🟢 Salvo · '+new Date().toLocaleTimeString('pt-BR'));
+  }catch(e){ setStatus('🔴 Erro ao salvar — salvo localmente','#ffcccc'); }
 }
 
 // Leitura pelo Worker, usada para conferir o servidor antes e depois de gravar.
@@ -1449,7 +1449,12 @@ async function removerCategoria(i){
   await salvarCategorias();
 }
 
-function setStatus(msg){ document.getElementById('sync-status').textContent=msg; }
+// Aceita cor como segundo parametro, igual ao Compras e ao Fabrica — sem isso,
+// o aviso vermelho de "nao gravou" saia sem destaque nenhum.
+function setStatus(msg, color='rgba(255,255,255,0.8)'){
+  const el=document.getElementById('sync-status');
+  el.textContent=msg; el.style.color=color;
+}
 
 // ---- HELPERS ----
 function fmtBR(v){ return Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
