@@ -163,6 +163,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <button class="view-btn" id="vb-quadro" onclick="setView('quadro')">Quadro</button>
         <button class="view-btn" id="vb-lista" onclick="setView('lista')">Lista</button>
       </div>
+      <button class="btn btn-outline btn-sm" id="btn-lixeira" onclick="alternarLixeira()">Lixeira</button>
     </div>
     <div id="conteudo"></div>
   </div>
@@ -193,10 +194,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="hist" id="ficha-hist"></div>
     </div>
     <div class="modal-foot">
-      <div></div>
+      <div>
+        <button class="btn btn-red btn-sm" id="ficha-btn-excluir" onclick="excluirObra()" style="display:none">Excluir</button>
+        <button class="btn btn-outline btn-sm" id="ficha-btn-restaurar" onclick="restaurarObra()" style="display:none">Restaurar</button>
+      </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline btn-sm" onclick="fecharFicha()">Cancelar</button>
-        <button class="btn btn-teal" onclick="salvarFicha()">Salvar</button>
+        <button class="btn btn-teal" id="ficha-btn-salvar" onclick="salvarFicha()">Salvar</button>
       </div>
     </div>
   </div>
@@ -279,6 +283,8 @@ const ETAPAS=[
 let dados={obras:[]};
 let usuario='';
 let view='quadro';
+// Quando ligado, a tela mostra a lixeira (obras excluidas) em vez das ativas.
+let verExcluidas=false;
 let fichaId=null;
 // Versão da obra no momento em que a ficha foi aberta. É a referência para
 // saber quais campos EU mudei — e, por diferença, quais o colega mudou.
@@ -452,10 +458,16 @@ function pillPrazo(o){
   return '<span class="pill pill-resp">'+fmtData(o.prazo)+'</span>';
 }
 
+// Obra excluida NAO some do registro: fica marcada. Se sumisse, a juncao de
+// outra pessoa (que ainda tem a obra na tela dela) traria ela de volta.
+function ativas(){ return dados.obras.filter(function(o){ return !o.excluida; }); }
+function excluidas(){ return dados.obras.filter(function(o){ return !!o.excluida; }); }
+
 function filtradas(){
   const q=(document.getElementById('busca')?.value||'').trim().toLowerCase();
-  if(!q) return dados.obras;
-  return dados.obras.filter(o=>((o.cliente||'')+' '+(o.obra||'')+' '+(o.responsavel||'')).toLowerCase().includes(q));
+  const base=verExcluidas?excluidas():ativas();
+  if(!q) return base;
+  return base.filter(o=>((o.cliente||'')+' '+(o.obra||'')+' '+(o.responsavel||'')).toLowerCase().includes(q));
 }
 
 // ================= TELA =================
@@ -470,7 +482,12 @@ function setView(v){
 function render(){
   const alvo=document.getElementById('conteudo');
   const lista=filtradas();
-  if(!dados.obras.length){
+  if(verExcluidas && !excluidas().length){
+    alvo.innerHTML='<div class="vazio"><div class="vazio-t">Lixeira vazia</div>'+
+      '<p style="font-size:13px">Nenhuma obra excluída. Obras excluídas ficam guardadas aqui e podem ser restauradas.</p></div>';
+    return;
+  }
+  if(!verExcluidas && !ativas().length){
     alvo.innerHTML='<div class="vazio"><div class="vazio-t">Nenhuma obra cadastrada</div>'+
       '<p style="font-size:13px;margin-bottom:16px">Comece adicionando as obras que ainda estão para entregar.</p>'+
       '<button class="btn btn-teal" onclick="novaObra()">Cadastrar primeira obra</button></div>';
@@ -695,6 +712,9 @@ function novaObra(){
   document.getElementById('f-obs').value='';
   document.getElementById('ficha-linha').innerHTML='';
   document.getElementById('ficha-hist').innerHTML='';
+  document.getElementById('ficha-btn-excluir').style.display='none';   // obra nova ainda nao existe
+  document.getElementById('ficha-btn-restaurar').style.display='none';
+  document.getElementById('ficha-btn-salvar').style.display='inline-flex';
   document.getElementById('ficha-ov').classList.add('open');
 }
 
@@ -713,6 +733,11 @@ function abrirFicha(id){
   document.getElementById('f-obs').value=o.obs||'';
   document.getElementById('ficha-linha').innerHTML=htmlLinhaEtapas(o);
   document.getElementById('ficha-hist').innerHTML=htmlHistorico(o);
+  // Obra excluida abre em modo consulta: da para restaurar, nao para editar.
+  const ex=!!o.excluida;
+  document.getElementById('ficha-btn-excluir').style.display   = ex?'none':'inline-flex';
+  document.getElementById('ficha-btn-restaurar').style.display = ex?'inline-flex':'none';
+  document.getElementById('ficha-btn-salvar').style.display    = ex?'none':'inline-flex';
   document.getElementById('ficha-ov').classList.add('open');
 }
 
@@ -752,6 +777,8 @@ function fraseHistorico(x){
   // Registros antigos, do formato anterior, continuam legiveis.
   if(x.texto) return esc(x.texto);
   if(x.evento==='criacao') return 'criou a obra';
+  if(x.evento==='exclusao') return 'excluiu a obra';
+  if(x.evento==='restauracao') return 'restaurou a obra';
   const c=CAMPOS[x.campo];
   const rotulo=c?c.rotulo:(x.campo||'campo');
   const de=valorLegivel(x.campo,x.valorAntigo);
@@ -928,6 +955,47 @@ async function salvarFicha(){
     o.historico=historico;
   });
   if(ok) fecharFicha();
+}
+
+// Excluir NAO apaga o registro: marca como excluida. Se apagasse, a juncao de
+// outra pessoa — que ainda tem a obra na tela dela — traria a obra de volta.
+async function excluirObra(){
+  if(!fichaId) return;
+  const o=dados.obras.find(x=>x.id===fichaId);
+  if(!o) return;
+  if(!confirm('Excluir a obra "'+(o.cliente||'')+(o.obra?' · '+o.obra:'')+'"?\n\n'+
+              'Ela sai do quadro, mas continua guardada e pode ser restaurada depois.')) return;
+  const id=fichaId;
+  const ok=await alterar(function(base){
+    const alvo=base.obras.find(x=>x.id===id);
+    if(!alvo||alvo.excluida) return;
+    alvo.excluida=true;
+    alvo.excluidaPor=usuario;
+    alvo.excluidaEm=agoraISO();
+    if(!Array.isArray(alvo.historico)) alvo.historico=[];
+    alvo.historico.push({quando:agoraISO(),quem:usuario,evento:'exclusao'});
+  });
+  if(ok) fecharFicha();
+}
+
+async function restaurarObra(){
+  if(!fichaId) return;
+  const id=fichaId;
+  const ok=await alterar(function(base){
+    const alvo=base.obras.find(x=>x.id===id);
+    if(!alvo||!alvo.excluida) return;
+    delete alvo.excluida; delete alvo.excluidaPor; delete alvo.excluidaEm;
+    if(!Array.isArray(alvo.historico)) alvo.historico=[];
+    alvo.historico.push({quando:agoraISO(),quem:usuario,evento:'restauracao'});
+  });
+  if(ok) fecharFicha();
+}
+
+function alternarLixeira(){
+  verExcluidas=!verExcluidas;
+  const b=document.getElementById('btn-lixeira');
+  if(b) b.textContent=verExcluidas?'Ver ativas':'Lixeira';
+  render();
 }
 
 // ================= INÍCIO =================
