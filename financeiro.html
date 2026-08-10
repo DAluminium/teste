@@ -824,20 +824,13 @@ let ultimoServidor = null;
 let pagarEditId = null, receberEditId = null, baixaType = null, baixaIdx = null;
 
 
-// ---- VERIFICAÇÃO SSO OBRIGATÓRIA ----
-(function(){
-  // Se não está dentro do portal (iframe) e não tem SSO válido, redireciona
-  const isInIframe = window.self !== window.top;
-  if(isInIframe) return; // está dentro do portal, ok
-
-  const sso=JSON.parse(localStorage.getItem('dalum-sso')||'null');
-  const validSSO=sso&&sso.nome&&(Date.now()-sso.ts<8*60*60*1000);
-  const logado=sessionStorage.getItem('fin-logged')==='true';
-
-  if(!validSSO&&!logado){
-    window.location.href='https://daluminium.github.io/portal/';
-  }
-})();
+// Aqui existia uma "verificação SSO obrigatória" que mandava para o portal
+// quem chegasse sem sessão. Fazia sentido quando o módulo não sabia conferir
+// senha sozinho. Agora ele sabe: sem crachá, a própria tela de login aparece.
+//
+// O bloco também atrapalhava quem TINHA crachá: ele olhava só o `dalum-sso` e
+// o `fin-logged` do sessionStorage, então abrir o módulo numa aba nova, com
+// crachá válido, era jogado para o portal antes de qualquer coisa carregar.
 
 
 
