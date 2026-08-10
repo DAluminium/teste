@@ -152,15 +152,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </head>
 <body>
 
-<!-- SEM SESSÃO -->
+<!-- SEM SESSÃO — login próprio do módulo -->
 <div class="bloqueio" id="bloqueio" style="display:none">
-  <div class="bloqueio-cx">
-    <div style="font-size:34px;margin-bottom:10px">🔒</div>
-    <div style="font-size:16px;font-weight:600;margin-bottom:7px">Acesso pelo portal</div>
-    <p style="font-size:13px;color:var(--gray-5);line-height:1.55;margin-bottom:16px">
-      Este módulo usa o login do portal. Entre por lá para acessar a Fábrica.
+  <div class="bloqueio-cx" style="text-align:left;width:340px;max-width:100%">
+    <div style="text-align:center;font-size:34px;margin-bottom:8px">🔒</div>
+    <div style="text-align:center;font-size:16px;font-weight:600;margin-bottom:16px">Fábrica</div>
+
+    <div class="fg" style="margin-bottom:12px">
+      <label for="login-user">Usuário</label>
+      <input type="text" id="login-user" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="seu usuário">
+    </div>
+
+    <div class="fg" style="margin-bottom:12px">
+      <label for="login-pass">Senha</label>
+      <div style="display:flex;gap:6px">
+        <input type="password" id="login-pass" autocomplete="current-password" placeholder="••••••" style="flex:1">
+        <button type="button" class="btn btn-ghost" id="login-olho" title="Mostrar ou esconder a senha">👁️</button>
+      </div>
+    </div>
+
+    <div id="login-erro" style="display:none;font-size:12.5px;color:var(--red);background:var(--red-light);border-radius:6px;padding:7px 9px;margin-bottom:12px;line-height:1.45"></div>
+
+    <button class="btn btn-teal btn-block" id="login-btn">Entrar</button>
+
+    <p style="font-size:12px;color:var(--gray-5);line-height:1.5;margin-top:14px;text-align:center">
+      Mesmo usuário e senha do portal.<br>
+      <a href="https://daluminium.github.io/teste/" style="color:var(--teal-dark)">Ir para o portal</a>
     </p>
-    <a class="btn btn-teal btn-block" href="https://daluminium.github.io/teste/">Ir para o portal</a>
   </div>
 </div>
 
@@ -178,6 +196,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </button>
       <button class="btn btn-ghost btn-sm" onclick="novaObra()">
         <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nova
+      </button>
+      <button class="btn btn-ghost btn-sm" id="btn-sair" onclick="sairDaFabrica()" style="display:none" title="Encerrar a sessão neste módulo">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sair
       </button>
     </div>
   </div>
@@ -322,6 +343,68 @@ function lerSSO(){
   }catch(e){ return null; }
 }
 
+// ----- Crachá assinado pelo Worker -----
+// O crachá tem duas partes separadas por ponto: os dados (quem é, até quando
+// vale) e a assinatura. Aqui só sabemos LER os dados e conferir o prazo — a
+// assinatura quem confere é o Worker, que é o único que tem a chave. Por isso
+// mexer neste arquivo não dá acesso a nada: sem assinatura válida o Worker
+// recusa (a partir da etapa em que ele passar a exigir o crachá).
+const TOKEN_KEY='dalum-token';
+
+function b64urlParaTexto(s){
+  const b64=s.replace(/-/g,'+').replace(/_/g,'/');
+  const bin=atob(b64+'==='.slice((b64.length+3)%4));
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  // TextDecoder devolve o acento certo em nomes como "Aretusa Sendeski".
+  return new TextDecoder().decode(bytes);
+}
+
+function lerToken(){
+  try{
+    const t=localStorage.getItem(TOKEN_KEY);
+    if(!t) return null;
+    const partes=t.split('.');
+    if(partes.length!==2) return null;
+    const d=JSON.parse(b64urlParaTexto(partes[0]));
+    if(!d||!d.exp||Date.now()>=d.exp){ localStorage.removeItem(TOKEN_KEY); return null; }
+    return {token:t,dados:d};
+  }catch(e){ localStorage.removeItem(TOKEN_KEY); return null; }
+}
+
+// Cabeçalhos de toda conversa com o Worker. Quando há crachá, ele vai junto.
+// Hoje o Worker ainda ignora esse cabeçalho — mandar não muda nada para quem
+// usa o sistema. Ele só passa a valer quando o Worker for ligado para exigir.
+function cabecalhos(extra){
+  const h=Object.assign({'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'},extra||{});
+  const t=lerToken();
+  if(t) h['Authorization']='Bearer '+t.token;
+  return h;
+}
+
+async function fazerLogin(user,senha){
+  const r=await fetch(WORKER,{
+    method:'POST',
+    cache:'no-store',
+    headers:{'Content-Type':'application/json','X-Action':'login'},
+    body:JSON.stringify({usuario:user,senha:senha})
+  });
+  let j=null;
+  try{ j=await r.json(); }catch(e){}
+  if(!r.ok||!j||!j.token){
+    const e=new Error((j&&j.erro)||('Worker '+r.status));
+    e.status=r.status;
+    throw e;
+  }
+  localStorage.setItem(TOKEN_KEY,j.token);
+  return j;
+}
+
+function sairDaFabrica(){
+  localStorage.removeItem(TOKEN_KEY);
+  location.reload();
+}
+
 // ================= DADOS =================
 function lerLocal(){
   try{ const s=localStorage.getItem(LS_KEY); if(s) dados=JSON.parse(s); }catch(e){}
@@ -338,7 +421,7 @@ async function buscarRemoto(){
   // releitura feita logo apos gravar. Dois cintos de seguranca: no-store e um
   // parametro que muda a cada chamada.
   const url=WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7);
-  const r=await fetch(url,{cache:'no-store',headers:{'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'}});
+  const r=await fetch(url,{cache:'no-store',headers:cabecalhos()});
   if(!r.ok) throw new Error('Worker '+r.status);
   const j=await r.json();
   if(!j||typeof j!=='object'||Array.isArray(j)) return null;
@@ -349,7 +432,7 @@ async function buscarRemoto(){
 async function enviarRemoto(payload){
   const r=await fetch(WORKER,{
     method:'PATCH',
-    headers:{'Content-Type':'application/json','X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'},
+    headers:cabecalhos({'Content-Type':'application/json'}),
     body:JSON.stringify({data:payload})
   });
   if(!r.ok) throw new Error('Worker '+r.status);
@@ -1021,11 +1104,52 @@ function alternarLixeira(){
 }
 
 // ================= INÍCIO =================
-(function iniciar(){
-  const sso=lerSSO();
-  if(!sso){ document.getElementById('bloqueio').style.display='flex'; return; }
-  usuario=sso.nome;
+function mostrarLogin(){
+  const cx=document.getElementById('bloqueio');
+  const inpUser=document.getElementById('login-user');
+  const inpPass=document.getElementById('login-pass');
+  const erro=document.getElementById('login-erro');
+  const btn=document.getElementById('login-btn');
+  cx.style.display='flex';
+  setTimeout(function(){ inpUser.focus(); },50);
+
+  document.getElementById('login-olho').addEventListener('click',function(){
+    inpPass.type=(inpPass.type==='password')?'text':'password';
+  });
+
+  function avisar(msg){ erro.textContent=msg; erro.style.display='block'; }
+
+  async function entrar(){
+    const u=inpUser.value.trim();
+    const s=inpPass.value;
+    erro.style.display='none';
+    if(!u||!s){ avisar('Preencha usuário e senha.'); return; }
+    btn.disabled=true; btn.textContent='Entrando...';
+    try{
+      const r=await fazerLogin(u,s);
+      abrirApp(r.nome||r.username||u);
+    }catch(e){
+      // 401 é senha errada; qualquer outro número é problema de conexão ou de
+      // configuração do Worker — separar os dois evita caça ao erro errado.
+      if(e.status===401) avisar('Usuário ou senha inválidos.');
+      else avisar('Não consegui falar com o servidor ('+(e.message||'erro')+'). Tente de novo.');
+      btn.disabled=false; btn.textContent='Entrar';
+    }
+  }
+
+  btn.addEventListener('click',entrar);
+  [inpUser,inpPass].forEach(function(i){
+    i.addEventListener('keydown',function(ev){ if(ev.key==='Enter') entrar(); });
+  });
+}
+
+function abrirApp(nome){
+  usuario=nome;
+  document.getElementById('bloqueio').style.display='none';
   document.getElementById('app').style.display='block';
+  // O botão Sair só aparece para quem entrou pelo login daqui. Quem entrou pelo
+  // portal sai por lá — apagar o crachá deste módulo não encerraria aquela sessão.
+  if(lerToken()) document.getElementById('btn-sair').style.display='';
   preencherSelectEtapas();
   lerLocal();
   try{ const v=localStorage.getItem('dalum-fabrica-view'); if(v) view=v; }catch(e){}
@@ -1041,6 +1165,18 @@ function alternarLixeira(){
   document.addEventListener('visibilitychange',function(){
     if(!document.hidden) atualizarDoBanco(false);
   });
+}
+
+(function iniciar(){
+  // 1) Crachá do próprio módulo, se ainda estiver no prazo.
+  const t=lerToken();
+  if(t){ abrirApp(t.dados.n||t.dados.u||'usuário'); return; }
+  // 2) Sessão do portal, como sempre funcionou. Mantido para quem entra pelo
+  //    portal não ter de digitar a senha duas vezes.
+  const sso=lerSSO();
+  if(sso){ abrirApp(sso.nome); return; }
+  // 3) Sem nenhum dos dois: pede login aqui mesmo.
+  mostrarLogin();
 })();
 </script>
 </body>
