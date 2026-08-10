@@ -758,6 +758,63 @@ const SUPA_KEY='sb_publishable_D50BtCRtBblorV3j1_Z68A_S2T8goU8';
 const SUPA_SISTEMA='financeiro_teste';
 let JSONBIN_BIN_ID = SUPA_SISTEMA;
 
+// ---- CRACHÁ (login pelo Worker) ----
+// O crachá tem duas partes separadas por ponto: os dados (quem é, até quando
+// vale) e a assinatura. Aqui só sabemos LER os dados e conferir o prazo — a
+// assinatura quem confere é o Worker, único que tem a chave. Por isso não há
+// mais senha nenhuma guardada neste arquivo: quem confere senha é o Worker.
+const WORKER_URL='https://daluminium-api.daluminium2.workers.dev';
+const TOKEN_KEY='dalum-token';
+
+function b64urlParaTexto(s){
+  const b64=s.replace(/-/g,'+').replace(/_/g,'/');
+  const bin=atob(b64+'==='.slice((b64.length+3)%4));
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  // TextDecoder devolve o acento certo em nomes como "Aretusa Sendeski".
+  return new TextDecoder().decode(bytes);
+}
+
+function lerToken(){
+  try{
+    const t=localStorage.getItem(TOKEN_KEY);
+    if(!t) return null;
+    const partes=t.split('.');
+    if(partes.length!==2) return null;
+    const d=JSON.parse(b64urlParaTexto(partes[0]));
+    if(!d||!d.exp||Date.now()>=d.exp){ localStorage.removeItem(TOKEN_KEY); return null; }
+    return {token:t,dados:d};
+  }catch(e){ localStorage.removeItem(TOKEN_KEY); return null; }
+}
+
+// Cabeçalhos de toda conversa com o Worker. Quando há crachá, ele vai junto.
+// Hoje o Worker ainda ignora esse cabeçalho — mandar não muda nada para quem
+// usa o sistema, e prepara o passo em que ele passar a exigir.
+function cabecalhos(sistema,extra){
+  const h=Object.assign({'X-Sistema':sistema,'Origin':'https://daluminium.github.io'},extra||{});
+  const t=lerToken();
+  if(t) h['Authorization']='Bearer '+t.token;
+  return h;
+}
+
+async function fazerLoginWorker(user,senha){
+  const r=await fetch(WORKER_URL,{
+    method:'POST',
+    cache:'no-store',
+    headers:{'Content-Type':'application/json','X-Action':'login'},
+    body:JSON.stringify({usuario:user,senha:senha})
+  });
+  let j=null;
+  try{ j=await r.json(); }catch(e){}
+  if(!r.ok||!j||!j.token){
+    const e=new Error((j&&j.erro)||('Worker '+r.status));
+    e.status=r.status;
+    throw e;
+  }
+  localStorage.setItem(TOKEN_KEY,j.token);
+  return j;
+}
+
 let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inter:0,sicredi:0,caixa:0,antecipacao:0}, usuarios:[] };
 let dataReady=false;
 let syncInterval = null;
@@ -791,7 +848,7 @@ const _sessionId = Math.random().toString(36).slice(2)+Date.now().toString(36);
 async function registrarSessao(nome, username){
   try{
     const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}
+      headers:cabecalhos('sessions')
     });
     if(!r.ok) return;
     const d=await r.json();
@@ -801,7 +858,7 @@ async function registrarSessao(nome, username){
     d.ativas=ativas;
     await fetch('https://daluminium-api.daluminium2.workers.dev',{
       method:'PATCH',
-      headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+      headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
       body:JSON.stringify({data:d})
     });
   }catch(e){}
@@ -810,14 +867,14 @@ async function registrarSessao(nome, username){
 async function removerSessao(){
   try{
     const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}
+      headers:cabecalhos('sessions')
     });
     if(!r.ok) return;
     const d=await r.json();
     d.ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId);
     await fetch('https://daluminium-api.daluminium2.workers.dev',{
       method:'PATCH',
-      headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+      headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
       body:JSON.stringify({data:d})
     });
   }catch(e){}
@@ -826,7 +883,7 @@ async function removerSessao(){
 async function checkForceLogout(){
   try{
     const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}
+      headers:cabecalhos('sessions')
     });
     if(!r.ok) return;
     const d=await r.json();
@@ -837,7 +894,7 @@ async function checkForceLogout(){
       d.ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId);
       await fetch('https://daluminium-api.daluminium2.workers.dev',{
         method:'PATCH',
-        headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+        headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
         body:JSON.stringify({data:d})
       });
       alert('Sua sessão foi encerrada pelo administrador.');
@@ -887,13 +944,16 @@ async function verificarSenha(digitada, armazenada){
 }
 
 // ---- LOGIN & USER MANAGEMENT ----
+// Lista só para saber QUEM é administrador. A senha NÃO mora mais aqui: quem
+// confere é o Worker, com o segredo guardado no Cloudflare. Antes havia um
+// hash escrito nesta lista, dentro de um repositório público — dava para
+// baixar e tentar quebrar com calma fora daqui.
 const ADMINS_FIN=[
-  {user:'ander reis', pass:'43f043d86be985276ccef4ae115f34b37b5bb0b17d0e4a103dab7b1855044134', name:'Ander Reis', tempPass:false},
-  {user:'aretusa',    pass:'e4065fde9b0ec23b9fb2b83d6ef986f626aad8200229f0ab374bfbf3ee40dc40', name:'Aretusa Sendeski', tempPass:true},
+  {user:'ander reis', name:'Ander Reis'},
+  {user:'aretusa',    name:'Aretusa Sendeski'},
 ];
 function getFinUsers(){ return data.usuarios||[]; }
 function saveFinUsers(u){ data.usuarios=u; }
-function getAdminPass(u){ return (JSON.parse(localStorage.getItem('fin-admin-passes')||'{}')||{})[u]||null; }
 function isAdmin(){ return sessionStorage.getItem('fin-role')==='admin'; }
 function showAdminBtn(s){
   const btn=document.getElementById('admin-btn');
@@ -971,62 +1031,59 @@ async function doLogin(){
 
   document.querySelector('.login-btn').textContent='Verificando...';
 
-  const admin=ADMINS_FIN.find(a=>a.user===user);
-  if(admin){
-    const saved=getAdminPass(admin.user);
-    const correct=saved||admin.pass;
-    const isTemp=!saved&&admin.tempPass;
-    if(await verificarSenha(pass,correct)){
-      sessionStorage.setItem('fin-logged','true');
-      sessionStorage.setItem('fin-user',admin.name);
-      sessionStorage.setItem('fin-role','admin');
-      sessionStorage.setItem('fin-admin-key',admin.user);
-      document.getElementById('login-screen').classList.remove('active');
-      showAdminBtn(true);
-      updateSaldosBtn();
-      if(isTemp) setTimeout(()=>openChangePassAdmin(admin),500);
-      document.querySelector('.login-btn').textContent='Entrar';
-      init();
-      return;
-    }
-  }
-
-  // For regular users — load from cloud first so usuarios is populated
-  await loadUsersFromCloud();
-  const users=getFinUsers();
-  let found=null;
-  for(const u of users){
-    if(u.username.toLowerCase()===user&&u.active!==false){
-      if(await verificarSenha(pass,u.password)){ found=u; break; }
-    }
-  }
-  if(found){
-    resetTentativas();
-    registrarSessao(found.name,found.username); startSessionCheck();
-    sessionStorage.setItem('fin-logged','true');
-    sessionStorage.setItem('fin-user',found.name);
-    sessionStorage.setItem('fin-role',found.role||'user');
-    document.getElementById('login-screen').classList.remove('active');
-    showAdminBtn(false);
-    updateSaldosBtn();
-    if(found.tempPass) setTimeout(()=>openChangePassUser(found),500);
+  // Quem confere a senha agora é o Worker. Antes a conferência era feita aqui
+  // no navegador, o que obrigava a página a baixar os hashes de todo mundo —
+  // e, no caso dos administradores, a carregar o hash escrito no próprio
+  // arquivo, que fica num repositório público. Nada disso existe mais.
+  let cracha=null;
+  try{
+    cracha=await fazerLoginWorker(user,pass);
+  }catch(e){
     document.querySelector('.login-btn').textContent='Entrar';
-    init();
-  } else {
-    const restante=registrarFalha();
-    err.textContent=restante>0
-      ? `Usuário ou senha incorretos. ${restante} tentativa${restante>1?'s':''} restante${restante>1?'s':''}.`
-      : 'Acesso bloqueado por 5 minutos.';
+    if(e.status===401){
+      const restante=registrarFalha();
+      err.textContent=restante>0
+        ? `Usuário ou senha incorretos. ${restante} tentativa${restante>1?'s':''} restante${restante>1?'s':''}.`
+        : 'Acesso bloqueado por 5 minutos.';
+    }else{
+      // Erro de conexão não é senha errada — não pode gastar tentativa, senão
+      // uma queda de internet acaba bloqueando quem digitou tudo certo.
+      err.textContent='Não consegui falar com o servidor ('+(e.message||'erro')+'). Tente de novo.';
+    }
     err.style.display='block';
     document.getElementById('login-pass').value='';
-    document.querySelector('.login-btn').textContent='Entrar';
+    document.getElementById('login-pass').focus();
+    return;
+  }
+
+  const ehAdmin=cracha.role==='admin';
+  resetTentativas();
+  // Administrador também passa a constar na lista de sessões ativas. Antes só
+  // os demais eram registrados, e quem entrava como admin ficava invisível ali.
+  registrarSessao(cracha.nome,cracha.username); startSessionCheck();
+  sessionStorage.setItem('fin-logged','true');
+  sessionStorage.setItem('fin-user',cracha.nome);
+  sessionStorage.setItem('fin-role', ehAdmin?'admin':(cracha.role||'user'));
+  if(ehAdmin) sessionStorage.setItem('fin-admin-key',cracha.username);
+  document.getElementById('login-screen').classList.remove('active');
+  showAdminBtn(ehAdmin);
+  updateSaldosBtn();
+  document.querySelector('.login-btn').textContent='Entrar';
+  init();
+
+  // Senha temporária: só faz sentido para quem está na lista do banco, que é
+  // onde a troca grava. Administrador tem a senha no Cloudflare.
+  if(cracha.tempPass && !ehAdmin){
+    await loadUsersFromCloud();
+    const u=getFinUsers().find(x=>String(x.username||'').toLowerCase()===String(cracha.username||'').toLowerCase());
+    if(u) setTimeout(()=>openChangePassUser(u),500);
   }
 }
 
 async function loadUsersFromCloud(){
   try{
     const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:{'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'}
+      headers:cabecalhos(SUPA_SISTEMA)
     });
     if(!r.ok) return;
     const rows=await r.json();
@@ -1040,6 +1097,7 @@ async function doLogout(){
   await removerSessao();
   ['fin-logged','fin-user','fin-role','fin-admin-key'].forEach(k=>sessionStorage.removeItem(k));
   localStorage.removeItem('dalum-sso');
+  localStorage.removeItem(TOKEN_KEY);
   if(window.self!==window.top){
     window.parent.postMessage('logout','*');
   } else {
@@ -1048,14 +1106,11 @@ async function doLogout(){
 }
 
 function changeMyPass(){
+  if(isAdmin()){ openChangePassAdmin(null); return; }
   const nova=prompt('Digite sua nova senha (mínimo 6 caracteres):','');
   if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
   if(prompt('Confirme a nova senha:','')!==nova.trim()){ alert('As senhas não coincidem.'); return; }
-  if(isAdmin()){
-    const key=sessionStorage.getItem('fin-admin-key')||'';
-    const saved=JSON.parse(localStorage.getItem('fin-admin-passes')||'{}');
-    saved[key]=nova.trim(); localStorage.setItem('fin-admin-passes',JSON.stringify(saved));
-  } else {
+  {
     const name=sessionStorage.getItem('fin-user')||'';
     const users=getFinUsers();
     const idx=users.findIndex(u=>u.name===name);
@@ -1064,13 +1119,15 @@ function changeMyPass(){
   alert('Senha alterada com sucesso! ✅');
 }
 
+// A senha de administrador agora fica no Cloudflare, não no navegador. A
+// versão antiga desta função gravava a senha nova em texto puro no
+// localStorage desta máquina: dava a impressão de ter trocado, mas em
+// qualquer outro computador a senha antiga continuava entrando.
 function openChangePassAdmin(admin){
-  const nova=prompt(`Bem-vinda(o), ${admin.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
-  if(!nova||nova.trim().length<6){ alert('Senha não alterada. Será solicitada no próximo login.'); return; }
-  if(prompt('Confirme a nova senha:','')!==nova.trim()){ alert('As senhas não coincidem.'); return; }
-  const saved=JSON.parse(localStorage.getItem('fin-admin-passes')||'{}');
-  saved[admin.user]=nova.trim(); localStorage.setItem('fin-admin-passes',JSON.stringify(saved));
-  alert('Senha alterada com sucesso! ✅');
+  alert('A senha de administrador é trocada no Cloudflare, não por aqui.\n\n'+
+        'Peça ao Ander para alterar o segredo correspondente\n'+
+        '(ADMIN_ANDER ou ADMIN_ARETUSA) em Workers & Pages >\n'+
+        'daluminium-api > Settings > Variables and Secrets.');
 }
 
 function openChangePassUser(found){
@@ -1162,7 +1219,7 @@ async function ensureBin(){ /* Supabase — sem necessidade */ }
 async function syncFromCloud(){
   try{
     const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:{'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'}
+      headers:cabecalhos(SUPA_SISTEMA)
     });
     if(!r.ok) return;
     const remote=await r.json();
@@ -1191,7 +1248,7 @@ async function persistUsers(){
   try{
     await fetch('https://daluminium-api.daluminium2.workers.dev',{
       method:'PATCH',
-      headers:{'Content-Type':'application/json','X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'},
+      headers:cabecalhos(SUPA_SISTEMA,{'Content-Type':'application/json'}),
       body:JSON.stringify({data:data})
     });
   }catch(e){ console.warn('Erro ao salvar usuários:', e); }
@@ -1357,7 +1414,7 @@ async function persist(){
 // Leitura pelo Worker, usada para conferir o servidor antes e depois de gravar.
 async function lerRemoto(){
   const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-    headers:{'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'}
+    headers:cabecalhos(SUPA_SISTEMA)
   });
   if(!r.ok) throw new Error('Worker '+r.status);
   return await r.json();
@@ -2283,7 +2340,30 @@ document.addEventListener('keydown',e=>{
 });
 document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
 
-if(checkSSO()){
+// Sobra do sistema antigo de senha: guardava a senha de administrador neste
+// navegador, em texto puro. Não serve mais para nada, então sai do caminho.
+try{ localStorage.removeItem('fin-admin-passes'); }catch(e){}
+
+// Entrou antes e o crachá ainda está no prazo: volta direto, sem pedir senha.
+function checkCracha(){
+  const t=lerToken();
+  if(!t) return false;
+  const ehAdmin=t.dados.r==='admin';
+  sessionStorage.setItem('fin-logged','true');
+  sessionStorage.setItem('fin-user',t.dados.n||t.dados.u||'');
+  sessionStorage.setItem('fin-role', ehAdmin?'admin':(t.dados.r||'user'));
+  if(ehAdmin) sessionStorage.setItem('fin-admin-key',t.dados.u||'');
+  document.getElementById('login-screen').classList.remove('active');
+  showAdminBtn(ehAdmin);
+  updateSaldosBtn();
+  registrarSessao(t.dados.n||t.dados.u||'', t.dados.u||'');
+  startSessionCheck();
+  return true;
+}
+
+if(checkCracha()){
+  init();
+} else if(checkSSO()){
   init();
 } else if(sessionStorage.getItem('fin-logged')==='true'){
   const role=sessionStorage.getItem('fin-role')||'';
