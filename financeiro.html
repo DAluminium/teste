@@ -1091,11 +1091,11 @@ async function doLogout(){
   ['fin-logged','fin-user','fin-role','fin-admin-key'].forEach(k=>sessionStorage.removeItem(k));
   localStorage.removeItem('dalum-sso');
   localStorage.removeItem(TOKEN_KEY);
-  if(window.self!==window.top){
-    window.parent.postMessage('logout','*');
-  } else {
-    window.location.href='https://daluminium.github.io/portal/';
-  }
+  // Volta para a tela de login DESTE módulo, igual à Fábrica. Antes ia para o
+  // portal, o que só fazia sentido quando o portal era a única porta de entrada.
+  // Dentro do portal, avisa a moldura para ela também encerrar a sessão de lá.
+  if(window.self!==window.top) window.parent.postMessage('logout','*');
+  location.reload();
 }
 
 function changeMyPass(){

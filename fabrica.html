@@ -400,8 +400,13 @@ async function fazerLogin(user,senha){
   return j;
 }
 
+// Sair apaga o crachá E a sessão do portal. Apagar só o crachá não bastava:
+// quem tivesse entrado pelo portal era reconectado pelo `dalum-sso` no
+// recarregamento, e o botão parecia não fazer nada.
 function sairDaFabrica(){
+  if(!confirm('Deseja sair?')) return;
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('dalum-sso');
   location.reload();
 }
 
@@ -1147,9 +1152,9 @@ function abrirApp(nome){
   usuario=nome;
   document.getElementById('bloqueio').style.display='none';
   document.getElementById('app').style.display='block';
-  // O botão Sair só aparece para quem entrou pelo login daqui. Quem entrou pelo
-  // portal sai por lá — apagar o crachá deste módulo não encerraria aquela sessão.
-  if(lerToken()) document.getElementById('btn-sair').style.display='';
+  // O botão Sair aparece sempre: ele encerra tanto o crachá quanto a sessão
+  // do portal, então funciona nos dois casos de entrada.
+  document.getElementById('btn-sair').style.display='';
   preencherSelectEtapas();
   lerLocal();
   try{ const v=localStorage.getItem('dalum-fabrica-view'); if(v) view=v; }catch(e){}
