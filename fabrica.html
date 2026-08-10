@@ -407,6 +407,10 @@ function sairDaFabrica(){
   if(!confirm('Deseja sair?')) return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem('dalum-sso');
+  // Dentro do portal, avisa a moldura para ela encerrar a sessão de lá também
+  // — igual ao Compras e ao Financeiro. Sem isso, sair aqui deixava o portal
+  // logado por trás, e os três módulos se comportavam de um jeito diferente.
+  if(window.self!==window.top) window.parent.postMessage('logout','*');
   location.reload();
 }
 
