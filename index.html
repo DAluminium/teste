@@ -413,6 +413,62 @@ FROM app_backups ORDER BY created_at DESC LIMIT 20;</code>
 const WORKER_URL = 'https://daluminium-api.daluminium2.workers.dev';
 const ADMINS = []; // admins agora vivem na lista de usuarios do banco
 const MAX_TENT=5, BLOQ_MS=5*60*1000;
+
+// ---- CRACHÁ (login pelo Worker) ----
+// O crachá tem duas partes separadas por ponto: os dados (quem é, até quando
+// vale) e a assinatura. Aqui só sabemos LER os dados e conferir o prazo — a
+// assinatura quem confere é o Worker, único que tem a chave.
+//
+// O portal é a porta de entrada da maioria, então é ele que traz o crachá e
+// deixa em `dalum-token`. Os módulos abertos por aqui encontram esse crachá
+// pronto e o mandam ao Worker sem pedir senha de novo.
+const TOKEN_KEY='dalum-token';
+
+function b64urlParaTexto(s){
+  const b64=s.replace(/-/g,'+').replace(/_/g,'/');
+  const bin=atob(b64+'==='.slice((b64.length+3)%4));
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  // TextDecoder devolve o acento certo em nomes como "Aretusa Sendeski".
+  return new TextDecoder().decode(bytes);
+}
+
+function lerToken(){
+  try{
+    const t=localStorage.getItem(TOKEN_KEY);
+    if(!t) return null;
+    const partes=t.split('.');
+    if(partes.length!==2) return null;
+    const d=JSON.parse(b64urlParaTexto(partes[0]));
+    if(!d||!d.exp||Date.now()>=d.exp){ localStorage.removeItem(TOKEN_KEY); return null; }
+    return {token:t,dados:d};
+  }catch(e){ localStorage.removeItem(TOKEN_KEY); return null; }
+}
+
+function cabecalhos(sistema,extra){
+  const h=Object.assign({'X-Sistema':sistema,'Origin':'https://daluminium.github.io'},extra||{});
+  const t=lerToken();
+  if(t) h['Authorization']='Bearer '+t.token;
+  return h;
+}
+
+async function fazerLoginWorker(user,senha){
+  const r=await fetch(WORKER_URL,{
+    method:'POST',
+    cache:'no-store',
+    headers:{'Content-Type':'application/json','X-Action':'login'},
+    body:JSON.stringify({usuario:user,senha:senha})
+  });
+  let j=null;
+  try{ j=await r.json(); }catch(e){}
+  if(!r.ok||!j||!j.token){
+    const e=new Error((j&&j.erro)||('Worker '+r.status));
+    e.status=r.status;
+    throw e;
+  }
+  localStorage.setItem(TOKEN_KEY,j.token);
+  return j;
+}
 // Versao dos modulos: calculada UMA vez por abertura do portal.
 // Assim o navegador reaproveita o arquivo ja baixado ao abrir o modulo de novo,
 // e um F5 no portal continua trazendo a versao mais nova.
@@ -454,7 +510,7 @@ let portalData={usuarios:[]};
 async function loadPortalData(){
   try{
     // Busca usuários do sistema compras (base principal de usuários)
-    const r=await fetch(WORKER_URL,{headers:{'X-Sistema':'compras_teste','Origin':'https://daluminium.github.io'}});
+    const r=await fetch(WORKER_URL,{headers:cabecalhos('compras_teste')});
     if(!r.ok) return;
     const d=await r.json();
     if(d&&d.usuarios&&d.usuarios.length>0){
@@ -468,13 +524,13 @@ async function savePortalData(){
   // Save usuarios to both sistemas
   for(const sis of ['compras_teste','financeiro_teste']){
     try{
-      const r=await fetch(WORKER_URL,{headers:{'X-Sistema':sis,'Origin':'https://daluminium.github.io'}});
+      const r=await fetch(WORKER_URL,{headers:cabecalhos(sis)});
       if(!r.ok) continue;
       const d=await r.json();
       d.usuarios=portalData.usuarios;
       await fetch(WORKER_URL,{
         method:'PATCH',
-        headers:{'Content-Type':'application/json','X-Sistema':sis,'Origin':'https://daluminium.github.io'},
+        headers:cabecalhos(sis,{'Content-Type':'application/json'}),
         body:JSON.stringify({data:d})
       });
     }catch(e){ console.warn('Erro ao salvar em '+sis, e); }
@@ -505,61 +561,53 @@ async function doLogin(){
 
   btn.textContent='Verificando...'; btn.disabled=true;
 
-  // Check admins
-  const admin=ADMINS.find(a=>a.user===user);
-  if(admin){
-    const saved=getAdminPass(admin.user);
-    const correct=saved||admin.pass;
-    const isTemp=!saved&&admin.tempPass;
-    if(await verificarSenha(pass,correct)){
-      resetTent();
-      sessionStorage.setItem('portal-logged','true');
-      sessionStorage.setItem('portal-user',admin.name);
-      sessionStorage.setItem('portal-role','admin');
-      sessionStorage.setItem('portal-modulos',JSON.stringify(admin.modulos));
-      sessionStorage.setItem('portal-admin-key',admin.user);
-      btn.textContent='Entrar'; btn.disabled=false;
-      if(isTemp) setTimeout(()=>trocarSenhaAdmin(admin),500);
-      showPortal(admin.name, admin.modulos, true);
-      return;
-    }
-  }
-
-  // Check regular users
-  await loadPortalData();
-  const users=portalData.usuarios;
-  let found=null;
-  for(const u of users){
-    if(u.username.toLowerCase()===user&&u.active!==false){
-      if(await verificarSenha(pass,u.password)){ found=u; break; }
-    }
-  }
-
-  if(found){
-    resetTent();
-    const isAdmin=(found.role==='admin');
-    const modulos=found.modulos||['compras'];
-    sessionStorage.setItem('portal-logged','true');
-    sessionStorage.setItem('portal-user',found.name);
-    sessionStorage.setItem('portal-role',found.role||'user');
-    sessionStorage.setItem('portal-modulos',JSON.stringify(modulos));
-    sessionStorage.setItem('portal-admin-key',found.username||'');
+  // Quem confere a senha agora é o Worker, que devolve um crachá assinado.
+  // Antes a conferência era feita aqui no navegador, o que obrigava o portal a
+  // baixar a lista de usuários com os hashes de senha de todo mundo só para
+  // deixar alguém entrar.
+  let cracha=null;
+  try{
+    cracha=await fazerLoginWorker(user,pass);
+  }catch(e){
     btn.textContent='Entrar'; btn.disabled=false;
-    if(found.tempPass) setTimeout(()=>trocarSenhaUser(found),500);
-    showPortal(found.name, modulos, isAdmin);
-  } else {
-    const r=addFalha();
-    err.textContent=r>0?`Usuário ou senha incorretos. ${r} tentativa${r>1?'s':''} restante${r>1?'s':''}.`:'Acesso bloqueado por 5 minutos.';
+    if(e.status===401){
+      const r=addFalha();
+      err.textContent=r>0?`Usuário ou senha incorretos. ${r} tentativa${r>1?'s':''} restante${r>1?'s':''}.`:'Acesso bloqueado por 5 minutos.';
+    }else{
+      // Erro de conexão não é senha errada — não pode gastar tentativa, senão
+      // uma queda de internet acaba bloqueando quem digitou tudo certo.
+      err.textContent='Não consegui falar com o servidor ('+(e.message||'erro')+'). Tente de novo.';
+    }
     err.style.display='block';
     document.getElementById('login-pass').value='';
-    btn.textContent='Entrar'; btn.disabled=false;
+    document.getElementById('login-pass').focus();
+    return;
+  }
+
+  resetTent();
+  const isAdmin=(cracha.role==='admin');
+  const modulos=cracha.modulos&&cracha.modulos.length?cracha.modulos:['compras'];
+  sessionStorage.setItem('portal-logged','true');
+  sessionStorage.setItem('portal-user',cracha.nome);
+  sessionStorage.setItem('portal-role',cracha.role||'user');
+  sessionStorage.setItem('portal-modulos',JSON.stringify(modulos));
+  sessionStorage.setItem('portal-admin-key',cracha.username||'');
+  btn.textContent='Entrar'; btn.disabled=false;
+  showPortal(cracha.nome, modulos, isAdmin);
+
+  // Senha temporária: a troca grava na lista do banco, então precisa do
+  // registro de lá. O crachá sozinho não serve para isso.
+  if(cracha.tempPass){
+    await loadPortalData();
+    const u=portalData.usuarios.find(x=>String(x.username||'').toLowerCase()===String(cracha.username||'').toLowerCase());
+    if(u) setTimeout(()=>trocarSenhaUser(u),500);
   }
 }
 
 async function doLogout(){
   if(!confirm('Deseja sair?')) return;
   await removerSessaoPortal();
-  localStorage.removeItem('dalum-sso');
+  localStorage.removeItem('dalum-sso'); localStorage.removeItem(TOKEN_KEY);
   ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key'].forEach(k=>sessionStorage.removeItem(k));
   document.getElementById('login-screen').classList.add('active');
   document.getElementById('portal').classList.remove('active');
@@ -765,7 +813,7 @@ async function loadSessoes(){
   lista.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center">Carregando...</p>';
   try{
     const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}
+      headers:cabecalhos('sessions')
     });
     if(!r.ok){ lista.innerHTML='<p style="font-size:13px;color:var(--red);text-align:center">Erro ao carregar sessões.</p>'; return; }
     const d=await r.json();
@@ -796,13 +844,13 @@ async function forceLogout(sessionId, nome){
   if(!confirm('Deslogar '+nome+'? O usuário será redirecionado para o login.')) return;
   try{
     const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}
+      headers:cabecalhos('sessions')
     });
     const d=await r.json();
     d.forceLogout=[...(d.forceLogout||[]),sessionId];
     await fetch('https://daluminium-api.daluminium2.workers.dev',{
       method:'PATCH',
-      headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+      headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
       body:JSON.stringify({data:d})
     });
     alert(nome+' será deslogado(a) em até 30 segundos. ✅');
@@ -818,7 +866,7 @@ const _sessionId = Math.random().toString(36).slice(2)+Date.now().toString(36);
 let _sessCheck=null;
 async function registrarSessaoPortal(nome, username){
   try{
-    const r=await fetch(WORKER_SESS,{headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}});
+    const r=await fetch(WORKER_SESS,{headers:cabecalhos('sessions')});
     if(!r.ok) return;
     const d=await r.json();
     const _u=(username||nome||'').toLowerCase().trim();
@@ -826,24 +874,24 @@ async function registrarSessaoPortal(nome, username){
     ativas.push({sessionId:_sessionId,username:_u,nome,sistema:'portal',ts:Date.now()});
     d.ativas=ativas;
     await fetch(WORKER_SESS,{method:'PATCH',
-      headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+      headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
       body:JSON.stringify({data:d})});
   }catch(e){}
 }
 async function removerSessaoPortal(){
   try{
-    const r=await fetch(WORKER_SESS,{headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}});
+    const r=await fetch(WORKER_SESS,{headers:cabecalhos('sessions')});
     if(!r.ok) return;
     const d=await r.json();
     d.ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId);
     await fetch(WORKER_SESS,{method:'PATCH',
-      headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+      headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
       body:JSON.stringify({data:d})});
   }catch(e){}
 }
 async function checkForceLogoutPortal(){
   try{
-    const r=await fetch(WORKER_SESS,{headers:{'X-Sistema':'sessions','Origin':'https://daluminium.github.io'}});
+    const r=await fetch(WORKER_SESS,{headers:cabecalhos('sessions')});
     if(!r.ok) return;
     const d=await r.json();
     const forced=(d.forceLogout||[]);
@@ -851,7 +899,7 @@ async function checkForceLogoutPortal(){
       d.forceLogout=forced.filter(x=>x!==_sessionId);
       d.ativas=(d.ativas||[]).filter(x=>x.sessionId!==_sessionId);
       await fetch(WORKER_SESS,{method:'PATCH',
-        headers:{'Content-Type':'application/json','X-Sistema':'sessions','Origin':'https://daluminium.github.io'},
+        headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
         body:JSON.stringify({data:d})});
       alert('Sua sessão foi encerrada pelo administrador.');
       forcarSaida();
@@ -863,7 +911,7 @@ function startSessionCheckPortal(){
   _sessCheck=setInterval(checkForceLogoutPortal,30000);
 }
 function forcarSaida(){
-  localStorage.removeItem('dalum-sso');
+  localStorage.removeItem('dalum-sso'); localStorage.removeItem(TOKEN_KEY);
   ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key'].forEach(k=>sessionStorage.removeItem(k));
   location.reload();
 }
@@ -900,7 +948,7 @@ window.addEventListener('message',function(e){
   if(e.data==='voltarPortal') voltarPortal();
   if(e.data==='logout'){
     removerSessaoPortal();
-    localStorage.removeItem('dalum-sso');
+    localStorage.removeItem('dalum-sso'); localStorage.removeItem(TOKEN_KEY);
     ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key'].forEach(k=>sessionStorage.removeItem(k));
     document.getElementById('frame-container').classList.remove('active');
     document.getElementById('frame-iframe').src='about:blank';
@@ -913,7 +961,29 @@ window.addEventListener('message',function(e){
   }
 });
 
-if(sessionStorage.getItem('portal-logged')==='true'){
+// Entrou antes e o crachá ainda está no prazo: volta direto, sem pedir senha.
+// Vale mesmo depois de fechar e reabrir o navegador, porque o crachá fica no
+// localStorage — ao contrário do `portal-logged`, que morre com a aba.
+function entrarPeloCracha(){
+  const t=lerToken();
+  if(!t) return false;
+  const nome=t.dados.n||t.dados.u||'';
+  const role=t.dados.r||'user';
+  const modulos=(t.dados.m&&t.dados.m.length)?t.dados.m:['compras'];
+  sessionStorage.setItem('portal-logged','true');
+  sessionStorage.setItem('portal-user',nome);
+  sessionStorage.setItem('portal-role',role);
+  sessionStorage.setItem('portal-modulos',JSON.stringify(modulos));
+  sessionStorage.setItem('portal-admin-key',t.dados.u||'');
+  document.getElementById('login-screen').classList.remove('active');
+  showPortal(nome, modulos, role==='admin');
+  loadPortalData();
+  return true;
+}
+
+if(entrarPeloCracha()){
+  // já entrou
+} else if(sessionStorage.getItem('portal-logged')==='true'){
   const nome=sessionStorage.getItem('portal-user')||'';
   const role=sessionStorage.getItem('portal-role')||'';
   const modulos=JSON.parse(sessionStorage.getItem('portal-modulos')||'["compras"]');
