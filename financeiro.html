@@ -1565,23 +1565,65 @@ function pillStatus(s){
   return`<span class="pill pill-pendente">Pendente</span>`;
 }
 
-// Quanto já foi pago desta conta. Registro antigo, sem o campo preenchido,
-// conta como pago por inteiro — senão toda conta quitada antes desta correção
-// voltaria a aparecer como se ainda devesse.
-function pagoDe(r){
-  // Sem baixa nenhuma, nada foi pago. Esta linha e essencial: sem ela, uma
-  // conta em aberto (que tambem nao tem valorPago) cairia na regra do
-  // registro antigo e seria contada como ja quitada.
-  if(!r.dtPag) return 0;
-  const v=r.valorPago;
-  return (v===undefined||v===null||v==='') ? (Number(r.valor)||0) : (Number(v)||0);
+// ================= HISTÓRICO DE BAIXAS (rateio) =================
+// Cada conta guarda a lista dos pagamentos (ou recebimentos) que já
+// aconteceram, cada um com a SUA data. O total pago é a soma dessa lista.
+//
+// Antes só existiam dois campos: o total pago e UMA data. Pagando R$ 600 hoje
+// e R$ 400 na sexta, ficava registrado R$ 1.000 na sexta — como se tudo
+// tivesse saído do caixa de uma vez. O Fluxo de Caixa herdava esse erro.
+//
+// Registro antigo, de antes desta lista, é lido como se fosse uma baixa única
+// com a data e o valor que ele já tinha. Por isso nada precisou ser convertido
+// no banco: a leitura entende os dois formatos.
+function baixasDe(r, tipo){
+  if(Array.isArray(r.baixas) && r.baixas.length) return r.baixas;
+  const dt = (tipo==='pagar') ? r.dtPag : r.dtRec;
+  if(!dt) return [];
+  const bruto = (tipo==='pagar') ? r.valorPago : r.valorRecebido;
+  const v = (bruto===undefined||bruto===null||bruto==='')
+            ? (Number(r.valor)||0) : (Number(bruto)||0);
+  return [{data:dt, valor:v, conta:r.conta, obs:r.obsBaixa||''}];
 }
+function somaBaixas(r, tipo){
+  return baixasDe(r,tipo).reduce((a,b)=>a+(Number(b.valor)||0),0);
+}
+
+// Acrescenta uma baixa e mantém em dia os campos antigos (total e última
+// data). É isso que faz relatórios, saldos e telas antigas continuarem certos
+// sem precisarem saber que a lista existe.
+function registrarBaixa(r, tipo, dtNova, valor, conta, obs){
+  const lista = baixasDe(r,tipo).slice();
+  lista.push({id:genId(), data:dtNova, valor:Number(valor)||0, conta:conta||r.conta, obs:obs||''});
+  lista.sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+  r.baixas = lista;
+  const soma = lista.reduce((a,b)=>a+(Number(b.valor)||0),0);
+  const ultima = lista[lista.length-1].data;
+  if(tipo==='pagar'){ r.valorPago=soma; r.dtPag=ultima; }
+  else { r.valorRecebido=soma; r.dtRec=ultima; }
+  if(conta) r.conta=conta;
+}
+
+// Desenha o histórico embaixo do valor: "11/08 R$ 600,00 · 15/08 R$ 400,00".
+function histBaixas(r, tipo){
+  const l=baixasDe(r,tipo);
+  if(l.length<2) return '';
+  return '<span class="td-sub" style="color:var(--gray-5)">'+
+    l.map(b=>fmtDate(b.data)+' R$ '+fmtBR(b.valor)).join(' · ')+'</span>';
+}
+
+function pagoDe(r){ return somaBaixas(r,'pagar'); }
 // O que ainda falta pagar. Um centavo de folga por causa de arredondamento:
 // 4601.69 - 4601.69 pode dar 0.0000000001 em conta de computador.
 function faltaPagar(r){
   return Math.max(0, (Number(r.valor)||0) - pagoDe(r));
 }
 function pagarEmAberto(r){ return !r.dtPag || faltaPagar(r) > 0.004; }
+
+function recebidoDe(r){ return somaBaixas(r,'receber'); }
+function faltaReceber(r){
+  return Math.max(0, (Number(r.valor)||0) - recebidoDe(r));
+}
 
 function calcStatus(item, tipo){
   if(tipo==='pagar'){
@@ -1591,7 +1633,7 @@ function calcStatus(item, tipo){
     if(item.venc < today()) return 'vencido';
     return 'pendente';
   } else {
-    if(item.dtRec) return item.valorRecebido>=item.valor?'recebido':'parcial';
+    if(item.dtRec) return faltaReceber(item) > 0.004 ? 'parcial' : 'recebido';
     if(item.venc < today()) return 'vencido';
     return 'pendente';
   }
@@ -1749,12 +1791,12 @@ function updateSummary(){
   const pendPagar=data.pagar.filter(pagarEmAberto);
   const vencendo=data.pagar.filter(r=>pagarEmAberto(r)&&r.venc>=todayStr&&r.venc<=in7str);
   const recebidos=data.receber.filter(r=>r.dtRec&&r.dtRec.startsWith(mesAtual));
-  const pendRec=data.receber.filter(r=>!r.dtRec||(r.valorRecebido||0)<r.valor);
+  const pendRec=data.receber.filter(r=>!r.dtRec||faltaReceber(r)>0.004);
 
   const sumPendPagar=pendPagar.reduce((a,r)=>a+faltaPagar(r),0);
   const sumVenc=vencendo.reduce((a,r)=>a+faltaPagar(r),0);
   const sumRecebido=recebidos.reduce((a,r)=>a+(r.valorRecebido||r.valor),0);
-  const sumPendRec=pendRec.reduce((a,r)=>a+(r.valor-(r.valorRecebido||0)),0);
+  const sumPendRec=pendRec.reduce((a,r)=>a+faltaReceber(r),0);
   const saldoTotal=calcSaldoTotal();
 
   document.getElementById('c-pag-count').textContent=pendPagar.length+' título'+(pendPagar.length!==1?'s':'');
@@ -1772,16 +1814,21 @@ function updateSummary(){
 function calcSaldoTotal(){
   const si=data.saldosIniciais||{};
   let saldo=(si.pagbank||0)+(si.inter||0)+(si.sicredi||0)+(si.caixa||0);
-  data.receber.forEach(r=>{ if(r.dtRec) saldo+=(r.valorRecebido||r.valor); });
-  data.pagar.forEach(r=>{ if(r.dtPag) saldo-=r.valorPago||r.valor; });
+  // Soma baixa a baixa: um pagamento feito em duas vezes tira do saldo os dois
+  // valores, e nao o total cheio de uma vez so.
+  data.receber.forEach(r=>{ baixasDe(r,'receber').forEach(b=>{ saldo+=Number(b.valor)||0; }); });
+  data.pagar.forEach(r=>{ baixasDe(r,'pagar').forEach(b=>{ saldo-=Number(b.valor)||0; }); });
   return saldo;
 }
 
 function calcSaldoConta(conta){
   const si=data.saldosIniciais||{};
   let s=si[conta]||0;
-  data.receber.forEach(r=>{ if(r.dtRec&&r.conta===conta) s+=(r.valorRecebido||r.valor); });
-  data.pagar.forEach(r=>{ if(r.dtPag&&r.conta===conta) s-=r.valorPago||r.valor; });
+  // Cada baixa carrega o banco de onde saiu (ou entrou). Pagando metade pelo
+  // PagBank e metade pelo Inter, cada conta recebe a sua parte — antes o valor
+  // inteiro ia para o banco que estivesse gravado na despesa.
+  data.receber.forEach(r=>{ baixasDe(r,'receber').forEach(b=>{ if((b.conta||r.conta)===conta) s+=Number(b.valor)||0; }); });
+  data.pagar.forEach(r=>{ baixasDe(r,'pagar').forEach(b=>{ if((b.conta||r.conta)===conta) s-=Number(b.valor)||0; }); });
   (data.movimentos||[]).forEach(m=>{
     if(m.tipo==='transferencia'){
       if(m.destino===conta) s+=m.valor;
@@ -1887,7 +1934,7 @@ function renderPagar(){
       </td>
       <td><span style="font-size:11px;background:var(--gray-2);padding:2px 7px;border-radius:20px;color:var(--gray-5)">${CAT_LABEL[r.cat]||r.cat}</span></td>
       <td style="${r._status==='vencido'?'color:var(--red);font-weight:600':''}">${fmtDate(r.venc)}</td>
-      <td class="td-valor">R$ ${fmtBR(r.valor)}${r._status==='parcial'?`<span class="td-sub" style="color:var(--amber)">pago R$ ${fmtBR(pagoDe(r))} · falta R$ ${fmtBR(faltaPagar(r))}</span>`:''}</td>
+      <td class="td-valor">R$ ${fmtBR(r.valor)}${r._status==='parcial'?`<span class="td-sub" style="color:var(--amber)">pago R$ ${fmtBR(pagoDe(r))} · falta R$ ${fmtBR(faltaPagar(r))}</span>`:''}${histBaixas(r,'pagar')}</td>
       <td style="font-size:12px">${CONTA_LABEL[r.conta]||'—'}</td>
       <td>${pillStatus(r._status)}${r.dtPag?`<span class="td-sub">${fmtDate(r.dtPag)}</span>`:''}</td>
       <td class="td-actions">
@@ -1900,8 +1947,12 @@ function renderPagar(){
       </td>
     </tr>`).join('');
   }
-  const pend=data.pagar.filter(r=>!r.dtPag).reduce((a,r)=>a+r.valor,0);
-  const pago=data.pagar.filter(r=>r.dtPag).reduce((a,r)=>a+(r.valorPago||r.valor),0);
+  // Mesma regra do cartao do topo: conta paga em parte continua pendente pela
+  // diferenca. Antes este rodape somava so quem nao tinha data de pagamento, e
+  // o que faltava de uma conta parcial ficava de fora — dois totais na mesma
+  // tela discordando um do outro.
+  const pend=data.pagar.filter(pagarEmAberto).reduce((a,r)=>a+faltaPagar(r),0);
+  const pago=data.pagar.filter(r=>r.dtPag).reduce((a,r)=>a+pagoDe(r),0);
   document.getElementById('t-pagar').textContent='R$ '+fmtBR(pend);
   document.getElementById('t-pagar-pago').textContent='R$ '+fmtBR(pago);
 }
@@ -2020,21 +2071,20 @@ async function confirmarBaixa(){
   if(!dt){ alert('Informe a data.'); return; }
   const valStr=document.getElementById('b-valor').value;
   const val=valStr?parseBR(valStr):null;
+  const obs=document.getElementById('b-obs').value;
   if(baixaType==='pagar'){
     const r=data.pagar[baixaIdx];
-    // Soma ao que ja tinha sido pago, em vez de substituir. Assim dá para
-    // baixar em duas ou tres vezes ate quitar, como o "a receber" ja permitia.
-    const jaPago=(r.dtPag)?pagoDe(r):0;
-    r.valorPago=jaPago+(val||faltaPagar(r)||r.valor);
-    if(r.valorPago>r.valor) r.valorPago=r.valor;
-    r.dtPag=dt;
-    r.conta=document.getElementById('b-conta').value;
-    r.obsBaixa=document.getElementById('b-obs').value;
+    // O valor digitado é o DESTE pagamento. Em branco, quita o que falta.
+    let v=(val!==null&&val!==undefined&&!isNaN(val)&&val>0) ? val : (faltaPagar(r)||r.valor);
+    if(v>faltaPagar(r)) v=faltaPagar(r)||v;   // não deixa passar do total
+    registrarBaixa(r,'pagar',dt,v,document.getElementById('b-conta').value,obs);
+    r.obsBaixa=obs;
   } else {
     const r=data.receber[baixaIdx];
-    r.dtRec=dt;
-    r.conta=document.getElementById('r-conta').value||document.getElementById('b-conta').value;
-    r.valorRecebido=(r.valorRecebido||0)+(val||r.valor);
+    let v=(val!==null&&val!==undefined&&!isNaN(val)&&val>0) ? val : (faltaReceber(r)||r.valor);
+    if(v>faltaReceber(r)) v=faltaReceber(r)||v;
+    registrarBaixa(r,'receber',dt,v,
+      document.getElementById('r-conta').value||document.getElementById('b-conta').value,obs);
   }
   await persist(); render(); closeBaixa();
 }
@@ -2058,8 +2108,8 @@ function renderReceber(){
         <td><span class="td-desc">${r.cliente}</span>${r.contrato?`<span class="td-sub">Contrato: ${r.contrato}</span>`:''}</td>
         <td style="font-size:12px">${r.desc||'—'}</td>
         <td style="${r._status==='vencido'?'color:var(--red);font-weight:600':''}">${fmtDate(r.venc)}</td>
-        <td class="td-valor">R$ ${fmtBR(r.valor)}</td>
-        <td class="td-valor" style="color:var(--green)">${r.valorRecebido?'R$ '+fmtBR(r.valorRecebido):'—'}</td>
+        <td class="td-valor">R$ ${fmtBR(r.valor)}${r._status==='parcial'?`<span class="td-sub" style="color:var(--amber)">falta R$ ${fmtBR(faltaReceber(r))}</span>`:''}</td>
+        <td class="td-valor" style="color:var(--green)">${recebidoDe(r)?'R$ '+fmtBR(recebidoDe(r)):'—'}${histBaixas(r,'receber')}</td>
         <td>${formas.join(' ')}</td>
         <td>${pillStatus(r._status)}${r.dtRec?`<span class="td-sub">${fmtDate(r.dtRec)}</span>`:''}</td>
         <td class="td-actions">
@@ -2073,7 +2123,7 @@ function renderReceber(){
       </tr>`;
     }).join('');
   }
-  const pendRec=data.receber.filter(r=>!r.dtRec||(r.valorRecebido||0)<r.valor).reduce((a,r)=>a+(r.valor-(r.valorRecebido||0)),0);
+  const pendRec=data.receber.filter(r=>!r.dtRec||faltaReceber(r)>0.004).reduce((a,r)=>a+faltaReceber(r),0);
   const totalRec=data.receber.filter(r=>r.dtRec).reduce((a,r)=>a+(r.valorRecebido||r.valor),0);
   document.getElementById('t-receber').textContent='R$ '+fmtBR(pendRec);
   document.getElementById('t-recebido').textContent='R$ '+fmtBR(totalRec);
@@ -2157,10 +2207,24 @@ function renderCaixa(){
   const filtMes=document.getElementById('fil-caixa-mes').value;
   const movs=[];
 
-  // Pagamentos
-  data.pagar.forEach(r=>{ if(r.dtPag) movs.push({data:r.dtPag,desc:r.desc,tipo:'Despesa',conta:r.conta,saida:r.valorPago||r.valor,entrada:0}); });
+  // Pagamentos — CADA baixa entra na SUA data. Antes o valor inteiro caía na
+  // data da última, então R$ 600 pagos hoje e R$ 400 na sexta apareciam como
+  // R$ 1.000 saindo do caixa na sexta.
+  data.pagar.forEach(r=>{
+    baixasDe(r,'pagar').forEach((b,i,todas)=>{
+      movs.push({data:b.data,
+        desc:r.desc+(todas.length>1?` (pagamento ${i+1} de ${todas.length})`:''),
+        tipo:'Despesa',conta:b.conta||r.conta,saida:Number(b.valor)||0,entrada:0});
+    });
+  });
   // Recebimentos
-  data.receber.forEach(r=>{ if(r.dtRec) movs.push({data:r.dtRec,desc:r.cliente+(r.desc?' · '+r.desc:''),tipo:'Recebimento',conta:r.conta,entrada:r.valorRecebido||r.valor,saida:0}); });
+  data.receber.forEach(r=>{
+    baixasDe(r,'receber').forEach((b,i,todas)=>{
+      movs.push({data:b.data,
+        desc:r.cliente+(r.desc?' · '+r.desc:'')+(todas.length>1?` (recebimento ${i+1} de ${todas.length})`:''),
+        tipo:'Recebimento',conta:b.conta||r.conta,entrada:Number(b.valor)||0,saida:0});
+    });
+  });
   // Transferências
   (data.movimentos||[]).forEach(m=>{
     if(m.tipo==='transferencia'){
