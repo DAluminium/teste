@@ -353,8 +353,9 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
   <!-- CONTAS A RECEBER -->
   <div id="panel-receber" class="panel" style="display:none">
     <div class="panel-header">
-      <div class="panel-title">💰 Contas a Receber</div>
-      <div class="panel-actions">
+      <div class="panel-title">💰 Contas a Receber <span id="cont-receber" style="font-size:13px;font-weight:500;color:var(--gray-4);margin-left:8px"></span></div>
+      <div class="panel-actions" style="width:100%;gap:8px;flex-wrap:wrap">
+        <input id="fil-receber-busca" type="text" placeholder="Buscar cliente, descrição ou valor..." onkeyup="renderReceber()" style="flex:1;min-width:200px;padding:6px 8px;border-radius:var(--radius);border:1px solid var(--gray-3);font-size:12px;font-family:inherit">
         <select id="fil-rec-status" onchange="renderReceber()" style="font-size:12px;padding:4px 8px;border-radius:var(--radius);border:1px solid var(--gray-3)">
           <option value="">Todos os status</option>
           <option value="pendente">Pendente</option>
@@ -1900,6 +1901,13 @@ function atualizarContagemPagar(mostrando,total){
                                       : mostrando+' de '+total;
   e.style.color = (mostrando===total) ? 'var(--gray-4)' : 'var(--purple)';
 }
+function atualizarContagemReceber(mostrando,total){
+  const e=document.getElementById('cont-receber');
+  if(!e) return;
+  e.textContent = (mostrando===total) ? total+' título'+(total!==1?'s':'')
+                                      : mostrando+' de '+total;
+  e.style.color = (mostrando===total) ? 'var(--gray-4)' : 'var(--purple)';
+}
 
 function renderPagar(){
   const tbody=document.getElementById('tbody-pagar');
@@ -2093,9 +2101,23 @@ async function confirmarBaixa(){
 function renderReceber(){
   const tbody=document.getElementById('tbody-receber');
   const filtStatus=document.getElementById('fil-rec-status').value;
+  const total=data.receber.length;
   let rows=data.receber.map((r,i)=>({...r,_i:i,_status:calcStatus(r,'receber')}));
   if(filtStatus) rows=rows.filter(r=>r._status===filtStatus);
+
+  // Mesma busca do "a pagar": sem acento, sem diferenciar maiúscula, e o valor
+  // nos dois formatos (1234.5 e 1.234,50) porque a pessoa digita como vê.
+  const busca=semAcento((document.getElementById('fil-receber-busca')||{value:''}).value).trim();
+  if(busca){
+    rows=rows.filter(r=>{
+      const alvo=[r.cliente,r.contrato,r.desc,r.venc,fmtDate(r.venc),
+                  String(r.valor),fmtBR(r.valor)].map(x=>semAcento(String(x||''))).join(' ');
+      // Cada pedaço digitado tem de aparecer: "silva 2000" acha a linha certa.
+      return busca.split(/\s+/).every(p=>alvo.includes(p));
+    });
+  }
   rows.sort((a,b)=>a.venc>b.venc?1:-1);
+  atualizarContagemReceber(rows.length,total);
   if(!rows.length){ tbody.innerHTML='<tr class="empty-row"><td colspan="9">Nenhum recebimento cadastrado.</td></tr>'; }
   else {
     tbody.innerHTML=rows.map(r=>{
