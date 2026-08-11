@@ -1625,6 +1625,7 @@ function recebidoDe(r){ return somaBaixas(r,'receber'); }
 function faltaReceber(r){
   return Math.max(0, (Number(r.valor)||0) - recebidoDe(r));
 }
+function receberEmAberto(r){ return !r.dtRec || faltaReceber(r) > 0.004; }
 
 function calcStatus(item, tipo){
   if(tipo==='pagar'){
@@ -1855,8 +1856,9 @@ function toggleNotifFin(){
 function renderNotif(){
   const todayStr=today();
   const in3=new Date(); in3.setDate(in3.getDate()+3); const in3str=in3.toISOString().slice(0,10);
-  const vencidos=data.pagar.filter(r=>!r.dtPag&&r.venc<todayStr);
-  const vencendo3=data.pagar.filter(r=>!r.dtPag&&r.venc>=todayStr&&r.venc<=in3str);
+  // Conta paga em parte continua vencida pela diferenca — precisa avisar.
+  const vencidos=data.pagar.filter(r=>pagarEmAberto(r)&&r.venc<todayStr);
+  const vencendo3=data.pagar.filter(r=>pagarEmAberto(r)&&r.venc>=todayStr&&r.venc<=in3str);
   const total=vencidos.length+vencendo3.length;
   const area=document.getElementById('notif-area');
   if(!total){ area.innerHTML=''; return; }
@@ -1866,7 +1868,7 @@ function renderNotif(){
     <div style="flex:1">
       <strong>🚨 ${vencidos.length} conta${vencidos.length>1?'s':''} a pagar VENCIDA${vencidos.length>1?'S':''}</strong>
       <div style="margin-top:6px">
-        ${vencidos.map(r=>`<div class="notif-item">⚠️ ${r.desc} — <strong>R$ ${fmtBR(r.valor)}</strong></div>`).join('')}
+        ${vencidos.map(r=>`<div class="notif-item">⚠️ ${r.desc} — <strong>R$ ${fmtBR(faltaPagar(r))}</strong>${faltaPagar(r)<Number(r.valor||0)-0.004?` <span style="font-size:11px;color:var(--gray-5)">(falta, de R$ ${fmtBR(r.valor)})</span>`:''}</div>`).join('')}
       </div>
     </div>
     <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
@@ -2403,21 +2405,30 @@ function renderAPagar(){
   const pag = apModo==='pagar';
   const cor = pag?'rel-neg':'rel-pos';
 
-  const abertas = pag ? data.pagar.filter(x=>!x.dtPag&&x.venc)
-                      : data.receber.filter(x=>!x.dtRec&&x.venc);
+  // Uma conta paga em PARTE continua devendo a diferenca, e por isso pertence
+  // ao relatorio. Antes o filtro so perguntava se existia data de pagamento:
+  // bastava uma baixa de R$ 1 para a conta inteira sumir daqui.
+  //
+  // E o que ela soma e o que FALTA, nao o valor original — senao uma conta de
+  // R$ 4.601,69 com R$ 4.000 ja pagos entraria no total pelos R$ 4.601,69.
+  const emAberto = x => pag ? pagarEmAberto(x) : receberEmAberto(x);
+  const falta    = x => pag ? faltaPagar(x)    : faltaReceber(x);
+
+  const abertas = pag ? data.pagar.filter(x=>emAberto(x)&&x.venc)
+                      : data.receber.filter(x=>emAberto(x)&&x.venc);
   const noPeriodo=abertas.filter(x=>x.venc>=r.de&&x.venc<=r.ate);
   const vencidas=incVenc?abertas.filter(x=>x.venc<r.de&&x.venc<hoje):[];
   const lista=[...vencidas,...noPeriodo].sort((a,b)=>a.venc.localeCompare(b.venc));
 
-  const total=lista.reduce((a,x)=>a+Number(x.valor||0),0);
-  const totalVenc=vencidas.reduce((a,x)=>a+Number(x.valor||0),0);
-  const totalPer=noPeriodo.reduce((a,x)=>a+Number(x.valor||0),0);
+  const total=lista.reduce((a,x)=>a+falta(x),0);
+  const totalVenc=vencidas.reduce((a,x)=>a+falta(x),0);
+  const totalPer=noPeriodo.reduce((a,x)=>a+falta(x),0);
 
   const porGrupo={},porConta={};
   lista.forEach(x=>{
     const g = pag ? (CAT_LABEL[x.cat]||x.cat||'—') : (x.cliente||'—');
-    porGrupo[g]=(porGrupo[g]||0)+Number(x.valor||0);
-    porConta[x.conta]=(porConta[x.conta]||0)+Number(x.valor||0);
+    porGrupo[g]=(porGrupo[g]||0)+falta(x);
+    porConta[x.conta]=(porConta[x.conta]||0)+falta(x);
   });
 
   const per=`${fmtDate(r.de)} a ${fmtDate(r.ate)}`;
@@ -2454,7 +2465,7 @@ function renderAPagar(){
       <td style="padding:6px 4px">${x.desc||'—'}${x.parcelaDesc?`<br><span style="font-size:10px;color:var(--gray-4)">${x.parcelaDesc}</span>`:''}${formas?`<br><span style="font-size:10px;color:var(--gray-4)">${formas}</span>`:''}${x.obs?`<br><span style="font-size:10px;color:var(--purple)">📝 ${x.obs}</span>`:''}</td>
       <td style="padding:6px 4px;color:var(--gray-5)">${pag?(CAT_LABEL[x.cat]||x.cat||'—'):(x.contrato||'—')}</td>
       <td style="padding:6px 4px;color:var(--gray-5)">${CONTA_LABEL[x.conta]||x.conta||'—'}</td>
-      <td style="padding:6px 4px;text-align:right;font-weight:600">R$ ${fmtBR(x.valor)}</td>
+      <td style="padding:6px 4px;text-align:right;font-weight:600">R$ ${fmtBR(falta(x))}${falta(x) < Number(x.valor||0)-0.004?`<br><span style="font-size:10px;font-weight:400;color:var(--gray-5)">de R$ ${fmtBR(x.valor)} · já ${pag?'pago':'recebido'} R$ ${fmtBR(Number(x.valor||0)-falta(x))}</span>`:''}</td>
     </tr>`;
   });
   html+=`</tbody></table></div>`;
