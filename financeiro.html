@@ -308,8 +308,11 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
   <!-- CONTAS A PAGAR -->
   <div id="panel-pagar" class="panel">
     <div class="panel-header">
-      <div class="panel-title">🔴 Contas a Pagar</div>
+      <div class="panel-title">🔴 Contas a Pagar <span id="cont-pagar" style="font-weight:400;font-size:12px;color:var(--gray-4);margin-left:6px"></span></div>
       <div class="panel-actions">
+        <input id="fil-pagar-busca" type="text" placeholder="Buscar descrição, fornecedor ou valor..."
+          oninput="renderPagar()" autocomplete="off"
+          style="font-size:12px;padding:4px 10px;border-radius:var(--radius);border:1px solid var(--gray-3);min-width:230px;font-family:inherit">
         <select id="fil-pagar-status" onchange="renderPagar()" style="font-size:12px;padding:4px 8px;border-radius:var(--radius);border:1px solid var(--gray-3)">
           <option value="">Todos os status</option>
           <option value="pendente">Pendente</option>
@@ -1805,14 +1808,40 @@ function renderNotif(){
 }
 
 // ---- CONTAS A PAGAR ----
+// Mostra "12 de 80" ao lado do titulo quando algum filtro esta ligado. Sem
+// isso a pessoa nao sabe se esta vendo a lista inteira ou um pedaco dela —
+// e conferir uma lista sem saber o tamanho dela e onde erro passa batido.
+function atualizarContagemPagar(mostrando,total){
+  const e=document.getElementById('cont-pagar');
+  if(!e) return;
+  e.textContent = (mostrando===total) ? total+' conta'+(total!==1?'s':'')
+                                      : mostrando+' de '+total;
+  e.style.color = (mostrando===total) ? 'var(--gray-4)' : 'var(--purple)';
+}
+
 function renderPagar(){
   const tbody=document.getElementById('tbody-pagar');
   const filtStatus=document.getElementById('fil-pagar-status').value;
   const filtCat=document.getElementById('fil-pagar-cat').value;
+  const total=data.pagar.length;
   let rows=data.pagar.map((r,i)=>({...r,_i:i,_status:calcStatus(r,'pagar')}));
   if(filtStatus) rows=rows.filter(r=>r._status===filtStatus);
   if(filtCat) rows=rows.filter(r=>r.cat===filtCat);
+
+  // Busca por descrição, fornecedor, valor ou vencimento. Sem acento e sem
+  // diferenciar maiúscula, para "eletrica" achar "Elétrica". O valor entra
+  // nos dois formatos (1234.5 e 1.234,50), porque a pessoa digita como vê.
+  const busca=semAcento((document.getElementById('fil-pagar-busca')||{value:''}).value).trim();
+  if(busca){
+    rows=rows.filter(r=>{
+      const alvo=[r.desc,r.forn,CAT_LABEL[r.cat]||r.cat,r.venc,fmtDate(r.venc),
+                  String(r.valor),fmtBR(r.valor)].map(x=>semAcento(String(x||''))).join(' ');
+      // Cada pedaço digitado tem de aparecer: "impressora 350" acha a linha certa.
+      return busca.split(/\s+/).every(p=>alvo.includes(p));
+    });
+  }
   rows.sort((a,b)=>a.venc>b.venc?1:-1);
+  atualizarContagemPagar(rows.length,total);
   if(!rows.length){ tbody.innerHTML='<tr class="empty-row"><td colspan="9">Nenhuma despesa cadastrada.</td></tr>'; }
   else {
     tbody.innerHTML=rows.map(r=>`<tr>
