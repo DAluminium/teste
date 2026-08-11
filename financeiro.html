@@ -590,6 +590,7 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
           </select>
         </div>
         <div class="form-group"><label>Data de recebimento</label><input id="r-dtrec" type="date"><small style="color:var(--gray-4);font-size:10px">Preencha quando receber</small></div>
+        <div class="form-group"><label>Valor recebido</label><input id="r-valorrec" type="text" placeholder="Vazio = recebeu tudo"><small style="color:var(--gray-4);font-size:10px">Preencha se recebeu só uma parte</small></div>
         <div class="form-group span2" style="background:var(--teal-light);border-radius:var(--radius);padding:8px 10px">
           <label style="color:var(--teal-dark)">Total formas de pagamento</label>
           <div style="font-size:16px;font-weight:700;color:var(--teal-dark);margin-top:4px" id="r-total-formas">R$ 0,00</div>
@@ -2017,7 +2018,7 @@ async function savePagar(){
     const existingParent=data.pagar[pagarEditId].parentId||data.pagar[pagarEditId].id;
     data.pagar.forEach(r=>{
       if(r.parentId===existingParent||r.id===existingParent){
-        guardados[r.id]={valorPago:r.valorPago,attachments:r.attachments,obsBaixa:r.obsBaixa};
+        guardados[r.id]={valorPago:r.valorPago,attachments:r.attachments,obsBaixa:r.obsBaixa,baixas:r.baixas};
       }
     });
     data.pagar=data.pagar.filter(r=>r.parentId!==existingParent&&r.id!==existingParent);
@@ -2053,6 +2054,23 @@ async function savePagar(){
     if(reg.dtPag){
       if(p.valorPago!==undefined && p.valorPago!==null) reg.valorPago=p.valorPago;
       else if(g.valorPago!==undefined && g.valorPago!==null) reg.valorPago=g.valorPago;
+
+      // O historico de baixas tambem tem de voltar — a tela nao o edita, e sem
+      // isto uma simples edicao apagaria as datas de cada pagamento.
+      //
+      // Se o "Valor pago" foi corrigido na mao e nao bate mais com a soma da
+      // lista, quem manda e o que foi digitado: a lista vira uma baixa unica,
+      // com a data que esta na tela. Manter as duas coisas em desacordo faria
+      // a correcao nao surtir efeito nenhum, porque o total e lido da lista.
+      const somaLista = Array.isArray(g.baixas)
+        ? g.baixas.reduce((a,b)=>a+(Number(b.valor)||0),0) : null;
+      const totalAgora = (reg.valorPago===undefined||reg.valorPago===null)
+        ? reg.valor : Number(reg.valorPago)||0;
+      if(somaLista!==null && Math.abs(somaLista-totalAgora)<0.005){
+        reg.baixas=g.baixas;
+      } else if(somaLista!==null){
+        reg.baixas=[{id:genId(),data:reg.dtPag,valor:totalAgora,conta:reg.conta,obs:g.obsBaixa||''}];
+      }
     }
     if(g.attachments) reg.attachments=g.attachments;
     if(reg.dtPag && g.obsBaixa) reg.obsBaixa=g.obsBaixa;
@@ -2174,10 +2192,13 @@ function openModalReceber(idx=null){
     document.getElementById('r-boleto').value=r.boleto?fmtBR(r.boleto):'';
     document.getElementById('r-conta').value=r.conta||'pagbank';
     document.getElementById('r-dtrec').value=r.dtRec||'';
+    // Ja vem preenchido com o que foi recebido ate agora, para a pessoa ver
+    // quanto esta corrigindo em vez de ter de lembrar.
+    document.getElementById('r-valorrec').value=r.dtRec?fmtBR(recebidoDe(r)):'';
     document.getElementById('r-obs').value=r.obs||'';
     document.getElementById('receber-title').textContent='Editar recebimento';
   } else {
-    ['r-cliente','r-contrato','r-desc','r-valor','r-venc','r-avista','r-cartao','r-boleto','r-dtrec','r-obs'].forEach(id=>document.getElementById(id).value='');
+    ['r-cliente','r-contrato','r-desc','r-valor','r-venc','r-avista','r-cartao','r-boleto','r-dtrec','r-valorrec','r-obs'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('r-conta').value='pagbank';
     document.getElementById('receber-title').textContent='Novo recebimento';
   }
@@ -2201,9 +2222,36 @@ async function saveReceber(){
     boleto:parseBR(document.getElementById('r-boleto').value)||0,
     conta:document.getElementById('r-conta').value,
     dtRec:document.getElementById('r-dtrec').value||null,
-    valorRecebido:document.getElementById('r-dtrec').value?valor:0,
     obs:document.getElementById('r-obs').value.trim(),
   };
+
+  // Antes esta tela regravava o valor recebido como o valor CHEIO toda vez que
+  // era salva. Um recebimento parcial virava recebimento total na primeira
+  // edicao, e nao havia como corrigir a nao ser apagando e lancando de novo.
+  //
+  // Agora funciona igual ao lado do "a pagar": o campo "Valor recebido" manda;
+  // vazio significa "recebeu tudo"; e o historico de datas so e descartado se
+  // o total foi corrigido na mao e nao bate mais com a soma da lista.
+  const antigo = (receberEditId!==null) ? data.receber[receberEditId] : null;
+  const txtRec = (document.getElementById('r-valorrec').value||'').trim();
+  if(entry.dtRec){
+    if(txtRec!=='') entry.valorRecebido=parseBR(txtRec);
+    else if(antigo && antigo.valorRecebido!==undefined && antigo.valorRecebido!==null)
+      entry.valorRecebido=antigo.valorRecebido;
+    else entry.valorRecebido=valor;
+    if(entry.valorRecebido>valor) entry.valorRecebido=valor;
+
+    const somaLista = (antigo && Array.isArray(antigo.baixas))
+      ? antigo.baixas.reduce((a,b)=>a+(Number(b.valor)||0),0) : null;
+    if(somaLista!==null && Math.abs(somaLista-entry.valorRecebido)<0.005){
+      entry.baixas=antigo.baixas;
+    } else if(somaLista!==null){
+      entry.baixas=[{id:genId(),data:entry.dtRec,valor:entry.valorRecebido,conta:entry.conta,obs:''}];
+    }
+  }
+  // Sem data de recebimento nao ha recebimento: o valor e o historico saem
+  // junto, senao o titulo ficaria "recebido" sem ninguem saber quando.
+
   if(receberEditId!==null){ data.receber[receberEditId]=entry; } else { data.receber.push(entry); }
   await persist(); render(); closeReceber();
 }
