@@ -151,6 +151,38 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </style>
 </head>
 <body>
+<!-- ================================================================
+     AVISO DE AMBIENTE DE TESTE
+     Este bloco existe SOMENTE nos arquivos de teste. Ao levar um
+     arquivo daqui para producao, ELE PRECISA SAIR — junto com a troca
+     do identificador do sistema.
+     Motivo: em 11/08/2026 contas reais foram lancadas aqui achando que
+     era producao, porque as duas telas eram identicas.
+     ================================================================ -->
+<div id="faixa-teste">Ambiente de teste &middot; o que voce lancar aqui nao vale</div>
+<style>
+  #faixa-teste{position:fixed;top:0;left:0;right:0;height:30px;z-index:100000;
+    background:repeating-linear-gradient(45deg,#B9770E 0 14px,#8a5a0a 14px 28px);
+    color:#fff;font:700 12px/30px system-ui,-apple-system,"Segoe UI",sans-serif;
+    letter-spacing:.08em;text-align:center;text-transform:uppercase;
+    box-shadow:0 1px 6px rgba(0,0,0,.3);pointer-events:none}
+  body{padding-top:30px}
+  /* A barra de cima desce para nao ficar embaixo da faixa, e muda de cor:
+     a faixa a pessoa aprende a ignorar, a cor diferente ela percebe sem ler. */
+  .topbar{top:30px !important;background:#B9770E !important}
+  .login-screen,.bloqueio{padding-top:30px}
+  /* Na impressao o navegador nao imprime fundo colorido por padrao — a faixa
+     sairia como texto branco em papel branco. Por isso ela vira texto preto
+     com moldura. Um relatorio tirado do teste TEM de sair marcado: foi um
+     relatorio impresso sem marca que escondeu o problema de 11/08/2026. */
+  @media print{
+    #faixa-teste{position:static;background:none;color:#000;border:2px solid #000;
+      box-shadow:none;line-height:1.6;margin-bottom:8px}
+    body{padding-top:0}
+    .topbar{top:0 !important}
+  }
+</style>
+
 
 <!-- SEM SESSÃO — login próprio do módulo -->
 <div class="bloqueio" id="bloqueio" style="display:none">
