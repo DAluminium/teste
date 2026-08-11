@@ -576,7 +576,7 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
     </div>
     <div class="modal-body">
       <div style="background:var(--teal-light);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:16px">
-        🔐 <strong>Admins:</strong> Ander Reis · Aretusa Sendeski — acessos exclusivos, não podem ser alterados aqui.
+        🔐 <strong>Admins:</strong> Admin · Aretusa Sendeski — acessos exclusivos, não podem ser alterados aqui.
       </div>
       <div id="user-list" style="margin-bottom:16px"></div>
       <div style="border-top:1px solid var(--gray-2);padding-top:14px">
@@ -2556,7 +2556,7 @@ async function addUser(){
   });
   saveUsers(users);
   await persistUsers();
-  logAction('Ander Reis','Criou usuário',{obra:name,contrato:'Sistema'},`Usuário: ${username} (${role})`);
+  logAction(lastBy||'—','Criou usuário',{obra:name,contrato:'Sistema'},`Usuário: ${username} (${role})`);
   ['nu-name','nu-username','nu-pass','nu-whatsapp','nu-apikey'].forEach(id=>document.getElementById(id).value='');
   renderUserList();
   alert('Usuário cadastrado e salvo na nuvem! ✅');
@@ -2567,14 +2567,14 @@ async function toggleUserActive(idx){
   users[idx].active=users[idx].active===false?true:false;
   saveUsers(users);
   await persistUsers();
-  logAction('Ander Reis',users[idx].active?'Ativou usuário':'Desativou usuário',{obra:users[idx].name,contrato:'Sistema'},`Usuário: ${users[idx].username}`);
+  logAction(lastBy||'—',users[idx].active?'Ativou usuário':'Desativou usuário',{obra:users[idx].name,contrato:'Sistema'},`Usuário: ${users[idx].username}`);
   renderUserList();
 }
 
 async function removeUser(idx){
   const users=getUsers();
   if(!confirm(`Remover usuário "${users[idx].name}"?`)) return;
-  logAction('Ander Reis','Removeu usuário',{obra:users[idx].name,contrato:'Sistema'},`Usuário: ${users[idx].username}`);
+  logAction(lastBy||'—','Removeu usuário',{obra:users[idx].name,contrato:'Sistema'},`Usuário: ${users[idx].username}`);
   users.splice(idx,1);
   saveUsers(users);
   await persistUsers();
@@ -2709,7 +2709,7 @@ async function verificarSenha(senhaDigitada, senhaArmazenada){
 // lista, dentro de um repositório público — dava para baixar e tentar quebrar
 // com calma fora daqui.
 const ADMINS = [
-  { user: 'ander reis',  name: 'Ander Reis',       whatsapp:'', apikey:'' },
+  { user: 'admin',       name: 'Admin',            whatsapp:'', apikey:'' },
   { user: 'aretusa',     name: 'Aretusa Sendeski', whatsapp:'', apikey:'' },
 ];
 

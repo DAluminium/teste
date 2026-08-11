@@ -697,7 +697,7 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
     </div>
     <div class="modal-body">
       <div style="background:var(--teal-light);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:16px">
-        🔐 <strong>Admins:</strong> Ander Reis · Aretusa Sendeski — acessos fixos, não podem ser alterados aqui.
+        🔐 <strong>Admins:</strong> Admin · Aretusa Sendeski — acessos fixos, não podem ser alterados aqui.
       </div>
       <div id="user-list-fin" style="margin-bottom:16px"></div>
       <div style="border-top:1px solid var(--gray-2);padding-top:14px">
@@ -942,7 +942,7 @@ async function verificarSenha(digitada, armazenada){
 // hash escrito nesta lista, dentro de um repositório público — dava para
 // baixar e tentar quebrar com calma fora daqui.
 const ADMINS_FIN=[
-  {user:'ander reis', name:'Ander Reis'},
+  {user:'admin', name:'Admin'},
   {user:'aretusa',    name:'Aretusa Sendeski'},
 ];
 function getFinUsers(){ return data.usuarios||[]; }
