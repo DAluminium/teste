@@ -1565,9 +1565,29 @@ function pillStatus(s){
   return`<span class="pill pill-pendente">Pendente</span>`;
 }
 
+// Quanto já foi pago desta conta. Registro antigo, sem o campo preenchido,
+// conta como pago por inteiro — senão toda conta quitada antes desta correção
+// voltaria a aparecer como se ainda devesse.
+function pagoDe(r){
+  // Sem baixa nenhuma, nada foi pago. Esta linha e essencial: sem ela, uma
+  // conta em aberto (que tambem nao tem valorPago) cairia na regra do
+  // registro antigo e seria contada como ja quitada.
+  if(!r.dtPag) return 0;
+  const v=r.valorPago;
+  return (v===undefined||v===null||v==='') ? (Number(r.valor)||0) : (Number(v)||0);
+}
+// O que ainda falta pagar. Um centavo de folga por causa de arredondamento:
+// 4601.69 - 4601.69 pode dar 0.0000000001 em conta de computador.
+function faltaPagar(r){
+  return Math.max(0, (Number(r.valor)||0) - pagoDe(r));
+}
+function pagarEmAberto(r){ return !r.dtPag || faltaPagar(r) > 0.004; }
+
 function calcStatus(item, tipo){
   if(tipo==='pagar'){
-    if(item.dtPag) return 'pago';
+    // Pagou menos que o total: continua devendo a diferença. Antes bastava ter
+    // data de pagamento para a conta sumir da lista, mesmo paga pela metade.
+    if(item.dtPag) return faltaPagar(item) > 0.004 ? 'parcial' : 'pago';
     if(item.venc < today()) return 'vencido';
     return 'pendente';
   } else {
@@ -1711,13 +1731,15 @@ function updateSummary(){
   const mesAtual=todayStr.slice(0,7);
   const in7=new Date(); in7.setDate(in7.getDate()+7); const in7str=in7.toISOString().slice(0,10);
 
-  const pendPagar=data.pagar.filter(r=>!r.dtPag);
-  const vencendo=data.pagar.filter(r=>!r.dtPag&&r.venc>=todayStr&&r.venc<=in7str);
+  // "Em aberto" passa a incluir quem foi pago só em parte, contando apenas a
+  // diferença que falta — igual ao que o lado do "a receber" já fazia.
+  const pendPagar=data.pagar.filter(pagarEmAberto);
+  const vencendo=data.pagar.filter(r=>pagarEmAberto(r)&&r.venc>=todayStr&&r.venc<=in7str);
   const recebidos=data.receber.filter(r=>r.dtRec&&r.dtRec.startsWith(mesAtual));
   const pendRec=data.receber.filter(r=>!r.dtRec||(r.valorRecebido||0)<r.valor);
 
-  const sumPendPagar=pendPagar.reduce((a,r)=>a+r.valor,0);
-  const sumVenc=vencendo.reduce((a,r)=>a+r.valor,0);
+  const sumPendPagar=pendPagar.reduce((a,r)=>a+faltaPagar(r),0);
+  const sumVenc=vencendo.reduce((a,r)=>a+faltaPagar(r),0);
   const sumRecebido=recebidos.reduce((a,r)=>a+(r.valorRecebido||r.valor),0);
   const sumPendRec=pendRec.reduce((a,r)=>a+(r.valor-(r.valorRecebido||0)),0);
   const saldoTotal=calcSaldoTotal();
@@ -1852,7 +1874,7 @@ function renderPagar(){
       </td>
       <td><span style="font-size:11px;background:var(--gray-2);padding:2px 7px;border-radius:20px;color:var(--gray-5)">${CAT_LABEL[r.cat]||r.cat}</span></td>
       <td style="${r._status==='vencido'?'color:var(--red);font-weight:600':''}">${fmtDate(r.venc)}</td>
-      <td class="td-valor">R$ ${fmtBR(r.valor)}</td>
+      <td class="td-valor">R$ ${fmtBR(r.valor)}${r._status==='parcial'?`<span class="td-sub" style="color:var(--amber)">pago R$ ${fmtBR(pagoDe(r))} · falta R$ ${fmtBR(faltaPagar(r))}</span>`:''}</td>
       <td style="font-size:12px">${CONTA_LABEL[r.conta]||'—'}</td>
       <td>${pillStatus(r._status)}${r.dtPag?`<span class="td-sub">${fmtDate(r.dtPag)}</span>`:''}</td>
       <td class="td-actions">
@@ -1944,7 +1966,8 @@ function openBaixa(type,idx){
   const r=type==='pagar'?data.pagar[idx]:data.receber[idx];
   document.getElementById('baixa-title').textContent=type==='pagar'?`Baixar: ${r.desc}`:`Receber: ${r.cliente}`;
   document.getElementById('b-data').value=today();
-  document.getElementById('b-valor').value=fmtBR(r.valor);
+  // Numa conta ja paga em parte, vem preenchido o que FALTA, nao o valor cheio.
+  document.getElementById('b-valor').value=fmtBR(type==='pagar'?(faltaPagar(r)||r.valor):r.valor);
   document.getElementById('b-obs').value='';
   document.getElementById('baixa-overlay').classList.add('open');
 }
@@ -1957,9 +1980,13 @@ async function confirmarBaixa(){
   const val=valStr?parseBR(valStr):null;
   if(baixaType==='pagar'){
     const r=data.pagar[baixaIdx];
+    // Soma ao que ja tinha sido pago, em vez de substituir. Assim dá para
+    // baixar em duas ou tres vezes ate quitar, como o "a receber" ja permitia.
+    const jaPago=(r.dtPag)?pagoDe(r):0;
+    r.valorPago=jaPago+(val||faltaPagar(r)||r.valor);
+    if(r.valorPago>r.valor) r.valorPago=r.valor;
     r.dtPag=dt;
     r.conta=document.getElementById('b-conta').value;
-    r.valorPago=val||r.valor;
     r.obsBaixa=document.getElementById('b-obs').value;
   } else {
     const r=data.receber[baixaIdx];
