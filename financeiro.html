@@ -1654,11 +1654,15 @@ async function removeAttach(idx){
 }
 
 // ---- PARCELAS ----
-function addParcela(desc='', venc='', valor='', dtPag=''){
+function addParcela(desc='', venc='', valor='', dtPag='', rid='', vPago=''){
   const list=document.getElementById('p-parcelas-list');
   const idx=list.children.length;
   const div=document.createElement('div');
-  div.style.cssText='display:grid;grid-template-columns:1fr 130px 120px 120px 32px;gap:6px;align-items:center;padding:8px;background:var(--gray-1);border-radius:var(--radius);border:1px solid var(--gray-2)';
+  // Guarda o identificador do registro nesta linha. E ele que preserva o valor
+  // ja pago e os anexos quando a despesa e editada — antes cada edicao criava
+  // identificadores novos e essas informacoes se perdiam.
+  if(rid) div.dataset.rid=rid;
+  div.style.cssText='display:grid;grid-template-columns:1fr 125px 110px 115px 110px 32px;gap:6px;align-items:center;padding:8px;background:var(--gray-1);border-radius:var(--radius);border:1px solid var(--gray-2)';
   div.innerHTML=`
     <input type="text" placeholder="Descrição (ex: Boleto 1 / Parcela 1)" value="${desc}"
       style="padding:6px 8px;border-radius:var(--radius);border:1px solid var(--gray-3);font-size:12px;font-family:inherit">
@@ -1670,6 +1674,8 @@ function addParcela(desc='', venc='', valor='', dtPag=''){
     <input type="date" value="${dtPag}" title="Data pagamento (quando pagar)"
       style="padding:6px 8px;border-radius:var(--radius);border:1px solid var(--gray-3);font-size:12px;font-family:inherit;background:${dtPag?'var(--green-light)':'white'}"
       onchange="this.style.background=this.value?'var(--green-light)':'white'">
+    <input type="text" placeholder="tudo" value="${vPago}" title="Quanto foi pago. Deixe vazio se pagou o valor cheio."
+      style="padding:6px 8px;border-radius:var(--radius);border:1px solid var(--gray-3);font-size:12px;font-family:inherit;text-align:right">
     <button type="button" onclick="this.parentElement.remove();calcTotalParcelas()"
       style="width:32px;height:32px;border-radius:6px;border:1px solid var(--gray-3);background:transparent;cursor:pointer;color:var(--red);font-size:16px;display:flex;align-items:center;justify-content:center">✕</button>`;
   list.appendChild(div);
@@ -1677,8 +1683,8 @@ function addParcela(desc='', venc='', valor='', dtPag=''){
   // Add header labels on first row
   if(idx===0){
     const header=document.createElement('div');
-    header.style.cssText='display:grid;grid-template-columns:1fr 130px 120px 120px 32px;gap:6px;margin-bottom:2px';
-    header.innerHTML=`<span style="font-size:10px;color:var(--gray-4);font-weight:600;text-transform:uppercase">Descrição</span><span style="font-size:10px;color:var(--gray-4);font-weight:600;text-transform:uppercase">Vencimento</span><span style="font-size:10px;color:var(--gray-4);font-weight:600;text-transform:uppercase;text-align:right">Valor</span><span style="font-size:10px;color:var(--amber);font-weight:600;text-transform:uppercase">Data pagamento</span><span></span>`;
+    header.style.cssText='display:grid;grid-template-columns:1fr 125px 110px 115px 110px 32px;gap:6px;margin-bottom:2px';
+    header.innerHTML=`<span style="font-size:10px;color:var(--gray-4);font-weight:600;text-transform:uppercase">Descrição</span><span style="font-size:10px;color:var(--gray-4);font-weight:600;text-transform:uppercase">Vencimento</span><span style="font-size:10px;color:var(--gray-4);font-weight:600;text-transform:uppercase;text-align:right">Valor</span><span style="font-size:10px;color:var(--amber);font-weight:600;text-transform:uppercase">Data pagamento</span><span style="font-size:10px;color:var(--amber);font-weight:600;text-transform:uppercase;text-align:right">Valor pago</span><span></span>`;
     list.insertBefore(header, list.firstChild);
   }
   calcTotalParcelas();
@@ -1699,12 +1705,19 @@ function getParcelas(){
   const parcelas=[];
   Array.from(list.children).forEach(div=>{
     const inputs=div.querySelectorAll('input');
-    if(inputs.length<4) return; // skip header
+    if(inputs.length<5) return; // pula a linha de cabecalho
     const desc=inputs[0].value.trim();
     const venc=inputs[1].value;
     const valor=parseBR(inputs[2].value||'0');
     const dtPag=inputs[3].value||null;
-    if(venc&&valor) parcelas.push({desc,venc,valor,dtPag,id:genId()});
+    // Campo "Valor pago" vazio significa "pagou o valor cheio" — e o que o
+    // campo diz na tela. Numa conta paga so em parte ele vem preenchido, entao
+    // apagar de proposito e a forma de dizer "quitei o resto".
+    // Sem data de pagamento o campo nao vale nada: nada foi pago.
+    const txtPago=(inputs[4].value||'').trim();
+    const vPago=dtPag?(txtPago?parseBR(txtPago):valor):null;
+    // Reaproveita o identificador da linha quando ela ja existia.
+    if(venc&&valor) parcelas.push({desc,venc,valor,dtPag,valorPago:vPago,id:div.dataset.rid||genId()});
   });
   return parcelas;
 }
@@ -1905,9 +1918,16 @@ function openModalPagar(idx=null){
     document.getElementById('p-conta').value=r.conta||'pagbank';
     document.getElementById('p-doc').value=r.doc||'';
     document.getElementById('p-obs').value=r.obs||'';
-    // Load parcelas
-    const parcelas=r.parcelas||[{desc:'',venc:r.venc||'',valor:r.valor||0,dtPag:r.dtPag||''}];
-    parcelas.forEach(p=>addParcela(p.desc||'',p.venc||'',p.valor?fmtBR(p.valor):'',p.dtPag||''));
+    // Carrega TODAS as parcelas desta despesa, nao so a linha clicada. Antes
+    // aparecia uma so, e ao salvar as demais eram apagadas: editar um boleto de
+    // uma despesa de seis apagava os outros cinco.
+    const pai=r.parentId||r.id;
+    const irmas=data.pagar
+      .filter(x=>(x.parentId||x.id)===pai)
+      .sort((a,b)=>(a.venc||'')>(b.venc||'')?1:-1);
+    (irmas.length?irmas:[r]).forEach(p=>
+      addParcela(p.parcelaDesc||'',p.venc||'',p.valor?fmtBR(p.valor):'',p.dtPag||'',p.id||'',
+        (p.dtPag&&p.valorPago!==undefined&&p.valorPago!==null&&Number(p.valorPago)<Number(p.valor))?fmtBR(p.valorPago):''));
     document.getElementById('pagar-title').textContent='Editar despesa';
   } else {
     ['p-desc','p-forn','p-doc','p-obs'].forEach(id=>document.getElementById(id).value='');
@@ -1928,9 +1948,17 @@ async function savePagar(){
   const totalValor=parcelas.reduce((a,p)=>a+p.valor,0);
   const parentId=pagarEditId!==null?data.pagar[pagarEditId].parentId||genId():genId();
 
-  // Remove existing parcelas for this parent if editing
+  // Guarda o que a tela de edicao NAO mostra, para nao se perder na regravacao:
+  // valor ja pago, anexos e observacao da baixa. Sem isto, editar a descricao de
+  // uma conta paga pela metade fazia a diferenca desaparecer.
+  const guardados={};
   if(pagarEditId!==null){
     const existingParent=data.pagar[pagarEditId].parentId||data.pagar[pagarEditId].id;
+    data.pagar.forEach(r=>{
+      if(r.parentId===existingParent||r.id===existingParent){
+        guardados[r.id]={valorPago:r.valorPago,attachments:r.attachments,obsBaixa:r.obsBaixa};
+      }
+    });
     data.pagar=data.pagar.filter(r=>r.parentId!==existingParent&&r.id!==existingParent);
   }
 
@@ -1946,14 +1974,28 @@ async function savePagar(){
   };
 
   parcelas.forEach((p,i)=>{
-    data.pagar.push({
+    const id=p.id||genId();
+    const g=guardados[id]||{};
+    const reg={
       ...base,
-      id:p.id||genId(),
+      id,
       parcelaDesc:p.desc||`Parcela ${i+1}/${parcelas.length}`,
       valor:p.valor,
       venc:p.venc,
       dtPag:p.dtPag||null,
-    });
+    };
+    // Devolve o que a tela nao edita. Se a data de pagamento foi apagada na
+    // tela, o valor pago tambem sai — senao a conta ficaria "devendo" um
+    // valor que ninguem consegue mais ver de onde veio.
+    // O que foi digitado no campo "Valor pago" manda; se ficou vazio, mantem o
+    // que ja estava guardado.
+    if(reg.dtPag){
+      if(p.valorPago!==undefined && p.valorPago!==null) reg.valorPago=p.valorPago;
+      else if(g.valorPago!==undefined && g.valorPago!==null) reg.valorPago=g.valorPago;
+    }
+    if(g.attachments) reg.attachments=g.attachments;
+    if(reg.dtPag && g.obsBaixa) reg.obsBaixa=g.obsBaixa;
+    data.pagar.push(reg);
   });
 
   await persist(); render(); closePagar();
