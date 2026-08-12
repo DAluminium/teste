@@ -192,6 +192,13 @@ svg.icon{width:13px;height:13px;vertical-align:middle;fill:none;stroke:currentCo
 cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-height:0}
 .pass-eye:hover{color:#5A6370}
 </style>
+<script>
+// Marca que este modulo esta aberto DENTRO do portal, para o CSS acima esconder
+// a faixa duplicada. Se a leitura falhar por ser outro dominio, e porque
+// estamos num quadro — entao vale a mesma regra.
+try{ if(window.self!==window.top) document.documentElement.classList.add('dentro-do-portal'); }
+catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
+</script>
 </head>
 <body>
 <!-- ================================================================
@@ -214,6 +221,12 @@ cursor:pointer;padding:4px;display:flex;align-items:center;color:#9AA1AB;line-he
      a faixa a pessoa aprende a ignorar, a cor diferente ela percebe sem ler. */
   .topbar{top:30px !important;background:#B9770E !important}
   .login-screen,.bloqueio{padding-top:30px}
+  /* Dentro do portal a faixa ja aparece la em cima. Duas empilhadas so ocupam
+     espaco e ainda empurram a barra de voltar para baixo do aviso. */
+  html.dentro-do-portal #faixa-teste{display:none}
+  html.dentro-do-portal body{padding-top:0}
+  html.dentro-do-portal .topbar{top:0 !important}
+  html.dentro-do-portal .login-screen,html.dentro-do-portal .bloqueio{padding-top:0}
   /* Na impressao o navegador nao imprime fundo colorido por padrao — a faixa
      sairia como texto branco em papel branco. Por isso ela vira texto preto
      com moldura. Um relatorio tirado do teste TEM de sair marcado: foi um

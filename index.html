@@ -181,6 +181,9 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
      a faixa a pessoa aprende a ignorar, a cor diferente ela percebe sem ler. */
   .topbar{top:30px !important;background:#B9770E !important}
   .login-screen,.bloqueio{padding-top:30px}
+  /* A area do modulo comeca abaixo da faixa. Sem isto a barra com o botao de
+     voltar ao portal nasce no topo absoluto e fica escondida atras do aviso. */
+  .frame-container{top:30px !important}
   /* Na impressao o navegador nao imprime fundo colorido por padrao — a faixa
      sairia como texto branco em papel branco. Por isso ela vira texto preto
      com moldura. Um relatorio tirado do teste TEM de sair marcado: foi um
@@ -190,6 +193,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
       box-shadow:none;line-height:1.6;margin-bottom:8px}
     body{padding-top:0}
     .topbar{top:0 !important}
+    .frame-container{top:0 !important}
   }
 </style>
 
