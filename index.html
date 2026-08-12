@@ -986,6 +986,7 @@ function setSSOToken(nome,role,modulos){
   localStorage.setItem('dalum-sso',JSON.stringify({nome,username,role:papel,modulos,ts:Date.now()}));
 }
 function voltarPortal(){
+  try{ sessionStorage.removeItem('portal-modulo-aberto'); }catch(e){}
   document.getElementById('frame-container').classList.remove('active');
   document.getElementById('frame-iframe').src='about:blank';
   document.getElementById('portal').style.display='block';
@@ -1003,6 +1004,10 @@ function abrirModulo(url,titulo){
   frame.onload=function(){ load.classList.remove('show'); };
   frame.src=url+(url.includes('?')?'&':'?')+'v='+FRAME_V;
   document.getElementById('frame-container').classList.add('active');
+  // Guarda qual modulo esta aberto. Sem isto, um F5 — que recarrega a pagina
+  // de fora, o portal — devolvia a pessoa para a escolha de modulos e ela
+  // perdia o lugar. E a gente vive pedindo Ctrl+Shift+R.
+  try{ sessionStorage.setItem('portal-modulo-aberto',JSON.stringify({url:url,titulo:titulo})); }catch(e){}
 }
 window.addEventListener('message',function(e){
   if(e.data==='voltarPortal') voltarPortal();
@@ -1052,6 +1057,16 @@ if(entrarPeloCracha()){
 } else {
   setTimeout(()=>document.getElementById('login-user').focus(),300);
 }
+
+// Reabre o modulo em que a pessoa estava. Nao reabre se o acesso foi recusado
+// — nesse caso a tela de aviso e que tem de aparecer.
+setTimeout(function(){
+  if(document.getElementById('bloqueio-acesso')) return;
+  if(sessionStorage.getItem('portal-logged')!=='true') return;
+  let m=null;
+  try{ m=JSON.parse(sessionStorage.getItem('portal-modulo-aberto')||'null'); }catch(e){}
+  if(m&&m.url&&m.titulo) abrirModulo(m.url,m.titulo);
+},400);
 </script>
 </body>
 </html>
