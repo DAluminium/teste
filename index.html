@@ -1060,13 +1060,16 @@ if(entrarPeloCracha()){
 
 // Reabre o modulo em que a pessoa estava. Nao reabre se o acesso foi recusado
 // — nesse caso a tela de aviso e que tem de aparecer.
-setTimeout(function(){
+// Reabre AGORA, sem esperar. Esperar fazia o portal piscar na tela antes de
+// o modulo voltar. Se o acesso for recusado, o aviso cobre tudo de qualquer
+// forma, entao nao ha por que aguardar a resposta do servidor para decidir.
+(function(){
   if(document.getElementById('bloqueio-acesso')) return;
   if(sessionStorage.getItem('portal-logged')!=='true') return;
   let m=null;
   try{ m=JSON.parse(sessionStorage.getItem('portal-modulo-aberto')||'null'); }catch(e){}
   if(m&&m.url&&m.titulo) abrirModulo(m.url,m.titulo);
-},400);
+})();
 </script>
 </body>
 </html>
