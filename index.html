@@ -543,10 +543,42 @@ function getAdminPass(u){ return(JSON.parse(localStorage.getItem('portal-admin-p
 // ---- DADOS PORTAL (usuários unificados) ----
 let portalData={usuarios:[]};
 
+// ---- ACESSO NEGADO PELO WORKER ----
+// O Worker recusa os sistemas de teste para quem não é administrador. Sem esta
+// tela o módulo apenas ficava sem dados, e um sistema zerado parece "não tem
+// nada cadastrado" — não "você não tem permissão". Foi exatamente essa
+// confusão que custou meia hora em 11/08/2026.
+function bloqueioAcesso(){
+  if(document.getElementById('bloqueio-acesso')) return;
+  const d=document.createElement('div');
+  d.id='bloqueio-acesso';
+  d.style.cssText='position:fixed;inset:0;z-index:300000;background:#fff;display:flex;'+
+    'align-items:center;justify-content:center;padding:24px;'+
+    'font-family:system-ui,-apple-system,"Segoe UI",sans-serif';
+  d.innerHTML='<div style="max-width:480px;text-align:center">'+
+    '<div style="font-size:46px;line-height:1;margin-bottom:16px">&#128274;</div>'+
+    '<h1 style="font-size:20px;margin:0 0 12px;color:#1f2937;font-weight:700">'+
+      'Este ambiente é só para administradores</h1>'+
+    '<p style="font-size:14.5px;line-height:1.65;color:#4b5563;margin:0 0 10px">'+
+      'Você abriu o <strong>ambiente de teste</strong>, que serve para experimentar '+
+      'mudanças antes de valerem. Ele não é o sistema do dia a dia.</p>'+
+    '<p style="font-size:13.5px;line-height:1.65;color:#6b7280;margin:0 0 22px">'+
+      'Não há nada errado e nada foi perdido. Seus lançamentos estão no sistema '+
+      'de verdade, no endereço abaixo.</p>'+
+    '<a href="https://daluminium.github.io/portal/" style="display:inline-block;'+
+      'background:#0e7490;color:#fff;text-decoration:none;padding:11px 20px;'+
+      'border-radius:8px;font-size:14.5px;font-weight:600">Ir para o sistema</a>'+
+    '<p style="font-size:12px;color:#9ca3af;margin:16px 0 0">'+
+      'daluminium.github.io/portal/</p>'+
+    '</div>';
+  document.body.appendChild(d);
+}
+
 async function loadPortalData(){
   try{
     // Busca usuários do sistema compras (base principal de usuários)
     const r=await fetch(WORKER_URL,{headers:cabecalhos('compras_teste')});
+    if(r.status===403){ bloqueioAcesso(); return; }
     if(!r.ok) return;
     const d=await r.json();
     if(d&&d.usuarios&&d.usuarios.length>0){

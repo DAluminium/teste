@@ -2128,10 +2128,10 @@ function setStatus(msg, color='rgba(255,255,255,0.8)'){
 }
 
 // ---- ACESSO NEGADO PELO WORKER ----
-// O Worker recusa os sistemas de teste para quem nao e administrador. Sem esta
-// tela o modulo apenas ficava sem dados, e um sistema zerado parece "nao tem
-// nada cadastrado" — nao "voce nao tem permissao". Foi exatamente essa
-// confusao que custou meia hora em 11/08/2026.
+// O Worker recusa os sistemas de teste para quem não é administrador. Sem esta
+// tela o módulo apenas ficava sem dados, e um sistema zerado parece "não tem
+// nada cadastrado" — não "você não tem permissão". Foi exatamente essa
+// confusão que custou meia hora em 11/08/2026.
 function bloqueioAcesso(){
   if(document.getElementById('bloqueio-acesso')) return;
   const d=document.createElement('div');
@@ -2142,13 +2142,13 @@ function bloqueioAcesso(){
   d.innerHTML='<div style="max-width:480px;text-align:center">'+
     '<div style="font-size:46px;line-height:1;margin-bottom:16px">&#128274;</div>'+
     '<h1 style="font-size:20px;margin:0 0 12px;color:#1f2937;font-weight:700">'+
-      'Este ambiente e so para administradores</h1>'+
+      'Este ambiente é só para administradores</h1>'+
     '<p style="font-size:14.5px;line-height:1.65;color:#4b5563;margin:0 0 10px">'+
-      'Voce abriu o <strong>ambiente de teste</strong>, que serve para experimentar '+
-      'mudancas antes de valerem. Ele nao e o sistema do dia a dia.</p>'+
+      'Você abriu o <strong>ambiente de teste</strong>, que serve para experimentar '+
+      'mudanças antes de valerem. Ele não é o sistema do dia a dia.</p>'+
     '<p style="font-size:13.5px;line-height:1.65;color:#6b7280;margin:0 0 22px">'+
-      'Nao ha nada errado e nada foi perdido. Seus lancamentos estao no sistema '+
-      'de verdade, no endereco abaixo.</p>'+
+      'Não há nada errado e nada foi perdido. Seus lançamentos estão no sistema '+
+      'de verdade, no endereço abaixo.</p>'+
     '<a href="https://daluminium.github.io/portal/" style="display:inline-block;'+
       'background:#0e7490;color:#fff;text-decoration:none;padding:11px 20px;'+
       'border-radius:8px;font-size:14.5px;font-weight:600">Ir para o sistema</a>'+
