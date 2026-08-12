@@ -436,6 +436,10 @@ async function fazerLogin(user,senha){
   });
   let j=null;
   try{ j=await r.json(); }catch(e){}
+  // Manutencao no login tambem mostra a tela de aviso. Sem isto, quem chegasse
+  // durante uma parada — que e a maioria, porque a pessoa chega para entrar —
+  // via so uma mensagem vermelha de erro, sem entender que era programado.
+  if(r.status===503){ telaManutencao((j&&j.mensagem)||''); const e=new Error('Em manutencao'); e.status=503; throw e; }
   if(!r.ok||!j||!j.token){
     const e=new Error((j&&j.erro)||('Worker '+r.status));
     e.status=r.status;
