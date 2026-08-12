@@ -469,6 +469,38 @@ function gravarLocal(){ localStorage.setItem(LS_KEY,JSON.stringify(dados)); }
 
 function status(txt,cor){ const e=document.getElementById('sync'); if(e){ e.textContent=txt; e.style.color=cor||'rgba(255,255,255,.85)'; } }
 
+// ---- SISTEMA EM MANUTENÇÃO ----
+// Ligada por uma variável no Cloudflare, para mexer no banco sem ninguém
+// gravando por cima. Melhor avisar do que a pessoa levar um erro seco no
+// meio de um lançamento e achar que perdeu o trabalho.
+function telaManutencao(msg){
+  const ja=document.getElementById('tela-manutencao');
+  if(ja){
+    const p=ja.querySelector('[data-msg]');
+    if(p&&msg) p.textContent=msg;
+    return;
+  }
+  const d=document.createElement('div');
+  d.id='tela-manutencao';
+  d.style.cssText='position:fixed;inset:0;z-index:300000;background:#fff;display:flex;'+
+    'align-items:center;justify-content:center;padding:24px;'+
+    'font-family:system-ui,-apple-system,"Segoe UI",sans-serif';
+  d.innerHTML='<div style="max-width:460px;text-align:center">'+
+    '<div style="font-size:46px;line-height:1;margin-bottom:16px">&#128736;</div>'+
+    '<h1 style="font-size:20px;margin:0 0 12px;color:#1f2937;font-weight:700">'+
+      'Sistema em manutenção</h1>'+
+    '<p data-msg style="font-size:14.5px;line-height:1.65;color:#4b5563;margin:0 0 10px">'+
+      (msg||'Estamos ajustando o sistema. Volta já.')+'</p>'+
+    '<p style="font-size:13.5px;line-height:1.65;color:#6b7280;margin:0 0 22px">'+
+      'Seus lançamentos estão guardados. Nada foi perdido — só não dá para '+
+      'gravar durante estes minutos.</p>'+
+    '<button onclick="location.reload()" style="background:#0e7490;color:#fff;border:0;'+
+      'padding:11px 20px;border-radius:8px;font-size:14.5px;font-weight:600;'+
+      'cursor:pointer;font-family:inherit">Tentar de novo</button>'+
+    '</div>';
+  document.body.appendChild(d);
+}
+
 // ---- ACESSO NEGADO PELO WORKER ----
 // O Worker recusa os sistemas de teste para quem não é administrador. Sem esta
 // tela o módulo apenas ficava sem dados, e um sistema zerado parece "não tem
@@ -507,6 +539,7 @@ async function buscarRemoto(){
   // parametro que muda a cada chamada.
   const url=WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7);
   const r=await fetch(url,{cache:'no-store',headers:cabecalhos()});
+  if(r.status===503){ let m=''; try{ m=(await r.json()).mensagem||''; }catch(e){} telaManutencao(m); throw new Error('Em manutencao'); }
   if(r.status===403){ bloqueioAcesso(); throw new Error('Acesso negado'); }
   if(!r.ok) throw new Error('Worker '+r.status);
   const j=await r.json();
