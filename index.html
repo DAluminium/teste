@@ -663,10 +663,15 @@ async function doLogin(){
   btn.textContent='Entrar'; btn.disabled=false;
   showPortal(cracha.nome, modulos, isAdmin);
 
+  // Esta leitura tem de acontecer TAMBÉM ao entrar, não só ao recarregar a
+  // página. É ela que descobre uma recusa do Worker — sem isso, quem não
+  // pode estar aqui via o portal normalmente e só batia na parede depois,
+  // ao clicar num módulo ou ao dar F5.
+  await loadPortalData();
+
   // Senha temporária: a troca grava na lista do banco, então precisa do
   // registro de lá. O crachá sozinho não serve para isso.
   if(cracha.tempPass){
-    await loadPortalData();
     const u=portalData.usuarios.find(x=>String(x.username||'').toLowerCase()===String(cracha.username||'').toLowerCase());
     if(u) setTimeout(()=>trocarSenhaUser(u),500);
   }
