@@ -2053,8 +2053,15 @@ async function sendBrowserNotifications(overdue, dueToday, leadCompromised, manu
 }
 
 // ---- JSONBIN SYNC ----
-const SUPA_URL='https://jirtkaaflnkwasorbita.supabase.co';
-const SUPA_KEY='sb_publishable_D50BtCRtBblorV3j1_Z68A_S2T8goU8';
+// A chave do banco NAO mora mais aqui. Esta pagina e publica: qualquer pessoa
+// que abrisse o codigo-fonte lia a chave e alcancava o banco inteiro por fora
+// do sistema, sem login nenhum. Hoje quem guarda a chave e o Worker, e toda
+// gravacao passa por ele — com cracha.
+//
+// As duas linhas continuam existindo, vazias, porque trechos antigos do codigo
+// ainda as mencionam. Nenhum deles usa o valor.
+const SUPA_URL='';
+const SUPA_KEY='';
 const SUPA_SISTEMA='compras_teste';
 let syncInterval = null;
 let isSyncing = false;

@@ -803,8 +803,15 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
 })();
 
 // ---- DATA ----
-const SUPA_URL='https://jirtkaaflnkwasorbita.supabase.co';
-const SUPA_KEY='sb_publishable_D50BtCRtBblorV3j1_Z68A_S2T8goU8';
+// A chave do banco NAO mora mais aqui. Esta pagina e publica: qualquer pessoa
+// que abrisse o codigo-fonte lia a chave e alcancava o banco inteiro por fora
+// do sistema, sem login nenhum. Hoje quem guarda a chave e o Worker, e toda
+// gravacao passa por ele — com cracha.
+//
+// As duas linhas continuam existindo, vazias, porque trechos antigos do codigo
+// ainda as mencionam. Nenhum deles usa o valor.
+const SUPA_URL='';
+const SUPA_KEY='';
 const SUPA_SISTEMA='financeiro_teste';
 let JSONBIN_BIN_ID = SUPA_SISTEMA;
 
@@ -1457,10 +1464,14 @@ async function persist(){
     data.atualizadoEm=carimbo;
     data.atualizadoPor=sessionStorage.getItem('fin-user')||'';
 
-    const resp=await fetch(SUPA_URL+'/rest/v1/app_data?id=eq.'+SUPA_SISTEMA,{
+    // Grava PELO WORKER, nao direto no banco. Escrever direto exigia carregar a
+    // chave do banco dentro desta pagina — e esta pagina e publica, entao a
+    // chave estava a vista de qualquer um que abrisse o codigo-fonte. Pelo
+    // Worker, quem guarda a chave e ele, e a gravacao ainda passa pelo cracha.
+    const resp=await fetch('https://daluminium-api.daluminium2.workers.dev',{
       method:'PATCH',
-      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({data:data,updated_at:new Date().toISOString()})
+      headers:cabecalhos(SUPA_SISTEMA,{'Content-Type':'application/json'}),
+      body:JSON.stringify({data:data})
     });
     // A resposta nao era conferida: um erro do servidor passava batido e a
     // tela mostrava "salvo" do mesmo jeito.
