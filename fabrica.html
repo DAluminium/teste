@@ -278,7 +278,15 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         </div>
         <div class="fg"><label>Responsável</label><input id="f-resp" placeholder="Quem toca agora"></div>
         <div class="fg"><label>Prazo de entrega</label><input type="date" id="f-prazo"></div>
-        <div class="fg"><label>Etapa atual</label><select id="f-etapa"></select></div>
+        <div class="fg"><label>Etapa atual</label><select id="f-etapa" onchange="trocouEtapa()"></select></div>
+        <!-- Previsão e justificativa valem para a ETAPA ATUAL, e cada etapa
+             guarda a sua. Assim dá para ver depois onde a obra ficou parada e
+             por quê — que é o que serve para cobrar quem atrasou. -->
+        <div class="fg"><label>Previsão nesta etapa</label><input id="f-prev" type="date" onchange="renderEsperaNota()"></div>
+        <div class="fg span2"><label>Justificativa da etapa <span id="f-just-etapa" style="font-weight:400;color:var(--gray-4)"></span></label>
+          <input id="f-just" type="text" placeholder="Ex.: aguardando vidro do fornecedor; curando silicone">
+          <div id="f-espera-nota" style="font-size:11.5px;margin-top:5px"></div>
+        </div>
         <div class="fg span2"><label>Observações</label><textarea id="f-obs" placeholder="Anotações da obra"></textarea></div>
       </div>
 
@@ -914,6 +922,78 @@ function classePrazo(o){
   if(d<=2) return 'hoje';
   return '';
 }
+// ---- PREVISÃO E JUSTIFICATIVA POR ETAPA ----
+// Atrasos acontecem em várias etapas, não só numa. Guardando previsão e motivo
+// em CADA etapa, o quadro deixa de mostrar "obra parada" e passa a mostrar onde
+// ela parou, por quê e há quantos dias — que é o que serve para cobrar.
+//
+// O responsável já vem da própria etapa (Compras, Produção, Qualidade...),
+// então a cobrança sai com endereço.
+function esperaDe(o, etapaId){
+  const e = (o && o.espera && o.espera[etapaId]) || null;
+  return { previsao: (e && e.previsao) || '', motivo: (e && e.motivo) || '' };
+}
+
+// Quantos dias a obra está na etapa atual. Vem do marco de entrada, que o
+// módulo já gravava desde o começo.
+function diasNaEtapa(o){
+  const ent = o && o.marcos && o.marcos[o.etapa];
+  if(!ent) return null;
+  const d = Math.floor((Date.now() - new Date(ent).getTime()) / 86400000);
+  return d < 0 ? 0 : d;
+}
+
+// O aviso que aparece no cartão. Prioridade: atraso em relação à previsão,
+// depois a justificativa, depois o tempo parado.
+function pillEspera(o){
+  if(o.etapa==='entrega') return '';
+  const e = esperaDe(o, o.etapa);
+  const dias = diasNaEtapa(o);
+
+  if(e.previsao){
+    const d = diasAte(e.previsao);
+    if(d !== null && d < 0){
+      return '<span class="pill pill-atraso" title="'+esc(e.motivo||'sem justificativa')+'">'+
+        'etapa atrasada '+Math.abs(d)+'d'+(e.motivo?' · '+esc(e.motivo):'')+'</span>';
+    }
+    return '<span class="pill pill-resp" title="'+esc(e.motivo||'')+'">prev. '+fmtData(e.previsao)+
+      (e.motivo?' · '+esc(e.motivo):'')+'</span>';
+  }
+  if(e.motivo){
+    return '<span class="pill pill-hoje">'+esc(e.motivo)+(dias!==null?' · '+dias+'d':'')+'</span>';
+  }
+  // Sem previsão nem motivo: só avisa quando o tempo parado já chama atenção.
+  if(dias !== null && dias >= 7){
+    return '<span class="pill pill-hoje" title="Sem justificativa registrada">parada há '+dias+'d</span>';
+  }
+  return '';
+}
+
+// Carrega na tela a previsão e a justificativa da etapa escolhida no momento.
+function trocouEtapa(){
+  const sel=document.getElementById('f-etapa');
+  const et=sel?sel.value:'';
+  const base=fichaBase||{};
+  const e=esperaDe(base, et);
+  document.getElementById('f-prev').value=e.previsao||'';
+  document.getElementById('f-just').value=e.motivo||'';
+  const nome=ETAPAS.find(function(x){ return x.id===et; });
+  document.getElementById('f-just-etapa').textContent = nome ? '— '+nome.nome+' · '+nome.resp : '';
+  renderEsperaNota();
+}
+
+function renderEsperaNota(){
+  const el=document.getElementById('f-espera-nota');
+  if(!el) return;
+  const prev=document.getElementById('f-prev').value;
+  if(!prev){ el.textContent=''; return; }
+  const d=diasAte(prev);
+  if(d===null){ el.textContent=''; return; }
+  if(d<0){ el.style.color='#c0392b'; el.textContent='Previsão vencida há '+Math.abs(d)+' dia(s).'; }
+  else if(d===0){ el.style.color='#b9770e'; el.textContent='A previsão é hoje.'; }
+  else { el.style.color='var(--gray-4)'; el.textContent='Faltam '+d+' dia(s) para a previsão.'; }
+}
+
 function pillPrazo(o){
   if(o.etapa==='entrega') return '<span class="pill pill-ok">Entregue</span>';
   const d=diasAte(o.prazo);
@@ -967,6 +1047,7 @@ function htmlCartao(o){
     '<div class="cartao-titulo">'+esc(o.cliente||'(sem cliente)')+(o.obra?' <span style="font-weight:400;color:var(--gray-5)">· '+esc(o.obra)+'</span>':'')+'</div>'+
     '<div class="cartao-meta">'+
       pillPrazo(o)+
+      pillEspera(o)+
       (o.tipo?'<span class="pill pill-tipo">'+esc(o.tipo)+'</span>':'')+
       (o.responsavel?'<span class="pill pill-resp">'+esc(o.responsavel)+'</span>':'')+
       // Clipe com o numero de documentos: mostra de longe quais obras ja tem
@@ -1183,6 +1264,9 @@ function novaObra(){
   fichaDocs=[];
   popularSelectDoc();
   renderDocs();
+  document.getElementById('f-prev').value='';
+  document.getElementById('f-just').value='';
+  document.getElementById('f-espera-nota').textContent='';
   document.getElementById('ficha-linha').innerHTML='';
   document.getElementById('ficha-hist').innerHTML='';
   document.getElementById('ficha-btn-excluir').style.display='none';   // obra nova ainda nao existe
@@ -1207,6 +1291,7 @@ function abrirFicha(id){
   fichaDocs=Array.isArray(o.docs)?JSON.parse(JSON.stringify(o.docs)):[];
   popularSelectDoc();
   renderDocs();
+  trocouEtapa();          // traz a previsão e a justificativa da etapa atual
   document.getElementById('ficha-linha').innerHTML=htmlLinhaEtapas(o);
   document.getElementById('ficha-hist').innerHTML=htmlHistorico(o);
   // Obra excluida abre em modo consulta: da para restaurar, nao para editar.
@@ -1375,6 +1460,9 @@ async function salvarFicha(){
     if(!id){
       const o=Object.assign({id:novoId(),criadoPor:usuario,criadoEm:agoraISO(),marcos:{},historico:[],docs:[]},novo);
       o.docs=fichaDocs.slice();
+      const _p=document.getElementById('f-prev').value||'';
+      const _j=document.getElementById('f-just').value.trim();
+      if(_p||_j) o.espera={[o.etapa]:{previsao:_p,motivo:_j,por:usuario,em:agoraISO()}};
       o.marcos[o.etapa]=agoraISO();
       o.historico=[{quando:agoraISO(),quem:usuario,evento:'criacao'}];
       base.obras.push(o);
@@ -1386,6 +1474,9 @@ async function salvarFicha(){
     if(!o){
       o=Object.assign({id:id,marcos:{},historico:[],docs:[]},fichaBase||{},novo);
       o.docs=fichaDocs.slice();
+      const _p=document.getElementById('f-prev').value||'';
+      const _j=document.getElementById('f-just').value.trim();
+      if(_p||_j) o.espera={[o.etapa]:{previsao:_p,motivo:_j,por:usuario,em:agoraISO()}};
       base.obras.push(o);
       return;
     }
@@ -1450,6 +1541,19 @@ async function salvarFicha(){
     Object.assign(o,resultado);
     o.historico=historico;
     o.docs=juntos;
+
+    // Previsão e justificativa da etapa que está na tela. As demais etapas do
+    // banco ficam como estão — a minha tela não sabe nada sobre elas e não tem
+    // por que sobrescrever.
+    if(!o.espera || typeof o.espera!=='object') o.espera={};
+    const etAlvo = resultado.etapa || o.etapa;
+    const prevTela = document.getElementById('f-prev').value || '';
+    const justTela = document.getElementById('f-just').value.trim();
+    if(prevTela || justTela){
+      o.espera[etAlvo] = { previsao:prevTela, motivo:justTela, por:usuario, em:quando };
+    } else {
+      delete o.espera[etAlvo];      // limpou os dois campos: some o registro
+    }
   });
   if(ok) fecharFicha();
 }
