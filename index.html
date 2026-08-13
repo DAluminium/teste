@@ -236,9 +236,16 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
     <div class="admin-section" id="admin-section" style="display:none">
       <div class="admin-title">⚙️ Administração</div>
       <div class="admin-cards">
-        <div class="admin-card" onclick="openUsuarios()">
+        <div class="admin-card" id="card-usuarios" onclick="openUsuarios()">
           <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           Gerenciar usuários
+        </div>
+        <!-- No ambiente de teste esta tela dá lugar a um recado: o cadastro de
+             usuários é único e mora em produção. Ver ajustarCadastroDeUsuarios. -->
+        <div class="admin-card" id="card-usuarios-teste" style="display:none;cursor:default;opacity:.8">
+          <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span style="text-align:left;line-height:1.4">Usuários ficam em produção<br>
+            <span style="font-size:10.5px;font-weight:400;opacity:.85">Cadastre em daluminium.github.io/portal/</span></span>
         </div>
         <div class="admin-card" onclick="changeMyPass()">
           <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -748,6 +755,7 @@ function showPortal(nome, modulos, isAdmin){
     String(sessionStorage.getItem('portal-role')||'').toLowerCase()==='gerente';
   if(podeAdministrar) document.getElementById('admin-section').style.display='block';
   else document.getElementById('admin-section').style.display='none';
+  ajustarCadastroDeUsuarios();
   setSSOToken(nome, isAdmin?'admin':'user', modulos);
   registrarSessaoPortal(nome, sessionStorage.getItem('portal-admin-key')||nome);
   startSessionCheckPortal();
@@ -816,7 +824,36 @@ function ajustarPapeisDisponiveis(){
   sel.innerHTML=podem.map(function(r){ return '<option value="'+r+'">'+rot[r]+'</option>'; }).join('');
 }
 
-function openUsuarios(){ document.getElementById('usuarios-overlay').classList.add('open'); ajustarPapeisDisponiveis(); loadPortalData(); }
+// O cadastro de usuários é ÚNICO e mora em produção: o login do Worker sempre
+// lê a lista de `compras`, em qualquer ambiente. O portal de teste gravava em
+// `compras_teste`, um lugar que ninguém consulta — dava para cadastrar alguém
+// que nunca conseguiria entrar, e sem aviso nenhum. Aconteceu em 13/08/2026.
+//
+// A marca de que este é o ambiente de teste é a própria faixa. O arquivo de
+// produção é montado sem ela, então lá esta troca não acontece e a tela
+// funciona normalmente.
+function ambienteDeTeste(){ return !!document.getElementById('faixa-teste'); }
+function ajustarCadastroDeUsuarios(){
+  if(!ambienteDeTeste()) return;
+  const c=document.getElementById('card-usuarios');
+  const t=document.getElementById('card-usuarios-teste');
+  if(c) c.style.display='none';
+  if(t) t.style.display='';
+}
+
+function openUsuarios(){
+  // Esconder o cartão não basta: a trava fica aqui.
+  if(ambienteDeTeste()){
+    alert('O cadastro de usuários é único e fica em produção.\n\n' +
+          'O login sempre consulta a lista de lá, em qualquer ambiente. ' +
+          'Cadastrar por aqui criaria alguém que nunca conseguiria entrar.\n\n' +
+          'Use daluminium.github.io/portal/');
+    return;
+  }
+  document.getElementById('usuarios-overlay').classList.add('open');
+  ajustarPapeisDisponiveis();
+  loadPortalData();
+}
 function closeUsuarios(){ document.getElementById('usuarios-overlay').classList.remove('open'); }
 
 function renderUserList(){
