@@ -620,7 +620,7 @@ function bloqueioAcesso(){
 async function loadPortalData(){
   try{
     // Busca usuários do sistema compras (base principal de usuários)
-    const r=await fetch(WORKER_URL,{headers:cabecalhos('compras_teste')});
+    const r=await fetch(WORKER_URL+'?t='+Date.now(),{cache:'no-store',headers:cabecalhos('compras_teste')});
     if(r.status===503){ let m=''; try{ m=(await r.json()).mensagem||''; }catch(e){} telaManutencao(m); return; }
     if(r.status===403){ bloqueioAcesso(); return; }
     if(!r.ok) return;

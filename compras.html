@@ -2220,7 +2220,8 @@ function bloqueioAcesso(){
 }
 
 async function fetchBin(apiKey, binId){
-  const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
+  const r=await fetch('https://daluminium-api.daluminium2.workers.dev?t='+Date.now(),{
+    cache:'no-store',
     headers:cabecalhos(SUPA_SISTEMA)
   });
   if(r.status===503){ let m=''; try{ m=(await r.json()).mensagem||''; }catch(e){} telaManutencao(m); throw new Error('Em manutencao'); }
