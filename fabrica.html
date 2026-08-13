@@ -325,6 +325,26 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
 </div>
 
 <!-- TIPOS DE OBRA -->
+<!-- AVISO — substitui o alert() do navegador.
+     O navegador escreve "daluminium.github.io diz" em cima da própria janela e
+     não deixa mudar isso: é proteção dele, para a pessoa saber quem está
+     falando. A saída é não usar a janela dele.
+     z-index acima das outras porque um aviso pode nascer de dentro de uma
+     janela já aberta — a ficha da obra ou a de cadastros. -->
+<div class="overlay" id="aviso-ov" style="z-index:400">
+  <div class="modal" style="max-width:430px">
+    <div class="modal-head">
+      <div class="modal-title" id="aviso-titulo">Aviso</div>
+    </div>
+    <div class="modal-body">
+      <div id="aviso-texto" style="font-size:13.5px;line-height:1.6;white-space:pre-line;color:var(--gray-6)"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-teal" id="aviso-btn" onclick="fecharAviso()">Entendi</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="tipos-ov">
   <div class="modal" style="max-width:520px">
     <div class="modal-head">
@@ -590,6 +610,28 @@ function gravarLocal(){ localStorage.setItem(LS_KEY,JSON.stringify(dados)); }
 
 function status(txt,cor){ const e=document.getElementById('sync'); if(e){ e.textContent=txt; e.style.color=cor||'rgba(255,255,255,.85)'; } }
 
+// ---- AVISO NA TELA ----
+// No lugar do alert() do navegador. Ganha título, sai o "daluminium.github.io
+// diz" e fica no visual do sistema.
+//
+// Uma diferença que importa: o alert() do navegador PARA o código até a pessoa
+// clicar; este não para. Onde o que vem depois do aviso não pode acontecer
+// antes da leitura — recarregar a página, por exemplo — passe a ação em
+// `aoFechar`, que roda no clique.
+let _avisoAoFechar=null;
+function aviso(titulo, texto, aoFechar){
+  document.getElementById('aviso-titulo').textContent = titulo || 'Aviso';
+  document.getElementById('aviso-texto').textContent  = texto || '';
+  _avisoAoFechar = aoFechar || null;
+  document.getElementById('aviso-ov').classList.add('open');
+  setTimeout(function(){ const b=document.getElementById('aviso-btn'); if(b) b.focus(); }, 60);
+}
+function fecharAviso(){
+  document.getElementById('aviso-ov').classList.remove('open');
+  const fn=_avisoAoFechar; _avisoAoFechar=null;
+  if(fn) fn();
+}
+
 // ---- SESSÃO VENCIDA ----
 // O crachá vale 8 horas. Quando vence, a leitura falha em silêncio (o módulo
 // cai na cópia local e a tela continua mostrando tudo) mas a gravação falha
@@ -601,11 +643,11 @@ function sessaoExpirada(){
   if(window.__sessaoExpirada) return;   // um aviso só, mesmo com várias chamadas
   window.__sessaoExpirada = true;
   try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){}
-  alert('Sua sessão expirou.\n\n' +
+  aviso('Sessão expirada',
         'O acesso vale 8 horas e o seu venceu. Nada foi perdido — o que você ' +
         'já tinha salvo continua guardado.\n\n' +
-        'Vamos voltar para a tela de entrada.');
-  location.reload();
+        'Vamos voltar para a tela de entrada.',
+        function(){ location.reload(); });
 }
 
 // ---- SISTEMA EM MANUTENÇÃO ----
@@ -724,7 +766,7 @@ async function alterar(fn){
     try{ confere=await buscarRemoto(); }catch(e){ confere=null; }
     if(!confere || confere.atualizadoEm!==carimbo){
       status('🔴 NÃO gravou no servidor','#ffcccc');
-      alert('ATENÇÃO — os dados NÃO foram salvos.\n\n'+
+      aviso('Os dados NÃO foram salvos',
             'O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+
             'A causa mais comum é o registro do módulo ainda não ter sido criado no banco.\n\n'+
             'Não continue cadastrando: o que você digitar será perdido. Avise o responsável pelo sistema.');
@@ -736,7 +778,7 @@ async function alterar(fn){
     return true;
   }catch(e){
     status('🔴 Não salvou — sem conexão','#ffcccc');
-    alert('Não foi possível salvar agora.\n\nVerifique a internet e tente de novo. Nada foi perdido: seus dados continuam na tela.');
+    aviso('Não foi possível salvar','Verifique a internet e tente de novo.\n\nNada foi perdido: seus dados continuam na tela.');
     return false;
   }
 }
@@ -852,7 +894,7 @@ async function addTipoDoc(){
 async function removerTipoDoc(label){
   const uso=usoTipoDoc(dados,label);
   if(uso){
-    alert('"'+label+'" está em uso em '+uso+' documento(s).\n\n'+
+    aviso('Tipo em uso','"'+label+'" está em uso em '+uso+' documento(s).\n\n'+
           'Não dá para excluir sem deixar esses documentos sem rótulo. '+
           'Troque o rótulo deles primeiro, se quiser mesmo remover.');
     return;
@@ -897,7 +939,7 @@ async function anexarDoc(ev){
   // 10 MB e o limite do plano gratuito do servico de arquivos. Avisar antes
   // e melhor do que deixar a pessoa esperar o envio para levar erro no fim.
   if(arq.size>10*1024*1024){
-    alert('Arquivo muito grande: '+fmtTamanho(arq.size)+'.\n\n'+
+    aviso('Arquivo muito grande','O arquivo tem '+fmtTamanho(arq.size)+'.\n\n'+
           'O limite e 10 MB. Se for um PDF de projeto, tente salvar em qualidade menor.');
     return;
   }
@@ -929,7 +971,7 @@ async function anexarDoc(ev){
     st.textContent='';
   }catch(e){
     st.textContent='';
-    alert('Nao consegui anexar o arquivo.\n\n'+e.message+
+    aviso('Não consegui anexar','O envio falhou: '+e.message+
           '\n\nO documento NAO foi guardado. Tente de novo.');
   }
   btn.disabled=false;
@@ -1245,7 +1287,7 @@ async function addTipo(){
   const nome=(inp.value||'').trim();
   if(!nome){ inp.focus(); return; }
   if(tiposDe(dados).some(function(t){ return t.label.toLowerCase()===nome.toLowerCase(); })){
-    alert('Já existe um tipo com esse nome.'); return;
+    aviso('Nome já cadastrado','Já existe um tipo com esse nome.'); return;
   }
   const ok=await alterar(function(base){
     const lista=tiposDe(base);
@@ -1265,7 +1307,7 @@ async function renomearTipo(i){
   const nome=novo.trim();
   if(nome===atual.label) return;
   if(lista.some(function(t,j){ return j!==i && t.label.toLowerCase()===nome.toLowerCase(); })){
-    alert('Já existe um tipo com esse nome.'); return;
+    aviso('Nome já cadastrado','Já existe um tipo com esse nome.'); return;
   }
   if(uso>0){
     const ok=confirm(
@@ -1312,7 +1354,7 @@ async function toggleTipo(i){
 async function removerTipo(i){
   const lista=tiposDe(dados);
   const atual=lista[i]; if(!atual) return;
-  if(usoTipo(dados,atual.label)>0){ alert('Este tipo já está em uso por alguma obra. Use Desativar.'); return; }
+  if(usoTipo(dados,atual.label)>0){ aviso('Tipo em uso','Alguma obra já usa este tipo. Em vez de excluir, use Desativar — ele sai do formulário e continua valendo nas obras antigas.'); return; }
   if(!confirm('Excluir o tipo "'+atual.label+'"?')) return;
   const alvo=atual.label;
   const ok=await alterar(function(base){
@@ -1322,7 +1364,7 @@ async function removerTipo(i){
     base.tipos=tiposDe(base).filter(function(t){ return t.label!==alvo; });
   });
   if(ok){
-    if(usoTipo(dados,alvo)>0) alert('O tipo não foi excluído: enquanto esta tela estava aberta, alguma obra passou a usá-lo.');
+    if(usoTipo(dados,alvo)>0) aviso('Tipo não excluído','Enquanto esta tela estava aberta, alguma obra passou a usar este tipo.');
     renderTipos();
   }
 }
@@ -1410,7 +1452,7 @@ async function excluirEtapa(id){
   if(!podeGerenciar()) return;
   const uso=usoEtapa(dados,id);
   if(uso){
-    alert('Esta etapa tem '+uso+' obra(s) dentro.\n\n'+
+    aviso('Etapa em uso','Esta etapa tem '+uso+' obra(s) dentro.\n\n'+
           'Excluir agora deixaria essas obras apontando para uma etapa que não existe. '+
           'Mova as obras para outra etapa primeiro, ou apenas INATIVE — assim ela some '+
           'do quadro quando a última obra sair.');
@@ -1425,7 +1467,7 @@ async function excluirEtapa(id){
     base.etapas=etapasDe(base).filter(function(x){ return x.id!==id; });
   });
   if(ok){
-    if(usoEtapa(dados,id)>0) alert('A etapa não foi excluída: enquanto esta tela estava aberta, alguma obra passou a usá-la.');
+    if(usoEtapa(dados,id)>0) aviso('Etapa não excluída','Enquanto esta tela estava aberta, alguma obra passou a usar esta etapa.');
     renderEtapas(); render();
   }
 }
@@ -1489,7 +1531,8 @@ function preencherSelectEtapas(etapaAtualDaFicha){
 function novaObra(){
   // A trava de verdade fica aqui, nao no botao escondido.
   if(!podeGerenciar()){
-    alert('Cadastrar obra é coisa do administrador ou do gerente.\n\n' +
+    aviso('Só administrador ou gerente',
+          'Cadastrar obra é coisa do administrador ou do gerente.\n\n' +
           'Você pode consultar e movimentar as obras que já existem.');
     return;
   }
@@ -1684,7 +1727,7 @@ async function salvarFicha(){
   // Cliente e identificacao da obra sao obrigatorios: sem eles nao da para
   // saber de qual obra o lancamento e. Avisa e nao grava nada.
   if(!cliente||!obra){
-    alert('Faltam dados obrigatórios:\n\n'+
+    aviso('Faltam dados obrigatórios',
           (!cliente?'• Cliente\n':'')+(!obra?'• Contrato (CT)\n':'')+
           '\nPreencha e salve de novo. Nada foi alterado.');
     (!cliente?document.getElementById('f-cliente'):document.getElementById('f-obra')).focus();
@@ -1899,6 +1942,13 @@ function abrirApp(nome,papelDoUsuario){
   if(window.innerWidth<760 && !localStorage.getItem('dalum-fabrica-view')) view='lista';
   setView(view);
   sincronizar();
+  // Clicar fora ou apertar Esc fecha o aviso. Os dois caminhos passam por
+  // fecharAviso(), então o que ficou pendente em `aoFechar` acontece igual —
+  // é o que garante que a sessão expirada recarregue a página de qualquer jeito.
+  document.getElementById('aviso-ov').addEventListener('click',function(e){ if(e.target===this) fecharAviso(); });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape' && document.getElementById('aviso-ov').classList.contains('open')) fecharAviso();
+  });
   document.getElementById('ficha-ov').addEventListener('click',function(e){ if(e.target===this) fecharFicha(); });
   document.getElementById('tipos-ov').addEventListener('click',function(e){ if(e.target===this) closeTipos(); });
 
