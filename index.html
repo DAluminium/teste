@@ -235,6 +235,12 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
     <!-- ADMIN -->
     <div class="admin-section" id="admin-section" style="display:none">
       <div class="admin-title">⚙️ Administração</div>
+      <!-- Aviso de cadastros feitos por outra pessoa. Só o admin vê. A
+           preocupação é alguém criar um usuário para lançar despesa em nome
+           de outro — e isso passar despercebido. -->
+      <div id="aviso-cadastros" style="display:none;background:#fdf6e3;border:1px solid #e8d9a8;
+        border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#7d5a10;
+        cursor:pointer;line-height:1.5" onclick="openUsuarios()"></div>
       <div class="admin-cards">
         <div class="admin-card" id="card-usuarios" onclick="openUsuarios()">
           <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -628,6 +634,7 @@ async function loadPortalData(){
     if(d&&d.usuarios&&d.usuarios.length>0){
       portalData.usuarios=d.usuarios;
       renderUserList();
+      mostrarAvisoCadastros();
     }
   }catch(e){ console.warn('Erro ao carregar portal data:', e); }
 }
@@ -810,6 +817,47 @@ function nivelDe(role){ return NIVEL[String(role||'').toLowerCase()] || 1; }
 function meuNivel(){ return nivelDe(sessionStorage.getItem('portal-role')||''); }
 function meuUsuario(){ return String(sessionStorage.getItem('portal-admin-key')||'').toLowerCase(); }
 
+function fmtDataHora(iso){
+  try{
+    const d=new Date(iso);
+    return d.toLocaleDateString('pt-BR')+' às '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  }catch(e){ return ''; }
+}
+
+// Cadastro feito por OUTRA pessoa nos últimos 7 dias. Serve para o admin bater
+// o olho e reconhecer o que não foi ele que fez — a preocupação é alguém criar
+// um usuário só para lançar despesa em nome de outro.
+//
+// Sete dias, e não "desde a última vez que olhei", de propósito: guardar o que
+// já foi visto exigiria mais um estado para manter em dia, e o aviso some
+// sozinho quando o cadastro deixa de ser novidade.
+function cadastroRecenteDeOutro(u){
+  if(!u || !u.criadoPor || !u.criadoEm) return false;
+  if(String(u.criadoPor).toLowerCase()===meuUsuario()) return false;
+  const dias=(Date.now()-new Date(u.criadoEm).getTime())/86400000;
+  return dias>=0 && dias<=7;
+}
+function cadastrosParaConferir(){
+  return (portalData.usuarios||[]).filter(cadastroRecenteDeOutro);
+}
+
+// Só o admin vê este aviso. Ele aparece depois que a lista de usuários chega
+// do servidor, por isso é chamado de dentro do loadPortalData.
+function mostrarAvisoCadastros(){
+  const el=document.getElementById('aviso-cadastros');
+  if(!el) return;
+  if(!souAdmin()){ el.style.display='none'; return; }
+  const novos=cadastrosParaConferir();
+  if(!novos.length){ el.style.display='none'; return; }
+  const quem={};
+  novos.forEach(function(u){ quem[u.criadoPor]=(quem[u.criadoPor]||0)+1; });
+  const porQuem=Object.keys(quem).map(function(k){ return k+' ('+quem[k]+')'; }).join(', ');
+  el.innerHTML='⚠️ <strong>'+novos.length+' usuário(s) cadastrado(s) por outra pessoa</strong> nos últimos 7 dias — '+
+    porQuem+'.<br><span style="font-size:11.5px">Toque para conferir. Vale olhar se são funcionários de verdade: '+
+    'um cadastro a mais permite lançar despesa e recebimento em outro nome.</span>';
+  el.style.display='block';
+}
+
 // Quem eu posso ver e alterar. Duas condições, e as duas valem juntas:
 //
 //   1. hierarquia — só quem está abaixo de mim
@@ -925,6 +973,8 @@ function renderUserList(){
       <div style="flex:1">
         <div style="font-weight:600;font-size:13px">${u.name} <span style="font-size:11px;color:var(--gray-4)">(${u.username})</span></div>
         <div style="font-size:11px;color:var(--gray-4)">${roleLabel[u.role]||u.role} · Módulos: ${(u.modulos||['compras']).join(', ')} · Senha: ••••••••</div>
+        ${(souAdmin()&&u.criadoPor)?`<div style="font-size:10.5px;color:${cadastroRecenteDeOutro(u)?'#b9770e':'var(--gray-4)'};margin-top:2px">
+          ${cadastroRecenteDeOutro(u)?'⚠️ ':''}cadastrado por <strong>${u.criadoPor}</strong>${u.criadoEm?' em '+fmtDataHora(u.criadoEm):''}</div>`:''}
       </div>
       <span style="font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;${u.active!==false?'background:var(--green-light);color:var(--green)':'background:var(--gray-2);color:var(--gray-4)'}">${u.active!==false?'Ativo':'Inativo'}</span>
       ${podeMexerEm(u)?`<button class="act act-edit" onclick="editUsuario(${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
