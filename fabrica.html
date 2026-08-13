@@ -282,6 +282,28 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg span2"><label>Observações</label><textarea id="f-obs" placeholder="Anotações da obra"></textarea></div>
       </div>
 
+      <!-- Documentos da obra: a lista de corte, de ferragens e de vidros saem
+           prontas do CEM, entao aqui elas so precisam ser guardadas e achadas
+           depois. O rotulo diz o que e o arquivo sem precisar abrir. -->
+      <div class="fg span2" style="margin-top:14px">
+        <label>Documentos da obra</label>
+        <div id="ficha-docs" style="display:flex;flex-direction:column;gap:6px;margin:6px 0"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="f-doc-tipo" style="font-size:12px;padding:6px 8px;border-radius:8px;border:1px solid #d5dbe0;font-family:inherit">
+            <option value="Lista de Corte">Lista de Corte</option>
+            <option value="Lista de Ferragens">Lista de Ferragens</option>
+            <option value="Lista de Vidros">Lista de Vidros</option>
+            <option value="Ordem de Produção">Ordem de Produção</option>
+            <option value="Projeto">Projeto</option>
+            <option value="Outro">Outro</option>
+          </select>
+          <input type="file" id="f-doc-arquivo" style="display:none" onchange="anexarDoc(event)">
+          <button type="button" class="btn btn-outline btn-sm" id="f-doc-btn"
+            onclick="document.getElementById('f-doc-arquivo').click()">📎 Anexar arquivo</button>
+          <span id="f-doc-status" style="font-size:11px;color:#7b8794"></span>
+        </div>
+      </div>
+
       <div id="ficha-linha"></div>
       <div class="hist" id="ficha-hist"></div>
     </div>
@@ -649,6 +671,99 @@ async function atualizarDoBanco(manual){
 function novoId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function agoraHora(){ return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
 function agoraISO(){ return new Date().toISOString(); }
+
+// ---- DOCUMENTOS DA OBRA ----
+// As listas de corte, ferragens e vidros saem prontas do CEM. O modulo nao
+// calcula nada: guarda o arquivo e deixa achar depois, com um rotulo dizendo
+// o que e. Mesmo servico de arquivos que o Compras ja usa.
+const CLOUD_NAME='ks3znltm';
+const UPLOAD_PRESET='daluminium';
+
+// Os documentos ficam numa lista de rascunho enquanto a ficha esta aberta, e
+// so entram na obra quando voce salva. Assim, anexar e desistir nao deixa
+// arquivo perdido no meio do caminho.
+let fichaDocs=[];
+
+function fmtTamanho(b){
+  return b>1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(b/1024))+' KB';
+}
+
+async function anexarDoc(ev){
+  const arq=ev.target.files && ev.target.files[0];
+  ev.target.value='';           // permite anexar o mesmo arquivo de novo
+  if(!arq) return;
+
+  // 10 MB e o limite do plano gratuito do servico de arquivos. Avisar antes
+  // e melhor do que deixar a pessoa esperar o envio para levar erro no fim.
+  if(arq.size>10*1024*1024){
+    alert('Arquivo muito grande: '+fmtTamanho(arq.size)+'.\n\n'+
+          'O limite e 10 MB. Se for um PDF de projeto, tente salvar em qualidade menor.');
+    return;
+  }
+
+  const st=document.getElementById('f-doc-status');
+  const btn=document.getElementById('f-doc-btn');
+  btn.disabled=true;
+  st.textContent='Enviando '+arq.name+'...';
+  try{
+    const ehPdf=arq.type==='application/pdf';
+    const fd=new FormData();
+    fd.append('file',arq);
+    fd.append('upload_preset',UPLOAD_PRESET);
+    fd.append('folder','daluminium_fabrica');
+    const r=await fetch('https://api.cloudinary.com/v1_1/'+CLOUD_NAME+'/'+(ehPdf?'raw':'auto')+'/upload',
+      {method:'POST',body:fd});
+    if(!r.ok) throw new Error('Servidor de arquivos recusou ('+r.status+')');
+    const j=await r.json();
+    fichaDocs.push({
+      id:novoId(),
+      tipo:document.getElementById('f-doc-tipo').value,
+      nome:arq.name,
+      url:j.secure_url,
+      tamanho:arq.size,
+      quem:usuario,
+      quando:agoraISO()
+    });
+    renderDocs();
+    st.textContent='';
+  }catch(e){
+    st.textContent='';
+    alert('Nao consegui anexar o arquivo.\n\n'+e.message+
+          '\n\nO documento NAO foi guardado. Tente de novo.');
+  }
+  btn.disabled=false;
+}
+
+function removerDoc(id){
+  const d=fichaDocs.find(x=>x.id===id);
+  if(!d) return;
+  if(!confirm('Remover "'+d.nome+'" desta obra?\n\nO arquivo sai da ficha quando voce salvar.')) return;
+  fichaDocs=fichaDocs.filter(x=>x.id!==id);
+  renderDocs();
+}
+
+function renderDocs(){
+  const el=document.getElementById('ficha-docs');
+  if(!el) return;
+  if(!fichaDocs.length){
+    el.innerHTML='<div style="font-size:11.5px;color:#9aa5b1">Nenhum documento anexado.</div>';
+    return;
+  }
+  el.innerHTML=fichaDocs.map(function(d){
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;'+
+      'background:#f7f9fa;border:1px solid #e3e8eb;border-radius:8px">'+
+      '<span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#0e7490;'+
+        'background:#e0f2f5;padding:2px 6px;border-radius:5px;white-space:nowrap">'+
+        (d.tipo||'Documento')+'</span>'+
+      '<a href="'+d.url+'" target="_blank" rel="noopener" '+
+        'style="flex:1;font-size:12px;color:#2c3e50;text-decoration:none;overflow:hidden;'+
+        'text-overflow:ellipsis;white-space:nowrap" title="'+d.nome+'">'+d.nome+'</a>'+
+      '<span style="font-size:10.5px;color:#9aa5b1;white-space:nowrap">'+fmtTamanho(d.tamanho||0)+'</span>'+
+      '<button type="button" onclick="removerDoc(\''+d.id+'\')" title="Remover"'+
+        ' style="border:0;background:transparent;color:#c0392b;cursor:pointer;font-size:14px;padding:0 2px">&times;</button>'+
+      '</div>';
+  }).join('');
+}
 function fmtData(d){ if(!d) return '—'; const p=String(d).split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:d; }
 function fmtQuando(iso){
   if(!iso) return '';
@@ -731,6 +846,10 @@ function htmlCartao(o){
       pillPrazo(o)+
       (o.tipo?'<span class="pill pill-tipo">'+esc(o.tipo)+'</span>':'')+
       (o.responsavel?'<span class="pill pill-resp">'+esc(o.responsavel)+'</span>':'')+
+      // Clipe com o numero de documentos: mostra de longe quais obras ja tem
+      // a lista do CEM e quais ainda estao esperando.
+      ((o.docs&&o.docs.length)?'<span class="pill" style="background:#e0f2f5;color:#0e7490" '+
+        'title="'+o.docs.length+' documento(s) anexado(s)">&#128206; '+o.docs.length+'</span>':'')+
     '</div></div>';
 }
 
@@ -938,6 +1057,8 @@ function novaObra(){
   document.getElementById('f-prazo').value='';
   document.getElementById('f-etapa').value=ETAPAS[0].id;
   document.getElementById('f-obs').value='';
+  fichaDocs=[];
+  renderDocs();
   document.getElementById('ficha-linha').innerHTML='';
   document.getElementById('ficha-hist').innerHTML='';
   document.getElementById('ficha-btn-excluir').style.display='none';   // obra nova ainda nao existe
@@ -959,6 +1080,8 @@ function abrirFicha(id){
   document.getElementById('f-prazo').value=o.prazo||'';
   document.getElementById('f-etapa').value=o.etapa||ETAPAS[0].id;
   document.getElementById('f-obs').value=o.obs||'';
+  fichaDocs=Array.isArray(o.docs)?JSON.parse(JSON.stringify(o.docs)):[];
+  renderDocs();
   document.getElementById('ficha-linha').innerHTML=htmlLinhaEtapas(o);
   document.getElementById('ficha-hist').innerHTML=htmlHistorico(o);
   // Obra excluida abre em modo consulta: da para restaurar, nao para editar.
@@ -1125,7 +1248,8 @@ async function salvarFicha(){
   const id=fichaId;
   const ok=await alterar(async function(base){
     if(!id){
-      const o=Object.assign({id:novoId(),criadoPor:usuario,criadoEm:agoraISO(),marcos:{},historico:[]},novo);
+      const o=Object.assign({id:novoId(),criadoPor:usuario,criadoEm:agoraISO(),marcos:{},historico:[],docs:[]},novo);
+      o.docs=fichaDocs.slice();
       o.marcos[o.etapa]=agoraISO();
       o.historico=[{quando:agoraISO(),quem:usuario,evento:'criacao'}];
       base.obras.push(o);
@@ -1135,7 +1259,8 @@ async function salvarFicha(){
     // Obra sumiu do banco (nao deveria acontecer — nao existe excluir).
     // Devolve a minha versao em vez de perder o registro.
     if(!o){
-      o=Object.assign({id:id,marcos:{},historico:[]},fichaBase||{},novo);
+      o=Object.assign({id:id,marcos:{},historico:[],docs:[]},fichaBase||{},novo);
+      o.docs=fichaDocs.slice();
       base.obras.push(o);
       return;
     }
@@ -1179,8 +1304,27 @@ async function salvarFicha(){
     });
     const historico=unirHistorico(o.historico,(fichaBase&&fichaBase.historico)||[]).concat(novasLinhas);
 
+    // Documentos sao lista, entao seguem a regra do historico: UNIAO, nunca
+    // substituicao. Se duas pessoas anexarem ao mesmo tempo, os dois arquivos
+    // ficam — a minha tela nao apaga o que a outra acabou de mandar.
+    //
+    // A excecao e o que EU removi de proposito: comparo com o que existia
+    // quando abri a ficha para saber a diferenca entre "removi" e "nunca vi".
+    const docsBanco = Array.isArray(o.docs) ? o.docs : [];
+    const docsAbertura = (fichaBase && Array.isArray(fichaBase.docs)) ? fichaBase.docs : [];
+    const meusIds = fichaDocs.map(function(d){ return d.id; });
+    const removidos = docsAbertura
+      .filter(function(d){ return meusIds.indexOf(d.id)<0; })
+      .map(function(d){ return d.id; });
+
+    const juntos = docsBanco.concat(fichaDocs).filter(function(d,i,todos){
+      if(removidos.indexOf(d.id)>=0) return false;
+      return todos.findIndex(function(x){ return x.id===d.id; })===i;   // sem repetir
+    });
+
     Object.assign(o,resultado);
     o.historico=historico;
+    o.docs=juntos;
   });
   if(ok) fecharFicha();
 }
