@@ -737,9 +737,15 @@ function showPortal(nome, modulos, isAdmin){
   document.getElementById('portal').style.display='block';
   document.getElementById('topbar-nome').textContent=nome;
   document.getElementById('greeting-nome').textContent=nome.split(' ')[0];
-  // Gerente tambem entra aqui: ele cadastra funcionario, so que apenas
-  // abaixo dele. Quem limita o alcance e a hierarquia, nao a porta.
-  const podeAdministrar = isAdmin || String(cracha.role||'').toLowerCase()==='gerente';
+  // Gerente também entra aqui: ele cadastra funcionário, só que apenas abaixo
+  // dele. Quem limita o alcance é a hierarquia, não a porta.
+  //
+  // O papel vem de `portal-role`, e não da variável do login: showPortal é
+  // chamada por três caminhos — login, crachá guardado e portal já aberto — e
+  // nos dois últimos aquela variável não existe. Usá-la quebrava a função no
+  // meio, e a tela ficava sem módulo nenhum.
+  const podeAdministrar = isAdmin ||
+    String(sessionStorage.getItem('portal-role')||'').toLowerCase()==='gerente';
   if(podeAdministrar) document.getElementById('admin-section').style.display='block';
   else document.getElementById('admin-section').style.display='none';
   setSSOToken(nome, isAdmin?'admin':'user', modulos);
