@@ -338,6 +338,23 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         style="width:100%;padding:9px 11px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:14px;margin-bottom:8px"
         oninput="renderTipos()">
       <div id="tipos-lista"></div>
+
+      <!-- Os rotulos dos documentos anexados na ficha da obra. Ficam aqui para
+           o Ander cadastrar os que precisar sem depender de alteracao no codigo. -->
+      <div style="border-top:1px solid var(--gray-2);margin-top:20px;padding-top:16px">
+        <div class="modal-title" style="font-size:15px;margin-bottom:10px">📎 Tipos de Documento</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <input id="tipodoc-novo" type="text" placeholder="Nome do tipo (ex.: Lista de Medição)"
+            style="flex:1;padding:9px 11px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:14px"
+            onkeydown="if(event.key==='Enter')addTipoDoc()">
+          <button class="btn btn-teal" onclick="addTipoDoc()">Adicionar</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--gray-4);margin-bottom:10px;line-height:1.5">
+          São os rótulos que aparecem ao anexar um documento na ficha da obra.
+          Um tipo já usado em algum documento não pode ser excluído.
+        </div>
+        <div id="tiposdoc-lista"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -699,6 +716,92 @@ function agoraISO(){ return new Date().toISOString(); }
 const CLOUD_NAME='ks3znltm';
 const UPLOAD_PRESET='daluminium';
 
+// Os rotulos dos documentos. Comecam com estes, e o Ander cadastra outros pela
+// tela de Tipos — mesma ideia dos tipos de obra, para nao depender de mim toda
+// vez que aparecer um documento novo no processo.
+const TIPOS_DOC_PADRAO=['Lista de Corte','Lista de Ferragens','Lista de Vidros',
+  'Lista de Medição','Ordem de Produção','Projeto','Outro'];
+
+// Se ainda nao houver lista gravada, monta a partir do que ja esta em uso nos
+// documentos das obras, mais os padroes. Assim nenhum rotulo antigo se perde.
+function tiposDocDe(obj){
+  if(obj && Array.isArray(obj.tiposDoc) && obj.tiposDoc.length) return obj.tiposDoc;
+  const vistos={}, lista=[];
+  ((obj&&obj.obras)||[]).forEach(function(o){
+    ((o&&o.docs)||[]).forEach(function(d){
+      const t=(d.tipo||'').trim();
+      if(!t||vistos[t.toLowerCase()]) return;
+      vistos[t.toLowerCase()]=1; lista.push(t);
+    });
+  });
+  TIPOS_DOC_PADRAO.forEach(function(t){
+    if(vistos[t.toLowerCase()]) return;
+    vistos[t.toLowerCase()]=1; lista.push(t);
+  });
+  return lista;
+}
+
+function usoTipoDoc(obj,label){
+  let n=0;
+  ((obj&&obj.obras)||[]).forEach(function(o){
+    ((o&&o.docs)||[]).forEach(function(d){ if((d.tipo||'')===label) n++; });
+  });
+  return n;
+}
+
+function popularSelectDoc(){
+  const sel=document.getElementById('f-doc-tipo');
+  if(!sel) return;
+  sel.innerHTML=tiposDocDe(dados).map(function(l){
+    return '<option value="'+esc(l)+'">'+esc(l)+'</option>';
+  }).join('');
+}
+
+async function addTipoDoc(){
+  const inp=document.getElementById('tipodoc-novo');
+  const nome=inp.value.trim();
+  if(!nome) return;
+  const ok=await alterar(function(base){
+    const lista=tiposDocDe(base);
+    // Ja existe com outra caixa alta? Nao duplica.
+    if(lista.some(function(t){ return t.toLowerCase()===nome.toLowerCase(); })){ base.tiposDoc=lista; return; }
+    lista.push(nome);
+    base.tiposDoc=lista;
+  });
+  if(ok){ inp.value=''; renderTiposDoc(); popularSelectDoc(); }
+}
+
+async function removerTipoDoc(label){
+  const uso=usoTipoDoc(dados,label);
+  if(uso){
+    alert('"'+label+'" está em uso em '+uso+' documento(s).\n\n'+
+          'Não dá para excluir sem deixar esses documentos sem rótulo. '+
+          'Troque o rótulo deles primeiro, se quiser mesmo remover.');
+    return;
+  }
+  if(!confirm('Remover o tipo "'+label+'"?')) return;
+  const ok=await alterar(function(base){
+    base.tiposDoc=tiposDocDe(base).filter(function(t){ return t!==label; });
+  });
+  if(ok){ renderTiposDoc(); popularSelectDoc(); }
+}
+
+function renderTiposDoc(){
+  const el=document.getElementById('tiposdoc-lista');
+  if(!el) return;
+  el.innerHTML=tiposDocDe(dados).map(function(l){
+    const uso=usoTipoDoc(dados,l);
+    return '<div style="display:flex;align-items:center;gap:8px;padding:7px 9px;'+
+      'border-bottom:1px solid var(--gray-2)">'+
+      '<span style="flex:1;font-size:13px">'+esc(l)+'</span>'+
+      '<span style="font-size:11px;color:var(--gray-4)">'+(uso?uso+' em uso':'não usado')+'</span>'+
+      '<button type="button" onclick="removerTipoDoc(\''+esc(l).replace(/'/g,"\\'")+'\')"'+
+        ' title="Remover" style="border:0;background:transparent;color:'+(uso?'var(--gray-3)':'#c0392b')+
+        ';cursor:pointer;font-size:15px;padding:0 4px">&times;</button>'+
+      '</div>';
+  }).join('');
+}
+
 // Os documentos ficam numa lista de rascunho enquanto a ficha esta aberta, e
 // so entram na obra quando voce salva. Assim, anexar e desistir nao deixa
 // arquivo perdido no meio do caminho.
@@ -943,7 +1046,7 @@ function popularSelectTipo(valorAtual){
   }
 }
 
-function openTipos(){ renderTipos(); document.getElementById('tipos-ov').classList.add('open'); }
+function openTipos(){ renderTipos(); renderTiposDoc(); document.getElementById('tipos-ov').classList.add('open'); }
 function closeTipos(){ document.getElementById('tipos-ov').classList.remove('open'); }
 
 function renderTipos(){
@@ -1078,6 +1181,7 @@ function novaObra(){
   document.getElementById('f-etapa').value=ETAPAS[0].id;
   document.getElementById('f-obs').value='';
   fichaDocs=[];
+  popularSelectDoc();
   renderDocs();
   document.getElementById('ficha-linha').innerHTML='';
   document.getElementById('ficha-hist').innerHTML='';
@@ -1101,6 +1205,7 @@ function abrirFicha(id){
   document.getElementById('f-etapa').value=o.etapa||ETAPAS[0].id;
   document.getElementById('f-obs').value=o.obs||'';
   fichaDocs=Array.isArray(o.docs)?JSON.parse(JSON.stringify(o.docs)):[];
+  popularSelectDoc();
   renderDocs();
   document.getElementById('ficha-linha').innerHTML=htmlLinhaEtapas(o);
   document.getElementById('ficha-hist').innerHTML=htmlHistorico(o);
