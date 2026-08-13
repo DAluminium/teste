@@ -950,17 +950,23 @@ function pillEspera(o){
   const e = esperaDe(o, o.etapa);
   const dias = diasNaEtapa(o);
 
+  // A justificativa vai numa LINHA PRÓPRIA, ocupando a largura toda do cartão.
+  // Dentro da etiqueta ela era cortada — "transporte em atra…" — e o texto
+  // completo só aparecia passando o mouse, o que no celular não existe.
+  const linhaMotivo = e.motivo
+    ? '<span style="flex-basis:100%;font-size:11px;color:var(--gray-5);line-height:1.35">'+
+      esc(e.motivo)+'</span>'
+    : '';
+
   if(e.previsao){
     const d = diasAte(e.previsao);
     if(d !== null && d < 0){
-      return '<span class="pill pill-atraso" title="'+esc(e.motivo||'sem justificativa')+'">'+
-        'etapa atrasada '+Math.abs(d)+'d'+(e.motivo?' · '+esc(e.motivo):'')+'</span>';
+      return '<span class="pill pill-atraso">etapa atrasada '+Math.abs(d)+'d</span>'+linhaMotivo;
     }
-    return '<span class="pill pill-resp" title="'+esc(e.motivo||'')+'">prev. '+fmtData(e.previsao)+
-      (e.motivo?' · '+esc(e.motivo):'')+'</span>';
+    return '<span class="pill pill-resp">prev. '+fmtData(e.previsao)+'</span>'+linhaMotivo;
   }
   if(e.motivo){
-    return '<span class="pill pill-hoje">'+esc(e.motivo)+(dias!==null?' · '+dias+'d':'')+'</span>';
+    return '<span class="pill pill-hoje">'+(dias!==null?'parada '+dias+'d':'em espera')+'</span>'+linhaMotivo;
   }
   // Sem previsão nem motivo: só avisa quando o tempo parado já chama atenção.
   if(dias !== null && dias >= 7){
