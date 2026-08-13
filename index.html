@@ -808,7 +808,21 @@ function renderModulos(modulos){
 const NIVEL={admin:3, gerente:2, compras:1, financeiro:1, consulta:1};
 function nivelDe(role){ return NIVEL[String(role||'').toLowerCase()] || 1; }
 function meuNivel(){ return nivelDe(sessionStorage.getItem('portal-role')||''); }
-function podeMexerEm(u){ return meuNivel() > nivelDe(u && u.role); }
+function meuUsuario(){ return String(sessionStorage.getItem('portal-admin-key')||'').toLowerCase(); }
+
+// Quem eu posso ver e alterar. Duas condições, e as duas valem juntas:
+//
+//   1. hierarquia — só quem está abaixo de mim
+//   2. autoria    — o gerente só enxerga quem ELE cadastrou
+//
+// O admin escapa da segunda: ele vê e administra todo mundo, senão ninguém
+// cuidaria dos usuários antigos, que não têm autor registrado.
+function souAdmin(){ return meuNivel()>=NIVEL.admin; }
+function criouEsse(u){ return String((u&&u.criadoPor)||'').toLowerCase()===meuUsuario(); }
+function podeMexerEm(u){
+  if(meuNivel() <= nivelDe(u && u.role)) return false;
+  return souAdmin() || criouEsse(u);
+}
 // Os papéis que EU posso conceder: só os de nível menor que o meu.
 function papeisQuePossoDar(){
   const meu=meuNivel();
@@ -826,9 +840,10 @@ function ajustarPapeisDisponiveis(){
 }
 
 // O cadastro de usuários é ÚNICO e mora em produção: o login do Worker sempre
-// lê a lista de `compras`, em qualquer ambiente. O portal de teste gravava em
-// `compras_teste`, um lugar que ninguém consulta — dava para cadastrar alguém
-// que nunca conseguiria entrar, e sem aviso nenhum. Aconteceu em 13/08/2026.
+// lê a lista de `compras`, em qualquer ambiente. Mas o portal de teste gravava
+// no registro de teste do Compras, um lugar que ninguém consulta — dava para
+// cadastrar alguém que nunca conseguiria entrar, e sem aviso nenhum.
+// Aconteceu em 13/08/2026.
 //
 // A marca de que este é o ambiente de teste é a própria faixa. O arquivo de
 // produção é montado sem ela, então lá esta troca não acontece e a tela
@@ -878,12 +893,35 @@ function openUsuarios(){
 function closeUsuarios(){ document.getElementById('usuarios-overlay').classList.remove('open'); }
 
 function renderUserList(){
-  const users=portalData.usuarios;
   const list=document.getElementById('user-list-portal');
   const roleLabel={compras:'Compras',gerente:'Gerente',financeiro:'Financeiro',consulta:'Consulta'};
-  if(!users.length){ list.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center;padding:8px">Nenhum usuário cadastrado.</p>'; return; }
+
+  // O gerente enxerga só quem ELE cadastrou; o admin enxerga todos.
+  //
+  // A posição original é levada junto porque os botões agem sobre a lista de
+  // verdade — filtrar sem guardar a posição faria o botão de excluir apagar o
+  // usuário errado.
+  // Ele também se enxerga na lista, para saber os próprios acessos — mas não
+  // aparece botão nenhum, porque alterar exige estar ACIMA na hierarquia e
+  // ninguém está acima de si mesmo. Para a própria senha existe o
+  // "Alterar minha senha".
+  const visiveis=portalData.usuarios
+    .map(function(u,i){ return {u:u, i:i}; })
+    .filter(function(x){
+      return souAdmin() || criouEsse(x.u) ||
+             String((x.u&&x.u.username)||'').toLowerCase()===meuUsuario();
+    });
+
+  if(!portalData.usuarios.length){ list.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center;padding:8px">Nenhum usuário cadastrado.</p>'; return; }
+  if(!visiveis.length){
+    list.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center;padding:14px;line-height:1.6">'+
+      'Nada para mostrar aqui ainda.<br>'+
+      '<span style="font-size:11.5px">Você vê o seu próprio cadastro e os funcionários que cadastrar. '+
+      'Os demais ficam com o administrador.</span></p>';
+    return;
+  }
   list.innerHTML='<div style="font-size:13px;font-weight:600;margin-bottom:8px">Usuários cadastrados</div>'+
-    users.map((u,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--gray-1);border-radius:8px;border:1px solid var(--gray-2);margin-bottom:6px">
+    visiveis.map(({u,i})=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--gray-1);border-radius:8px;border:1px solid var(--gray-2);margin-bottom:6px">
       <div style="flex:1">
         <div style="font-weight:600;font-size:13px">${u.name} <span style="font-size:11px;color:var(--gray-4)">(${u.username})</span></div>
         <div style="font-size:11px;color:var(--gray-4)">${roleLabel[u.role]||u.role} · Módulos: ${(u.modulos||['compras']).join(', ')} · Senha: ••••••••</div>
@@ -892,7 +930,7 @@ function renderUserList(){
       ${podeMexerEm(u)?`<button class="act act-edit" onclick="editUsuario(${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
       <button class="act" onclick="toggleUsuario(${i})" title="${u.active!==false?'Desativar':'Ativar'}">${u.active!==false?'🔒':'🔓'}</button>
       <button class="act act-del" onclick="removeUsuario(${i})"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>`
-      :`<span style="font-size:10.5px;color:var(--gray-4);white-space:nowrap" title="Só quem está acima na hierarquia pode alterar">acima de você</span>`}
+      :`<span style="font-size:10.5px;color:var(--gray-4);white-space:nowrap" title="Cadastrado por outra pessoa, ou acima de você na hierarquia">não é seu</span>`}
     </div>`).join('');
 }
 
@@ -917,7 +955,10 @@ async function addUsuario(){
     return;
   }
   const passHash=await sha256(pass);
-  portalData.usuarios.push({name,username,password:passHash,role,modulos,active:true,tempPass:true});
+  // Quem cadastrou fica registrado: e por isso que o gerente consegue depois
+  // enxergar so os seus. Sem isto nao haveria como saber de quem e cada um.
+  portalData.usuarios.push({name,username,password:passHash,role,modulos,active:true,tempPass:true,
+    criadoPor:meuUsuario(), criadoEm:new Date().toISOString()});
   await savePortalData();
   ['nu-name','nu-username','nu-pass'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('nu-mod-compras').checked=true;
