@@ -251,11 +251,11 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
           <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           Alterar minha senha
         </div>
-        <div class="admin-card" onclick="openManual()">
+        <div class="admin-card" data-so-admin onclick="openManual()">
           <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
           Manual de emergência
         </div>
-        <div class="admin-card" onclick="openSessoes()">
+        <div class="admin-card" data-so-admin onclick="openSessoes()">
           <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
           Sessões ativas
         </div>
@@ -755,6 +755,7 @@ function showPortal(nome, modulos, isAdmin){
     String(sessionStorage.getItem('portal-role')||'').toLowerCase()==='gerente';
   if(podeAdministrar) document.getElementById('admin-section').style.display='block';
   else document.getElementById('admin-section').style.display='none';
+  ajustarCartoesDeAdmin();
   ajustarCadastroDeUsuarios();
   setSSOToken(nome, isAdmin?'admin':'user', modulos);
   registrarSessaoPortal(nome, sessionStorage.getItem('portal-admin-key')||nome);
@@ -833,6 +834,26 @@ function ajustarPapeisDisponiveis(){
 // produção é montado sem ela, então lá esta troca não acontece e a tela
 // funciona normalmente.
 function ambienteDeTeste(){ return !!document.getElementById('faixa-teste'); }
+// Nem tudo na área de administração é para o gerente. As sessões ativas
+// mostram quem está trabalhando e a que horas, e permitem derrubar a sessão
+// de alguém — inclusive a do admin. O manual de emergência explica como mexer
+// no banco e recuperar o sistema.
+//
+// Esconder o cartão é só a parte visível: as funções conferem o papel também,
+// porque quem souber o nome delas pode chamá-las direto.
+function soAdmin(){ return String(sessionStorage.getItem('portal-role')||'').toLowerCase()==='admin'; }
+function ajustarCartoesDeAdmin(){
+  const eh=soAdmin();
+  document.querySelectorAll('[data-so-admin]').forEach(function(el){
+    el.style.display = eh ? '' : 'none';
+  });
+}
+function recusarSeNaoForAdmin(oque){
+  if(soAdmin()) return false;
+  alert('Isto é só para o administrador.\n\n' + oque);
+  return true;
+}
+
 function ajustarCadastroDeUsuarios(){
   if(!ambienteDeTeste()) return;
   const c=document.getElementById('card-usuarios');
@@ -999,10 +1020,14 @@ document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==
 
 // ---- SESSÕES ATIVAS ----
 
-function openManual(){ document.getElementById('manual-overlay').classList.add('open'); }
+function openManual(){
+  if(recusarSeNaoForAdmin('O manual explica como recuperar o sistema e mexer no banco.')) return;
+  document.getElementById('manual-overlay').classList.add('open');
+}
 function closeManual(){ document.getElementById('manual-overlay').classList.remove('open'); }
 
 function openSessoes(){
+  if(recusarSeNaoForAdmin('A lista mostra quem esta trabalhando e permite encerrar a sessao de qualquer pessoa.')) return;
   document.getElementById('sessoes-panel').style.display='block';
   loadSessoes();
 }
