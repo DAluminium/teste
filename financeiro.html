@@ -1393,7 +1393,7 @@ async function persistUsers(){
   }catch(e){ console.warn('Erro ao salvar usuários:', e); }
 }
 
-function _garanteCat(){ try{ buildCatLabel(); popularSelectCat(); }catch(e){} }
+function _garanteCat(){ try{ buildCatLabel(); popularSelectCat(); popularFiltroCat(); }catch(e){} }
 // ---- ALTERACAO SIMULTANEA: comparar, mostrar e deixar escolher ----
 // Aqui os lancamentos tem "id", entao da para distinguir inclusao de edicao —
 // diferente do Compras, onde a comparacao e so pelo conteudo.
@@ -1603,7 +1603,7 @@ function renderCategorias(){
   }).join('');
 }
 async function salvarCategorias(){
-  buildCatLabel(); popularSelectCat(); renderCategorias(); render();
+  buildCatLabel(); popularSelectCat(); popularFiltroCat(); renderCategorias(); render();
   await persist();
 }
 async function addCategoria(){
@@ -1673,6 +1673,33 @@ function buildCatLabel(){ CAT_LABEL={}; getCategorias().forEach(c=>{ CAT_LABEL[c
 function popularSelectCat(){ const sel=document.getElementById('p-cat'); if(!sel) return; const atual=sel.value;
   sel.innerHTML=getCategorias().filter(c=>c.ativo!==false).map(c=>`<option value="${c.id}">${c.label}</option>`).join('');
   if(atual) sel.value=atual; }
+
+// O filtro de categoria tinha uma lista FIXA, escrita no arquivo. Toda conta
+// cadastrada depois — Honorários advocatícios, Comissão, Consultorias,
+// Combustível, Férias — ficava fora dele: existia nos lançamentos, mas não
+// dava para filtrar por ela. Agora a lista vem do cadastro, como no
+// formulário de despesa.
+//
+// Categoria desativada entra na lista se ainda houver lançamento usando ela,
+// senão as despesas antigas ficariam sem como ser filtradas.
+function popularFiltroCat(){
+  const sel=document.getElementById('fil-pagar-cat');
+  if(!sel) return;
+  const atual=sel.value;
+  const emUso={};
+  (data.pagar||[]).forEach(function(r){ if(r.cat) emUso[r.cat]=1; });
+  const lista=getCategorias().filter(function(c){ return c.ativo!==false || emUso[c.id]; });
+  // Categoria que está nos lançamentos mas sumiu do cadastro também entra,
+  // senão aquelas despesas ficam inalcançáveis pelo filtro.
+  const temId={};
+  lista.forEach(function(c){ temId[c.id]=1; });
+  Object.keys(emUso).forEach(function(id){
+    if(!temId[id]) lista.push({id:id,label:(CAT_LABEL[id]||id)});
+  });
+  sel.innerHTML='<option value="">Todas categorias</option>'+
+    lista.map(function(c){ return '<option value="'+c.id+'">'+c.label+'</option>'; }).join('');
+  if(atual) sel.value=atual;
+}
 
 function pillStatus(s){
   if(s==='pago'||s==='recebido') return`<span class="pill pill-pago">${s==='pago'?'Pago':'Recebido'}</span>`;
@@ -2027,6 +2054,9 @@ function atualizarContagemReceber(mostrando,total){
 }
 
 function renderPagar(){
+  // O filtro se refaz junto com a lista: categoria cadastrada agora tem de
+  // aparecer sem precisar recarregar a página.
+  popularFiltroCat();
   const tbody=document.getElementById('tbody-pagar');
   const filtStatus=document.getElementById('fil-pagar-status').value;
   const filtCat=document.getElementById('fil-pagar-cat').value;
