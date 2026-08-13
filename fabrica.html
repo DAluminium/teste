@@ -312,6 +312,19 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         </div>
       </div>
 
+      <!-- VÃOS DA OBRA — cada esquadria com o seu lugar.
+           Uma linha por vão, não um contador: na obra o que importa é QUAL foi
+           instalado. "2 de 3" não diz se falta a suíte do casal ou a de
+           hóspedes; "J3-2 · suíte hóspedes" diz. -->
+      <div class="fg span2" style="margin-top:14px">
+        <label>Vãos da obra <span id="f-vaos-resumo" style="font-weight:400;color:var(--gray-4)"></span></label>
+        <div id="ficha-vaos" style="display:flex;flex-direction:column;gap:4px;margin:6px 0"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button type="button" class="btn btn-outline btn-sm" onclick="abrirColarVaos()">📋 Colar lista do CEM</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="addVaoManual()">+ Um vão</button>
+        </div>
+      </div>
+
       <div id="ficha-linha"></div>
       <div class="hist" id="ficha-hist"></div>
     </div>
@@ -331,6 +344,39 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
      falando. A saída é não usar a janela dele.
      z-index acima das outras porque um aviso pode nascer de dentro de uma
      janela já aberta — a ficha da obra ou a de cadastros. -->
+<!-- COLAR A LISTA DE VÃOS.
+     O sistema não consegue ler o PDF anexado — para o computador ele é uma
+     imagem. Então a pessoa copia o texto e cola aqui.
+     E nada entra sem conferência: o que foi entendido aparece numa tabela
+     editável ANTES de virar vão. Testado com listas reais do CEM, o
+     entendimento acerta a maioria e erra alguns — localização que vem em
+     branco, medida que cai na linha de baixo. Por isso a conferência. -->
+<div class="overlay" id="colar-ov" style="z-index:300">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-head">
+      <div class="modal-title">📋 Colar a lista de vãos</div>
+      <button class="btn btn-outline btn-sm" onclick="fecharColarVaos()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--gray-5);line-height:1.55;margin-bottom:8px">
+        Abra o PDF da proposta ou da relação de itens, selecione a lista, copie e cole aqui.
+        Depois confira o que foi entendido — dá para corrigir tudo antes de confirmar.
+      </div>
+      <textarea id="colar-texto" placeholder="Cole aqui o texto copiado do PDF..."
+        style="width:100%;height:130px;padding:9px 11px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:monospace;font-size:12px"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;margin:8px 0">
+        <button class="btn btn-teal btn-sm" onclick="lerColagem()">Entender a lista</button>
+        <span id="colar-status" style="font-size:12px;color:var(--gray-5)"></span>
+      </div>
+      <div id="colar-previa"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" onclick="fecharColarVaos()">Cancelar</button>
+      <button class="btn btn-teal" id="colar-btn-ok" onclick="confirmarColagem()" style="display:none">Acrescentar à obra</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="aviso-ov" style="z-index:400">
   <div class="modal" style="max-width:430px">
     <div class="modal-head">
@@ -1034,6 +1080,177 @@ function classePrazo(o){
   if(d<=2) return 'hoje';
   return '';
 }
+// ================= VÃOS DA OBRA =================
+// Uma linha por vão, com o lugar dele. Instalação parcial é o normal aqui: o
+// cliente pede metade da casa, ou o vidro de um quarto atrasa. Com contador
+// ("2 de 3") não dá para saber QUAL falta; com uma linha por vão, dá.
+//
+// Rascunho enquanto a ficha está aberta; só entra na obra ao salvar, como os
+// documentos.
+let fichaVaos=[];
+let _colagem=[];
+
+// Lê a lista colada do CEM. São dois modelos, e nenhum dos dois é feito para
+// ser lido por máquina — então isto acerta a maioria e erra alguns. Por isso
+// o resultado passa por conferência antes de virar vão.
+function entenderLista(txt){
+  const achados=[];
+  String(txt||'').split(/\r?\n/).forEach(function(linha){
+    const l=linha.replace(/\s+$/,'');
+    if(!l.trim()) return;
+
+    // Modelo PROPOSTA:  P1   1   1200  2500   LINHA 42   SALA DE ESTAR
+    let m=l.match(/^\s*([A-Z]{1,3}\d{1,3})\s+(\d{1,3})\s+(\d{3,5})\s+(\d{3,5})\s+(.*)$/);
+    if(m){
+      const resto=m[5].trim().split(/\s{2,}/).filter(Boolean);
+      achados.push({tipo:m[1],qtd:+m[2],larg:+m[3],alt:+m[4],
+        local: resto.length>1 ? resto.slice(1).join(' ') : ''});
+      return;
+    }
+    // Modelo RELAÇÃO DE ITENS:  CEM   1   J1   1   2062  1118   [local]
+    m=l.match(/^CEM\s+(\d{1,3})\s+([A-Z]{1,3}\d{1,3})\s+(\d{1,3})\s+(\d{3,5})\s+(\d{3,5})\s*(.*)$/);
+    if(m){
+      achados.push({tipo:m[2],qtd:+m[3],larg:+m[4],alt:+m[5],local:(m[6]||'').trim()});
+      return;
+    }
+    // Item sem medida na mesma linha:  P2   1        GOLD      SALA DE ESTAR
+    m=l.match(/^\s*([A-Z]{1,3}\d{1,3})\s+(\d{1,3})\s{4,}(.*)$/);
+    if(m){
+      const resto=m[3].trim().split(/\s{2,}/).filter(Boolean);
+      achados.push({tipo:m[1],qtd:+m[2],larg:0,alt:0,
+        local: resto.length>1 ? resto.slice(1).join(' ') : ''});
+    }
+  });
+
+  // Quantidade maior que 1 vira uma linha por unidade: J3 qtd 3 → J3-1, J3-2,
+  // J3-3. Cada uma recebe o seu lugar depois — é o que o Ander pediu, e é como
+  // a obra funciona de verdade.
+  const vaos=[];
+  achados.forEach(function(a){
+    const n=Math.max(1,a.qtd||1);
+    for(let i=1;i<=n;i++){
+      vaos.push({
+        id:novoId(),
+        tipo: n>1 ? a.tipo+'-'+i : a.tipo,
+        local:a.local||'',
+        larg:a.larg||0, alt:a.alt||0,
+        inst:false, dtInst:'', quemInst:''
+      });
+    }
+  });
+  return vaos;
+}
+
+function abrirColarVaos(){
+  document.getElementById('colar-texto').value='';
+  document.getElementById('colar-previa').innerHTML='';
+  document.getElementById('colar-status').textContent='';
+  document.getElementById('colar-btn-ok').style.display='none';
+  _colagem=[];
+  document.getElementById('colar-ov').classList.add('open');
+}
+function fecharColarVaos(){ document.getElementById('colar-ov').classList.remove('open'); }
+
+function lerColagem(){
+  _colagem=entenderLista(document.getElementById('colar-texto').value);
+  const st=document.getElementById('colar-status');
+  if(!_colagem.length){
+    st.textContent='Não reconheci nenhum vão nesse texto.';
+    document.getElementById('colar-previa').innerHTML=
+      '<div style="font-size:12.5px;color:var(--gray-5);line-height:1.6;padding:10px 0">'+
+      'Pode ser que a cópia tenha vindo embaralhada — acontece com PDF. '+
+      'Nesse caso, use o botão <strong>+ Um vão</strong> e informe na mão.</div>';
+    document.getElementById('colar-btn-ok').style.display='none';
+    return;
+  }
+  st.textContent=_colagem.length+' vão(s) entendido(s). Confira e corrija antes de acrescentar.';
+  document.getElementById('colar-btn-ok').style.display='';
+  renderPrevia();
+}
+
+function renderPrevia(){
+  const el=document.getElementById('colar-previa');
+  el.innerHTML='<div style="font-size:11px;color:var(--gray-4);margin:6px 0">'+
+    'Tipo e localização são a identificação do vão. Linha em branco na localização '+
+    'é normal quando o PDF não trazia — preencha aqui.</div>'+
+    _colagem.map(function(v,i){
+      return '<div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">'+
+        '<input value="'+esc(v.tipo)+'" onchange="_colagem['+i+'].tipo=this.value.trim()" '+
+          'style="width:90px;padding:5px 7px;border:1px solid var(--gray-3);border-radius:6px;font-size:12px;font-family:inherit">'+
+        '<input value="'+esc(v.local)+'" placeholder="Localização (ex.: quarto 1)" '+
+          'onchange="_colagem['+i+'].local=this.value.trim()" '+
+          'style="flex:1;padding:5px 7px;border:1px solid var(--gray-3);border-radius:6px;font-size:12px;font-family:inherit">'+
+        '<span style="font-size:11px;color:var(--gray-4);width:90px;text-align:right">'+
+          (v.larg?v.larg+'x'+v.alt:'—')+'</span>'+
+        '<button type="button" onclick="_colagem.splice('+i+',1);renderPrevia()" title="Tirar da lista" '+
+          'style="border:0;background:transparent;color:#c0392b;cursor:pointer;font-size:15px">&times;</button>'+
+        '</div>';
+    }).join('');
+}
+
+function confirmarColagem(){
+  if(!_colagem.length) return;
+  fichaVaos=fichaVaos.concat(_colagem.map(function(v){ return Object.assign({},v,{id:novoId()}); }));
+  fecharColarVaos();
+  renderVaos();
+}
+
+function addVaoManual(){
+  fichaVaos.push({id:novoId(),tipo:'',local:'',larg:0,alt:0,inst:false,dtInst:'',quemInst:''});
+  renderVaos();
+}
+function removerVao(id){
+  fichaVaos=fichaVaos.filter(function(v){ return v.id!==id; });
+  renderVaos();
+}
+// Marcar guarda data e quem — é isso que responde "quando instalaram a janela
+// do quarto 2?" meses depois.
+function alternarVao(id){
+  const v=fichaVaos.find(function(x){ return x.id===id; });
+  if(!v) return;
+  v.inst=!v.inst;
+  v.dtInst = v.inst ? agoraISO() : '';
+  v.quemInst = v.inst ? usuario : '';
+  renderVaos();
+}
+function editarVao(id,campo,valor){
+  const v=fichaVaos.find(function(x){ return x.id===id; });
+  if(v) v[campo]=valor.trim();
+}
+
+function contarVaos(lista){
+  const total=(lista||[]).length;
+  const feitos=(lista||[]).filter(function(v){ return v.inst; }).length;
+  return {total:total,feitos:feitos};
+}
+
+function renderVaos(){
+  const el=document.getElementById('ficha-vaos');
+  if(!el) return;
+  const c=contarVaos(fichaVaos);
+  const res=document.getElementById('f-vaos-resumo');
+  if(res) res.textContent = c.total ? '— '+c.feitos+' de '+c.total+' instalados' : '';
+  if(!c.total){
+    el.innerHTML='<div style="font-size:11.5px;color:var(--gray-4)">Nenhum vão informado.</div>';
+    return;
+  }
+  el.innerHTML=fichaVaos.map(function(v){
+    return '<div style="display:flex;gap:6px;align-items:center;padding:5px 7px;border-radius:7px;'+
+      'background:'+(v.inst?'#eaf7ef':'var(--gray-1)')+';border:1px solid '+(v.inst?'#bfe3cd':'var(--gray-2)')+'">'+
+      '<input type="checkbox" '+(v.inst?'checked':'')+' onchange="alternarVao(\''+v.id+'\')" '+
+        'title="Marcar como instalado" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">'+
+      '<input value="'+esc(v.tipo)+'" placeholder="P1" onchange="editarVao(\''+v.id+'\',\'tipo\',this.value)" '+
+        'style="width:78px;padding:4px 6px;border:1px solid var(--gray-3);border-radius:6px;font-size:12px;font-family:inherit;font-weight:600">'+
+      '<input value="'+esc(v.local)+'" placeholder="onde fica" onchange="editarVao(\''+v.id+'\',\'local\',this.value)" '+
+        'style="flex:1;min-width:80px;padding:4px 6px;border:1px solid var(--gray-3);border-radius:6px;font-size:12px;font-family:inherit">'+
+      '<span style="font-size:10.5px;color:var(--gray-4);white-space:nowrap">'+(v.larg?v.larg+'x'+v.alt:'')+'</span>'+
+      (v.inst?'<span style="font-size:10px;color:#1e8449;white-space:nowrap" title="'+esc(v.quemInst||'')+'">'+fmtQuando(v.dtInst)+'</span>':'')+
+      '<button type="button" onclick="removerVao(\''+v.id+'\')" title="Remover" '+
+        'style="border:0;background:transparent;color:#c0392b;cursor:pointer;font-size:15px;flex-shrink:0">&times;</button>'+
+      '</div>';
+  }).join('');
+}
+
 // ---- PREVISÃO E JUSTIFICATIVA POR ETAPA ----
 // Atrasos acontecem em várias etapas, não só numa. Guardando previsão e motivo
 // em CADA etapa, o quadro deixa de mostrar "obra parada" e passa a mostrar onde
@@ -1112,6 +1329,17 @@ function renderEsperaNota(){
   else { el.style.color='var(--gray-4)'; el.textContent='Faltam '+d+' dia(s) para a previsão.'; }
 }
 
+// Andamento da instalação no cartão. Verde quando fecha, para dar de ver de
+// longe qual obra já está entregue por inteiro.
+function pillVaos(o){
+  const c=contarVaos(o.vaos);
+  if(!c.total) return '';
+  const cheio=c.feitos>=c.total;
+  return '<span class="pill" style="background:'+(cheio?'#eaf7ef':'var(--gray-1)')+
+    ';color:'+(cheio?'#1e8449':'var(--gray-5)')+'" title="Vãos instalados">'+
+    c.feitos+'/'+c.total+' instalados</span>';
+}
+
 function pillPrazo(o){
   if(o.etapa==='entrega') return '<span class="pill pill-ok">Entregue</span>';
   const d=diasAte(o.prazo);
@@ -1167,6 +1395,7 @@ function htmlCartao(o){
     '<div class="cartao-meta">'+
       pillPrazo(o)+
       pillEspera(o)+
+      pillVaos(o)+
       (o.tipo?'<span class="pill pill-tipo">'+esc(o.tipo)+'</span>':'')+
       (o.responsavel?'<span class="pill pill-resp">'+esc(o.responsavel)+'</span>':'')+
       // Clipe com o numero de documentos: mostra de longe quais obras ja tem
@@ -1551,6 +1780,8 @@ function novaObra(){
   fichaDocs=[];
   popularSelectDoc();
   renderDocs();
+  fichaVaos=[];
+  renderVaos();
   document.getElementById('f-prev').value='';
   document.getElementById('f-just').value='';
   document.getElementById('f-espera-nota').textContent='';
@@ -1579,6 +1810,8 @@ function abrirFicha(id){
   fichaDocs=Array.isArray(o.docs)?JSON.parse(JSON.stringify(o.docs)):[];
   popularSelectDoc();
   renderDocs();
+  fichaVaos=Array.isArray(o.vaos)?JSON.parse(JSON.stringify(o.vaos)):[];
+  renderVaos();
   trocouEtapa();          // traz a previsão e a justificativa da etapa atual
   document.getElementById('ficha-linha').innerHTML=htmlLinhaEtapas(o);
   document.getElementById('ficha-hist').innerHTML=htmlHistorico(o);
@@ -1748,6 +1981,7 @@ async function salvarFicha(){
     if(!id){
       const o=Object.assign({id:novoId(),criadoPor:usuario,criadoEm:agoraISO(),marcos:{},historico:[],docs:[]},novo);
       o.docs=fichaDocs.slice();
+      o.vaos=fichaVaos.slice();
       const _p=document.getElementById('f-prev').value||'';
       const _j=document.getElementById('f-just').value.trim();
       if(_p||_j) o.espera={[o.etapa]:{previsao:_p,motivo:_j,por:usuario,em:agoraISO()}};
@@ -1762,6 +1996,7 @@ async function salvarFicha(){
     if(!o){
       o=Object.assign({id:id,marcos:{},historico:[],docs:[]},fichaBase||{},novo);
       o.docs=fichaDocs.slice();
+      o.vaos=fichaVaos.slice();
       const _p=document.getElementById('f-prev').value||'';
       const _j=document.getElementById('f-just').value.trim();
       if(_p||_j) o.espera={[o.etapa]:{previsao:_p,motivo:_j,por:usuario,em:agoraISO()}};
@@ -1826,9 +2061,33 @@ async function salvarFicha(){
       return todos.findIndex(function(x){ return x.id===d.id; })===i;   // sem repetir
     });
 
+    // Vãos seguem a mesma regra dos documentos: união, nunca substituição.
+    // Duas pessoas na obra podem marcar vãos diferentes ao mesmo tempo, e
+    // nenhuma pode apagar o que a outra marcou.
+    //
+    // Quando o mesmo vão foi mexido dos dois lados, vale o INSTALADO: marcar é
+    // um fato que aconteceu na obra; desmarcar é correção. Entre perder o
+    // registro de uma instalação e manter uma marcação a mais, a segunda erra
+    // menos — e dá para desmarcar depois.
+    const vaosBanco = Array.isArray(o.vaos) ? o.vaos : [];
+    const vaosAbertura = (fichaBase && Array.isArray(fichaBase.vaos)) ? fichaBase.vaos : [];
+    const meusVaos = fichaVaos.map(function(v){ return v.id; });
+    const vaosRemovidos = vaosAbertura
+      .filter(function(v){ return meusVaos.indexOf(v.id)<0; })
+      .map(function(v){ return v.id; });
+
+    const vaosJuntos=[];
+    vaosBanco.concat(fichaVaos).forEach(function(v){
+      if(vaosRemovidos.indexOf(v.id)>=0) return;
+      const ja=vaosJuntos.find(function(x){ return x.id===v.id; });
+      if(!ja){ vaosJuntos.push(Object.assign({},v)); return; }
+      if(v.inst && !ja.inst){ ja.inst=true; ja.dtInst=v.dtInst; ja.quemInst=v.quemInst; }
+    });
+
     Object.assign(o,resultado);
     o.historico=historico;
     o.docs=juntos;
+    o.vaos=vaosJuntos;
 
     // Previsão e justificativa da etapa que está na tela. As demais etapas do
     // banco ficam como estão — a minha tela não sabe nada sobre elas e não tem
