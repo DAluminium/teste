@@ -495,6 +495,24 @@ function gravarLocal(){ localStorage.setItem(LS_KEY,JSON.stringify(dados)); }
 
 function status(txt,cor){ const e=document.getElementById('sync'); if(e){ e.textContent=txt; e.style.color=cor||'rgba(255,255,255,.85)'; } }
 
+// ---- SESSÃO VENCIDA ----
+// O crachá vale 8 horas. Quando vence, a leitura falha em silêncio (o módulo
+// cai na cópia local e a tela continua mostrando tudo) mas a gravação falha
+// com aviso — e o aviso dizia "verifique a internet", mandando a pessoa
+// procurar problema onde não havia.
+//
+// Agora diz o que é e leva de volta ao login.
+function sessaoExpirada(){
+  if(window.__sessaoExpirada) return;   // um aviso só, mesmo com várias chamadas
+  window.__sessaoExpirada = true;
+  try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){}
+  alert('Sua sessão expirou.\n\n' +
+        'O acesso vale 8 horas e o seu venceu. Nada foi perdido — o que você ' +
+        'já tinha salvo continua guardado.\n\n' +
+        'Vamos voltar para a tela de entrada.');
+  location.reload();
+}
+
 // ---- SISTEMA EM MANUTENÇÃO ----
 // Ligada por uma variável no Cloudflare, para mexer no banco sem ninguém
 // gravando por cima. Melhor avisar do que a pessoa levar um erro seco no
@@ -567,6 +585,7 @@ async function buscarRemoto(){
   const r=await fetch(url,{cache:'no-store',headers:cabecalhos()});
   if(r.status===503){ let m=''; try{ m=(await r.json()).mensagem||''; }catch(e){} telaManutencao(m); throw new Error('Em manutencao'); }
   if(r.status===403){ bloqueioAcesso(); throw new Error('Acesso negado'); }
+  if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
   if(!r.ok) throw new Error('Worker '+r.status);
   const j=await r.json();
   if(!j||typeof j!=='object'||Array.isArray(j)) return null;
@@ -580,6 +599,7 @@ async function enviarRemoto(payload){
     headers:cabecalhos({'Content-Type':'application/json'}),
     body:JSON.stringify({data:payload})
   });
+  if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
   if(!r.ok) throw new Error('Worker '+r.status);
 }
 

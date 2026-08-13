@@ -1270,6 +1270,24 @@ function removeFinUser(idx){
 // ---- JSONBIN SYNC ----
 async function ensureBin(){ /* Supabase — sem necessidade */ }
 
+// ---- SESSÃO VENCIDA ----
+// O crachá vale 8 horas. Quando vence, a leitura falha em silêncio (o módulo
+// cai na cópia local e a tela continua mostrando tudo) mas a gravação falha
+// com aviso — e o aviso dizia "verifique a internet", mandando a pessoa
+// procurar problema onde não havia.
+//
+// Agora diz o que é e leva de volta ao login.
+function sessaoExpirada(){
+  if(window.__sessaoExpirada) return;   // um aviso só, mesmo com várias chamadas
+  window.__sessaoExpirada = true;
+  try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){}
+  alert('Sua sessão expirou.\n\n' +
+        'O acesso vale 8 horas e o seu venceu. Nada foi perdido — o que você ' +
+        'já tinha salvo continua guardado.\n\n' +
+        'Vamos voltar para a tela de entrada.');
+  location.reload();
+}
+
 // ---- SISTEMA EM MANUTENÇÃO ----
 // Ligada por uma variável no Cloudflare, para mexer no banco sem ninguém
 // gravando por cima. Melhor avisar do que a pessoa levar um erro seco no
@@ -1512,6 +1530,7 @@ async function persist(){
     });
     // A resposta nao era conferida: um erro do servidor passava batido e a
     // tela mostrava "salvo" do mesmo jeito.
+    if(resp.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
     if(!resp.ok) throw new Error('Servidor recusou a gravação: '+resp.status);
 
     // Mesmo com resposta ok, conferimos relendo: gravacao aceita nem sempre
