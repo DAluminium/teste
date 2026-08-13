@@ -737,7 +737,10 @@ function showPortal(nome, modulos, isAdmin){
   document.getElementById('portal').style.display='block';
   document.getElementById('topbar-nome').textContent=nome;
   document.getElementById('greeting-nome').textContent=nome.split(' ')[0];
-  if(isAdmin) document.getElementById('admin-section').style.display='block';
+  // Gerente tambem entra aqui: ele cadastra funcionario, so que apenas
+  // abaixo dele. Quem limita o alcance e a hierarquia, nao a porta.
+  const podeAdministrar = isAdmin || String(cracha.role||'').toLowerCase()==='gerente';
+  if(podeAdministrar) document.getElementById('admin-section').style.display='block';
   else document.getElementById('admin-section').style.display='none';
   setSSOToken(nome, isAdmin?'admin':'user', modulos);
   registrarSessaoPortal(nome, sessionStorage.getItem('portal-admin-key')||nome);
@@ -782,7 +785,32 @@ function renderModulos(modulos){
 }
 
 // ---- USUÁRIOS ----
-function openUsuarios(){ document.getElementById('usuarios-overlay').classList.add('open'); loadPortalData(); }
+// ---- HIERARQUIA DE QUEM MEXE EM QUEM ----
+// admin > gerente > os demais. Cada um só cadastra e altera quem está ABAIXO
+// dele. Sem isso, um gerente criaria outro gerente e o acesso se multiplicaria
+// sozinho; e pior, poderia trocar a senha de um colega de mesmo nível e entrar
+// no lugar dele.
+const NIVEL={admin:3, gerente:2, compras:1, financeiro:1, consulta:1};
+function nivelDe(role){ return NIVEL[String(role||'').toLowerCase()] || 1; }
+function meuNivel(){ return nivelDe(sessionStorage.getItem('portal-role')||''); }
+function podeMexerEm(u){ return meuNivel() > nivelDe(u && u.role); }
+// Os papéis que EU posso conceder: só os de nível menor que o meu.
+function papeisQuePossoDar(){
+  const meu=meuNivel();
+  return ['gerente','compras','financeiro','consulta'].filter(function(r){ return nivelDe(r)<meu; });
+}
+
+// O formulário só oferece o que a pessoa pode conceder. A trava de verdade
+// fica dentro de addUsuario e editUsuario — esconder opção não é travar.
+function ajustarPapeisDisponiveis(){
+  const sel=document.getElementById('nu-role');
+  if(!sel) return;
+  const rot={gerente:'Gerente',compras:'Compras',financeiro:'Financeiro',consulta:'Consulta'};
+  const podem=papeisQuePossoDar();
+  sel.innerHTML=podem.map(function(r){ return '<option value="'+r+'">'+rot[r]+'</option>'; }).join('');
+}
+
+function openUsuarios(){ document.getElementById('usuarios-overlay').classList.add('open'); ajustarPapeisDisponiveis(); loadPortalData(); }
 function closeUsuarios(){ document.getElementById('usuarios-overlay').classList.remove('open'); }
 
 function renderUserList(){
@@ -797,9 +825,10 @@ function renderUserList(){
         <div style="font-size:11px;color:var(--gray-4)">${roleLabel[u.role]||u.role} · Módulos: ${(u.modulos||['compras']).join(', ')} · Senha: ••••••••</div>
       </div>
       <span style="font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;${u.active!==false?'background:var(--green-light);color:var(--green)':'background:var(--gray-2);color:var(--gray-4)'}">${u.active!==false?'Ativo':'Inativo'}</span>
-      <button class="act act-edit" onclick="editUsuario(${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+      ${podeMexerEm(u)?`<button class="act act-edit" onclick="editUsuario(${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
       <button class="act" onclick="toggleUsuario(${i})" title="${u.active!==false?'Desativar':'Ativar'}">${u.active!==false?'🔒':'🔓'}</button>
-      <button class="act act-del" onclick="removeUsuario(${i})"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+      <button class="act act-del" onclick="removeUsuario(${i})"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>`
+      :`<span style="font-size:10.5px;color:var(--gray-4);white-space:nowrap" title="Só quem está acima na hierarquia pode alterar">acima de você</span>`}
     </div>`).join('');
 }
 
@@ -816,6 +845,13 @@ async function addUsuario(){
   if(ADMINS.find(a=>a.user===username)){ alert('Usuário reservado para administradores.'); return; }
   if(portalData.usuarios.find(u=>u.username===username)){ alert('Usuário já cadastrado.'); return; }
   if(!modulos.length){ alert('Selecione pelo menos 1 módulo.'); return; }
+  // A trava fica aqui, e nao so na lista de opcoes: sem isto, bastaria
+  // mexer na pagina para criar alguem do mesmo nivel ou acima.
+  if(papeisQuePossoDar().indexOf(role)<0){
+    alert('Você não pode criar um usuário com essa função.\n\n' +
+          'Só dá para cadastrar quem fica abaixo de você.');
+    return;
+  }
   const passHash=await sha256(pass);
   portalData.usuarios.push({name,username,password:passHash,role,modulos,active:true,tempPass:true});
   await savePortalData();
@@ -829,8 +865,21 @@ async function addUsuario(){
 
 async function editUsuario(idx){
   const u=portalData.usuarios[idx];
+  // Não dá para editar quem está no mesmo nível ou acima. Sem isto, um gerente
+  // trocaria a senha de outro gerente e entraria no lugar dele.
+  if(!podeMexerEm(u)){
+    alert('Você não pode editar este usuário.\n\nSó dá para alterar quem fica abaixo de você.');
+    return;
+  }
   const novoNome=prompt('Nome completo:',u.name); if(novoNome===null) return;
-  const novoRole=prompt('Função (compras/gerente/financeiro/consulta):',u.role); if(novoRole===null) return;
+  const opcoes=papeisQuePossoDar().join('/');
+  const novoRole=prompt('Função ('+opcoes+'):',u.role); if(novoRole===null) return;
+  // A função é digitada à mão, então precisa ser conferida: sem isto bastava
+  // escrever "admin" para se promover.
+  if(papeisQuePossoDar().indexOf(String(novoRole).trim().toLowerCase())<0){
+    alert('Função inválida: "'+novoRole+'".\n\nVocê pode usar: '+opcoes+'.');
+    return;
+  }
   const novosMods=prompt('Módulos (compras,financeiro):' ,(u.modulos||['compras']).join(',')); if(novosMods===null) return;
   const novaSenha=prompt('Nova senha (deixe em branco para manter):','');
   portalData.usuarios[idx].name=novoNome.trim()||u.name;
@@ -843,12 +892,22 @@ async function editUsuario(idx){
 }
 
 async function toggleUsuario(idx){
+  if(!podeMexerEm(portalData.usuarios[idx])){
+    alert('Você não pode desativar este usuário.\n\n' +
+          'Só dá para mexer em quem fica abaixo de você.');
+    return;
+  }
   portalData.usuarios[idx].active=portalData.usuarios[idx].active===false?true:false;
   await savePortalData();
   renderUserList();
 }
 
 async function removeUsuario(idx){
+  if(!podeMexerEm(portalData.usuarios[idx])){
+    alert('Você não pode remover este usuário.\n\n' +
+          'Só dá para mexer em quem fica abaixo de você.');
+    return;
+  }
   if(!confirm(`Remover "${portalData.usuarios[idx].name}"?`)) return;
   portalData.usuarios.splice(idx,1);
   await savePortalData();
