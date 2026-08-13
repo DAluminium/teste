@@ -287,7 +287,9 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
       <button class="act" onclick="closeUsuarios()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
-      <div style="background:var(--teal-light);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:16px">
+      <!-- Só o admin vê quem são os administradores. Para o gerente isso não
+           serve para nada e ainda diz quais logins vale a pena atacar. -->
+      <div id="faixa-admins" style="display:none;background:var(--teal-light);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:16px">
         🔐 <strong>Admins:</strong> Admin · Aretusa Sendeski — acessos fixos.
       </div>
       <div id="user-list-portal" style="margin-bottom:16px"></div>
@@ -880,6 +882,8 @@ function papeisQuePossoDar(){
 // O formulário só oferece o que a pessoa pode conceder. A trava de verdade
 // fica dentro de addUsuario e editUsuario — esconder opção não é travar.
 function ajustarPapeisDisponiveis(){
+  const faixa=document.getElementById('faixa-admins');
+  if(faixa) faixa.style.display = souAdmin() ? '' : 'none';
   const sel=document.getElementById('nu-role');
   if(!sel) return;
   const rot={gerente:'Gerente',compras:'Compras',financeiro:'Financeiro',consulta:'Consulta'};
@@ -980,7 +984,7 @@ function renderUserList(){
       ${podeMexerEm(u)?`<button class="act act-edit" onclick="editUsuario(${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
       <button class="act" onclick="toggleUsuario(${i})" title="${u.active!==false?'Desativar':'Ativar'}">${u.active!==false?'🔒':'🔓'}</button>
       <button class="act act-del" onclick="removeUsuario(${i})"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>`
-      :`<span style="font-size:10.5px;color:var(--gray-4);white-space:nowrap" title="Cadastrado por outra pessoa, ou acima de você na hierarquia">não é seu</span>`}
+      :`<span style="font-size:10.5px;color:var(--gray-4);white-space:nowrap" title="${String(u.username||'').toLowerCase()===meuUsuario()?'Para trocar a própria senha, use Alterar minha senha':'Cadastrado por outra pessoa, ou acima de você na hierarquia'}">${String(u.username||'').toLowerCase()===meuUsuario()?'você':'não é seu'}</span>`}
     </div>`).join('');
 }
 
