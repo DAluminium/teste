@@ -931,7 +931,9 @@ async function trazerDocsNovos(){
   if(!o || !Array.isArray(o.docs)) return;
   const tenho={};
   fichaDocs.forEach(function(d){ tenho[d.id]=1; });
-  const novos=o.docs.filter(function(d){ return !tenho[d.id]; });
+  const jaTenhoUrl={};
+  fichaDocs.forEach(function(d){ jaTenhoUrl[d.url]=1; });
+  const novos=o.docs.filter(function(d){ return !tenho[d.id] && !jaTenhoUrl[d.url]; });
   if(!novos.length) return;
   fichaDocs=fichaDocs.concat(novos);
   renderDocs();
@@ -1092,7 +1094,7 @@ async function anexarDoc(ev){
       {method:'POST',body:fd});
     if(!r.ok) throw new Error('Servidor de arquivos recusou ('+r.status+')');
     const j=await r.json();
-    fichaDocs.push({
+    juntarDoc({
       id:novoId(),
       tipo:document.getElementById('f-doc-tipo').value,
       nome:arq.name,
@@ -1126,6 +1128,15 @@ function removerDoc(id){
   if(!confirm('Remover "'+d.nome+'" desta obra?\n\nO arquivo sai da ficha quando voce salvar.')) return;
   fichaDocs=fichaDocs.filter(x=>x.id!==id);
   renderDocs();
+}
+
+// Nenhum documento entra duas vezes. O mesmo endereço de arquivo aparecendo
+// de novo significa reenvio, não documento novo — e um anexo repetido na
+// obra confunde quem for procurar o certo depois.
+function juntarDoc(novo){
+  if(fichaDocs.some(function(d){ return d.url===novo.url; })) return false;
+  fichaDocs.push(novo);
+  return true;
 }
 
 function renderDocs(){
@@ -1639,8 +1650,19 @@ function scanMontarPDF(paginas){
   return saida;
 }
 
+let scanSalvando=false;
+
 async function scanSalvar(){
   if(!scanPaginas.length) return;
+  // Trava de reentrada. Desabilitar o botão não bastou: em 14/08/2026 um único
+  // escaneamento virou três anexos iguais, e a leitura do código não explicou
+  // como. Toque de celular pode registrar mais de uma vez, e o envio demora
+  // alguns segundos — tempo de sobra para o segundo toque entrar.
+  //
+  // Esta trava não depende da tela: enquanto um envio estiver em andamento,
+  // nenhum outro começa.
+  if(scanSalvando) return;
+  scanSalvando=true;
   const st=document.getElementById('scan-status');
   const btn=document.getElementById('scan-btn-salvar');
   btn.disabled=true; st.textContent='Montando o PDF...';
@@ -1665,7 +1687,7 @@ async function scanSalvar(){
     if(!r.ok) throw new Error('Servidor de arquivos recusou ('+r.status+')');
     const j=await r.json();
 
-    fichaDocs.push({
+    juntarDoc({
       id:novoId(),
       tipo:document.getElementById('f-doc-tipo').value,
       nome:nome,
@@ -1702,6 +1724,7 @@ async function scanSalvar(){
     st.textContent='';
   }
   btn.disabled=false;
+  scanSalvando=false;
 }
 
 // ================= VÃOS DA OBRA =================
