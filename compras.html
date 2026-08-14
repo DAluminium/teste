@@ -2060,66 +2060,6 @@ ${opts.manutencao&&(data.manutencao||[]).length?`<div class="page">
 </div>`:''}
 
 <script>window.onload=function(){window.print()}<\/script>
-<!-- ESCANEAR PELO CELULAR.
-     No celular o botão abre a câmera direto; no computador abre a escolha de
-     arquivo, o que ainda serve para quem já escaneou pela impressora.
-     Navegador nenhum consegue falar com um scanner — é barreira do sistema,
-     não limitação daqui. -->
-<div class="modal-overlay" id="scan-ov" style="z-index:300">
-  <div class="modal" style="max-width:640px">
-    <div class="modal-header">
-      <div class="modal-title">📷 Escanear documento <span id="scan-contador" style="font-size:12px;font-weight:400;color:var(--gray-4)"></span></div>
-      <button class="btn btn-outline btn-sm" onclick="fecharScanner()">Fechar</button>
-    </div>
-    <div class="modal-body">
-      <input type="file" id="scan-arquivo" accept="image/*" capture="environment" style="display:none" onchange="scanRecebeuFoto(event)">
-
-      <div id="scan-vazio" style="text-align:center;padding:26px 10px">
-        <div style="font-size:44px;line-height:1;margin-bottom:10px">📄</div>
-        <p style="font-size:13.5px;color:var(--gray-5);line-height:1.6;margin:0 0 18px">
-          No celular abre a câmera. No computador, escolha uma foto ou um arquivo
-          que você já escaneou pela impressora.
-        </p>
-        <button class="btn btn-teal" onclick="document.getElementById('scan-arquivo').click()">Tirar foto</button>
-      </div>
-
-      <div id="scan-editor" style="display:none">
-        <div style="position:relative;display:inline-block;max-width:100%;touch-action:none">
-          <canvas id="scan-tela" style="max-width:100%;display:block;border-radius:8px;background:#333"></canvas>
-          <!-- Lupa: aparece só enquanto o dedo está arrastando um canto, e
-               mostra ampliado o pedaço que o dedo está cobrindo. Sem ela é
-               impossível encostar o canto na quina do papel no celular. -->
-          <canvas id="scan-lupa" width="150" height="150"
-            style="display:none;position:absolute;width:150px;height:150px;border-radius:50%;
-            border:3px solid #17a2b8;box-shadow:0 3px 12px rgba(0,0,0,.45);background:#fff;
-            pointer-events:none;z-index:5"></canvas>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
-          <button class="btn btn-outline btn-sm" onclick="scanAlternarCor()" id="scan-btn-cor">Colorido</button>
-          <button class="btn btn-outline btn-sm" onclick="scanCorteInteiro()">Enquadrar tudo</button>
-          <span style="flex:1"></span>
-          <button class="btn btn-outline btn-sm" onclick="scanDescartar()">Descartar</button>
-          <button class="btn btn-teal btn-sm" onclick="scanGuardarPagina()">Usar esta página</button>
-        </div>
-        <div style="font-size:11.5px;color:var(--gray-4);margin-top:8px;line-height:1.5">
-          Arraste cada canto até a quina do papel. Eles andam sozinhos, então o corte
-          acompanha o papel torto — e a foto sai endireitada, como se tirada de frente.
-        </div>
-      </div>
-
-      <div id="scan-paginas" style="display:none;margin-top:14px;border-top:1px solid var(--gray-2);padding-top:12px">
-        <div style="font-size:12px;font-weight:600;margin-bottom:8px">Páginas prontas</div>
-        <div id="scan-miniaturas" style="display:flex;gap:8px;flex-wrap:wrap"></div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <span id="scan-status" style="flex:1;font-size:11.5px;color:var(--gray-4)"></span>
-      <button class="btn btn-outline btn-sm" id="scan-btn-mais" onclick="document.getElementById('scan-arquivo').click()" style="display:none">+ Outra página</button>
-      <button class="btn btn-teal" id="scan-btn-salvar" onclick="scanSalvar()" style="display:none">Salvar como PDF</button>
-    </div>
-  </div>
-</div>
-
 </body></html>`;
 
   const w=window.open('','_blank');
@@ -3722,5 +3662,65 @@ if(checkCracha()){
   setTimeout(()=>document.getElementById('login-user').focus(), 300);
 }
 </script>
+<!-- ESCANEAR PELO CELULAR.
+     No celular o botão abre a câmera direto; no computador abre a escolha de
+     arquivo, o que ainda serve para quem já escaneou pela impressora.
+     Navegador nenhum consegue falar com um scanner — é barreira do sistema,
+     não limitação daqui. -->
+<div class="modal-overlay" id="scan-ov" style="z-index:300">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <div class="modal-title">📷 Escanear documento <span id="scan-contador" style="font-size:12px;font-weight:400;color:var(--gray-4)"></span></div>
+      <button class="btn btn-outline btn-sm" onclick="fecharScanner()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <input type="file" id="scan-arquivo" accept="image/*" capture="environment" style="display:none" onchange="scanRecebeuFoto(event)">
+
+      <div id="scan-vazio" style="text-align:center;padding:26px 10px">
+        <div style="font-size:44px;line-height:1;margin-bottom:10px">📄</div>
+        <p style="font-size:13.5px;color:var(--gray-5);line-height:1.6;margin:0 0 18px">
+          No celular abre a câmera. No computador, escolha uma foto ou um arquivo
+          que você já escaneou pela impressora.
+        </p>
+        <button class="btn btn-teal" onclick="document.getElementById('scan-arquivo').click()">Tirar foto</button>
+      </div>
+
+      <div id="scan-editor" style="display:none">
+        <div style="position:relative;display:inline-block;max-width:100%;touch-action:none">
+          <canvas id="scan-tela" style="max-width:100%;display:block;border-radius:8px;background:#333"></canvas>
+          <!-- Lupa: aparece só enquanto o dedo está arrastando um canto, e
+               mostra ampliado o pedaço que o dedo está cobrindo. Sem ela é
+               impossível encostar o canto na quina do papel no celular. -->
+          <canvas id="scan-lupa" width="150" height="150"
+            style="display:none;position:absolute;width:150px;height:150px;border-radius:50%;
+            border:3px solid #17a2b8;box-shadow:0 3px 12px rgba(0,0,0,.45);background:#fff;
+            pointer-events:none;z-index:5"></canvas>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+          <button class="btn btn-outline btn-sm" onclick="scanAlternarCor()" id="scan-btn-cor">Colorido</button>
+          <button class="btn btn-outline btn-sm" onclick="scanCorteInteiro()">Enquadrar tudo</button>
+          <span style="flex:1"></span>
+          <button class="btn btn-outline btn-sm" onclick="scanDescartar()">Descartar</button>
+          <button class="btn btn-teal btn-sm" onclick="scanGuardarPagina()">Usar esta página</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--gray-4);margin-top:8px;line-height:1.5">
+          Arraste cada canto até a quina do papel. Eles andam sozinhos, então o corte
+          acompanha o papel torto — e a foto sai endireitada, como se tirada de frente.
+        </div>
+      </div>
+
+      <div id="scan-paginas" style="display:none;margin-top:14px;border-top:1px solid var(--gray-2);padding-top:12px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px">Páginas prontas</div>
+        <div id="scan-miniaturas" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <span id="scan-status" style="flex:1;font-size:11.5px;color:var(--gray-4)"></span>
+      <button class="btn btn-outline btn-sm" id="scan-btn-mais" onclick="document.getElementById('scan-arquivo').click()" style="display:none">+ Outra página</button>
+      <button class="btn btn-teal" id="scan-btn-salvar" onclick="scanSalvar()" style="display:none">Salvar como PDF</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
