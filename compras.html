@@ -1130,6 +1130,7 @@ let scanArrastando=-1;
 const SCAN_MAX=2200;
 
 function abrirScanner(){
+  scanLigarEventos();
   scanPaginas=[]; scanImagem=null; scanCantos=null; scanPB=true;
   document.getElementById('scan-vazio').style.display='';
   document.getElementById('scan-editor').style.display='none';
@@ -1611,8 +1612,14 @@ async function scanEntregar(arquivo){
 }
 
 
-// Arrastar os cantos do enquadramento, no dedo e no mouse.
-(function(){
+// Liga o arrastar dos cantos na primeira vez que o scanner abre.
+//
+// Nao da para ligar quando o arquivo carrega: a janela do scanner fica DEPOIS
+// do codigo no arquivo, entao naquele momento ela ainda nao existe e os
+// eventos se perdiam em silencio — o corte simplesmente nao respondia.
+let scanEventosLigados=false;
+function scanLigarEventos(){
+  if(scanEventosLigados) return;
   const t=document.getElementById("scan-tela");
   if(!t) return;
   t.addEventListener("mousedown",scanPegar);
@@ -1621,7 +1628,8 @@ async function scanEntregar(arquivo){
   t.addEventListener("touchmove",scanMover,{passive:false});
   window.addEventListener("mouseup",scanSoltar);
   t.addEventListener("touchend",scanSoltar);
-})();
+  scanEventosLigados=true;
+}
 
 async function scanSalvar(){
   if(!scanPaginas.length) return;
