@@ -372,6 +372,13 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div id="scan-editor" style="display:none">
         <div style="position:relative;display:inline-block;max-width:100%;touch-action:none">
           <canvas id="scan-tela" style="max-width:100%;display:block;border-radius:8px;background:#333"></canvas>
+          <!-- Lupa: aparece só enquanto o dedo está arrastando um canto, e
+               mostra ampliado o pedaço que o dedo está cobrindo. Sem ela é
+               impossível encostar o canto na quina do papel no celular. -->
+          <canvas id="scan-lupa" width="150" height="150"
+            style="display:none;position:absolute;width:150px;height:150px;border-radius:50%;
+            border:3px solid #17a2b8;box-shadow:0 3px 12px rgba(0,0,0,.45);background:#fff;
+            pointer-events:none;z-index:5"></canvas>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
           <button class="btn btn-outline btn-sm" onclick="scanAlternarCor()" id="scan-btn-cor">Colorido</button>
@@ -1287,10 +1294,9 @@ function scanTratar(ctx,l,a){
     }
   }
 
-  // Vizinhança de uns 2% do lado menor. Antes eram 4%, e para letra miúda isso
-  // era grande demais: a média já incluía muito papel em volta, e o traço fino
-  // não se destacava o bastante para virar preto.
-  const r=Math.max(6, Math.round(Math.min(l,a)*0.02));
+  // Vizinhança de uns 3% do lado menor. Já foi 4% (letra fina sumia) e 2%
+  // (tudo virava preto e os caracteres se fundiam). 3% é o meio.
+  const r=Math.max(8, Math.round(Math.min(l,a)*0.03));
 
   for(let y=0;y<a;y++){
     const y0=Math.max(0,y-r), y1=Math.min(a-1,y+r);
@@ -1306,11 +1312,17 @@ function scanTratar(ctx,l,a){
       // variação de iluminação fica perto de zero e vira papel branco.
       const dif=media-v;
       let saida;
-      // O limite da tinta era 40, exigente demais: traço fino ficava em cinza
-      // claro e sumia. Com 22, letra pequena vira preto de verdade.
-      if(dif<5) saida=255;                       // papel, mesmo na sombra
-      else if(dif>22) saida=0;                   // tinta cheia
-      else saida=Math.round(255-((dif-5)/17)*255); // meio-tom: traço muito fino
+      // Calibragem, na terceira tentativa:
+      //   40 — letra fina saía em cinza claro e sumia
+      //   22 — tudo virava preto e os caracteres se fundiam; numero de nota
+      //        e chave de acesso ficavam ilegíveis
+      //   40 — a que o Ander aprovou. A faixa de meio-tom fica larga de
+      //        propósito: em vez de decidir só entre preto e branco, o traço
+      //        fino sai em cinza escuro e continua legível. É o que salva a
+      //        chave de acesso e o número da nota.
+      if(dif<7) saida=255;                       // papel, mesmo na sombra
+      else if(dif>40) saida=0;                   // tinta cheia
+      else saida=Math.round(255-((dif-7)/33)*255); // meio-tom: traço fino
       const j=(y*l+x)*4;
       p[j]=p[j+1]=p[j+2]=saida;
     }
@@ -1384,6 +1396,7 @@ function scanPegar(ev){
   // foto grande e minúscula numa pequena.
   const e=(document.getElementById('scan-tela')._escala)||1;
   scanArrastando = (menor*e < 30) ? melhor : -1;
+  if(scanArrastando>=0){ const q=scanCantos[scanArrastando]; scanMostrarLupa(q.x,q.y); }
 }
 function scanMover(ev){
   if(scanArrastando<0||!scanCantos) return;
@@ -1396,8 +1409,47 @@ function scanMover(ev){
     y: Math.max(0, Math.min(scanImagem.height, p.y))
   };
   scanDesenhar();
+  const q=scanCantos[scanArrastando];
+  scanMostrarLupa(q.x,q.y);
 }
-function scanSoltar(){ scanArrastando=-1; }
+function scanSoltar(){
+  scanArrastando=-1;
+  const lupa=document.getElementById('scan-lupa');
+  if(lupa) lupa.style.display='none';
+}
+
+// Mostra ampliado o pedaço que o dedo está cobrindo, com uma cruz no ponto
+// exato. Sem isto não dá para encostar o canto na quina do papel no celular:
+// o dedo tapa justamente o que precisa ser visto.
+//
+// A lupa pula para o lado oposto ao dedo — se o canto está em cima, ela
+// aparece embaixo, e vice-versa.
+function scanMostrarLupa(px,py){
+  const lupa=document.getElementById('scan-lupa');
+  const tela=document.getElementById('scan-tela');
+  if(!lupa||!tela||!scanImagem) return;
+  const e=tela._escala||1;
+  const zoom=3;
+  const raio=150/(2*zoom);        // quanto da imagem cabe na lupa
+
+  const ctx=lupa.getContext('2d');
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,150,150);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(scanImagem, px-raio, py-raio, raio*2, raio*2, 0, 0, 150, 150);
+
+  // A cruz marca o ponto exato onde o canto está sendo largado.
+  ctx.strokeStyle='#17a2b8'; ctx.lineWidth=1.5;
+  ctx.beginPath();
+  ctx.moveTo(75,58); ctx.lineTo(75,92);
+  ctx.moveTo(58,75); ctx.lineTo(92,75);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(75,75,4,0,Math.PI*2); ctx.stroke();
+
+  const naTelaX=px*e, naTelaY=py*e;
+  lupa.style.left=Math.max(0,Math.min(tela.width-150, naTelaX-75))+'px';
+  lupa.style.top =(naTelaY < tela.height/2) ? (tela.height-160)+'px' : '10px';
+  lupa.style.display='block';
+}
 
 function scanDescartar(){
   scanImagem=null; scanCantos=null;
