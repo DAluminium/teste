@@ -1937,7 +1937,23 @@ function editarVao(id,campo,valor){
 function contarVaos(lista){
   const total=(lista||[]).length;
   const feitos=(lista||[]).filter(function(v){ return v.inst; }).length;
-  return {total:total,feitos:feitos};
+  // Instalado com observação é instalado com pendência: o vão está no lugar,
+  // mas falta alguma coisa — silicone, acabamento, um ajuste. Contar junto com
+  // os prontos esconderia serviço que ainda tem de voltar na obra.
+  const pendentes=(lista||[]).filter(function(v){ return v.inst && v.obs; }).length;
+  return {total:total, feitos:feitos, pendentes:pendentes};
+}
+
+// A observação fica num aviso à parte porque a linha do vão já está cheia —
+// caixinha, tipo, lugar, medida, data. No celular não caberia mais um campo.
+function anotarVao(id){
+  const v=fichaVaos.find(function(x){ return x.id===id; });
+  if(!v) return;
+  const texto=prompt('O que falta neste vão?\n\nEx.: falta silicone; acabamento pendente; ajustar fecho.\n'+
+                     'Deixe em branco para tirar a anotação.', v.obs||'');
+  if(texto===null) return;
+  v.obs=texto.trim();
+  renderVaos();
 }
 
 function renderVaos(){
@@ -1945,14 +1961,21 @@ function renderVaos(){
   if(!el) return;
   const c=contarVaos(fichaVaos);
   const res=document.getElementById('f-vaos-resumo');
-  if(res) res.textContent = c.total ? '— '+c.feitos+' de '+c.total+' instalados' : '';
+  if(res) res.textContent = c.total
+    ? '— '+c.feitos+' de '+c.total+' instalados'+(c.pendentes?' · '+c.pendentes+' com pendência':'')
+    : '';
   if(!c.total){
     el.innerHTML='<div style="font-size:11.5px;color:var(--gray-4)">Nenhum vão informado.</div>';
     return;
   }
   el.innerHTML=fichaVaos.map(function(v){
-    return '<div style="display:flex;gap:6px;align-items:center;padding:5px 7px;border-radius:7px;'+
-      'background:'+(v.inst?'#eaf7ef':'var(--gray-1)')+';border:1px solid '+(v.inst?'#bfe3cd':'var(--gray-2)')+'">'+
+    // Três estados, e cada um com a sua cor: não instalado, instalado com
+    // pendência, instalado e pronto.
+    const pend=v.inst&&v.obs;
+    const fundo = pend ? '#fdf6e3' : (v.inst?'#eaf7ef':'var(--gray-1)');
+    const borda = pend ? '#e8d9a8' : (v.inst?'#bfe3cd':'var(--gray-2)');
+    return '<div style="border-radius:7px;background:'+fundo+';border:1px solid '+borda+';padding:5px 7px;margin-bottom:2px">'+
+      '<div style="display:flex;gap:6px;align-items:center">'+
       '<input type="checkbox" '+(v.inst?'checked':'')+' onchange="alternarVao(\''+v.id+'\')" '+
         'title="Marcar como instalado" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">'+
       '<input value="'+esc(v.tipo)+'" placeholder="P1" onchange="editarVao(\''+v.id+'\',\'tipo\',this.value)" '+
@@ -1960,9 +1983,17 @@ function renderVaos(){
       '<input value="'+esc(v.local)+'" placeholder="onde fica" onchange="editarVao(\''+v.id+'\',\'local\',this.value)" '+
         'style="flex:1;min-width:80px;padding:4px 6px;border:1px solid var(--gray-3);border-radius:6px;font-size:12px;font-family:inherit">'+
       '<span style="font-size:10.5px;color:var(--gray-4);white-space:nowrap">'+(v.larg?v.larg+'x'+v.alt:'')+'</span>'+
-      (v.inst?'<span style="font-size:10px;color:#1e8449;white-space:nowrap" title="'+esc(v.quemInst||'')+'">'+fmtQuando(v.dtInst)+'</span>':'')+
+      (v.inst?'<span style="font-size:10px;color:'+(pend?'#b9770e':'#1e8449')+';white-space:nowrap" title="'+esc(v.quemInst||'')+'">'+fmtQuando(v.dtInst)+'</span>':'')+
+      '<button type="button" onclick="anotarVao(\''+v.id+'\')" title="Anotar o que falta" '+
+        'style="border:0;background:transparent;cursor:pointer;font-size:13px;flex-shrink:0;'+
+        'opacity:'+(v.obs?'1':'.45')+'">&#9998;</button>'+
       '<button type="button" onclick="removerVao(\''+v.id+'\')" title="Remover" '+
         'style="border:0;background:transparent;color:#c0392b;cursor:pointer;font-size:15px;flex-shrink:0">&times;</button>'+
+      '</div>'+
+      // A anotação vai numa linha própria, com a largura toda: "falta silicone
+      // no lado direito" não cabe espremido entre a medida e os botões.
+      (v.obs?'<div style="font-size:11px;color:#8a6d1f;padding:3px 2px 0 24px;line-height:1.4">'+
+        '&#9888; '+esc(v.obs)+'</div>':'')+
       '</div>';
   }).join('');
 }
@@ -2050,10 +2081,12 @@ function renderEsperaNota(){
 function pillVaos(o){
   const c=contarVaos(o.vaos);
   if(!c.total) return '';
-  const cheio=c.feitos>=c.total;
-  return '<span class="pill" style="background:'+(cheio?'#eaf7ef':'var(--gray-1)')+
-    ';color:'+(cheio?'#1e8449':'var(--gray-5)')+'" title="Vãos instalados">'+
-    c.feitos+'/'+c.total+' instalados</span>';
+  // Tudo instalado mas com pendência não é obra pronta: fica em âmbar, não
+  // em verde. Verde é só quando não falta mais nada.
+  const cheio=c.feitos>=c.total && !c.pendentes;
+  const cor = cheio ? ['#eaf7ef','#1e8449'] : (c.pendentes ? ['#fdf6e3','#8a6d1f'] : ['var(--gray-1)','var(--gray-5)']);
+  return '<span class="pill" style="background:'+cor[0]+';color:'+cor[1]+'" title="Vãos instalados">'+
+    c.feitos+'/'+c.total+' instalados'+(c.pendentes?' · '+c.pendentes+' pendente(s)':'')+'</span>';
 }
 
 function pillPrazo(o){
