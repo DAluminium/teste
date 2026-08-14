@@ -937,10 +937,35 @@ async function trazerDocsNovos(){
   const novos=o.docs.filter(function(d){
     return !tenho[d.id] && !jaTenhoUrl[d.url] && !docsApagados[d.id] && !docsApagados[d.url];
   });
-  if(!novos.length) return;
-  fichaDocs=fichaDocs.concat(novos);
+
+  // E tira o que sumiu do servidor.
+  //
+  // Antes esta função só sabia acrescentar. Quando alguém apagava um anexo pelo
+  // celular e mandava outro, o computador ficava com os dois: recebia o novo e
+  // continuava mostrando o velho, que já não existia. Só o F5 corrigia.
+  //
+  // O cuidado: só pode sair o que VEIO do servidor quando a ficha foi aberta.
+  // O que a pessoa acabou de anexar e ainda não salvou não está lá — e sumir
+  // com ele seria perder trabalho.
+  const noServidor={};
+  o.docs.forEach(function(d){ noServidor[d.id]=1; });
+  const eraDoServidor={};
+  ((fichaBase&&fichaBase.docs)||[]).forEach(function(d){ eraDoServidor[d.id]=1; });
+  const sumiram=fichaDocs.filter(function(d){ return eraDoServidor[d.id] && !noServidor[d.id]; });
+
+  if(!novos.length && !sumiram.length) return;
+  if(sumiram.length){
+    const fora={};
+    sumiram.forEach(function(d){ fora[d.id]=1; });
+    fichaDocs=fichaDocs.filter(function(d){ return !fora[d.id]; });
+  }
+  if(novos.length) fichaDocs=fichaDocs.concat(novos);
   renderDocs();
-  status('🟢 '+novos.length+' documento(s) novo(s) · '+agoraHora());
+
+  const partes=[];
+  if(novos.length)   partes.push(novos.length+' novo(s)');
+  if(sumiram.length) partes.push(sumiram.length+' removido(s)');
+  status('🟢 Documentos: '+partes.join(' e ')+' · '+agoraHora());
 }
 
 async function atualizarDoBanco(manual){
