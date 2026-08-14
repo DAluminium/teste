@@ -787,6 +787,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </div>
       <div class="attach-progress" id="attach-progress">⏳ Enviando arquivo...</div>
       <input type="file" id="attach-file-input" style="display:none" accept=".pdf,.jpg,.jpeg,.png,.webp" onchange="uploadAttach(event)">
+      <button type="button" class="btn btn-outline btn-sm" style="margin-bottom:10px" onclick="abrirScanner()"
+        title="Fotografar o documento e transformar em PDF">📷 Escanear pelo celular</button>
       <div class="attach-list" id="attach-list"></div>
     </div>
     <div class="modal-footer"><button class="btn btn-outline" onclick="closeAttach()">Fechar</button></div>
@@ -1812,6 +1814,558 @@ function renderAttachList(){
   }).join('');
 }
 
+// Tamanho de arquivo em palavra de gente. O scanner leva o seu porque estes
+// modulos nao tinham um.
+function scanTamanho(b){
+  return b>1048576 ? (b/1048576).toFixed(1)+" MB" : Math.max(1,Math.round(b/1024))+" KB";
+}
+
+// ================= ESCANEAR PELO CELULAR =================
+// Faz o que o CamScanner faz de mais útil: fotografar, enquadrar, deixar com
+// cara de documento e juntar tudo num PDF.
+//
+// O que NÃO dá para fazer: falar com o scanner da impressora. Nenhuma página
+// da internet consegue — é barreira do sistema operacional. No computador o
+// botão abre a escolha de arquivo, para quem já escaneou por fora.
+let scanPaginas=[];        // páginas já aprovadas, em JPEG
+let scanImagem=null;       // a foto atual, ainda sendo enquadrada
+let scanCantos=null;       // o retângulo do corte, em coordenadas da imagem
+let scanPB=true;           // preto e branco ligado por padrão
+let scanArrastando=-1;
+
+// Foto de celular vem com 4000 pixels de largura, e documento não precisa de
+// tanto. Mas 1600 numa folha A4 dá uns 190 pontos por polegada, e nota fiscal
+// tem letra miúda demais para isso — o texto pequeno saía fino e ilegível.
+// 2200 resolve e ainda deixa várias páginas dentro do limite de 10 MB, porque
+// preto e branco comprime muito bem.
+const SCAN_MAX=2200;
+
+function abrirScanner(){
+  scanPaginas=[]; scanImagem=null; scanCantos=null; scanPB=true;
+  document.getElementById('scan-vazio').style.display='';
+  document.getElementById('scan-editor').style.display='none';
+  document.getElementById('scan-paginas').style.display='none';
+  document.getElementById('scan-btn-mais').style.display='none';
+  document.getElementById('scan-btn-salvar').style.display='none';
+  document.getElementById('scan-status').textContent='';
+  document.getElementById('scan-contador').textContent='';
+  document.getElementById('scan-ov').classList.add('open');
+}
+function fecharScanner(){
+  if(scanPaginas.length && !confirm('Tem '+scanPaginas.length+' página(s) escaneada(s) que ainda não foram salvas.\n\nFechar mesmo assim?')) return;
+  document.getElementById('scan-ov').classList.remove('open');
+}
+
+function scanRecebeuFoto(ev){
+  const arq=ev.target.files && ev.target.files[0];
+  ev.target.value='';
+  if(!arq) return;
+  const leitor=new FileReader();
+  leitor.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      // Reduz mantendo a proporção, antes de qualquer coisa.
+      const escala=Math.min(1, SCAN_MAX/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');
+      c.width=Math.round(img.width*escala);
+      c.height=Math.round(img.height*escala);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      scanImagem=c;
+      scanCorteInteiro();
+      document.getElementById('scan-vazio').style.display='none';
+      document.getElementById('scan-editor').style.display='';
+    };
+    img.onerror=function(){ alert('Não consegui abrir\n\nO arquivo escolhido não parece ser uma imagem.'); };
+    img.src=e.target.result;
+  };
+  leitor.readAsDataURL(arq);
+}
+
+// Quatro cantos livres, na ordem: cima-esquerda, cima-direita, baixo-direita,
+// baixo-esquerda. Não é retângulo de propósito — o papel na foto nunca sai
+// reto, e um retângulo ou deixa sombra de um lado ou corta o papel do outro.
+//
+// Começa um pouco para dentro, senão os pontos ficam na quina e não há para
+// onde puxar.
+function scanCorteInteiro(){
+  if(!scanImagem) return;
+  const mx=Math.round(scanImagem.width*0.05), my=Math.round(scanImagem.height*0.05);
+  const L=scanImagem.width, A=scanImagem.height;
+  scanCantos=[{x:mx,y:my},{x:L-mx,y:my},{x:L-mx,y:A-my},{x:mx,y:A-my}];
+  scanDesenhar();
+}
+function scanAlternarCor(){
+  scanPB=!scanPB;
+  document.getElementById('scan-btn-cor').textContent = scanPB ? 'Colorido' : 'Preto e branco';
+  scanDesenhar();
+}
+
+// Deixa com cara de documento.
+//
+// A primeira versão usava um valor fixo — abaixo de tanto vira preto, acima
+// vira branco — e ficou escura demais. Foto de documento nunca tem luz
+// uniforme: um lado pega sombra, o outro pega brilho da lâmpada. Com valor
+// fixo, o lado sombreado vira preto sólido e leva o texto junto.
+//
+// Aqui cada ponto é comparado com a MÉDIA DA VIZINHANÇA dele, não com um
+// número fixo. Onde o papel está escuro, a vizinhança também está, e o texto
+// continua se destacando dela. É o que faz uma foto tirada de qualquer jeito
+// sair legível.
+//
+// A média de cada vizinhança sai de uma tabela de somas acumuladas: sem ela,
+// olhar 30 pixels em volta de cada ponto de uma imagem de 1600 seria lento
+// demais no celular.
+function scanTratar(ctx,l,a){
+  if(!scanPB) return;
+  const d=ctx.getImageData(0,0,l,a);
+  const p=d.data;
+  const n=l*a;
+
+  const cinza=new Float32Array(n);
+  for(let i=0,j=0;i<n;i++,j+=4){
+    cinza[i]=p[j]*0.299+p[j+1]*0.587+p[j+2]*0.114;
+  }
+
+  // Realce de contorno, antes de decidir o que é tinta.
+  //
+  // A foto do celular já sai um pouco macia, e o endireitamento suaviza mais,
+  // porque cada ponto vira a média dos quatro vizinhos. Somando isso, o traço
+  // fino chega borrado e sai com falhas no meio — dava para ver nos números da
+  // chave de acesso.
+  //
+  // A conta é simples: pega a diferença entre o ponto e a média dos vizinhos
+  // imediatos, e devolve essa diferença amplificada. Onde é papel liso, a
+  // diferença é zero e nada muda; na borda de uma letra, ela é grande e a
+  // borda fica mais definida.
+  const macio=new Float32Array(n);
+  for(let y=0;y<a;y++){
+    const cima=(y>0?-l:0), baixo=(y<a-1?l:0);
+    for(let x=0;x<l;x++){
+      const i=y*l+x;
+      const esq=(x>0?-1:0), dir=(x<l-1?1:0);
+      macio[i]=(cinza[i]+cinza[i+esq]+cinza[i+dir]+cinza[i+cima]+cinza[i+baixo])/5;
+    }
+  }
+  for(let i=0;i<n;i++){
+    const v=cinza[i]+(cinza[i]-macio[i])*1.1;
+    cinza[i]=v<0?0:(v>255?255:v);
+  }
+
+  // Somas acumuladas: soma[y][x] guarda o total de tudo acima e à esquerda.
+  // Com ela, a soma de qualquer retângulo sai em três contas.
+  const soma=new Float64Array((l+1)*(a+1));
+  for(let y=0;y<a;y++){
+    let linha=0;
+    for(let x=0;x<l;x++){
+      linha+=cinza[y*l+x];
+      soma[(y+1)*(l+1)+(x+1)] = soma[y*(l+1)+(x+1)] + linha;
+    }
+  }
+
+  // Vizinhança de uns 3% do lado menor. Já foi 4% (letra fina sumia) e 2%
+  // (tudo virava preto e os caracteres se fundiam). 3% é o meio.
+  const r=Math.max(8, Math.round(Math.min(l,a)*0.03));
+
+  for(let y=0;y<a;y++){
+    const y0=Math.max(0,y-r), y1=Math.min(a-1,y+r);
+    for(let x=0;x<l;x++){
+      const x0=Math.max(0,x-r), x1=Math.min(l-1,x+r);
+      const qtd=(x1-x0+1)*(y1-y0+1);
+      const total = soma[(y1+1)*(l+1)+(x1+1)] - soma[y0*(l+1)+(x1+1)]
+                  - soma[(y1+1)*(l+1)+x0]     + soma[y0*(l+1)+x0];
+      const media=total/qtd;
+      const v=cinza[y*l+x];
+
+      // Quanto o ponto está abaixo da vizinhança. Tinta fica bem abaixo;
+      // variação de iluminação fica perto de zero e vira papel branco.
+      const dif=media-v;
+      let saida;
+      // Calibragem, na terceira tentativa:
+      //   40 — letra fina saía em cinza claro e sumia
+      //   22 — tudo virava preto e os caracteres se fundiam; numero de nota
+      //        e chave de acesso ficavam ilegíveis
+      //   40 — a que o Ander aprovou. A faixa de meio-tom fica larga de
+      //        propósito: em vez de decidir só entre preto e branco, o traço
+      //        fino sai em cinza escuro e continua legível. É o que salva a
+      //        chave de acesso e o número da nota.
+      if(dif<7) saida=255;                       // papel, mesmo na sombra
+      else if(dif>40) saida=0;                   // tinta cheia
+      else saida=Math.round(255-((dif-7)/33)*255); // meio-tom: traço fino
+      const j=(y*l+x)*4;
+      p[j]=p[j+1]=p[j+2]=saida;
+    }
+  }
+  ctx.putImageData(d,0,0);
+}
+
+function scanDesenhar(){
+  if(!scanImagem||!scanCantos) return;
+  const tela=document.getElementById('scan-tela');
+  // A foto precisa caber INTEIRA na tela, largura e altura. Documento é
+  // retrato: limitando só a largura, a imagem fica alta demais, os cantos de
+  // baixo saem da área visível e não há como pegá-los para arrastar.
+  const larguraMax=Math.min(560, (document.getElementById('scan-ov').clientWidth||560)-56);
+  const alturaMax=Math.max(240, Math.round(window.innerHeight*0.52));
+  const escala=Math.min(1, larguraMax/scanImagem.width, alturaMax/scanImagem.height);
+  tela.width=Math.round(scanImagem.width*escala);
+  tela.height=Math.round(scanImagem.height*escala);
+  tela._escala=escala;
+  const ctx=tela.getContext('2d');
+  ctx.drawImage(scanImagem,0,0,tela.width,tela.height);
+  scanTratar(ctx,tela.width,tela.height);
+
+  // Escurece tudo e depois "abre um buraco" no formato do quadrilátero, com a
+  // regra par-ímpar. Assim a área escurecida acompanha o papel torto, e não um
+  // retângulo.
+  const c=scanCantos, e=escala;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0,0,tela.width,tela.height);
+  ctx.moveTo(c[0].x*e,c[0].y*e);
+  for(let i=1;i<4;i++) ctx.lineTo(c[i].x*e,c[i].y*e);
+  ctx.closePath();
+  ctx.fillStyle='rgba(0,0,0,.5)';
+  ctx.fill('evenodd');
+  ctx.restore();
+
+  ctx.strokeStyle='#17a2b8'; ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(c[0].x*e,c[0].y*e);
+  for(let i=1;i<4;i++) ctx.lineTo(c[i].x*e,c[i].y*e);
+  ctx.closePath();
+  ctx.stroke();
+
+  c.forEach(function(p){
+    ctx.fillStyle='#17a2b8';
+    ctx.beginPath(); ctx.arc(p.x*e,p.y*e,11,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(p.x*e,p.y*e,5,0,Math.PI*2); ctx.fill();
+  });
+}
+
+function scanPonto(ev){
+  const tela=document.getElementById('scan-tela');
+  const r=tela.getBoundingClientRect();
+  const t=(ev.touches&&ev.touches[0])||ev;
+  const e=tela._escala||1;
+  return { x:(t.clientX-r.left)*(tela.width/r.width)/e, y:(t.clientY-r.top)*(tela.height/r.height)/e };
+}
+function scanPegar(ev){
+  if(!scanCantos) return;
+  ev.preventDefault();
+  const p=scanPonto(ev);
+  let melhor=-1, menor=1e9;
+  scanCantos.forEach(function(q,i){
+    const d=Math.hypot(q.x-p.x,q.y-p.y);
+    if(d<menor){ menor=d; melhor=i; }
+  });
+  // A tolerância é medida na TELA, não na imagem: 30 pixels de tela, que é
+  // mais ou menos a ponta do dedo. Medir na imagem dava uma área enorme numa
+  // foto grande e minúscula numa pequena.
+  const e=(document.getElementById('scan-tela')._escala)||1;
+  scanArrastando = (menor*e < 30) ? melhor : -1;
+  if(scanArrastando>=0){ const q=scanCantos[scanArrastando]; scanMostrarLupa(q.x,q.y); }
+}
+function scanMover(ev){
+  if(scanArrastando<0||!scanCantos) return;
+  ev.preventDefault();
+  const p=scanPonto(ev);
+  // Cada canto anda sozinho — é isso que deixa o corte acompanhar o papel
+  // torto. A linha se redesenha a cada movimento.
+  scanCantos[scanArrastando]={
+    x: Math.max(0, Math.min(scanImagem.width,  p.x)),
+    y: Math.max(0, Math.min(scanImagem.height, p.y))
+  };
+  scanDesenhar();
+  const q=scanCantos[scanArrastando];
+  scanMostrarLupa(q.x,q.y);
+}
+function scanSoltar(){
+  scanArrastando=-1;
+  const lupa=document.getElementById('scan-lupa');
+  if(lupa) lupa.style.display='none';
+}
+
+// Mostra ampliado o pedaço que o dedo está cobrindo, com uma cruz no ponto
+// exato. Sem isto não dá para encostar o canto na quina do papel no celular:
+// o dedo tapa justamente o que precisa ser visto.
+//
+// A lupa pula para o lado oposto ao dedo — se o canto está em cima, ela
+// aparece embaixo, e vice-versa.
+function scanMostrarLupa(px,py){
+  const lupa=document.getElementById('scan-lupa');
+  const tela=document.getElementById('scan-tela');
+  if(!lupa||!tela||!scanImagem) return;
+  const e=tela._escala||1;
+  const zoom=3;
+  const raio=150/(2*zoom);        // quanto da imagem cabe na lupa
+
+  const ctx=lupa.getContext('2d');
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,150,150);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(scanImagem, px-raio, py-raio, raio*2, raio*2, 0, 0, 150, 150);
+
+  // A cruz marca o ponto exato onde o canto está sendo largado.
+  ctx.strokeStyle='#17a2b8'; ctx.lineWidth=1.5;
+  ctx.beginPath();
+  ctx.moveTo(75,58); ctx.lineTo(75,92);
+  ctx.moveTo(58,75); ctx.lineTo(92,75);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(75,75,4,0,Math.PI*2); ctx.stroke();
+
+  const naTelaX=px*e, naTelaY=py*e;
+  lupa.style.left=Math.max(0,Math.min(tela.width-150, naTelaX-75))+'px';
+  lupa.style.top =(naTelaY < tela.height/2) ? (tela.height-160)+'px' : '10px';
+  lupa.style.display='block';
+}
+
+function scanDescartar(){
+  scanImagem=null; scanCantos=null;
+  document.getElementById('scan-editor').style.display='none';
+  document.getElementById('scan-vazio').style.display = scanPaginas.length?'none':'';
+  scanAtualizarRodape();
+}
+
+// ---- ENDIREITAR O PAPEL ----
+// Os quatro cantos escolhidos viram um retângulo. É o que tira a distorção de
+// quem fotografa de pé, olhando o papel de cima e de lado.
+//
+// A conta é uma "homografia": oito números que dizem, para cada ponto do
+// retângulo de saída, de onde ele vem na foto original. Os oito saem de um
+// sistema de oito equações — os quatro cantos, cada um com x e y.
+function scanResolverSistema(M,v){
+  const n=8;
+  for(let i=0;i<n;i++){
+    let melhor=i;
+    for(let k=i+1;k<n;k++) if(Math.abs(M[k][i])>Math.abs(M[melhor][i])) melhor=k;
+    const t=M[i]; M[i]=M[melhor]; M[melhor]=t;
+    const tv=v[i]; v[i]=v[melhor]; v[melhor]=tv;
+    if(Math.abs(M[i][i])<1e-10) return null;      // cantos em cima uns dos outros
+    for(let k=i+1;k<n;k++){
+      const f=M[k][i]/M[i][i];
+      for(let j=i;j<n;j++) M[k][j]-=f*M[i][j];
+      v[k]-=f*v[i];
+    }
+  }
+  const x=new Array(n).fill(0);
+  for(let i=n-1;i>=0;i--){
+    let s=v[i];
+    for(let j=i+1;j<n;j++) s-=M[i][j]*x[j];
+    x[i]=s/M[i][i];
+  }
+  return x;
+}
+
+// Devolve os coeficientes que levam um ponto do RETÂNGULO DE SAÍDA de volta ao
+// ponto correspondente na foto. É esse sentido que interessa: percorremos a
+// saída e buscamos a cor na origem, sem deixar buraco.
+function scanCalcularTransformacao(cantos,l,a){
+  const destino=[{x:0,y:0},{x:l,y:0},{x:l,y:a},{x:0,y:a}];
+  const M=[], v=[];
+  for(let i=0;i<4;i++){
+    const d=destino[i], o=cantos[i];
+    M.push([d.x,d.y,1,0,0,0,-d.x*o.x,-d.y*o.x]); v.push(o.x);
+    M.push([0,0,0,d.x,d.y,1,-d.x*o.y,-d.y*o.y]); v.push(o.y);
+  }
+  return scanResolverSistema(M,v);
+}
+
+function scanGuardarPagina(){
+  if(!scanImagem||!scanCantos) return;
+  const c=scanCantos;
+
+  // O tamanho da saída sai da média dos lados opostos do quadrilátero: o papel
+  // fica com a proporção que ele tem de verdade, não a da foto torta.
+  const dist=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y);
+  let l=Math.round((dist(c[0],c[1])+dist(c[3],c[2]))/2);
+  let a=Math.round((dist(c[0],c[3])+dist(c[1],c[2]))/2);
+  l=Math.max(50,Math.min(SCAN_MAX,l));
+  a=Math.max(50,Math.min(SCAN_MAX,a));
+
+  const h=scanCalcularTransformacao(c,l,a);
+  if(!h){
+    alert('Não consegui enquadrar\n\n'+'Os quatro cantos precisam formar uma área. '+
+          'Parece que dois deles ficaram no mesmo lugar — arraste e tente de novo.');
+    return;
+  }
+
+  const origem=scanImagem.getContext('2d').getImageData(0,0,scanImagem.width,scanImagem.height);
+  const od=origem.data, OL=scanImagem.width, OA=scanImagem.height;
+  const saida=document.createElement('canvas');
+  saida.width=l; saida.height=a;
+  const ctx=saida.getContext('2d');
+  const dest=ctx.createImageData(l,a);
+  const dd=dest.data;
+
+  for(let y=0;y<a;y++){
+    for(let x=0;x<l;x++){
+      const den=h[6]*x+h[7]*y+1;
+      const sx=(h[0]*x+h[1]*y+h[2])/den;
+      const sy=(h[3]*x+h[4]*y+h[5])/den;
+      const i=(y*l+x)*4;
+      if(sx<0||sy<0||sx>=OL-1||sy>=OA-1){
+        dd[i]=dd[i+1]=dd[i+2]=255; dd[i+3]=255;   // fora da foto: papel branco
+        continue;
+      }
+      // Média dos quatro vizinhos, senão o texto sai serrilhado.
+      const x0=sx|0, y0=sy|0, fx=sx-x0, fy=sy-y0;
+      const p00=(y0*OL+x0)*4, p10=p00+4, p01=p00+OL*4, p11=p01+4;
+      for(let k=0;k<3;k++){
+        dd[i+k]=
+          od[p00+k]*(1-fx)*(1-fy) + od[p10+k]*fx*(1-fy) +
+          od[p01+k]*(1-fx)*fy     + od[p11+k]*fx*fy;
+      }
+      dd[i+3]=255;
+    }
+  }
+  ctx.putImageData(dest,0,0);
+  scanTratar(ctx,l,a);
+
+  scanPaginas.push({ dados:saida.toDataURL('image/jpeg',0.88), largura:l, altura:a });
+  scanImagem=null; scanCantos=null;
+  document.getElementById('scan-editor').style.display='none';
+  document.getElementById('scan-vazio').style.display='none';
+  scanAtualizarRodape();
+}
+
+function scanRemoverPagina(i){
+  scanPaginas.splice(i,1);
+  scanAtualizarRodape();
+  if(!scanPaginas.length && !scanImagem) document.getElementById('scan-vazio').style.display='';
+}
+
+function scanAtualizarRodape(){
+  const n=scanPaginas.length;
+  document.getElementById('scan-contador').textContent = n?('· '+n+' página'+(n>1?'s':'')):'';
+  document.getElementById('scan-btn-mais').style.display = n?'':'none';
+  document.getElementById('scan-btn-salvar').style.display = n?'':'none';
+  document.getElementById('scan-paginas').style.display = n?'':'none';
+  const el=document.getElementById('scan-miniaturas');
+  el.innerHTML=scanPaginas.map(function(p,i){
+    return '<div style="position:relative">'+
+      '<img src="'+p.dados+'" style="height:76px;border-radius:6px;border:1px solid var(--gray-3);display:block">'+
+      '<button type="button" onclick="scanRemoverPagina('+i+')" title="Tirar esta página" '+
+        'style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:0;'+
+        'background:#c0392b;color:#fff;cursor:pointer;font-size:12px;line-height:1">&times;</button>'+
+      '<div style="text-align:center;font-size:10px;color:var(--gray-4);margin-top:2px">'+(i+1)+'</div>'+
+      '</div>';
+  }).join('');
+}
+
+// ---- MONTAR O PDF ----
+// Sem biblioteca: o sistema não tem build nem dependências. Um PDF é uma lista
+// de objetos e, no fim, uma tabela dizendo em que byte cada um começa. Se a
+// conta dos bytes errar, o arquivo abre em branco — por isso tudo é montado em
+// bytes, nunca em texto.
+function scanBytesDoJpeg(dataUrl){
+  const b64=dataUrl.split(',')[1];
+  const bin=atob(b64);
+  const arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  return arr;
+}
+
+function scanMontarPDF(paginas){
+  const partes=[], posicoes=[]; let total=0;
+  const texto=function(s){ const b=new Uint8Array(s.length); for(let i=0;i<s.length;i++) b[i]=s.charCodeAt(i)&0xff; return b; };
+  const por=function(b){ partes.push(b); total+=b.length; };
+  const abrir=function(n){ posicoes[n]=total; };
+
+  por(texto('%PDF-1.4\n'));
+  const primeiro=3;
+  const ids=paginas.map(function(_,i){ return primeiro+i*3; });
+
+  abrir(1); por(texto('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n'));
+  abrir(2); por(texto('2 0 obj\n<< /Type /Pages /Kids ['+ids.map(function(n){return n+' 0 R';}).join(' ')+'] /Count '+paginas.length+' >>\nendobj\n'));
+
+  paginas.forEach(function(p,i){
+    const idPag=primeiro+i*3, idCont=idPag+1, idImg=idPag+2;
+    const jpeg=scanBytesDoJpeg(p.dados);
+    abrir(idPag);
+    por(texto(idPag+' 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+p.largura+' '+p.altura+'] '+
+      '/Resources << /XObject << /Im0 '+idImg+' 0 R >> >> /Contents '+idCont+' 0 R >>\nendobj\n'));
+    const desenho='q '+p.largura+' 0 0 '+p.altura+' 0 0 cm /Im0 Do Q\n';
+    abrir(idCont);
+    por(texto(idCont+' 0 obj\n<< /Length '+desenho.length+' >>\nstream\n'+desenho+'endstream\nendobj\n'));
+    abrir(idImg);
+    por(texto(idImg+' 0 obj\n<< /Type /XObject /Subtype /Image /Width '+p.largura+' /Height '+p.altura+
+      ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+jpeg.length+' >>\nstream\n'));
+    por(jpeg);
+    por(texto('\nendstream\nendobj\n'));
+  });
+
+  const qtd=3+paginas.length*3;
+  const inicio=total;
+  let tab='xref\n0 '+qtd+'\n0000000000 65535 f \n';
+  for(let n=1;n<qtd;n++) tab+=String(posicoes[n]||0).padStart(10,'0')+' 00000 n \n';
+  tab+='trailer\n<< /Size '+qtd+' /Root 1 0 R >>\nstartxref\n'+inicio+'\n%%EOF\n';
+  por(texto(tab));
+
+  const saida=new Uint8Array(total);
+  let onde=0;
+  partes.forEach(function(b){ saida.set(b,onde); onde+=b.length; });
+  return saida;
+}
+
+let scanSalvando=false;
+
+// Cada módulo guarda o anexo do seu jeito. PDF vai como 'raw', que é o tipo em
+// que o serviço de arquivos entrega o documento inteiro.
+async function scanEntregar(arquivo){
+  const fd=new FormData();
+  fd.append('file',arquivo);
+  fd.append('upload_preset',CLOUDINARY_PRESET);
+  fd.append('folder','daluminium-financeiro');
+  const r=await fetch('https://api.cloudinary.com/v1_1/'+CLOUDINARY_CLOUD+'/raw/upload',{method:'POST',body:fd});
+  if(!r.ok) throw new Error('Servidor de arquivos recusou ('+r.status+')');
+  const j=await r.json();
+  const alvo = attachType==='pagar' ? data.pagar[attachIdx] : data.receber[attachIdx];
+  if(!alvo.attachments) alvo.attachments=[];
+  alvo.attachments.push({name:arquivo.name,url:j.secure_url,public_id:j.public_id});
+  await persist(); render(); renderAttachList();
+}
+
+
+// Arrastar os cantos do enquadramento, no dedo e no mouse.
+(function(){
+  const t=document.getElementById("scan-tela");
+  if(!t) return;
+  t.addEventListener("mousedown",scanPegar);
+  t.addEventListener("touchstart",scanPegar,{passive:false});
+  window.addEventListener("mousemove",scanMover);
+  t.addEventListener("touchmove",scanMover,{passive:false});
+  window.addEventListener("mouseup",scanSoltar);
+  t.addEventListener("touchend",scanSoltar);
+})();
+
+async function scanSalvar(){
+  if(!scanPaginas.length) return;
+  if(scanSalvando) return;              // trava de reentrada: um toque, um envio
+  scanSalvando=true;
+  const st=document.getElementById('scan-status');
+  const btn=document.getElementById('scan-btn-salvar');
+  btn.disabled=true; st.textContent='Montando o PDF...';
+  try{
+    const bytes=scanMontarPDF(scanPaginas);
+    if(bytes.length>10*1024*1024){
+      alert('Ficou grande demais\n\nO PDF ficou com '+scanTamanho(bytes.length)+', e o limite é 10 MB.\n\n'+
+            'Tire algumas páginas e salve em duas partes.');
+      btn.disabled=false; st.textContent=''; scanSalvando=false; return;
+    }
+    const nome='escaneado-'+new Date().toISOString().slice(0,10)+'-'+String(Date.now()).slice(-4)+'.pdf';
+    st.textContent='Enviando '+scanTamanho(bytes.length)+'...';
+    await scanEntregar(new File([bytes],nome,{type:'application/pdf'}));
+    scanPaginas=[];
+    document.getElementById('scan-ov').classList.remove('open');
+    alert('Documento escaneado\n\nO PDF foi anexado e já está guardado.');
+  }catch(e){
+    alert('Não consegui salvar\n\nO envio falhou: '+e.message+'\n\nAs páginas continuam aqui. Tente de novo.');
+    st.textContent='';
+  }
+  btn.disabled=false;
+  scanSalvando=false;
+}
+
 async function uploadAttach(event){
   const file=event.target.files[0]; if(!file) return;
   const prog=document.getElementById('attach-progress');
@@ -2787,5 +3341,65 @@ if(checkCracha()){
   setTimeout(()=>document.getElementById('login-user').focus(),300);
 }
 </script>
+<!-- ESCANEAR PELO CELULAR.
+     No celular o botão abre a câmera direto; no computador abre a escolha de
+     arquivo, o que ainda serve para quem já escaneou pela impressora.
+     Navegador nenhum consegue falar com um scanner — é barreira do sistema,
+     não limitação daqui. -->
+<div class="overlay" id="scan-ov" style="z-index:300">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-head">
+      <div class="modal-title">📷 Escanear documento <span id="scan-contador" style="font-size:12px;font-weight:400;color:var(--gray-4)"></span></div>
+      <button class="btn btn-outline btn-sm" onclick="fecharScanner()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <input type="file" id="scan-arquivo" accept="image/*" capture="environment" style="display:none" onchange="scanRecebeuFoto(event)">
+
+      <div id="scan-vazio" style="text-align:center;padding:26px 10px">
+        <div style="font-size:44px;line-height:1;margin-bottom:10px">📄</div>
+        <p style="font-size:13.5px;color:var(--gray-5);line-height:1.6;margin:0 0 18px">
+          No celular abre a câmera. No computador, escolha uma foto ou um arquivo
+          que você já escaneou pela impressora.
+        </p>
+        <button class="btn btn-teal" onclick="document.getElementById('scan-arquivo').click()">Tirar foto</button>
+      </div>
+
+      <div id="scan-editor" style="display:none">
+        <div style="position:relative;display:inline-block;max-width:100%;touch-action:none">
+          <canvas id="scan-tela" style="max-width:100%;display:block;border-radius:8px;background:#333"></canvas>
+          <!-- Lupa: aparece só enquanto o dedo está arrastando um canto, e
+               mostra ampliado o pedaço que o dedo está cobrindo. Sem ela é
+               impossível encostar o canto na quina do papel no celular. -->
+          <canvas id="scan-lupa" width="150" height="150"
+            style="display:none;position:absolute;width:150px;height:150px;border-radius:50%;
+            border:3px solid #17a2b8;box-shadow:0 3px 12px rgba(0,0,0,.45);background:#fff;
+            pointer-events:none;z-index:5"></canvas>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+          <button class="btn btn-outline btn-sm" onclick="scanAlternarCor()" id="scan-btn-cor">Colorido</button>
+          <button class="btn btn-outline btn-sm" onclick="scanCorteInteiro()">Enquadrar tudo</button>
+          <span style="flex:1"></span>
+          <button class="btn btn-outline btn-sm" onclick="scanDescartar()">Descartar</button>
+          <button class="btn btn-teal btn-sm" onclick="scanGuardarPagina()">Usar esta página</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--gray-4);margin-top:8px;line-height:1.5">
+          Arraste cada canto até a quina do papel. Eles andam sozinhos, então o corte
+          acompanha o papel torto — e a foto sai endireitada, como se tirada de frente.
+        </div>
+      </div>
+
+      <div id="scan-paginas" style="display:none;margin-top:14px;border-top:1px solid var(--gray-2);padding-top:12px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px">Páginas prontas</div>
+        <div id="scan-miniaturas" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span id="scan-status" style="flex:1;font-size:11.5px;color:var(--gray-4)"></span>
+      <button class="btn btn-outline btn-sm" id="scan-btn-mais" onclick="document.getElementById('scan-arquivo').click()" style="display:none">+ Outra página</button>
+      <button class="btn btn-teal" id="scan-btn-salvar" onclick="scanSalvar()" style="display:none">Salvar como PDF</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
