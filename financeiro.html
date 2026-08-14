@@ -3354,9 +3354,9 @@ if(checkCracha()){
      arquivo, o que ainda serve para quem já escaneou pela impressora.
      Navegador nenhum consegue falar com um scanner — é barreira do sistema,
      não limitação daqui. -->
-<div class="overlay" id="scan-ov" style="z-index:300">
+<div class="modal-overlay" id="scan-ov" style="z-index:300">
   <div class="modal" style="max-width:640px">
-    <div class="modal-head">
+    <div class="modal-header">
       <div class="modal-title">📷 Escanear documento <span id="scan-contador" style="font-size:12px;font-weight:400;color:var(--gray-4)"></span></div>
       <button class="btn btn-outline btn-sm" onclick="fecharScanner()">Fechar</button>
     </div>
@@ -3401,7 +3401,7 @@ if(checkCracha()){
         <div id="scan-miniaturas" style="display:flex;gap:8px;flex-wrap:wrap"></div>
       </div>
     </div>
-    <div class="modal-foot">
+    <div class="modal-footer">
       <span id="scan-status" style="flex:1;font-size:11.5px;color:var(--gray-4)"></span>
       <button class="btn btn-outline btn-sm" id="scan-btn-mais" onclick="document.getElementById('scan-arquivo').click()" style="display:none">+ Outra página</button>
       <button class="btn btn-teal" id="scan-btn-salvar" onclick="scanSalvar()" style="display:none">Salvar como PDF</button>
