@@ -308,6 +308,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <input type="file" id="f-doc-arquivo" style="display:none" onchange="anexarDoc(event)">
           <button type="button" class="btn btn-outline btn-sm" id="f-doc-btn"
             onclick="document.getElementById('f-doc-arquivo').click()">📎 Anexar arquivo</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="abrirScanner()"
+            title="Fotografar o documento e transformar em PDF">📷 Escanear</button>
           <span id="f-doc-status" style="font-size:11px;color:#7b8794"></span>
         </div>
       </div>
@@ -344,6 +346,58 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
      falando. A saída é não usar a janela dele.
      z-index acima das outras porque um aviso pode nascer de dentro de uma
      janela já aberta — a ficha da obra ou a de cadastros. -->
+<!-- ESCANEAR PELO CELULAR.
+     No celular o botão abre a câmera direto; no computador abre a escolha de
+     arquivo, o que ainda serve para quem já escaneou pela impressora.
+     Navegador nenhum consegue falar com um scanner — é barreira do sistema,
+     não limitação daqui. -->
+<div class="overlay" id="scan-ov" style="z-index:300">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-head">
+      <div class="modal-title">📷 Escanear documento <span id="scan-contador" style="font-size:12px;font-weight:400;color:var(--gray-4)"></span></div>
+      <button class="btn btn-outline btn-sm" onclick="fecharScanner()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <input type="file" id="scan-arquivo" accept="image/*" capture="environment" style="display:none" onchange="scanRecebeuFoto(event)">
+
+      <div id="scan-vazio" style="text-align:center;padding:26px 10px">
+        <div style="font-size:44px;line-height:1;margin-bottom:10px">📄</div>
+        <p style="font-size:13.5px;color:var(--gray-5);line-height:1.6;margin:0 0 18px">
+          No celular abre a câmera. No computador, escolha uma foto ou um arquivo
+          que você já escaneou pela impressora.
+        </p>
+        <button class="btn btn-teal" onclick="document.getElementById('scan-arquivo').click()">Tirar foto</button>
+      </div>
+
+      <div id="scan-editor" style="display:none">
+        <div style="position:relative;display:inline-block;max-width:100%;touch-action:none">
+          <canvas id="scan-tela" style="max-width:100%;display:block;border-radius:8px;background:#333"></canvas>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+          <button class="btn btn-outline btn-sm" onclick="scanAlternarCor()" id="scan-btn-cor">Colorido</button>
+          <button class="btn btn-outline btn-sm" onclick="scanCorteInteiro()">Enquadrar tudo</button>
+          <span style="flex:1"></span>
+          <button class="btn btn-outline btn-sm" onclick="scanDescartar()">Descartar</button>
+          <button class="btn btn-teal btn-sm" onclick="scanGuardarPagina()">Usar esta página</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--gray-4);margin-top:8px;line-height:1.5">
+          Arraste os quatro cantos para enquadrar só o papel. O que ficar de fora é cortado.
+        </div>
+      </div>
+
+      <div id="scan-paginas" style="display:none;margin-top:14px;border-top:1px solid var(--gray-2);padding-top:12px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px">Páginas prontas</div>
+        <div id="scan-miniaturas" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span id="scan-status" style="flex:1;font-size:11.5px;color:var(--gray-4)"></span>
+      <button class="btn btn-outline btn-sm" id="scan-btn-mais" onclick="document.getElementById('scan-arquivo').click()" style="display:none">+ Outra página</button>
+      <button class="btn btn-teal" id="scan-btn-salvar" onclick="scanSalvar()" style="display:none">Salvar como PDF</button>
+    </div>
+  </div>
+</div>
+
 <!-- COLAR A LISTA DE VÃOS.
      O sistema não consegue ler o PDF anexado — para o computador ele é uma
      imagem. Então a pessoa copia o texto e cola aqui.
@@ -1080,6 +1134,304 @@ function classePrazo(o){
   if(d<=2) return 'hoje';
   return '';
 }
+// ================= ESCANEAR PELO CELULAR =================
+// Faz o que o CamScanner faz de mais útil: fotografar, enquadrar, deixar com
+// cara de documento e juntar tudo num PDF.
+//
+// O que NÃO dá para fazer: falar com o scanner da impressora. Nenhuma página
+// da internet consegue — é barreira do sistema operacional. No computador o
+// botão abre a escolha de arquivo, para quem já escaneou por fora.
+let scanPaginas=[];        // páginas já aprovadas, em JPEG
+let scanImagem=null;       // a foto atual, ainda sendo enquadrada
+let scanCantos=null;       // o retângulo do corte, em coordenadas da imagem
+let scanPB=true;           // preto e branco ligado por padrão
+let scanArrastando=-1;
+
+// Foto de celular vem com 4000 pixels de largura. Documento não precisa disso:
+// 1600 já lê texto pequeno com folga, e mantém o arquivo leve o bastante para
+// várias páginas caberem no limite de 10 MB do serviço de arquivos.
+const SCAN_MAX=1600;
+
+function abrirScanner(){
+  scanPaginas=[]; scanImagem=null; scanCantos=null; scanPB=true;
+  document.getElementById('scan-vazio').style.display='';
+  document.getElementById('scan-editor').style.display='none';
+  document.getElementById('scan-paginas').style.display='none';
+  document.getElementById('scan-btn-mais').style.display='none';
+  document.getElementById('scan-btn-salvar').style.display='none';
+  document.getElementById('scan-status').textContent='';
+  document.getElementById('scan-contador').textContent='';
+  document.getElementById('scan-ov').classList.add('open');
+}
+function fecharScanner(){
+  if(scanPaginas.length && !confirm('Tem '+scanPaginas.length+' página(s) escaneada(s) que ainda não foram salvas.\n\nFechar mesmo assim?')) return;
+  document.getElementById('scan-ov').classList.remove('open');
+}
+
+function scanRecebeuFoto(ev){
+  const arq=ev.target.files && ev.target.files[0];
+  ev.target.value='';
+  if(!arq) return;
+  const leitor=new FileReader();
+  leitor.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      // Reduz mantendo a proporção, antes de qualquer coisa.
+      const escala=Math.min(1, SCAN_MAX/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');
+      c.width=Math.round(img.width*escala);
+      c.height=Math.round(img.height*escala);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      scanImagem=c;
+      scanCorteInteiro();
+      document.getElementById('scan-vazio').style.display='none';
+      document.getElementById('scan-editor').style.display='';
+    };
+    img.onerror=function(){ aviso('Não consegui abrir','O arquivo escolhido não parece ser uma imagem.'); };
+    img.src=e.target.result;
+  };
+  leitor.readAsDataURL(arq);
+}
+
+function scanCorteInteiro(){
+  if(!scanImagem) return;
+  scanCantos={x1:0,y1:0,x2:scanImagem.width,y2:scanImagem.height};
+  scanDesenhar();
+}
+function scanAlternarCor(){
+  scanPB=!scanPB;
+  document.getElementById('scan-btn-cor').textContent = scanPB ? 'Colorido' : 'Preto e branco';
+  scanDesenhar();
+}
+
+// Deixa com cara de documento: tira a cor e puxa o contraste, para o papel
+// virar branco e a tinta virar preta. É o que faz uma foto tremida de nota
+// fiscal ficar legível.
+function scanTratar(ctx,l,a){
+  if(!scanPB) return;
+  const d=ctx.getImageData(0,0,l,a);
+  const p=d.data;
+  for(let i=0;i<p.length;i+=4){
+    const cinza=(p[i]*0.299+p[i+1]*0.587+p[i+2]*0.114);
+    // Curva simples: abaixo de 110 escurece, acima de 175 vira branco.
+    let v = cinza<110 ? cinza*0.45 : (cinza>175 ? 255 : (cinza-110)*(255/65));
+    v=Math.max(0,Math.min(255,v));
+    p[i]=p[i+1]=p[i+2]=v;
+  }
+  ctx.putImageData(d,0,0);
+}
+
+function scanDesenhar(){
+  if(!scanImagem||!scanCantos) return;
+  const tela=document.getElementById('scan-tela');
+  const larguraMax=Math.min(560, (document.getElementById('scan-ov').clientWidth||560)-60);
+  const escala=Math.min(1, larguraMax/scanImagem.width);
+  tela.width=Math.round(scanImagem.width*escala);
+  tela.height=Math.round(scanImagem.height*escala);
+  tela._escala=escala;
+  const ctx=tela.getContext('2d');
+  ctx.drawImage(scanImagem,0,0,tela.width,tela.height);
+  scanTratar(ctx,tela.width,tela.height);
+
+  // Escurece o que está fora do enquadramento, para ficar claro o que sai.
+  const c=scanCantos, e=escala;
+  ctx.fillStyle='rgba(0,0,0,.45)';
+  ctx.fillRect(0,0,tela.width,c.y1*e);
+  ctx.fillRect(0,c.y2*e,tela.width,tela.height-c.y2*e);
+  ctx.fillRect(0,c.y1*e,c.x1*e,(c.y2-c.y1)*e);
+  ctx.fillRect(c.x2*e,c.y1*e,tela.width-c.x2*e,(c.y2-c.y1)*e);
+  ctx.strokeStyle='#17a2b8'; ctx.lineWidth=2;
+  ctx.strokeRect(c.x1*e,c.y1*e,(c.x2-c.x1)*e,(c.y2-c.y1)*e);
+  [[c.x1,c.y1],[c.x2,c.y1],[c.x1,c.y2],[c.x2,c.y2]].forEach(function(p){
+    ctx.fillStyle='#17a2b8';
+    ctx.beginPath(); ctx.arc(p[0]*e,p[1]*e,9,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(p[0]*e,p[1]*e,4,0,Math.PI*2); ctx.fill();
+  });
+}
+
+function scanPonto(ev){
+  const tela=document.getElementById('scan-tela');
+  const r=tela.getBoundingClientRect();
+  const t=(ev.touches&&ev.touches[0])||ev;
+  const e=tela._escala||1;
+  return { x:(t.clientX-r.left)*(tela.width/r.width)/e, y:(t.clientY-r.top)*(tela.height/r.height)/e };
+}
+function scanPegar(ev){
+  if(!scanCantos) return;
+  ev.preventDefault();
+  const p=scanPonto(ev), c=scanCantos;
+  const cantos=[[c.x1,c.y1],[c.x2,c.y1],[c.x1,c.y2],[c.x2,c.y2]];
+  let melhor=-1, menor=1e9;
+  cantos.forEach(function(q,i){
+    const d=Math.hypot(q[0]-p.x,q[1]-p.y);
+    if(d<menor){ menor=d; melhor=i; }
+  });
+  // 40 pixels de tolerância: dedo é grosso, e errar o canto irrita.
+  scanArrastando = menor<(scanImagem.width*0.06+40) ? melhor : -1;
+}
+function scanMover(ev){
+  if(scanArrastando<0||!scanCantos) return;
+  ev.preventDefault();
+  const p=scanPonto(ev), c=scanCantos;
+  const x=Math.max(0,Math.min(scanImagem.width,p.x));
+  const y=Math.max(0,Math.min(scanImagem.height,p.y));
+  if(scanArrastando===0){ c.x1=Math.min(x,c.x2-40); c.y1=Math.min(y,c.y2-40); }
+  if(scanArrastando===1){ c.x2=Math.max(x,c.x1+40); c.y1=Math.min(y,c.y2-40); }
+  if(scanArrastando===2){ c.x1=Math.min(x,c.x2-40); c.y2=Math.max(y,c.y1+40); }
+  if(scanArrastando===3){ c.x2=Math.max(x,c.x1+40); c.y2=Math.max(y,c.y1+40); }
+  scanDesenhar();
+}
+function scanSoltar(){ scanArrastando=-1; }
+
+function scanDescartar(){
+  scanImagem=null; scanCantos=null;
+  document.getElementById('scan-editor').style.display='none';
+  document.getElementById('scan-vazio').style.display = scanPaginas.length?'none':'';
+  scanAtualizarRodape();
+}
+
+function scanGuardarPagina(){
+  if(!scanImagem||!scanCantos) return;
+  const c=scanCantos;
+  const l=Math.round(c.x2-c.x1), a=Math.round(c.y2-c.y1);
+  const saida=document.createElement('canvas');
+  saida.width=l; saida.height=a;
+  const ctx=saida.getContext('2d');
+  ctx.drawImage(scanImagem, Math.round(c.x1), Math.round(c.y1), l, a, 0, 0, l, a);
+  scanTratar(ctx,l,a);
+  scanPaginas.push({ dados:saida.toDataURL('image/jpeg',0.82), largura:l, altura:a });
+  scanImagem=null; scanCantos=null;
+  document.getElementById('scan-editor').style.display='none';
+  document.getElementById('scan-vazio').style.display='none';
+  scanAtualizarRodape();
+}
+
+function scanRemoverPagina(i){
+  scanPaginas.splice(i,1);
+  scanAtualizarRodape();
+  if(!scanPaginas.length && !scanImagem) document.getElementById('scan-vazio').style.display='';
+}
+
+function scanAtualizarRodape(){
+  const n=scanPaginas.length;
+  document.getElementById('scan-contador').textContent = n?('· '+n+' página'+(n>1?'s':'')):'';
+  document.getElementById('scan-btn-mais').style.display = n?'':'none';
+  document.getElementById('scan-btn-salvar').style.display = n?'':'none';
+  document.getElementById('scan-paginas').style.display = n?'':'none';
+  const el=document.getElementById('scan-miniaturas');
+  el.innerHTML=scanPaginas.map(function(p,i){
+    return '<div style="position:relative">'+
+      '<img src="'+p.dados+'" style="height:76px;border-radius:6px;border:1px solid var(--gray-3);display:block">'+
+      '<button type="button" onclick="scanRemoverPagina('+i+')" title="Tirar esta página" '+
+        'style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:0;'+
+        'background:#c0392b;color:#fff;cursor:pointer;font-size:12px;line-height:1">&times;</button>'+
+      '<div style="text-align:center;font-size:10px;color:var(--gray-4);margin-top:2px">'+(i+1)+'</div>'+
+      '</div>';
+  }).join('');
+}
+
+// ---- MONTAR O PDF ----
+// Sem biblioteca: o sistema não tem build nem dependências. Um PDF é uma lista
+// de objetos e, no fim, uma tabela dizendo em que byte cada um começa. Se a
+// conta dos bytes errar, o arquivo abre em branco — por isso tudo é montado em
+// bytes, nunca em texto.
+function scanBytesDoJpeg(dataUrl){
+  const b64=dataUrl.split(',')[1];
+  const bin=atob(b64);
+  const arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  return arr;
+}
+
+function scanMontarPDF(paginas){
+  const partes=[], posicoes=[]; let total=0;
+  const texto=function(s){ const b=new Uint8Array(s.length); for(let i=0;i<s.length;i++) b[i]=s.charCodeAt(i)&0xff; return b; };
+  const por=function(b){ partes.push(b); total+=b.length; };
+  const abrir=function(n){ posicoes[n]=total; };
+
+  por(texto('%PDF-1.4\n'));
+  const primeiro=3;
+  const ids=paginas.map(function(_,i){ return primeiro+i*3; });
+
+  abrir(1); por(texto('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n'));
+  abrir(2); por(texto('2 0 obj\n<< /Type /Pages /Kids ['+ids.map(function(n){return n+' 0 R';}).join(' ')+'] /Count '+paginas.length+' >>\nendobj\n'));
+
+  paginas.forEach(function(p,i){
+    const idPag=primeiro+i*3, idCont=idPag+1, idImg=idPag+2;
+    const jpeg=scanBytesDoJpeg(p.dados);
+    abrir(idPag);
+    por(texto(idPag+' 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+p.largura+' '+p.altura+'] '+
+      '/Resources << /XObject << /Im0 '+idImg+' 0 R >> >> /Contents '+idCont+' 0 R >>\nendobj\n'));
+    const desenho='q '+p.largura+' 0 0 '+p.altura+' 0 0 cm /Im0 Do Q\n';
+    abrir(idCont);
+    por(texto(idCont+' 0 obj\n<< /Length '+desenho.length+' >>\nstream\n'+desenho+'endstream\nendobj\n'));
+    abrir(idImg);
+    por(texto(idImg+' 0 obj\n<< /Type /XObject /Subtype /Image /Width '+p.largura+' /Height '+p.altura+
+      ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+jpeg.length+' >>\nstream\n'));
+    por(jpeg);
+    por(texto('\nendstream\nendobj\n'));
+  });
+
+  const qtd=3+paginas.length*3;
+  const inicio=total;
+  let tab='xref\n0 '+qtd+'\n0000000000 65535 f \n';
+  for(let n=1;n<qtd;n++) tab+=String(posicoes[n]||0).padStart(10,'0')+' 00000 n \n';
+  tab+='trailer\n<< /Size '+qtd+' /Root 1 0 R >>\nstartxref\n'+inicio+'\n%%EOF\n';
+  por(texto(tab));
+
+  const saida=new Uint8Array(total);
+  let onde=0;
+  partes.forEach(function(b){ saida.set(b,onde); onde+=b.length; });
+  return saida;
+}
+
+async function scanSalvar(){
+  if(!scanPaginas.length) return;
+  const st=document.getElementById('scan-status');
+  const btn=document.getElementById('scan-btn-salvar');
+  btn.disabled=true; st.textContent='Montando o PDF...';
+  try{
+    const bytes=scanMontarPDF(scanPaginas);
+    if(bytes.length>10*1024*1024){
+      btn.disabled=false; st.textContent='';
+      aviso('Ficou grande demais','O PDF ficou com '+fmtTamanho(bytes.length)+', e o limite é 10 MB.\n\n'+
+            'Tire algumas páginas e salve em duas partes.');
+      return;
+    }
+    const nome='escaneado-'+new Date().toISOString().slice(0,10)+'-'+
+      String(Date.now()).slice(-4)+'.pdf';
+    const arquivo=new File([bytes],nome,{type:'application/pdf'});
+
+    st.textContent='Enviando '+fmtTamanho(bytes.length)+'...';
+    const fd=new FormData();
+    fd.append('file',arquivo);
+    fd.append('upload_preset',UPLOAD_PRESET);
+    fd.append('folder','daluminium_fabrica');
+    const r=await fetch('https://api.cloudinary.com/v1_1/'+CLOUD_NAME+'/raw/upload',{method:'POST',body:fd});
+    if(!r.ok) throw new Error('Servidor de arquivos recusou ('+r.status+')');
+    const j=await r.json();
+
+    fichaDocs.push({
+      id:novoId(),
+      tipo:document.getElementById('f-doc-tipo').value,
+      nome:nome,
+      url:j.secure_url,
+      tamanho:bytes.length,
+      quem:usuario,
+      quando:agoraISO()
+    });
+    renderDocs();
+    scanPaginas=[];
+    document.getElementById('scan-ov').classList.remove('open');
+    aviso('Documento escaneado','O PDF foi anexado à obra.\n\nEle só fica guardado de verdade quando você salvar a ficha.');
+  }catch(e){
+    aviso('Não consegui salvar','O envio falhou: '+e.message+'\n\nAs páginas continuam aqui. Tente de novo.');
+    st.textContent='';
+  }
+  btn.disabled=false;
+}
+
 // ================= VÃOS DA OBRA =================
 // Uma linha por vão, com o lugar dele. Instalação parcial é o normal aqui: o
 // cliente pede metade da casa, ou o vidro de um quarto atrasa. Com contador
@@ -2204,6 +2556,16 @@ function abrirApp(nome,papelDoUsuario){
   // Clicar fora ou apertar Esc fecha o aviso. Os dois caminhos passam por
   // fecharAviso(), então o que ficou pendente em `aoFechar` acontece igual —
   // é o que garante que a sessão expirada recarregue a página de qualquer jeito.
+  // Arrastar os cantos do enquadramento, no dedo e no mouse.
+  const _tela=document.getElementById('scan-tela');
+  if(_tela){
+    _tela.addEventListener('mousedown',scanPegar);
+    _tela.addEventListener('touchstart',scanPegar,{passive:false});
+    window.addEventListener('mousemove',scanMover);
+    _tela.addEventListener('touchmove',scanMover,{passive:false});
+    window.addEventListener('mouseup',scanSoltar);
+    _tela.addEventListener('touchend',scanSoltar);
+  }
   document.getElementById('aviso-ov').addEventListener('click',function(e){ if(e.target===this) fecharAviso(); });
   document.addEventListener('keydown',function(e){
     if(e.key==='Escape' && document.getElementById('aviso-ov').classList.contains('open')) fecharAviso();
