@@ -933,7 +933,10 @@ async function trazerDocsNovos(){
   fichaDocs.forEach(function(d){ tenho[d.id]=1; });
   const jaTenhoUrl={};
   fichaDocs.forEach(function(d){ jaTenhoUrl[d.url]=1; });
-  const novos=o.docs.filter(function(d){ return !tenho[d.id] && !jaTenhoUrl[d.url]; });
+  // Nao ressuscita o que a pessoa acabou de apagar nesta tela.
+  const novos=o.docs.filter(function(d){
+    return !tenho[d.id] && !jaTenhoUrl[d.url] && !docsApagados[d.id] && !docsApagados[d.url];
+  });
   if(!novos.length) return;
   fichaDocs=fichaDocs.concat(novos);
   renderDocs();
@@ -1122,12 +1125,27 @@ async function anexarDoc(ev){
   btn.disabled=false;
 }
 
-function removerDoc(id){
+// O que a pessoa apagou nesta tela. Sem esta lista, a atualização automática
+// vê o arquivo ainda no servidor, acha que é novidade e traz de volta — foi o
+// que aconteceu com o Ander: apagou pelo celular, atualizou, e o anexo voltou.
+let docsApagados={};
+
+async function removerDoc(id){
   const d=fichaDocs.find(x=>x.id===id);
   if(!d) return;
-  if(!confirm('Remover "'+d.nome+'" desta obra?\n\nO arquivo sai da ficha quando voce salvar.')) return;
+  if(!confirm('Remover "'+d.nome+'" desta obra?')) return;
+  docsApagados[d.id]=1;
+  if(d.url) docsApagados[d.url]=1;
   fichaDocs=fichaDocs.filter(x=>x.id!==id);
   renderDocs();
+  // Grava na hora, pelo mesmo motivo de anexar: no celular o botão Salvar fica
+  // lá embaixo, e a pessoa fecha achando que já foi.
+  if(fichaId){
+    const gravou=await salvarFicha(true);
+    if(!gravou) aviso('Removido, mas NÃO salvo',
+      'O documento saiu da tela, mas a gravação falhou.\n\n'+
+      'Não feche esta tela: toque em Salvar para tentar de novo.');
+  }
 }
 
 // Nenhum documento entra duas vezes. O mesmo endereço de arquivo aparecendo
@@ -1135,6 +1153,7 @@ function removerDoc(id){
 // obra confunde quem for procurar o certo depois.
 function juntarDoc(novo){
   if(fichaDocs.some(function(d){ return d.url===novo.url; })) return false;
+  if(docsApagados[novo.id]||docsApagados[novo.url]) return false;
   fichaDocs.push(novo);
   return true;
 }
@@ -2425,6 +2444,7 @@ function novaObra(){
   document.getElementById('f-etapa').value=_primeira?_primeira.id:'';
   document.getElementById('f-obs').value='';
   fichaDocs=[];
+  docsApagados={};
   popularSelectDoc();
   renderDocs();
   fichaVaos=[];
@@ -2455,6 +2475,7 @@ function abrirFicha(id){
   document.getElementById('f-etapa').value=o.etapa||(ETAPAS[0]&&ETAPAS[0].id)||'';
   document.getElementById('f-obs').value=o.obs||'';
   fichaDocs=Array.isArray(o.docs)?JSON.parse(JSON.stringify(o.docs)):[];
+  docsApagados={};
   popularSelectDoc();
   renderDocs();
   fichaVaos=Array.isArray(o.vaos)?JSON.parse(JSON.stringify(o.vaos)):[];
