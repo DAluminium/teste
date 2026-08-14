@@ -1313,6 +1313,31 @@ function scanTratar(ctx,l,a){
     cinza[i]=p[j]*0.299+p[j+1]*0.587+p[j+2]*0.114;
   }
 
+  // Realce de contorno, antes de decidir o que é tinta.
+  //
+  // A foto do celular já sai um pouco macia, e o endireitamento suaviza mais,
+  // porque cada ponto vira a média dos quatro vizinhos. Somando isso, o traço
+  // fino chega borrado e sai com falhas no meio — dava para ver nos números da
+  // chave de acesso.
+  //
+  // A conta é simples: pega a diferença entre o ponto e a média dos vizinhos
+  // imediatos, e devolve essa diferença amplificada. Onde é papel liso, a
+  // diferença é zero e nada muda; na borda de uma letra, ela é grande e a
+  // borda fica mais definida.
+  const macio=new Float32Array(n);
+  for(let y=0;y<a;y++){
+    const cima=(y>0?-l:0), baixo=(y<a-1?l:0);
+    for(let x=0;x<l;x++){
+      const i=y*l+x;
+      const esq=(x>0?-1:0), dir=(x<l-1?1:0);
+      macio[i]=(cinza[i]+cinza[i+esq]+cinza[i+dir]+cinza[i+cima]+cinza[i+baixo])/5;
+    }
+  }
+  for(let i=0;i<n;i++){
+    const v=cinza[i]+(cinza[i]-macio[i])*1.1;
+    cinza[i]=v<0?0:(v>255?255:v);
+  }
+
   // Somas acumuladas: soma[y][x] guarda o total de tudo acima e à esquerda.
   // Com ela, a soma de qualquer retângulo sai em três contas.
   const soma=new Float64Array((l+1)*(a+1));
