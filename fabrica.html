@@ -907,9 +907,35 @@ function telaAbertaParaEdicao(){
 
 // Relê o banco e redesenha só se algo mudou. Roda sozinha a cada 60 segundos
 // e também pelo botão Atualizar.
+// Traz para a ficha aberta os documentos que apareceram no servidor.
+//
+// A atualização automática se recusa a rodar com a ficha aberta, para não
+// apagar o que a pessoa está digitando. Mas isso desligava tudo, inclusive o
+// que não tem risco: anexo não é campo que alguém digita, é lista.
+//
+// Sem isto, quem escaneava pelo celular precisava sair do sistema e entrar de
+// novo para ver o arquivo no computador.
+async function trazerDocsNovos(){
+  if(!fichaId) return;
+  let r=null;
+  try{ r=await buscarRemoto(); }catch(e){ return; }
+  const o=(r&&r.obras||[]).find(function(x){ return x.id===fichaId; });
+  if(!o || !Array.isArray(o.docs)) return;
+  const tenho={};
+  fichaDocs.forEach(function(d){ tenho[d.id]=1; });
+  const novos=o.docs.filter(function(d){ return !tenho[d.id]; });
+  if(!novos.length) return;
+  fichaDocs=fichaDocs.concat(novos);
+  renderDocs();
+  status('🟢 '+novos.length+' documento(s) novo(s) · '+agoraHora());
+}
+
 async function atualizarDoBanco(manual){
   if(telaAbertaParaEdicao()){
-    if(manual) status('✋ Feche a ficha para atualizar','#ffe6a8');
+    // Com a ficha aberta, o que dá para trazer sem atropelar ninguém são os
+    // documentos. O resto espera a ficha fechar.
+    await trazerDocsNovos();
+    if(manual) status('✋ Feche a ficha para atualizar o resto','#ffe6a8');
     return;
   }
   if(manual) status('🔄 Atualizando...');
