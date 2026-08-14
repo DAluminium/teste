@@ -381,7 +381,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <button class="btn btn-teal btn-sm" onclick="scanGuardarPagina()">Usar esta página</button>
         </div>
         <div style="font-size:11.5px;color:var(--gray-4);margin-top:8px;line-height:1.5">
-          Arraste os quatro cantos para enquadrar só o papel. O que ficar de fora é cortado.
+          Arraste cada canto até a quina do papel. Eles andam sozinhos, então o corte
+          acompanha o papel torto — e a foto sai endireitada, como se tirada de frente.
         </div>
       </div>
 
@@ -1182,10 +1183,12 @@ let scanCantos=null;       // o retângulo do corte, em coordenadas da imagem
 let scanPB=true;           // preto e branco ligado por padrão
 let scanArrastando=-1;
 
-// Foto de celular vem com 4000 pixels de largura. Documento não precisa disso:
-// 1600 já lê texto pequeno com folga, e mantém o arquivo leve o bastante para
-// várias páginas caberem no limite de 10 MB do serviço de arquivos.
-const SCAN_MAX=1600;
+// Foto de celular vem com 4000 pixels de largura, e documento não precisa de
+// tanto. Mas 1600 numa folha A4 dá uns 190 pontos por polegada, e nota fiscal
+// tem letra miúda demais para isso — o texto pequeno saía fino e ilegível.
+// 2200 resolve e ainda deixa várias páginas dentro do limite de 10 MB, porque
+// preto e branco comprime muito bem.
+const SCAN_MAX=2200;
 
 function abrirScanner(){
   scanPaginas=[]; scanImagem=null; scanCantos=null; scanPB=true;
@@ -1228,13 +1231,17 @@ function scanRecebeuFoto(ev){
   leitor.readAsDataURL(arq);
 }
 
-// Começa um pouco para dentro, e não colado na borda. Com o retângulo no
-// limite exato da foto, os pontos de arrastar ficam na quina e não há para
-// onde puxar — parece que o corte não funciona.
+// Quatro cantos livres, na ordem: cima-esquerda, cima-direita, baixo-direita,
+// baixo-esquerda. Não é retângulo de propósito — o papel na foto nunca sai
+// reto, e um retângulo ou deixa sombra de um lado ou corta o papel do outro.
+//
+// Começa um pouco para dentro, senão os pontos ficam na quina e não há para
+// onde puxar.
 function scanCorteInteiro(){
   if(!scanImagem) return;
-  const mx=Math.round(scanImagem.width*0.04), my=Math.round(scanImagem.height*0.04);
-  scanCantos={x1:mx, y1:my, x2:scanImagem.width-mx, y2:scanImagem.height-my};
+  const mx=Math.round(scanImagem.width*0.05), my=Math.round(scanImagem.height*0.05);
+  const L=scanImagem.width, A=scanImagem.height;
+  scanCantos=[{x:mx,y:my},{x:L-mx,y:my},{x:L-mx,y:A-my},{x:mx,y:A-my}];
   scanDesenhar();
 }
 function scanAlternarCor(){
@@ -1280,9 +1287,10 @@ function scanTratar(ctx,l,a){
     }
   }
 
-  // Vizinhança de uns 4% da largura. Menor que isso pega só o traço da letra;
-  // maior volta a ser quase um valor fixo.
-  const r=Math.max(8, Math.round(Math.min(l,a)*0.04));
+  // Vizinhança de uns 2% do lado menor. Antes eram 4%, e para letra miúda isso
+  // era grande demais: a média já incluía muito papel em volta, e o traço fino
+  // não se destacava o bastante para virar preto.
+  const r=Math.max(6, Math.round(Math.min(l,a)*0.02));
 
   for(let y=0;y<a;y++){
     const y0=Math.max(0,y-r), y1=Math.min(a-1,y+r);
@@ -1298,9 +1306,11 @@ function scanTratar(ctx,l,a){
       // variação de iluminação fica perto de zero e vira papel branco.
       const dif=media-v;
       let saida;
-      if(dif<6) saida=255;                       // papel, mesmo na sombra
-      else if(dif>40) saida=0;                   // tinta cheia
-      else saida=Math.round(255-((dif-6)/34)*255); // meio-tom: traço fino, lápis
+      // O limite da tinta era 40, exigente demais: traço fino ficava em cinza
+      // claro e sumia. Com 22, letra pequena vira preto de verdade.
+      if(dif<5) saida=255;                       // papel, mesmo na sombra
+      else if(dif>22) saida=0;                   // tinta cheia
+      else saida=Math.round(255-((dif-5)/17)*255); // meio-tom: traço muito fino
       const j=(y*l+x)*4;
       p[j]=p[j+1]=p[j+2]=saida;
     }
@@ -1324,20 +1334,32 @@ function scanDesenhar(){
   ctx.drawImage(scanImagem,0,0,tela.width,tela.height);
   scanTratar(ctx,tela.width,tela.height);
 
-  // Escurece o que está fora do enquadramento, para ficar claro o que sai.
+  // Escurece tudo e depois "abre um buraco" no formato do quadrilátero, com a
+  // regra par-ímpar. Assim a área escurecida acompanha o papel torto, e não um
+  // retângulo.
   const c=scanCantos, e=escala;
-  ctx.fillStyle='rgba(0,0,0,.45)';
-  ctx.fillRect(0,0,tela.width,c.y1*e);
-  ctx.fillRect(0,c.y2*e,tela.width,tela.height-c.y2*e);
-  ctx.fillRect(0,c.y1*e,c.x1*e,(c.y2-c.y1)*e);
-  ctx.fillRect(c.x2*e,c.y1*e,tela.width-c.x2*e,(c.y2-c.y1)*e);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0,0,tela.width,tela.height);
+  ctx.moveTo(c[0].x*e,c[0].y*e);
+  for(let i=1;i<4;i++) ctx.lineTo(c[i].x*e,c[i].y*e);
+  ctx.closePath();
+  ctx.fillStyle='rgba(0,0,0,.5)';
+  ctx.fill('evenodd');
+  ctx.restore();
+
   ctx.strokeStyle='#17a2b8'; ctx.lineWidth=2;
-  ctx.strokeRect(c.x1*e,c.y1*e,(c.x2-c.x1)*e,(c.y2-c.y1)*e);
-  [[c.x1,c.y1],[c.x2,c.y1],[c.x1,c.y2],[c.x2,c.y2]].forEach(function(p){
+  ctx.beginPath();
+  ctx.moveTo(c[0].x*e,c[0].y*e);
+  for(let i=1;i<4;i++) ctx.lineTo(c[i].x*e,c[i].y*e);
+  ctx.closePath();
+  ctx.stroke();
+
+  c.forEach(function(p){
     ctx.fillStyle='#17a2b8';
-    ctx.beginPath(); ctx.arc(p[0]*e,p[1]*e,11,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x*e,p.y*e,11,0,Math.PI*2); ctx.fill();
     ctx.fillStyle='#fff';
-    ctx.beginPath(); ctx.arc(p[0]*e,p[1]*e,5,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x*e,p.y*e,5,0,Math.PI*2); ctx.fill();
   });
 }
 
@@ -1351,31 +1373,28 @@ function scanPonto(ev){
 function scanPegar(ev){
   if(!scanCantos) return;
   ev.preventDefault();
-  const p=scanPonto(ev), c=scanCantos;
-  const cantos=[[c.x1,c.y1],[c.x2,c.y1],[c.x1,c.y2],[c.x2,c.y2]];
+  const p=scanPonto(ev);
   let melhor=-1, menor=1e9;
-  cantos.forEach(function(q,i){
-    const d=Math.hypot(q[0]-p.x,q[1]-p.y);
+  scanCantos.forEach(function(q,i){
+    const d=Math.hypot(q.x-p.x,q.y-p.y);
     if(d<menor){ menor=d; melhor=i; }
   });
-  // A tolerância é medida na TELA, não na imagem: 28 pixels de tela, que é
+  // A tolerância é medida na TELA, não na imagem: 30 pixels de tela, que é
   // mais ou menos a ponta do dedo. Medir na imagem dava uma área enorme numa
   // foto grande e minúscula numa pequena.
   const e=(document.getElementById('scan-tela')._escala)||1;
-  scanArrastando = (menor*e < 28) ? melhor : -1;
+  scanArrastando = (menor*e < 30) ? melhor : -1;
 }
 function scanMover(ev){
   if(scanArrastando<0||!scanCantos) return;
   ev.preventDefault();
-  const p=scanPonto(ev), c=scanCantos;
-  const x=Math.max(0,Math.min(scanImagem.width,p.x));
-  const y=Math.max(0,Math.min(scanImagem.height,p.y));
-  // O retangulo nao pode encolher a ponto de sumir.
-  const min=Math.max(30, Math.round(Math.min(scanImagem.width,scanImagem.height)*0.08));
-  if(scanArrastando===0){ c.x1=Math.min(x,c.x2-min); c.y1=Math.min(y,c.y2-min); }
-  if(scanArrastando===1){ c.x2=Math.max(x,c.x1+min); c.y1=Math.min(y,c.y2-min); }
-  if(scanArrastando===2){ c.x1=Math.min(x,c.x2-min); c.y2=Math.max(y,c.y1+min); }
-  if(scanArrastando===3){ c.x2=Math.max(x,c.x1+min); c.y2=Math.max(y,c.y1+min); }
+  const p=scanPonto(ev);
+  // Cada canto anda sozinho — é isso que deixa o corte acompanhar o papel
+  // torto. A linha se redesenha a cada movimento.
+  scanCantos[scanArrastando]={
+    x: Math.max(0, Math.min(scanImagem.width,  p.x)),
+    y: Math.max(0, Math.min(scanImagem.height, p.y))
+  };
   scanDesenhar();
 }
 function scanSoltar(){ scanArrastando=-1; }
@@ -1387,16 +1406,102 @@ function scanDescartar(){
   scanAtualizarRodape();
 }
 
+// ---- ENDIREITAR O PAPEL ----
+// Os quatro cantos escolhidos viram um retângulo. É o que tira a distorção de
+// quem fotografa de pé, olhando o papel de cima e de lado.
+//
+// A conta é uma "homografia": oito números que dizem, para cada ponto do
+// retângulo de saída, de onde ele vem na foto original. Os oito saem de um
+// sistema de oito equações — os quatro cantos, cada um com x e y.
+function scanResolverSistema(M,v){
+  const n=8;
+  for(let i=0;i<n;i++){
+    let melhor=i;
+    for(let k=i+1;k<n;k++) if(Math.abs(M[k][i])>Math.abs(M[melhor][i])) melhor=k;
+    const t=M[i]; M[i]=M[melhor]; M[melhor]=t;
+    const tv=v[i]; v[i]=v[melhor]; v[melhor]=tv;
+    if(Math.abs(M[i][i])<1e-10) return null;      // cantos em cima uns dos outros
+    for(let k=i+1;k<n;k++){
+      const f=M[k][i]/M[i][i];
+      for(let j=i;j<n;j++) M[k][j]-=f*M[i][j];
+      v[k]-=f*v[i];
+    }
+  }
+  const x=new Array(n).fill(0);
+  for(let i=n-1;i>=0;i--){
+    let s=v[i];
+    for(let j=i+1;j<n;j++) s-=M[i][j]*x[j];
+    x[i]=s/M[i][i];
+  }
+  return x;
+}
+
+// Devolve os coeficientes que levam um ponto do RETÂNGULO DE SAÍDA de volta ao
+// ponto correspondente na foto. É esse sentido que interessa: percorremos a
+// saída e buscamos a cor na origem, sem deixar buraco.
+function scanCalcularTransformacao(cantos,l,a){
+  const destino=[{x:0,y:0},{x:l,y:0},{x:l,y:a},{x:0,y:a}];
+  const M=[], v=[];
+  for(let i=0;i<4;i++){
+    const d=destino[i], o=cantos[i];
+    M.push([d.x,d.y,1,0,0,0,-d.x*o.x,-d.y*o.x]); v.push(o.x);
+    M.push([0,0,0,d.x,d.y,1,-d.x*o.y,-d.y*o.y]); v.push(o.y);
+  }
+  return scanResolverSistema(M,v);
+}
+
 function scanGuardarPagina(){
   if(!scanImagem||!scanCantos) return;
   const c=scanCantos;
-  const l=Math.round(c.x2-c.x1), a=Math.round(c.y2-c.y1);
+
+  // O tamanho da saída sai da média dos lados opostos do quadrilátero: o papel
+  // fica com a proporção que ele tem de verdade, não a da foto torta.
+  const dist=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y);
+  let l=Math.round((dist(c[0],c[1])+dist(c[3],c[2]))/2);
+  let a=Math.round((dist(c[0],c[3])+dist(c[1],c[2]))/2);
+  l=Math.max(50,Math.min(SCAN_MAX,l));
+  a=Math.max(50,Math.min(SCAN_MAX,a));
+
+  const h=scanCalcularTransformacao(c,l,a);
+  if(!h){
+    aviso('Não consegui enquadrar','Os quatro cantos precisam formar uma área. '+
+          'Parece que dois deles ficaram no mesmo lugar — arraste e tente de novo.');
+    return;
+  }
+
+  const origem=scanImagem.getContext('2d').getImageData(0,0,scanImagem.width,scanImagem.height);
+  const od=origem.data, OL=scanImagem.width, OA=scanImagem.height;
   const saida=document.createElement('canvas');
   saida.width=l; saida.height=a;
   const ctx=saida.getContext('2d');
-  ctx.drawImage(scanImagem, Math.round(c.x1), Math.round(c.y1), l, a, 0, 0, l, a);
+  const dest=ctx.createImageData(l,a);
+  const dd=dest.data;
+
+  for(let y=0;y<a;y++){
+    for(let x=0;x<l;x++){
+      const den=h[6]*x+h[7]*y+1;
+      const sx=(h[0]*x+h[1]*y+h[2])/den;
+      const sy=(h[3]*x+h[4]*y+h[5])/den;
+      const i=(y*l+x)*4;
+      if(sx<0||sy<0||sx>=OL-1||sy>=OA-1){
+        dd[i]=dd[i+1]=dd[i+2]=255; dd[i+3]=255;   // fora da foto: papel branco
+        continue;
+      }
+      // Média dos quatro vizinhos, senão o texto sai serrilhado.
+      const x0=sx|0, y0=sy|0, fx=sx-x0, fy=sy-y0;
+      const p00=(y0*OL+x0)*4, p10=p00+4, p01=p00+OL*4, p11=p01+4;
+      for(let k=0;k<3;k++){
+        dd[i+k]=
+          od[p00+k]*(1-fx)*(1-fy) + od[p10+k]*fx*(1-fy) +
+          od[p01+k]*(1-fx)*fy     + od[p11+k]*fx*fy;
+      }
+      dd[i+3]=255;
+    }
+  }
+  ctx.putImageData(dest,0,0);
   scanTratar(ctx,l,a);
-  scanPaginas.push({ dados:saida.toDataURL('image/jpeg',0.82), largura:l, altura:a });
+
+  scanPaginas.push({ dados:saida.toDataURL('image/jpeg',0.88), largura:l, altura:a });
   scanImagem=null; scanCantos=null;
   document.getElementById('scan-editor').style.display='none';
   document.getElementById('scan-vazio').style.display='none';
