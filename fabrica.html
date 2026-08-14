@@ -1068,6 +1068,15 @@ async function anexarDoc(ev){
       quando:agoraISO()
     });
     renderDocs();
+    // Mesma razão do escanear: o arquivo já subiu, e fechar a ficha sem salvar
+    // o deixaria sem dono, com o trabalho perdido.
+    if(fichaId){
+      st.textContent='Salvando na obra...';
+      const gravou=await salvarFicha(true);
+      if(!gravou) aviso('Anexado, mas NÃO salvo',
+        'O arquivo foi anexado à ficha, mas a gravação falhou.\n\n'+
+        'Não feche esta tela: toque em Salvar para tentar de novo.');
+    }
     st.textContent='';
   }catch(e){
     st.textContent='';
@@ -1485,7 +1494,26 @@ async function scanSalvar(){
     renderDocs();
     scanPaginas=[];
     document.getElementById('scan-ov').classList.remove('open');
-    aviso('Documento escaneado','O PDF foi anexado à obra.\n\nEle só fica guardado de verdade quando você salvar a ficha.');
+
+    // Grava na hora, sem esperar o botão Salvar da ficha.
+    //
+    // O arquivo JÁ foi enviado neste ponto: ele existe no servidor. Se a
+    // pessoa fechar a ficha sem salvar, o arquivo fica lá sem dono e o
+    // trabalho se perde — aconteceu com o Ander em 14/08/2026. No celular o
+    // botão Salvar fica lá embaixo, depois de rolar tudo, e é fácil não ver.
+    if(fichaId){
+      st.textContent='Salvando na obra...';
+      const gravou=await salvarFicha(true);
+      st.textContent='';
+      aviso(gravou?'Documento escaneado e salvo':'Escaneado, mas NÃO salvo',
+        gravou ? 'O PDF foi anexado à obra e já está guardado.'
+               : 'O PDF foi anexado à ficha, mas a gravação falhou.\n\n'+
+                 'Não feche esta tela: toque em Salvar para tentar de novo.');
+    } else {
+      aviso('Documento escaneado',
+        'O PDF foi anexado à ficha.\n\nComo esta obra ainda não foi criada, '+
+        'ele só fica guardado quando você tocar em Salvar.');
+    }
   }catch(e){
     aviso('Não consegui salvar','O envio falhou: '+e.message+'\n\nAs páginas continuam aqui. Tente de novo.');
     st.textContent='';
@@ -2367,7 +2395,7 @@ function pedirEscolha(conf,passo,total){
   });
 }
 
-async function salvarFicha(){
+async function salvarFicha(manterAberta){
   const cliente=document.getElementById('f-cliente').value.trim();
   const obra=document.getElementById('f-obra').value.trim();
   // Cliente e identificacao da obra sao obrigatorios: sem eles nao da para
@@ -2515,7 +2543,10 @@ async function salvarFicha(){
       delete o.espera[etAlvo];      // limpou os dois campos: some o registro
     }
   });
-  if(ok) fecharFicha();
+  // Anexar e escanear salvam a ficha na hora, mas precisam dela aberta para a
+  // pessoa continuar de onde parou.
+  if(ok && !manterAberta) fecharFicha();
+  return ok;
 }
 
 // Excluir NAO apaga o registro: marca como excluida. Se apagasse, a juncao de
