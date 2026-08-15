@@ -406,6 +406,9 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <option value="antecipacao">Antecipação de Boleto</option>
         </select>
         <select id="fil-caixa-mes" onchange="renderCaixa()" style="font-size:12px;padding:4px 8px;border-radius:var(--radius);border:1px solid var(--gray-3)"></select>
+        <button class="btn btn-outline btn-sm" onclick="printCaixa()" title="Imprimir o fluxo de caixa como está na tela">
+          <svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Imprimir
+        </button>
         <button class="btn btn-green btn-sm" onclick="openModalTransferencia()">
           <svg class="icon" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Transferência
         </button>
@@ -2965,23 +2968,11 @@ async function saveReceber(){
 async function deleteReceber(idx){ if(!confirm('Remover este recebimento?')) return; data.receber.splice(idx,1); await persist(); render(); }
 
 // ---- FLUXO DE CAIXA ----
-function renderCaixa(){
-  const contas=['pagbank','inter','sicredi','caixa','antecipacao'];
-  const nomesContas={pagbank:'PagBank',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa (espécie)',antecipacao:'Antecipação de Boleto'};
-  const cores={pagbank:'#1A5276',inter:'#F57C00',sicredi:'#1B5E20',caixa:'#4A148C',antecipacao:'#880E4F'};
-  const saldosDiv=document.getElementById('contas-saldos');
-  const si=data.saldosIniciais||{};
-  const dataRef=si.dataRef?` · Ref: ${fmtDate(si.dataRef)}`:'';
-  saldosDiv.innerHTML=contas.map(c=>{
-    const s=calcSaldoConta(c);
-    const sInicial=si[c]||0;
-    return`<div class="conta-card">
-      <div class="conta-nome" style="color:${cores[c]}">${nomesContas[c]}</div>
-      ${sInicial?`<div style="font-size:10px;color:var(--gray-4);margin-bottom:2px">Inicial: R$ ${fmtBR(sInicial)}${dataRef}</div>`:''}
-      <div class="conta-saldo ${s>=0?'conta-pos':'conta-neg'}">R$ ${fmtBR(s)}</div>
-    </div>`;
-  }).join('');
-
+// Monta a lista de movimentações já filtrada, ordenada e com o saldo corrido.
+// Fica separada do desenho da tela porque a impressão lê daqui também — se o
+// cálculo ficasse em dois lugares, um dia um seria corrigido e o outro não, e o
+// papel passaria a discordar do sistema.
+function movimentosDoCaixa(){
   const filtConta=document.getElementById('fil-caixa-conta').value;
   const filtMes=document.getElementById('fil-caixa-mes').value;
   const movs=[];
@@ -3017,12 +3008,36 @@ function renderCaixa(){
   if(filtMes) filtered=filtered.filter(m=>m.data&&m.data.startsWith(filtMes));
   filtered.sort((a,b)=>b.data.localeCompare(a.data));
 
+  let saldoRun=0;
+  const withSaldo=[...filtered].reverse().map(m=>{ saldoRun+=(m.entrada-m.saida); return{...m,saldo:saldoRun}; }).reverse();
+
+  return {filtConta,filtMes,filtered,withSaldo,
+    totalEnt:filtered.reduce((a,m)=>a+m.entrada,0),
+    totalSai:filtered.reduce((a,m)=>a+m.saida,0)};
+}
+
+function renderCaixa(){
+  const contas=['pagbank','inter','sicredi','caixa','antecipacao'];
+  const nomesContas={pagbank:'PagBank',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa (espécie)',antecipacao:'Antecipação de Boleto'};
+  const cores={pagbank:'#1A5276',inter:'#F57C00',sicredi:'#1B5E20',caixa:'#4A148C',antecipacao:'#880E4F'};
+  const saldosDiv=document.getElementById('contas-saldos');
+  const si=data.saldosIniciais||{};
+  const dataRef=si.dataRef?` · Ref: ${fmtDate(si.dataRef)}`:'';
+  saldosDiv.innerHTML=contas.map(c=>{
+    const s=calcSaldoConta(c);
+    const sInicial=si[c]||0;
+    return`<div class="conta-card">
+      <div class="conta-nome" style="color:${cores[c]}">${nomesContas[c]}</div>
+      ${sInicial?`<div style="font-size:10px;color:var(--gray-4);margin-bottom:2px">Inicial: R$ ${fmtBR(sInicial)}${dataRef}</div>`:''}
+      <div class="conta-saldo ${s>=0?'conta-pos':'conta-neg'}">R$ ${fmtBR(s)}</div>
+    </div>`;
+  }).join('');
+
+  const {filtered,withSaldo,totalEnt,totalSai}=movimentosDoCaixa();
+
   const tbody=document.getElementById('tbody-caixa');
   if(!filtered.length){ tbody.innerHTML='<tr class="empty-row"><td colspan="7">Nenhuma movimentação no período.</td></tr>'; }
   else {
-    let saldoRun=0;
-    const rows=[...filtered].reverse();
-    const withSaldo=rows.map(m=>{ saldoRun+=(m.entrada-m.saida); return{...m,saldo:saldoRun}; }).reverse();
     tbody.innerHTML=withSaldo.map(m=>`<tr>
       <td>${fmtDate(m.data)}</td>
       <td class="td-desc">${m.desc}</td>
@@ -3033,9 +3048,117 @@ function renderCaixa(){
       <td style="font-weight:700;color:${m.saldo>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(m.saldo)}</td>
     </tr>`).join('');
   }
-  const totalEnt=filtered.reduce((a,m)=>a+m.entrada,0);
-  const totalSai=filtered.reduce((a,m)=>a+m.saida,0);
   document.getElementById('t-caixa-footer').innerHTML=`Entradas: <strong style="color:var(--green)">R$ ${fmtBR(totalEnt)}</strong> &nbsp;|&nbsp; Saídas: <strong style="color:var(--red)">R$ ${fmtBR(totalSai)}</strong> &nbsp;|&nbsp; Saldo do período: <strong style="color:${totalEnt-totalSai>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(totalEnt-totalSai)}</strong>`;
+}
+
+// ---- IMPRESSÃO DO FLUXO DE CAIXA ----
+// Abre uma janela nova só com o que interessa no papel. Não usa window.print()
+// na própria tela porque isso levaria menus, abas, filtros e botões junto.
+function printCaixa(){
+  const {filtConta,filtMes,withSaldo,totalEnt,totalSai}=movimentosDoCaixa();
+  const contas=['pagbank','inter','sicredi','caixa','antecipacao'];
+  const nomes={pagbank:'PagBank',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa (espécie)',antecipacao:'Antecipação de Boleto'};
+  const si=data.saldosIniciais||{};
+  const periodo=filtMes?mesLabel(filtMes+'-01'):'Todos os períodos';
+  const alvo=filtConta?nomes[filtConta]:'Todas as contas';
+  const agora=new Date().toLocaleString('pt-BR');
+  const saldoPer=totalEnt-totalSai;
+  const money=v=>'R$ '+fmtBR(v);
+
+  const cards=contas.map(c=>{
+    const s=calcSaldoConta(c);
+    const ini=si[c]||0;
+    return`<div class="cx-card${filtConta&&filtConta!==c?' cx-off':''}">
+      <div class="cx-nome">${nomes[c]}</div>
+      ${ini?`<div class="cx-ini">Inicial: ${money(ini)}${si.dataRef?' · '+fmtDate(si.dataRef):''}</div>`:''}
+      <div class="cx-val${s<0?' neg':''}">${money(s)}</div>
+    </div>`;
+  }).join('');
+
+  const linhas=withSaldo.length?withSaldo.map(m=>`<tr>
+      <td class="nw">${fmtDate(m.data)}</td>
+      <td>${m.desc}</td>
+      <td class="nw">${m.tipo}</td>
+      <td class="nw">${CONTA_LABEL[m.conta]||m.conta}</td>
+      <td class="num pos">${m.entrada?money(m.entrada):'—'}</td>
+      <td class="num neg">${m.saida?money(m.saida):'—'}</td>
+      <td class="num forte${m.saldo<0?' neg':''}">${money(m.saldo)}</td>
+    </tr>`).join('')
+    :'<tr><td colspan="7" style="text-align:center;padding:20px;color:#777">Nenhuma movimentação no período.</td></tr>';
+
+  const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>Fluxo de Caixa · ${periodo}</title>
+<style>
+  @page{size:A4 portrait;margin:12mm}
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;color:#1a1a1a;margin:0;font-size:10px}
+  .cab{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #0F6E63;padding-bottom:6px;margin-bottom:10px}
+  .marca{font-size:17px;font-weight:800;letter-spacing:1px;color:#0F6E63}
+  .marca span{font-weight:400;color:#555;font-size:12px;letter-spacing:0}
+  .sub{font-size:11px;color:#333;margin-top:2px}
+  .quando{font-size:9px;color:#777;text-align:right}
+  .cx-grid{display:flex;gap:5px;margin-bottom:10px}
+  .cx-card{flex:1;border:1px solid #d5d9dc;border-radius:4px;padding:5px 6px}
+  .cx-off{opacity:.4}
+  .cx-nome{font-size:8px;text-transform:uppercase;letter-spacing:.4px;color:#555;font-weight:700}
+  .cx-ini{font-size:7px;color:#888;margin-top:1px}
+  .cx-val{font-size:12px;font-weight:700;color:#146c43;margin-top:2px}
+  .cx-val.neg{color:#b02a37}
+  table{width:100%;border-collapse:collapse}
+  thead{display:table-header-group}
+  th{background:#0F6E63;color:#fff;font-size:8px;text-transform:uppercase;letter-spacing:.4px;
+     padding:4px 5px;text-align:left;border:1px solid #0F6E63}
+  td{padding:3px 5px;border:1px solid #e3e6e8;vertical-align:top}
+  tr{page-break-inside:avoid}
+  tbody tr:nth-child(even) td{background:#f6f8f9}
+  .num{text-align:right;white-space:nowrap}
+  .nw{white-space:nowrap}
+  .pos{color:#146c43}
+  .neg{color:#b02a37}
+  .forte{font-weight:700}
+  .tot{margin-top:8px;display:flex;justify-content:flex-end;gap:18px;font-size:11px;
+       border-top:2px solid #0F6E63;padding-top:6px}
+  .tot b{font-size:12px}
+  .rodape{margin-top:14px;padding-top:5px;border-top:1px solid #d5d9dc;
+          display:flex;justify-content:space-between;font-size:8px;color:#888}
+</style></head><body>
+<div class="cab">
+  <div>
+    <div class="marca">DALUMINIUM <span>· Fluxo de Caixa</span></div>
+    <div class="sub"><strong>${periodo}</strong> &nbsp;·&nbsp; ${alvo} &nbsp;·&nbsp; ${withSaldo.length} movimentaç${withSaldo.length===1?'ão':'ões'}</div>
+  </div>
+  <div class="quando">Emitido em<br>${agora}</div>
+</div>
+
+<div class="cx-grid">${cards}</div>
+
+<table>
+  <thead><tr>
+    <th style="width:15mm">Data</th><th>Descrição</th><th style="width:17mm">Tipo</th>
+    <th style="width:20mm">Conta</th><th style="width:20mm" class="num">Entrada</th>
+    <th style="width:20mm" class="num">Saída</th><th style="width:22mm" class="num">Saldo</th>
+  </tr></thead>
+  <tbody>${linhas}</tbody>
+</table>
+
+<div class="tot">
+  <span>Entradas: <b class="pos">${money(totalEnt)}</b></span>
+  <span>Saídas: <b class="neg">${money(totalSai)}</b></span>
+  <span>Saldo do período: <b class="${saldoPer<0?'neg':'pos'}">${money(saldoPer)}</b></span>
+</div>
+
+<div class="rodape">
+  <span>Daluminium · Financeiro</span>
+  <span>Documento interno · gerado pelo sistema em ${agora}</span>
+</div>
+
+<script>window.onload=function(){window.print()}<\/script>
+</body></html>`;
+
+  const w=window.open('','_blank');
+  if(!w){ alert('O navegador bloqueou a janela de impressão. Libere os pop-ups para este site e tente de novo.'); return; }
+  w.document.write(html);
+  w.document.close();
 }
 
 // ---- TRANSFERÊNCIA ----
