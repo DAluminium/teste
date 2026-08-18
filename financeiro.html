@@ -397,7 +397,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <div class="panel-header">
       <div class="panel-title">🏦 Fluxo de Caixa</div>
       <div class="panel-actions">
-        <select id="fil-caixa-conta" onchange="renderCaixa()" style="font-size:12px;padding:4px 8px;border-radius:var(--radius);border:1px solid var(--gray-3)">
+        <select id="fil-caixa-conta" onchange="renderCaixa()" style="width:auto;font-size:12px;padding:4px 8px;border-radius:var(--radius);border:1px solid var(--gray-3)">
           <option value="">Todas as contas</option>
           <option value="pagbank">PagBank</option>
           <option value="inter">Inter</option>
@@ -405,7 +405,12 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <option value="caixa">Caixa (espécie)</option>
           <option value="antecipacao">Antecipação de Boleto</option>
         </select>
-        <select id="fil-caixa-mes" onchange="renderCaixa()" style="font-size:12px;padding:4px 8px;border-radius:var(--radius);border:1px solid var(--gray-3)"></select>
+        <select id="fil-caixa-mes" onchange="mudouPeriodoCaixa()" style="width:auto;font-size:12px;padding:4px 8px;border-radius:var(--radius);border:1px solid var(--gray-3)"></select>
+        <span id="cx-datas" style="display:none;gap:5px;align-items:center">
+          <input type="date" id="cx-de" onchange="ajustarLimitesDatas();renderCaixa()" title="Data inicial" style="width:auto;font-size:12px;padding:4px 6px;border-radius:var(--radius);border:1px solid var(--gray-3)">
+          <span style="color:var(--gray-4);font-size:12px">até</span>
+          <input type="date" id="cx-ate" onchange="ajustarLimitesDatas();renderCaixa()" title="Data final" style="width:auto;font-size:12px;padding:4px 6px;border-radius:var(--radius);border:1px solid var(--gray-3)">
+        </span>
         <button class="btn btn-outline btn-sm" onclick="printCaixa()" title="Imprimir o fluxo de caixa como está na tela">
           <svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Imprimir
         </button>
@@ -2975,6 +2980,8 @@ async function deleteReceber(idx){ if(!confirm('Remover este recebimento?')) ret
 function movimentosDoCaixa(){
   const filtConta=document.getElementById('fil-caixa-conta').value;
   const filtMes=document.getElementById('fil-caixa-mes').value;
+  const de=(document.getElementById('cx-de')||{}).value||'';
+  const ate=(document.getElementById('cx-ate')||{}).value||'';
   const movs=[];
 
   // Pagamentos — CADA baixa entra na SUA data. Antes o valor inteiro caía na
@@ -3005,13 +3012,20 @@ function movimentosDoCaixa(){
 
   let filtered=movs;
   if(filtConta) filtered=filtered.filter(m=>m.conta===filtConta);
-  if(filtMes) filtered=filtered.filter(m=>m.data&&m.data.startsWith(filtMes));
+  // As datas ficam guardadas como 2026-08-13, então dá para comparar como texto:
+  // a ordem alfabética delas é a mesma ordem do calendário.
+  if(filtMes==='livre'){
+    if(de)  filtered=filtered.filter(m=>m.data&&m.data>=de);
+    if(ate) filtered=filtered.filter(m=>m.data&&m.data<=ate);
+  } else if(filtMes){
+    filtered=filtered.filter(m=>m.data&&m.data.startsWith(filtMes));
+  }
   filtered.sort((a,b)=>b.data.localeCompare(a.data));
 
   let saldoRun=0;
   const withSaldo=[...filtered].reverse().map(m=>{ saldoRun+=(m.entrada-m.saida); return{...m,saldo:saldoRun}; }).reverse();
 
-  return {filtConta,filtMes,filtered,withSaldo,
+  return {filtConta,filtMes,de,ate,filtered,withSaldo,
     totalEnt:filtered.reduce((a,m)=>a+m.entrada,0),
     totalSai:filtered.reduce((a,m)=>a+m.saida,0)};
 }
@@ -3051,15 +3065,49 @@ function renderCaixa(){
   document.getElementById('t-caixa-footer').innerHTML=`Entradas: <strong style="color:var(--green)">R$ ${fmtBR(totalEnt)}</strong> &nbsp;|&nbsp; Saídas: <strong style="color:var(--red)">R$ ${fmtBR(totalSai)}</strong> &nbsp;|&nbsp; Saldo do período: <strong style="color:${totalEnt-totalSai>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(totalEnt-totalSai)}</strong>`;
 }
 
+// Como o período aparece escrito no papel. Fica separado porque o cabeçalho
+// precisa dizer exatamente o que foi filtrado — um relatório sem período
+// escrito não serve para conferência depois.
+function nomeDoPeriodoCaixa(filtMes,de,ate){
+  if(filtMes!=='livre') return filtMes?mesLabel(filtMes+'-01'):'Todos os períodos';
+  if(de&&ate) return `${fmtDate(de)} a ${fmtDate(ate)}`;
+  if(de)      return `A partir de ${fmtDate(de)}`;
+  if(ate)     return `Até ${fmtDate(ate)}`;
+  return 'Todos os períodos';
+}
+
+// Impede escolher um fim anterior ao início. Se deixasse, a tela ficaria vazia
+// sem dizer o motivo, e é um engano fácil de cometer.
+function ajustarLimitesDatas(){
+  const de=document.getElementById('cx-de'), ate=document.getElementById('cx-ate');
+  if(!de||!ate) return;
+  ate.min=de.value||'';
+  de.max=ate.value||'';
+}
+
+// Mostra ou esconde os campos de data. Na primeira vez já vem preenchido do dia
+// 1º até hoje, para a tela não ficar vazia esperando o preenchimento.
+function mudouPeriodoCaixa(){
+  const livre=document.getElementById('fil-caixa-mes').value==='livre';
+  document.getElementById('cx-datas').style.display=livre?'inline-flex':'none';
+  if(livre && !document.getElementById('cx-de').value){
+    const hoje=today();
+    document.getElementById('cx-de').value=hoje.slice(0,8)+'01';
+    document.getElementById('cx-ate').value=hoje;
+  }
+  ajustarLimitesDatas();
+  renderCaixa();
+}
+
 // ---- IMPRESSÃO DO FLUXO DE CAIXA ----
 // Abre uma janela nova só com o que interessa no papel. Não usa window.print()
 // na própria tela porque isso levaria menus, abas, filtros e botões junto.
 function printCaixa(){
-  const {filtConta,filtMes,withSaldo,totalEnt,totalSai}=movimentosDoCaixa();
+  const {filtConta,filtMes,de,ate,withSaldo,totalEnt,totalSai}=movimentosDoCaixa();
   const contas=['pagbank','inter','sicredi','caixa','antecipacao'];
   const nomes={pagbank:'PagBank',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa (espécie)',antecipacao:'Antecipação de Boleto'};
   const si=data.saldosIniciais||{};
-  const periodo=filtMes?mesLabel(filtMes+'-01'):'Todos os períodos';
+  const periodo=nomeDoPeriodoCaixa(filtMes,de,ate);
   const alvo=filtConta?nomes[filtConta]:'Todas as contas';
   const agora=new Date().toLocaleString('pt-BR');
   const saldoPer=totalEnt-totalSai;
@@ -3188,7 +3236,11 @@ function populateMesFiltros(){
     const el=document.getElementById(id);
     if(!el) return;
     const cur=el.value||curMes;
-    el.innerHTML=sorted.map(m=>`<option value="${m}" ${m===cur?'selected':''}>${mesLabel(m+'-01')}</option>`).join('');
+    let opts=sorted.map(m=>`<option value="${m}" ${m===cur?'selected':''}>${mesLabel(m+'-01')}</option>`).join('');
+    // Só o Fluxo de Caixa tem escolha livre de datas. Vai por último, para o mês
+    // continuar sendo o que aparece de saída.
+    if(id==='fil-caixa-mes') opts+=`<option value="livre" ${cur==='livre'?'selected':''}>📅 Escolher datas…</option>`;
+    el.innerHTML=opts;
   });
 }
 
