@@ -265,6 +265,10 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
           <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
           Sessões ativas
         </div>
+        <div class="admin-card" data-so-admin onclick="openTempoUso()">
+          <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Tempo de uso
+        </div>
       </div>
 
       <!-- SESSÕES ATIVAS -->
@@ -274,6 +278,24 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
           <button onclick="loadSessoes()" class="btn btn-outline" style="font-size:11px;padding:4px 10px">🔄 Atualizar</button>
         </div>
         <div id="sessoes-lista"><p style="font-size:13px;color:var(--gray-4);text-align:center">Carregando...</p></div>
+      </div>
+
+      <!-- TEMPO DE USO -->
+      <div id="tempo-panel" style="display:none;margin-top:1.5rem;background:white;border-radius:12px;padding:1.2rem;box-shadow:var(--shadow)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div style="font-size:13px;font-weight:700">⏱️ Tempo de uso do sistema</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <select id="tempo-periodo" onchange="loadTempoUso()" style="width:auto;font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid var(--gray-2)">
+              <option value="hoje">Hoje</option>
+              <option value="7">Últimos 7 dias</option>
+              <option value="30">Últimos 30 dias</option>
+              <option value="tudo">Tudo o que está guardado</option>
+            </select>
+            <button onclick="loadTempoUso()" class="btn btn-outline" style="font-size:11px;padding:4px 10px">🔄 Atualizar</button>
+            <button onclick="exportTempoUso()" class="btn btn-outline" style="font-size:11px;padding:4px 10px">⬇️ Exportar</button>
+          </div>
+        </div>
+        <div id="tempo-lista"><p style="font-size:13px;color:var(--gray-4);text-align:center">Carregando...</p></div>
       </div>
     </div>
   </div>
@@ -1139,6 +1161,13 @@ async function loadSessoes(){
     // Uma hora sem sinal de vida e a pessoa sai da lista. Antes eram 8 horas
     // contadas do LOGIN, e o carimbo nunca era renovado: quem fechava o
     // notebook continuava aparecendo como ativo o resto do expediente.
+    // Fecha aqui mesmo quem passou de 1 hora sem sinal, para o tempo de uso
+    // dessas pessoas ficar guardado em vez de simplesmente sumir da tela.
+    if(limparParadas(d)){
+      try{ await fetch(WORKER_SESS,{method:'PATCH',
+        headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
+        body:JSON.stringify({data:d})}); }catch(e){}
+    }
     const ativas=(d.ativas||[]).filter(s=>Date.now()-s.ts<60*60*1000);
     if(!ativas.length){
       lista.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center">Nenhum usuário ativo no momento.</p>';
@@ -1157,6 +1186,7 @@ async function loadSessoes(){
         <div style="flex:1">
           <div style="font-weight:600;font-size:13px">${s.nome}</div>
           <div style="font-size:11px;color:var(--gray-4)">${sistemaLabel[s.sistema]||s.sistema} · Ativo ${tempo}</div>
+          <div style="font-size:11px;color:var(--gray-4)">⏱️ Operando há <strong>${duracaoTexto((Date.now()-(s.inicio||s.ts))/60000)}</strong> · entrou às ${new Date(s.inicio||s.ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
         </div>
         <button onclick="forceLogout('${s.sessionId}','${s.nome}')" style="background:var(--red);color:white;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600">Deslogar</button>
       </div>`;
@@ -1209,7 +1239,7 @@ async function removerSessaoPortal(){
     const r=await fetch(WORKER_SESS,{headers:cabecalhos('sessions')});
     if(!r.ok) return;
     const d=await r.json();
-    d.ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId);
+    encerrarNaLista(d,_sessionId,'saiu');
     await fetch(WORKER_SESS,{method:'PATCH',
       headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
       body:JSON.stringify({data:d})});
@@ -1223,7 +1253,7 @@ async function checkForceLogoutPortal(){
     const forced=(d.forceLogout||[]);
     if(forced.includes(_sessionId)){
       d.forceLogout=forced.filter(x=>x!==_sessionId);
-      d.ativas=(d.ativas||[]).filter(x=>x.sessionId!==_sessionId);
+      encerrarNaLista(d,_sessionId,'deslogado');
       await fetch(WORKER_SESS,{method:'PATCH',
         headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
         body:JSON.stringify({data:d})});
@@ -1240,19 +1270,160 @@ async function checkForceLogoutPortal(){
 // gravar a cada 30s encheria o servidor de escrita a troco de nada.
 async function renovarPresencaPortal(d){
   const AGORA=Date.now(), CADA=5*60*1000;
+  let precisaGravar=limparParadas(d);
   const eu=(d.ativas||[]).find(s=>s.sessionId===_sessionId);
-  if(eu && AGORA-(eu.ts||0)<=CADA) return;
-  if(eu){ eu.ts=AGORA; }
-  else {
-    // Caiu da lista por ter ficado parado, mas voltou a usar: entra de novo.
+  if(eu){
+    if(AGORA-(eu.ts||0)>CADA){ eu.ts=AGORA; precisaGravar=true; }
+  } else {
+    // Caiu da lista por ter ficado parado, mas voltou a usar: entra de novo, e
+    // este e um novo periodo de trabalho — o anterior ja foi fechado.
     const nome=sessionStorage.getItem('portal-user')||'';
     d.ativas=(d.ativas||[]).concat([{sessionId:_sessionId,
       username:(sessionStorage.getItem('portal-admin-key')||nome).toLowerCase().trim(),
-      nome, sistema:'portal', ts:AGORA}]);
+      nome, sistema:'portal', ts:AGORA, inicio:AGORA}]);
+    precisaGravar=true;
   }
+  if(!precisaGravar) return;
   await fetch(WORKER_SESS,{method:'PATCH',
     headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
     body:JSON.stringify({data:d})});
+}
+
+// Fecha uma sessao: tira das ativas e guarda quanto tempo durou. Serve para os
+// tres jeitos de acabar — clicou em Sair, foi deslogado pelo admin, ou parou de
+// dar sinal de vida.
+function encerrarNaLista(d, sessionId, motivo){
+  const i=(d.ativas||[]).findIndex(s=>s.sessionId===sessionId);
+  if(i<0) return false;
+  const s=d.ativas[i];
+  d.ativas.splice(i,1);
+  const inicio=s.inicio||s.ts||Date.now();
+  // Quem parou de dar sinal fecha na hora do ULTIMO sinal, nao agora: senao o
+  // tempo de uso contaria a hora em que a pessoa nem estava no computador.
+  const fim=(motivo==='parou')?(s.ts||inicio):Date.now();
+  d.encerradas=[{sessionId:s.sessionId, username:s.username||'', nome:s.nome||'',
+    sistema:s.sistema||'', inicio, fim,
+    minutos:Math.max(0,Math.round((fim-inicio)/60000)), motivo}]
+    .concat(d.encerradas||[]).slice(0,500);
+  return true;
+}
+
+// Quem ficou 1 hora sem sinal de vida nao esta mais operando. Qualquer pessoa
+// que esteja usando o sistema faz essa limpeza, porque quem fechou o navegador
+// nao tem como fechar a propria sessao.
+function limparParadas(d){
+  const LIMITE=60*60*1000, agora=Date.now();
+  let mexeu=false;
+  (d.ativas||[]).slice().forEach(s=>{
+    if(agora-(s.ts||0)>=LIMITE && encerrarNaLista(d,s.sessionId,'parou')) mexeu=true;
+  });
+  return mexeu;
+}
+
+// ---- TEMPO DE USO ----
+// Soma quanto cada pessoa passou dentro de cada modulo. As sessoes ainda
+// abertas entram com o tempo ate agora, senao o dia de hoje apareceria vazio
+// justamente para quem esta trabalhando.
+let _tempoUltimo=[];
+
+function openTempoUso(){
+  if(!soAdmin()){ alert('Acesso restrito ao administrador.'); return; }
+  document.getElementById('tempo-panel').style.display='block';
+  loadTempoUso();
+}
+
+async function loadTempoUso(){
+  const alvo=document.getElementById('tempo-lista');
+  alvo.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center">Carregando...</p>';
+  try{
+    const r=await fetch(WORKER_SESS,{headers:cabecalhos('sessions')});
+    if(!r.ok){ alvo.innerHTML='<p style="font-size:13px;color:var(--red);text-align:center">Erro ao carregar.</p>'; return; }
+    const d=await r.json();
+    const periodo=document.getElementById('tempo-periodo').value;
+    let desde=0;
+    if(periodo==='hoje'){ const h=new Date(); h.setHours(0,0,0,0); desde=h.getTime(); }
+    else if(periodo==='7')  desde=Date.now()-7*24*60*60*1000;
+    else if(periodo==='30') desde=Date.now()-30*24*60*60*1000;
+
+    const agora=Date.now();
+    const periodos=[]
+      .concat((d.encerradas||[]).map(s=>({nome:s.nome,sistema:s.sistema,inicio:s.inicio,fim:s.fim,
+        minutos:s.minutos,motivo:s.motivo,aberta:false})))
+      .concat((d.ativas||[]).map(s=>({nome:s.nome,sistema:s.sistema,inicio:s.inicio||s.ts,fim:agora,
+        minutos:Math.round((agora-(s.inicio||s.ts))/60000),motivo:'em andamento',aberta:true})))
+      .filter(p=>p.inicio>=desde);
+
+    _tempoUltimo=periodos;
+    if(!periodos.length){
+      alvo.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center">Nada registrado neste período.</p>';
+      return;
+    }
+
+    const rot={compras:'🛒 Compras',financeiro:'💰 Financeiro',portal:'🏠 Portal',fabrica:'🏭 Fábrica'};
+    // Agrupa por pessoa, e dentro dela por modulo.
+    const porPessoa={};
+    periodos.forEach(p=>{
+      const n=p.nome||'—';
+      (porPessoa[n]=porPessoa[n]||{total:0,modulos:{},periodos:[]});
+      porPessoa[n].total+=p.minutos;
+      porPessoa[n].modulos[p.sistema]=(porPessoa[n].modulos[p.sistema]||0)+p.minutos;
+      porPessoa[n].periodos.push(p);
+    });
+    const nomes=Object.keys(porPessoa).sort((a,b)=>porPessoa[b].total-porPessoa[a].total);
+    const hora=t=>new Date(t).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    const dia=t=>new Date(t).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+
+    alvo.innerHTML=nomes.map(n=>{
+      const p=porPessoa[n];
+      const mods=Object.keys(p.modulos).sort((a,b)=>p.modulos[b]-p.modulos[a])
+        .map(m=>`<span style="font-size:11px;background:var(--gray-1);border:1px solid var(--gray-2);border-radius:20px;padding:2px 9px">${rot[m]||m} ${duracaoTexto(p.modulos[m])}</span>`).join(' ');
+      const linhas=p.periodos.sort((a,b)=>b.inicio-a.inicio).map(x=>
+        `<div style="font-size:11px;color:var(--gray-4);padding:2px 0">
+           ${dia(x.inicio)} · ${hora(x.inicio)} → ${x.aberta?'agora':hora(x.fim)} ·
+           ${rot[x.sistema]||x.sistema} · <strong>${duracaoTexto(x.minutos)}</strong>
+           ${x.aberta?'<span style="color:#1A7A45">• em andamento</span>':(x.motivo==='parou'?'<span style="color:#B9770E">• parou de usar</span>':(x.motivo==='deslogado'?'<span style="color:var(--red)">• deslogado</span>':''))}
+         </div>`).join('');
+      return `<div style="padding:10px 12px;background:var(--gray-1);border-radius:8px;border:1px solid var(--gray-2);margin-bottom:8px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div style="font-weight:700;font-size:13px">${n}</div>
+          <div style="font-size:14px;font-weight:800;color:var(--verde,#1A7A45)">${duracaoTexto(p.total)}</div>
+        </div>
+        <div style="margin:6px 0;display:flex;gap:5px;flex-wrap:wrap">${mods}</div>
+        <details><summary style="font-size:11px;color:var(--gray-4);cursor:pointer">ver os ${p.periodos.length} período(s)</summary>${linhas}</details>
+      </div>`;
+    }).join('')+
+    `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--gray-2);font-size:11px;color:var(--gray-4);text-align:right">
+       ${periodos.length} período(s) · guarda os 500 mais recentes
+     </div>`;
+  }catch(e){
+    alvo.innerHTML='<p style="font-size:13px;color:var(--red);text-align:center">Erro ao carregar.</p>';
+  }
+}
+
+function exportTempoUso(){
+  if(!_tempoUltimo.length){ alert('Nada para exportar neste período.'); return; }
+  const aspas=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const linhas=[['Usuário','Módulo','Início','Fim','Minutos','Situação'].map(aspas).join(';')];
+  _tempoUltimo.slice().sort((a,b)=>b.inicio-a.inicio).forEach(p=>{
+    linhas.push([p.nome,p.sistema,new Date(p.inicio).toLocaleString('pt-BR'),
+      p.aberta?'(em andamento)':new Date(p.fim).toLocaleString('pt-BR'),
+      p.minutos,p.motivo].map(aspas).join(';'));
+  });
+  const blob=new Blob(['﻿'+linhas.join('\r\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='tempo_de_uso_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+// "3h12" em vez de "192 minutos".
+function duracaoTexto(minutos){
+  const m=Math.max(0,Math.round(minutos||0));
+  if(m<1) return 'menos de 1 min';
+  if(m<60) return m+' min';
+  const h=Math.floor(m/60), r=m%60;
+  return h+'h'+(r?String(r).padStart(2,'0'):'');
 }
 function startSessionCheckPortal(){
   if(_sessCheck) return;

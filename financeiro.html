@@ -1019,6 +1019,37 @@ const _sessionId = Math.random().toString(36).slice(2)+Date.now().toString(36);
 // Guarda quem entrou nesta aba, para a renovacao de presenca poder recadastrar
 // a pessoa se ela cair da lista por ter ficado parada.
 let _sessQuem={nome:'',username:''};
+
+// Fecha uma sessao: tira das ativas e guarda quanto tempo durou. Serve para os
+// tres jeitos de acabar — clicou em Sair, foi deslogado pelo admin, ou parou de
+// dar sinal de vida.
+function encerrarNaLista(d, sessionId, motivo){
+  const i=(d.ativas||[]).findIndex(s=>s.sessionId===sessionId);
+  if(i<0) return false;
+  const s=d.ativas[i];
+  d.ativas.splice(i,1);
+  const inicio=s.inicio||s.ts||Date.now();
+  // Quem parou de dar sinal fecha na hora do ULTIMO sinal, nao agora: senao o
+  // tempo de uso contaria a hora em que a pessoa nem estava no computador.
+  const fim=(motivo==='parou')?(s.ts||inicio):Date.now();
+  d.encerradas=[{sessionId:s.sessionId, username:s.username||'', nome:s.nome||'',
+    sistema:s.sistema||'', inicio, fim,
+    minutos:Math.max(0,Math.round((fim-inicio)/60000)), motivo}]
+    .concat(d.encerradas||[]).slice(0,500);
+  return true;
+}
+
+// Quem ficou 1 hora sem sinal de vida nao esta mais operando. Qualquer pessoa
+// que esteja usando o sistema faz essa limpeza, porque quem fechou o navegador
+// nao tem como fechar a propria sessao.
+function limparParadas(d){
+  const LIMITE=60*60*1000, agora=Date.now();
+  let mexeu=false;
+  (d.ativas||[]).slice().forEach(s=>{
+    if(agora-(s.ts||0)>=LIMITE && encerrarNaLista(d,s.sessionId,'parou')) mexeu=true;
+  });
+  return mexeu;
+}
 async function registrarSessao(nome, username){
   try{
     _sessQuem={nome:nome||'',username:(username||nome||'').toLowerCase().trim()};
@@ -1029,7 +1060,7 @@ async function registrarSessao(nome, username){
     const d=await r.json();
     const _u=(username||nome||'').toLowerCase().trim();
     const ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&(s.username||'').toLowerCase().trim()!==_u);
-    ativas.push({sessionId:_sessionId,username:_u,nome,sistema:'financeiro',ts:Date.now()});
+    ativas.push({sessionId:_sessionId,username:_u,nome,sistema:'financeiro',ts:Date.now(),inicio:Date.now()});
     d.ativas=ativas;
     await fetch('https://daluminium-api.daluminium2.workers.dev',{
       method:'PATCH',
@@ -1046,7 +1077,7 @@ async function removerSessao(){
     });
     if(!r.ok) return;
     const d=await r.json();
-    d.ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId);
+    encerrarNaLista(d,_sessionId,'saiu');
     await fetch('https://daluminium-api.daluminium2.workers.dev',{
       method:'PATCH',
       headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
@@ -1064,9 +1095,9 @@ async function checkForceLogout(){
     const d=await r.json();
     const forced=(d.forceLogout||[]);
     if(forced.includes(_sessionId)){
-      // Remove da lista e faz logout
+      // Fecha a sessao guardando o tempo, e faz logout
       d.forceLogout=forced.filter(s=>s!==_sessionId);
-      d.ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId);
+      encerrarNaLista(d,_sessionId,'deslogado');
       await fetch('https://daluminium-api.daluminium2.workers.dev',{
         method:'PATCH',
         headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
@@ -1088,16 +1119,20 @@ async function checkForceLogout(){
 // o notebook continuava aparecendo como ativo por 8 horas.
 async function renovarPresenca(d){
   const AGORA=Date.now(), CADA=5*60*1000;
+  let precisaGravar=limparParadas(d);
   const eu=(d.ativas||[]).find(s=>s.sessionId===_sessionId);
-  if(eu && AGORA-(eu.ts||0)<=CADA) return;   // marca ainda esta fresca
-  if(eu){ eu.ts=AGORA; }
-  else {
-    // Caiu da lista por ter ficado parado, mas voltou a usar: entra de novo.
+  if(eu){
+    if(AGORA-(eu.ts||0)>CADA){ eu.ts=AGORA; precisaGravar=true; }
+  } else {
+    // Caiu da lista por ter ficado parado, mas voltou a usar: entra de novo, e
+    // este e um novo periodo de trabalho — o anterior ja foi fechado.
     const nome=_sessQuem.nome||sessionStorage.getItem('fin-user')||'';
     d.ativas=(d.ativas||[]).concat([{sessionId:_sessionId,
       username:_sessQuem.username||nome.toLowerCase().trim(),
-      nome, sistema:'financeiro', ts:AGORA}]);
+      nome, sistema:'financeiro', ts:AGORA, inicio:AGORA}]);
+    precisaGravar=true;
   }
+  if(!precisaGravar) return;
   await fetch('https://daluminium-api.daluminium2.workers.dev',{
     method:'PATCH',
     headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
