@@ -134,6 +134,13 @@ tbody tr:hover td{background:var(--gray-1)}
 .emp-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;
   padding-bottom:8px;border-bottom:1px solid var(--gray-2)}
 .emp-card-top span{font-size:13px;font-weight:700;letter-spacing:.5px;color:var(--gray-6)}
+/* Uma baixa por linha, na tela de correcao */
+.bxe-linha{display:grid;grid-template-columns:150px 120px 130px 1fr auto;gap:8px;align-items:end;
+  padding:10px;border:1px solid var(--gray-2);border-radius:var(--radius);margin-bottom:8px}
+.bxe-linha .form-group{margin:0}
+.bxe-linha label{font-size:10px}
+.act-baixas:hover{border-color:var(--amber);color:var(--amber);background:#FFF8E1}
+@media(max-width:700px){ .bxe-linha{grid-template-columns:1fr 1fr} }
 .emp-op small{display:block;font-size:11px;color:var(--gray-5);line-height:1.35}
 
 /* MODAL */
@@ -708,6 +715,27 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeBaixa()">Cancelar</button>
       <button class="btn btn-green" onclick="confirmarBaixa()">Confirmar baixa</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR BAIXAS JA REGISTRADAS (admin) -->
+<div class="modal-overlay" id="editbaixas-overlay">
+  <div class="modal" style="width:min(760px,100%)">
+    <div class="modal-header">
+      <div class="modal-title" id="bx-titulo">Baixas registradas</div>
+      <button class="act" onclick="closeEditarBaixas()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--teal-light);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:14px">
+        ℹ️ Corrija a data, o valor, a conta ou a observação de um pagamento já lançado. Nada é gravado enquanto você não salvar.
+      </div>
+      <div id="bxe-lista"></div>
+      <div id="bxe-resumo" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--gray-2);font-size:12.5px;color:var(--gray-5);text-align:right"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeEditarBaixas()">Cancelar</button>
+      <button class="btn btn-green" onclick="salvarBaixasEdit()">Salvar baixas</button>
     </div>
   </div>
 </div>
@@ -1806,13 +1834,30 @@ function somaBaixas(r, tipo){
 function registrarBaixa(r, tipo, dtNova, valor, conta, obs){
   const lista = baixasDe(r,tipo).slice();
   lista.push({id:genId(), data:dtNova, valor:Number(valor)||0, conta:conta||r.conta, obs:obs||''});
-  lista.sort((a,b)=>String(a.data).localeCompare(String(b.data)));
   r.baixas = lista;
+  sincronizarTotais(r, tipo);
+  if(conta) r.conta=conta;
+}
+
+// Poe em dia o total e a data da ultima baixa a partir da lista. Fica separado
+// porque a tela de editar baixas precisa exatamente disto: mexer so na lista
+// deixaria relatorios, saldos e cartoes do topo lendo numeros velhos.
+function sincronizarTotais(r, tipo){
+  const lista = Array.isArray(r.baixas) ? r.baixas : [];
+  // Sem nenhuma baixa o titulo volta a ficar em aberto. A data precisa ser
+  // limpa junto: e ela que baixasDe() usa para tratar registro antigo como
+  // quitado, e sozinha faria a conta parecer paga sem nenhum pagamento.
+  if(!lista.length){
+    r.baixas = [];
+    if(tipo==='pagar'){ delete r.valorPago; r.dtPag=null; }
+    else { delete r.valorRecebido; r.dtRec=null; }
+    return;
+  }
+  lista.sort((a,b)=>String(a.data).localeCompare(String(b.data)));
   const soma = lista.reduce((a,b)=>a+(Number(b.valor)||0),0);
   const ultima = lista[lista.length-1].data;
   if(tipo==='pagar'){ r.valorPago=soma; r.dtPag=ultima; }
   else { r.valorRecebido=soma; r.dtRec=ultima; }
-  if(conta) r.conta=conta;
 }
 
 // Desenha o histórico embaixo do valor: "11/08 R$ 600,00 · 15/08 R$ 400,00".
@@ -2722,6 +2767,7 @@ function renderPagar(){
       <td>${pillStatus(r._status)}${r.dtPag?`<span class="td-sub">${fmtDate(r.dtPag)}</span>`:''}</td>
       <td class="td-actions">
         ${r._status!=='pago'?`<button class="act act-pay" onclick="openBaixa('pagar',${r._i})" title="Baixar pagamento"><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>`:''}
+        ${(pagoDe(r)>0.004&&isAdmin())?`<button class="act act-baixas" onclick="openEditarBaixas('pagar',${r._i})" title="Corrigir os pagamentos lançados"><svg class="icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>`:''}
         ${pagoDe(r)>0.004?`<button class="act act-comprov" onclick="abrirComprovante('pagar',${r._i})" title="Comprovante de pagamento"><svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>`:''}
         <button class="act act-attach ${(r.attachments&&r.attachments.length)?'has-files':''}" onclick="openAttach('pagar',${r._i})" title="${(r.attachments&&r.attachments.length)?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
           <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>${(r.attachments&&r.attachments.length)?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
@@ -2946,6 +2992,7 @@ function renderReceber(){
         <td>${pillStatus(r._status)}${r.dtRec?`<span class="td-sub">${fmtDate(r.dtRec)}</span>`:''}</td>
         <td class="td-actions">
           ${r._status!=='recebido'?`<button class="act act-pay" onclick="openBaixa('receber',${r._i})" title="Baixar recebimento"><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>`:''}
+          ${(recebidoDe(r)>0.004&&isAdmin())?`<button class="act act-baixas" onclick="openEditarBaixas('receber',${r._i})" title="Corrigir os recebimentos lançados"><svg class="icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>`:''}
           ${recebidoDe(r)>0.004?`<button class="act act-comprov" onclick="abrirComprovante('receber',${r._i})" title="Comprovante de recebimento"><svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>`:''}
           <button class="act act-attach ${(r.attachments&&r.attachments.length)?'has-files':''}" onclick="openAttach('receber',${r._i})" title="${(r.attachments&&r.attachments.length)?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
             <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>${(r.attachments&&r.attachments.length)?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
@@ -2960,6 +3007,115 @@ function renderReceber(){
   const totalRec=data.receber.filter(r=>r.dtRec).reduce((a,r)=>a+(r.valorRecebido||r.valor),0);
   document.getElementById('t-receber').textContent='R$ '+fmtBR(pendRec);
   document.getElementById('t-recebido').textContent='R$ '+fmtBR(totalRec);
+}
+
+// ---- EDITAR AS BAIXAS JA REGISTRADAS (so o admin) ----
+// Ate aqui a tela so acrescentava baixa. Errar o banco ou a data obrigava a
+// cancelar e refazer o lancamento inteiro, perdendo o historico.
+let baixasEdit=[], baixasEditTipo='receber', baixasEditIdx=null;
+
+function registroDaEdicao(){
+  return (baixasEditTipo==='pagar'?data.pagar:data.receber)[baixasEditIdx];
+}
+
+function openEditarBaixas(tipo,idx){
+  if(!isAdmin()){ alert('Somente o administrador pode editar baixas já registradas.'); return; }
+  const r=(tipo==='pagar'?data.pagar:data.receber)[idx];
+  if(!r) return;
+  baixasEditTipo=tipo; baixasEditIdx=idx;
+  // Registro antigo, sem lista, vira uma baixa unica aqui — do mesmo jeito que
+  // o resto do sistema ja o enxerga.
+  baixasEdit=baixasDe(r,tipo).map(b=>({...b,id:b.id||genId()}));
+  document.getElementById('bx-titulo').textContent=
+    (tipo==='pagar'?'Pagamentos de: ':'Recebimentos de: ')+(tipo==='pagar'?(r.desc||'—'):(r.cliente||'—'));
+  renderBaixasEdit();
+  document.getElementById('editbaixas-overlay').classList.add('open');
+}
+function closeEditarBaixas(){
+  document.getElementById('editbaixas-overlay').classList.remove('open');
+  baixasEdit=[]; baixasEditIdx=null;
+}
+
+// Recolhe o que esta digitado antes de qualquer redesenho, senao excluir uma
+// linha apagaria o que foi escrito nas outras.
+function lerCamposBaixas(){
+  baixasEdit.forEach((b,i)=>{
+    const d=document.getElementById(`bxe-${i}-data`);
+    const v=document.getElementById(`bxe-${i}-valor`);
+    const c=document.getElementById(`bxe-${i}-conta`);
+    const o=document.getElementById(`bxe-${i}-obs`);
+    if(d) b.data=d.value;
+    if(v) b.valor=parseBR(v.value)||0;
+    if(c) b.conta=c.value;
+    if(o) b.obs=o.value.trim();
+  });
+}
+
+function renderBaixasEdit(){
+  const contas=['pagbank','inter','sicredi','caixa','antecipacao'];
+  document.getElementById('bxe-lista').innerHTML=baixasEdit.length
+    ? baixasEdit.map((b,i)=>`
+      <div class="bxe-linha">
+        <div class="form-group"><label>Data</label>
+          <input id="bxe-${i}-data" type="date" value="${b.data||''}" onchange="somarBaixasEdit()"></div>
+        <div class="form-group"><label>Valor</label>
+          <input id="bxe-${i}-valor" type="text" value="${fmtBR(b.valor)}" oninput="somarBaixasEdit()"></div>
+        <div class="form-group"><label>Conta</label>
+          <select id="bxe-${i}-conta">
+            ${contas.map(c=>`<option value="${c}" ${b.conta===c?'selected':''}>${CONTA_LABEL[c]}</option>`).join('')}
+          </select></div>
+        <div class="form-group"><label>Observação</label>
+          <input id="bxe-${i}-obs" type="text" value="${(b.obs||'').replace(/"/g,'&quot;')}" placeholder="Ex: PIX"></div>
+        <button class="btn btn-red btn-sm" onclick="excluirBaixaEdit(${i})" title="Excluir esta baixa">Excluir</button>
+      </div>`).join('')
+    : '<div style="font-size:12.5px;color:var(--gray-4);padding:14px 0;text-align:center">Nenhuma baixa — o título fica em aberto.</div>';
+  somarBaixasEdit();
+}
+
+// Mostra o resultado enquanto se digita, para nao precisar salvar para descobrir
+// que a soma passou do valor do titulo.
+function somarBaixasEdit(){
+  lerCamposBaixas();
+  const r=registroDaEdicao();
+  if(!r) return;
+  const soma=baixasEdit.reduce((a,b)=>a+(Number(b.valor)||0),0);
+  const falta=(Number(r.valor)||0)-soma;
+  const passou=falta<-0.004;
+  document.getElementById('bxe-resumo').innerHTML=
+    `Valor do título: <strong>R$ ${fmtBR(r.valor)}</strong> &nbsp;·&nbsp; `+
+    `Soma das baixas: <strong>R$ ${fmtBR(soma)}</strong> &nbsp;·&nbsp; `+
+    (passou
+      ? `<strong style="color:var(--red)">passou R$ ${fmtBR(-falta)} do valor do título</strong>`
+      : `Falta: <strong style="color:${falta>0.004?'var(--amber)':'var(--green)'}">R$ ${fmtBR(Math.max(0,falta))}</strong>`);
+}
+
+function excluirBaixaEdit(i){
+  lerCamposBaixas();
+  const b=baixasEdit[i];
+  if(!confirm(`Excluir a baixa de ${fmtDate(b.data)} no valor de R$ ${fmtBR(b.valor)}?`)) return;
+  baixasEdit.splice(i,1);
+  renderBaixasEdit();
+}
+
+async function salvarBaixasEdit(){
+  lerCamposBaixas();
+  const r=registroDaEdicao();
+  if(!r) return;
+  for(const b of baixasEdit){
+    if(!b.data){ alert('Toda baixa precisa de data.'); return; }
+    if(!(Number(b.valor)>0)){ alert('Toda baixa precisa de um valor maior que zero.'); return; }
+  }
+  const soma=baixasEdit.reduce((a,b)=>a+(Number(b.valor)||0),0);
+  if(soma-(Number(r.valor)||0)>0.004){
+    alert('A soma das baixas passou do valor do título. Corrija antes de salvar.');
+    return;
+  }
+  if(!baixasEdit.length && !confirm('Sem nenhuma baixa o título volta a ficar em aberto. Confirma?')) return;
+  r.baixas=baixasEdit.map(b=>({...b}));
+  sincronizarTotais(r,baixasEditTipo);
+  closeEditarBaixas();
+  await persist();
+  render();
 }
 
 // ---- EMPRESAS QUE EMITEM COMPROVANTE ----
@@ -3854,11 +4010,11 @@ async function init(){
   },10000);
 }
 
-['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','empresa-overlay','empresas-overlay'].forEach(id=>{
+['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','empresa-overlay','empresas-overlay','editbaixas-overlay'].forEach(id=>{
   document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
 });
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','empresa-overlay','empresas-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
+  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','empresa-overlay','empresas-overlay','editbaixas-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
 });
 document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
 
