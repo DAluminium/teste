@@ -2382,16 +2382,52 @@ function logAction(user, action, r, detail){
   if(data.historico.length>500) data.historico=data.historico.slice(0,500);
 }
 
+// Entradas e saidas do modulo, lidas de onde ja estao guardadas em vez de
+// copiadas para ca. Duplicar significaria gravar o documento inteiro a cada
+// login, sem ganho nenhum.
+let _sessoesHist=null;
+async function carregarSessoesHist(){
+  try{
+    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{headers:cabecalhos('sessions')});
+    if(!r.ok){ _sessoesHist=[]; return; }
+    const d=await r.json();
+    const agora=Date.now();
+    const dur=m=>{ m=Math.max(0,Math.round(m)); if(m<1) return 'menos de 1 min';
+      if(m<60) return m+' min'; const h=Math.floor(m/60), x=m%60; return h+'h'+(x?String(x).padStart(2,'0'):''); };
+    const hora=t=>new Date(t).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    const motivo={saiu:'saiu pelo botão',deslogado:'deslogado pelo admin',parou:'parou de usar'};
+    _sessoesHist=[]
+      .concat((d.encerradas||[]).filter(s=>s.sistema==='compras').map(s=>({
+        ts:new Date(s.fim).toISOString(), user:s.nome||'—', action:'Uso do sistema',
+        obra:hora(s.inicio)+' → '+hora(s.fim), contrato:'',
+        detail:dur(s.minutos)+' · '+(motivo[s.motivo]||s.motivo||'') })))
+      // Sessão sem sinal há mais de 1 hora não está "em andamento": ela conta
+      // até o último sinal. Sem isto, quem fechou o navegador de manhã
+      // apareceria trabalhando o dia inteiro.
+      .concat((d.ativas||[]).filter(s=>s.sistema==='compras').map(s=>{
+        const parado=agora-(s.ts||agora)>=60*60*1000;
+        const fim=parado?(s.ts||agora):agora, ini=s.inicio||s.ts;
+        return { ts:new Date(fim).toISOString(), user:s.nome||'—', action:'Uso do sistema',
+          obra:hora(ini)+' → '+(parado?hora(fim):'agora'), contrato:'',
+          detail:dur((fim-ini)/60000)+' · '+(parado?'parou de usar':'em andamento') };
+      }));
+  }catch(e){ _sessoesHist=[]; }
+}
+
 function renderHistorico(){
-  if(!data.historico||!data.historico.length){
+  if(_sessoesHist===null){ _sessoesHist=[]; carregarSessoesHist().then(renderHistorico); }
+  const juntos=(data.historico||[]).concat(_sessoesHist||[])
+    .sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
+  if(!juntos.length){
     document.getElementById('tbody-historico').innerHTML='<tr class="empty-row"><td colspan="5">Nenhuma alteração registrada ainda.</td></tr>';
     return;
   }
   const actionColor={
     'Criou':'#1A7A45','Editou':'#0E8FA6','Moveu para Urgentes':'#C0392B',
-    'Moveu para Importantes':'#B9770E','Marcou como Pago':'#1A7A45','Removeu':'#C0392B'
+    'Moveu para Importantes':'#B9770E','Marcou como Pago':'#1A7A45','Removeu':'#C0392B',
+    'Uso do sistema':'var(--gray-5)'
   };
-  document.getElementById('tbody-historico').innerHTML=data.historico.map(h=>{
+  document.getElementById('tbody-historico').innerHTML=juntos.map(h=>{
     const dt=new Date(h.ts);
     const dtFmt=dt.toLocaleDateString('pt-BR')+' '+dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     const color=actionColor[h.action]||'var(--gray-5)';
@@ -2399,16 +2435,18 @@ function renderHistorico(){
       <td style="white-space:nowrap;font-size:12px;color:var(--gray-4)">${dtFmt}</td>
       <td style="font-weight:600">${h.user}</td>
       <td><span style="color:${color};font-weight:600">${h.action}</span></td>
-      <td>${h.obra}<span class="td-by">Contrato: ${h.contrato}</span></td>
+      <td>${h.obra}${(h.contrato&&h.contrato!=='—')?`<span class="td-by">Contrato: ${h.contrato}</span>`:''}</td>
       <td style="font-size:12px;color:var(--gray-5)">${h.detail}</td>
     </tr>`;
   }).join('');
 }
 
 function exportHistorico(){
-  if(!data.historico||!data.historico.length){ alert('Nenhum histórico para exportar.'); return; }
+  const juntos=(data.historico||[]).concat(_sessoesHist||[])
+    .sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
+  if(!juntos.length){ alert('Nenhum histórico para exportar.'); return; }
   const rows=[['Data/Hora','Usuário','Ação','Obra','Contrato','Detalhe']];
-  data.historico.forEach(h=>{
+  juntos.forEach(h=>{
     const dt=new Date(h.ts);
     rows.push([dt.toLocaleDateString('pt-BR')+' '+dt.toLocaleTimeString('pt-BR'),h.user,h.action,h.obra,h.contrato,h.detail]);
   });

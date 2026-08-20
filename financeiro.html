@@ -2737,10 +2737,46 @@ function setTab(tab,el){
   if(tab==='historico') renderHistorico();
 }
 
+// Entradas e saidas do modulo, lidas de onde ja estao guardadas em vez de
+// copiadas para ca. Duplicar significaria gravar o documento inteiro a cada
+// login, e ainda faria a tela de conflito aparecer a toa quando duas pessoas
+// entrassem ao mesmo tempo.
+let _sessoesHist=null;
+async function carregarSessoesHist(){
+  try{
+    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{headers:cabecalhos('sessions')});
+    if(!r.ok){ _sessoesHist=[]; return; }
+    const d=await r.json();
+    const agora=Date.now();
+    const dur=m=>{ m=Math.max(0,Math.round(m)); if(m<1) return 'menos de 1 min';
+      if(m<60) return m+' min'; const h=Math.floor(m/60), x=m%60; return h+'h'+(x?String(x).padStart(2,'0'):''); };
+    const hora=t=>new Date(t).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    const motivo={saiu:'saiu pelo botão',deslogado:'deslogado pelo admin',parou:'parou de usar'};
+    _sessoesHist=[]
+      .concat((d.encerradas||[]).filter(s=>s.sistema==='financeiro').map(s=>({
+        ts:new Date(s.fim).toISOString(), user:s.nome||'—', acao:'Uso do sistema',
+        alvo:hora(s.inicio)+' → '+hora(s.fim), detalhe:dur(s.minutos)+' · '+(motivo[s.motivo]||s.motivo||'') })))
+      // Sessão sem sinal há mais de 1 hora não está "em andamento": ela conta
+      // até o último sinal. Sem isto, quem fechou o navegador de manhã
+      // apareceria trabalhando o dia inteiro.
+      .concat((d.ativas||[]).filter(s=>s.sistema==='financeiro').map(s=>{
+        const parado=agora-(s.ts||agora)>=60*60*1000;
+        const fim=parado?(s.ts||agora):agora, ini=s.inicio||s.ts;
+        return { ts:new Date(fim).toISOString(), user:s.nome||'—', acao:'Uso do sistema',
+          alvo:hora(ini)+' → '+(parado?hora(fim):'agora'),
+          detalhe:dur((fim-ini)/60000)+' · '+(parado?'parou de usar':'em andamento') };
+      }));
+  }catch(e){ _sessoesHist=[]; }
+}
+
 function renderHistorico(){
   if(!isAdmin()) return;
+  // Na primeira abertura busca os periodos de uso e redesenha.
+  if(_sessoesHist===null){ _sessoesHist=[]; carregarSessoesHist().then(renderHistorico); }
   const tbody=document.getElementById('tbody-historico');
-  const todos=Array.isArray(data.historico)?data.historico:[];
+  const acoes=Array.isArray(data.historico)?data.historico:[];
+  const todos=acoes.concat(_sessoesHist||[])
+    .sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
   const q=semAcento((document.getElementById('fil-hist-busca')||{value:''}).value).trim();
   const lista=q
     ? todos.filter(h=>{
@@ -2755,7 +2791,8 @@ function renderHistorico(){
   } else {
     const cor={'Criou':'var(--green)','Editou':'var(--teal-dark)','Removeu':'var(--red)',
                'Baixou pagamento':'var(--green)','Baixou recebimento':'var(--green)',
-               'Corrigiu baixas':'var(--amber)','Transferência':'var(--teal-dark)'};
+               'Corrigiu baixas':'var(--amber)','Transferência':'var(--teal-dark)',
+               'Uso do sistema':'var(--gray-5)'};
     tbody.innerHTML=lista.map(h=>{
       const d=new Date(h.ts);
       const quando=isNaN(d)?'—':d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
@@ -2770,11 +2807,12 @@ function renderHistorico(){
   }
   document.getElementById('t-hist-footer').innerHTML=
     q ? `${lista.length} de ${todos.length} registro(s)`
-      : `${todos.length} registro(s) · guarda os 500 mais recentes`;
+      : `${acoes.length} alteração(ões) e ${(_sessoesHist||[]).length} período(s) de uso · guarda os 500 mais recentes`;
 }
 
 function exportHistorico(){
-  const lista=Array.isArray(data.historico)?data.historico:[];
+  const lista=(Array.isArray(data.historico)?data.historico:[]).concat(_sessoesHist||[])
+    .sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
   if(!lista.length){ alert('Nenhum histórico para exportar.'); return; }
   const aspas=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
   const linhas=[['Data e hora','Usuário','Ação','Lançamento','Detalhe'].map(aspas).join(';')];

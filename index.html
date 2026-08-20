@@ -1174,7 +1174,7 @@ async function loadSessoes(){
       return;
     }
     ativas.sort((a,b)=>b.ts-a.ts);
-    const sistemaLabel={compras:'🛒 Gestão de Compras',financeiro:'💰 Financeiro',portal:'🏠 Portal'};
+    const sistemaLabel={compras:'🛒 Gestão de Compras',financeiro:'💰 Financeiro',portal:'🏠 Portal',fabrica:'🏭 Fábrica'};
     lista.innerHTML=ativas.map(s=>{
       const minutos=Math.floor((Date.now()-s.ts)/60000);
       // O sinal de vida chega a cada 5 minutos, entao ate 10 minutos e "agora".

@@ -254,6 +254,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div class="view-switch">
         <button class="view-btn" id="vb-quadro" onclick="setView('quadro')">Quadro</button>
         <button class="view-btn" id="vb-lista" onclick="setView('lista')">Lista</button>
+        <button class="view-btn" id="vb-hist" onclick="setView('historico')" style="display:none">📋 Histórico</button>
       </div>
       <button class="btn btn-outline btn-sm" id="btn-lixeira" onclick="alternarLixeira()">Lixeira</button>
     </div>
@@ -697,8 +698,110 @@ async function fazerLogin(user,senha){
 // Sair apaga o crachá E a sessão do portal. Apagar só o crachá não bastava:
 // quem tivesse entrado pelo portal era reconectado pelo `dalum-sso` no
 // recarregamento, e o botão parecia não fazer nada.
-function sairDaFabrica(){
+// ================= SESSÃO NO PAINEL DO PORTAL =================
+// Identifica ESTA aba. Some quando a aba fecha, que é o que se quer: cada aba
+// aberta é um período de trabalho.
+const _sessionIdFab='fab-'+Math.random().toString(36).slice(2)+Date.now().toString(36);
+let _checkFab=null;
+
+function cabecalhosSessoesFab(extra){
+  // 'sessions' é um registro próprio no banco, separado do da fábrica.
+  return Object.assign(cabecalhos(extra||{}),{'X-Sistema':'sessions'});
+}
+
+// Fecha uma sessão guardando quanto tempo durou. Igual ao dos outros módulos.
+function encerrarNaListaFab(d, sessionId, motivo){
+  const i=(d.ativas||[]).findIndex(function(s){ return s.sessionId===sessionId; });
+  if(i<0) return false;
+  const s=d.ativas[i];
+  d.ativas.splice(i,1);
+  const inicio=s.inicio||s.ts||Date.now();
+  // Quem parou de dar sinal fecha na hora do ÚLTIMO sinal, não agora.
+  const fim=(motivo==='parou')?(s.ts||inicio):Date.now();
+  d.encerradas=[{sessionId:s.sessionId,username:s.username||'',nome:s.nome||'',
+    sistema:s.sistema||'',inicio:inicio,fim:fim,
+    minutos:Math.max(0,Math.round((fim-inicio)/60000)),motivo:motivo}]
+    .concat(d.encerradas||[]).slice(0,500);
+  return true;
+}
+function limparParadasFab(d){
+  const LIMITE=60*60*1000, agora=Date.now();
+  let mexeu=false;
+  (d.ativas||[]).slice().forEach(function(s){
+    if(agora-(s.ts||0)>=LIMITE && encerrarNaListaFab(d,s.sessionId,'parou')) mexeu=true;
+  });
+  return mexeu;
+}
+
+async function registrarSessaoFab(nome, username){
+  try{
+    const r=await fetch(WORKER,{headers:cabecalhosSessoesFab()});
+    if(!r.ok) return;
+    const d=await r.json();
+    const u=(username||nome||'').toLowerCase().trim();
+    const ativas=(d.ativas||[]).filter(function(s){
+      return s.sessionId!==_sessionIdFab && !((s.username||'').toLowerCase().trim()===u && s.sistema==='fabrica');
+    });
+    ativas.push({sessionId:_sessionIdFab,username:u,nome:nome,sistema:'fabrica',ts:Date.now(),inicio:Date.now()});
+    d.ativas=ativas;
+    await fetch(WORKER,{method:'PATCH',
+      headers:cabecalhosSessoesFab({'Content-Type':'application/json'}),
+      body:JSON.stringify({data:d})});
+  }catch(e){}
+}
+
+async function removerSessaoFab(){
+  try{
+    const r=await fetch(WORKER,{headers:cabecalhosSessoesFab()});
+    if(!r.ok) return;
+    const d=await r.json();
+    encerrarNaListaFab(d,_sessionIdFab,'saiu');
+    await fetch(WORKER,{method:'PATCH',
+      headers:cabecalhosSessoesFab({'Content-Type':'application/json'}),
+      body:JSON.stringify({data:d})});
+  }catch(e){}
+}
+
+// A cada 30 segundos: confere se o admin mandou deslogar e renova o sinal de
+// vida. A gravação só acontece quando o carimbo passa de 5 minutos.
+async function checkForceLogoutFab(){
+  try{
+    const r=await fetch(WORKER,{headers:cabecalhosSessoesFab()});
+    if(!r.ok) return;
+    const d=await r.json();
+    const forcados=(d.forceLogout||[]);
+    if(forcados.indexOf(_sessionIdFab)>=0){
+      d.forceLogout=forcados.filter(function(x){ return x!==_sessionIdFab; });
+      encerrarNaListaFab(d,_sessionIdFab,'deslogado');
+      await fetch(WORKER,{method:'PATCH',
+        headers:cabecalhosSessoesFab({'Content-Type':'application/json'}),
+        body:JSON.stringify({data:d})});
+      alert('Sua sessão foi encerrada pelo administrador.');
+      localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso');
+      location.reload();
+      return;
+    }
+    const AGORA=Date.now(), CADA=5*60*1000;
+    let precisaGravar=limparParadasFab(d);
+    const eu=(d.ativas||[]).find(function(s){ return s.sessionId===_sessionIdFab; });
+    if(eu){
+      if(AGORA-(eu.ts||0)>CADA){ eu.ts=AGORA; precisaGravar=true; }
+    } else {
+      d.ativas=(d.ativas||[]).concat([{sessionId:_sessionIdFab,
+        username:(usuario||'').toLowerCase().trim(), nome:usuario,
+        sistema:'fabrica', ts:AGORA, inicio:AGORA}]);
+      precisaGravar=true;
+    }
+    if(!precisaGravar) return;
+    await fetch(WORKER,{method:'PATCH',
+      headers:cabecalhosSessoesFab({'Content-Type':'application/json'}),
+      body:JSON.stringify({data:d})});
+  }catch(e){}
+}
+
+async function sairDaFabrica(){
   if(!confirm('Deseja sair?')) return;
+  await removerSessaoFab();
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem('dalum-sso');
   // Dentro do portal, avisa a moldura para ela encerrar a sessão de lá também
@@ -851,7 +954,24 @@ async function enviarRemoto(payload){
 // Toda alteração passa por aqui: relê o servidor, aplica a mudança em cima do
 // que está lá e só então grava. Evita que duas pessoas salvando ao mesmo tempo
 // apaguem o trabalho uma da outra.
-async function alterar(fn){
+// Registro geral do que foi feito no módulo. Fica no mesmo documento das obras
+// e é gravado JUNTO com a alteração — se fossem duas gravações separadas, uma
+// poderia acontecer sem a outra e o histórico mentiria.
+// Guarda os 500 mais recentes: o documento inteiro trafega a cada gravação.
+function logFab(base, acao, alvo, detalhe){
+  if(!Array.isArray(base.historico)) base.historico=[];
+  base.historico.unshift({
+    id: Math.random().toString(36).slice(2)+Date.now().toString(36),
+    ts: agoraISO(), user: usuario||'—',
+    acao: acao, alvo: alvo||'—', detalhe: detalhe||''
+  });
+  if(base.historico.length>500) base.historico=base.historico.slice(0,500);
+}
+
+// O segundo parâmetro descreve o que está sendo feito, para o histórico. Pode
+// ser um objeto {acao,alvo,detalhe} ou uma função que recebe o documento já
+// alterado — útil quando o detalhe só se conhece depois da mudança.
+async function alterar(fn, registro){
   status('🔄 Salvando...');
   try{
     let base=null;
@@ -861,6 +981,12 @@ async function alterar(fn){
     // A funcao pode ser assincrona: a juncao de alteracoes pode precisar
     // perguntar ao usuario qual valor manter num campo em conflito.
     await fn(base);
+    if(registro){
+      try{
+        const r=(typeof registro==='function')?registro(base):registro;
+        if(r && r.acao) logFab(base, r.acao, r.alvo, r.detalhe);
+      }catch(e){}   // histórico nunca pode impedir a gravação do trabalho
+    }
     // Carimbo usado para conferir, depois, se a gravação realmente aconteceu.
     const carimbo=agoraISO();
     base.atualizadoEm=carimbo;
@@ -1051,7 +1177,7 @@ async function addTipoDoc(){
     if(lista.some(function(t){ return t.toLowerCase()===nome.toLowerCase(); })){ base.tiposDoc=lista; return; }
     lista.push(nome);
     base.tiposDoc=lista;
-  });
+  },{acao:'Cadastrou',alvo:'Tipo de documento',detalhe:nome});
   if(ok){ inp.value=''; renderTiposDoc(); popularSelectDoc(); }
 }
 
@@ -1066,7 +1192,7 @@ async function removerTipoDoc(label){
   if(!confirm('Remover o tipo "'+label+'"?')) return;
   const ok=await alterar(function(base){
     base.tiposDoc=tiposDocDe(base).filter(function(t){ return t!==label; });
-  });
+  },{acao:'Removeu',alvo:'Tipo de documento',detalhe:label});
   if(ok){ renderTiposDoc(); popularSelectDoc(); }
 }
 
@@ -2112,17 +2238,138 @@ function filtradas(){
 }
 
 // ================= TELA =================
+function soAdminFab(){ return papel==='admin'; }
+
 function setView(v){
+  // Esconder o botão não basta: sem esta conferência, quem souber o nome abre
+  // o histórico chamando setView pelo console.
+  if(v==='historico' && !soAdminFab()){ aviso('Acesso restrito','O histórico é restrito ao administrador.'); return; }
   view=v;
   document.getElementById('vb-quadro').classList.toggle('active',v==='quadro');
   document.getElementById('vb-lista').classList.toggle('active',v==='lista');
+  const bh=document.getElementById('vb-hist');
+  if(bh) bh.classList.toggle('active',v==='historico');
   try{ localStorage.setItem('dalum-fabrica-view',v); }catch(e){}
   render();
+}
+
+// ---- HISTÓRICO GERAL DO MÓDULO (só admin) ----
+// Junta o que hoje só existe espalhado dentro de cada ficha, mais o que não
+// era registrado em lugar nenhum: anexos, vãos, etapas do fluxo e cadastros.
+// Entradas e saidas do modulo, lidas de onde ja estao guardadas em vez de
+// copiadas para ca. Duplicar significaria gravar o documento inteiro a cada
+// login, sem ganho nenhum.
+let _sessoesHist=null;
+async function carregarSessoesHist(){
+  try{
+    // 'sessions' e um registro proprio no banco, separado do da fabrica — por
+    // isso o cabecalho X-Sistema vai trocado aqui.
+    const r=await fetch(WORKER,{headers:Object.assign(cabecalhos(),{'X-Sistema':'sessions'})});
+    if(!r.ok){ _sessoesHist=[]; return; }
+    const d=await r.json();
+    const agora=Date.now();
+    const dur=function(m){ m=Math.max(0,Math.round(m)); if(m<1) return 'menos de 1 min';
+      if(m<60) return m+' min'; const h=Math.floor(m/60), x=m%60; return h+'h'+(x?String(x).padStart(2,'0'):''); };
+    const hora=function(t){ return new Date(t).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); };
+    const motivo={saiu:'saiu pelo botão',deslogado:'deslogado pelo admin',parou:'parou de usar'};
+    _sessoesHist=[]
+      .concat((d.encerradas||[]).filter(function(s){ return s.sistema==='fabrica'; }).map(function(s){
+        return { ts:new Date(s.fim).toISOString(), user:s.nome||'—', acao:'Uso do sistema',
+                 alvo:hora(s.inicio)+' → '+hora(s.fim),
+                 detalhe:dur(s.minutos)+' · '+(motivo[s.motivo]||s.motivo||'') }; }))
+      // Sessão sem sinal há mais de 1 hora não está "em andamento": ela conta
+      // até o último sinal. Sem isto, quem fechou o navegador de manhã
+      // apareceria trabalhando o dia inteiro.
+      .concat((d.ativas||[]).filter(function(s){ return s.sistema==='fabrica'; }).map(function(s){
+        const parado=agora-(s.ts||agora)>=60*60*1000;
+        const fim=parado?(s.ts||agora):agora, ini=s.inicio||s.ts;
+        return { ts:new Date(fim).toISOString(), user:s.nome||'—', acao:'Uso do sistema',
+                 alvo:hora(ini)+' → '+(parado?hora(fim):'agora'),
+                 detalhe:dur((fim-ini)/60000)+' · '+(parado?'parou de usar':'em andamento') }; }));
+  }catch(e){ _sessoesHist=[]; }
+}
+
+function htmlHistoricoGeral(){
+  if(_sessoesHist===null){ _sessoesHist=[]; carregarSessoesHist().then(function(){ if(view==='historico') render(); }); }
+  const acoes=Array.isArray(dados.historico)?dados.historico:[];
+  const todos=acoes.concat(_sessoesHist||[])
+    .sort(function(a,b){ return String(b.ts).localeCompare(String(a.ts)); });
+  const q=((document.getElementById('busca')||{}).value||'').trim().toLowerCase();
+  const lista=q ? todos.filter(function(h){
+    return ((h.user||'')+' '+(h.acao||'')+' '+(h.alvo||'')+' '+(h.detalhe||'')).toLowerCase().includes(q);
+  }) : todos;
+
+  if(!lista.length){
+    return '<div class="vazio"><div class="vazio-t">'+
+      (todos.length?'Nenhum registro para esta busca':'Nenhuma alteração registrada ainda')+'</div>'+
+      '<p style="font-size:13px">'+(todos.length?'Tente outro termo.':'As alterações feitas a partir de agora aparecem aqui.')+'</p></div>';
+  }
+
+  const cor={'Criou obra':'#1A7A45','Editou obra':'#0E8FA6','Excluiu obra':'#C0392B',
+    'Restaurou obra':'#1A7A45','Criou etapa':'#1A7A45','Excluiu etapa':'#C0392B',
+    'Moveu etapa':'#B9770E','Renomeou etapa':'#B9770E','Inativou etapa':'#B9770E','Ativou etapa':'#1A7A45'};
+
+  return '<div style="background:white;border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">'+
+      '<div style="font-size:13px;font-weight:700">📋 Histórico de alterações</div>'+
+      '<div style="display:flex;gap:8px;align-items:center">'+
+        '<span style="font-size:11px;color:var(--gray-4)">'+
+          (q?lista.length+' de '+todos.length
+            :acoes.length+' alteração(ões) e '+((_sessoesHist||[]).length)+' período(s) de uso')+'</span>'+
+        '<button class="btn btn-outline btn-sm" onclick="exportHistoricoFab()">⬇️ Exportar</button>'+
+      '</div></div>'+
+    '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'+
+    '<thead><tr>'+
+      ['Data e hora','Usuário','Ação','Obra / item','Detalhe'].map(function(t){
+        return '<th style="text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;'+
+          'color:var(--gray-5);padding:6px 8px;border-bottom:2px solid var(--gray-2);white-space:nowrap">'+t+'</th>';
+      }).join('')+
+    '</tr></thead><tbody>'+
+    lista.map(function(h){
+      const d=new Date(h.ts);
+      const quando=isNaN(d)?'—':d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      return '<tr>'+
+        '<td style="padding:6px 8px;border-bottom:1px solid var(--gray-2);font-size:11.5px;color:var(--gray-4);white-space:nowrap">'+quando+'</td>'+
+        '<td style="padding:6px 8px;border-bottom:1px solid var(--gray-2);font-size:12px;font-weight:600">'+esc(h.user||'—')+'</td>'+
+        '<td style="padding:6px 8px;border-bottom:1px solid var(--gray-2);font-size:12px;font-weight:600;color:'+(cor[h.acao]||'var(--gray-5)')+';white-space:nowrap">'+esc(h.acao||'—')+'</td>'+
+        '<td style="padding:6px 8px;border-bottom:1px solid var(--gray-2);font-size:12px">'+esc(h.alvo||'—')+'</td>'+
+        '<td style="padding:6px 8px;border-bottom:1px solid var(--gray-2);font-size:11.5px;color:var(--gray-5)">'+esc(h.detalhe||'')+'</td>'+
+      '</tr>';
+    }).join('')+
+    '</tbody></table></div></div>';
+}
+
+function exportHistoricoFab(){
+  const lista=(Array.isArray(dados.historico)?dados.historico:[]).concat(_sessoesHist||[])
+    .sort(function(a,b){ return String(b.ts).localeCompare(String(a.ts)); });
+  if(!lista.length){ aviso('Nada para exportar','Nenhuma alteração registrada ainda.'); return; }
+  const aspas=function(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; };
+  const linhas=[['Data e hora','Usuário','Ação','Obra / item','Detalhe'].map(aspas).join(';')];
+  lista.forEach(function(h){
+    const d=new Date(h.ts);
+    linhas.push([isNaN(d)?'':d.toLocaleString('pt-BR'),h.user,h.acao,h.alvo,h.detalhe].map(aspas).join(';'));
+  });
+  // BOM na frente para o Excel abrir os acentos certos.
+  const blob=new Blob(['﻿'+linhas.join('\r\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='historico_fabrica_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); },1000);
 }
 
 function render(){
   sincronizarEtapas();   // a lista de etapas vem dos dados, e eles podem ter mudado
   const alvo=document.getElementById('conteudo');
+  // O botão só aparece depois de saber o papel, e o papel só é conhecido
+  // depois da entrada — por isso fica aqui, que é por onde todos os caminhos passam.
+  const bh=document.getElementById('vb-hist');
+  if(bh) bh.style.display=soAdminFab()?'block':'none';
+  if(view==='historico'){
+    if(!soAdminFab()){ setView('quadro'); return; }
+    alvo.innerHTML=htmlHistoricoGeral();
+    return;
+  }
   const lista=filtradas();
   if(verExcluidas && !excluidas().length){
     alvo.innerHTML='<div class="vazio"><div class="vazio-t">Lixeira vazia</div>'+
@@ -2272,7 +2519,7 @@ async function addTipo(){
     if(lista.some(function(t){ return t.label.toLowerCase()===nome.toLowerCase(); })) { base.tipos=lista; return; }
     lista.push({label:nome,ativo:true});
     base.tipos=lista;
-  });
+  },{acao:'Cadastrou',alvo:'Tipo de obra',detalhe:nome});
   if(ok){ inp.value=''; renderTipos(); }
 }
 
@@ -2312,7 +2559,7 @@ async function renomearTipo(i){
       if(!Array.isArray(o.historico)) o.historico=[];
       o.historico.push({quando:quando,quem:usuario,campo:'tipo',valorAntigo:antigo,valorNovo:nome});
     });
-  });
+  },{acao:'Renomeou',alvo:'Tipo de obra',detalhe:antigo+' → '+nome});
   if(ok) renderTipos();
 }
 
@@ -2325,7 +2572,7 @@ async function toggleTipo(i){
     const t=l.filter(function(x){ return x.label===alvo; })[0];
     if(t) t.ativo=ligar;
     base.tipos=l;
-  });
+  },{acao:ligar?'Ativou':'Desativou',alvo:'Tipo de obra',detalhe:alvo});
   if(ok) renderTipos();
 }
 
@@ -2340,7 +2587,7 @@ async function removerTipo(i){
     // enquanto esta tela estava aberta.
     if(usoTipo(base,alvo)>0){ base.tipos=tiposDe(base); return; }
     base.tipos=tiposDe(base).filter(function(t){ return t.label!==alvo; });
-  });
+  },{acao:'Removeu',alvo:'Tipo de obra',detalhe:alvo});
   if(ok){
     if(usoTipo(dados,alvo)>0) aviso('Tipo não excluído','Enquanto esta tela estava aberta, alguma obra passou a usar este tipo.');
     renderTipos();
@@ -2377,7 +2624,7 @@ async function addEtapa(){
     }
     lista.push({id:idEtapa(nome),nome:nome,resp:resp,ativo:true});
     base.etapas=lista;
-  });
+  },{acao:'Criou etapa',alvo:nome,detalhe:'responsável: '+resp});
   if(ok){ inp.value=''; inpResp.value=''; renderEtapas(); render(); }
 }
 
@@ -2392,6 +2639,10 @@ async function moverEtapa(id,dir){
     if(i<0||j<0||j>=lista.length){ base.etapas=lista; return; }
     const t=lista[i]; lista[i]=lista[j]; lista[j]=t;
     base.etapas=lista;
+  },function(base){
+    const l=etapasDe(base), i=l.findIndex(function(e){ return e.id===id; });
+    return {acao:'Moveu etapa', alvo:(l[i]&&l[i].nome)||id,
+            detalhe:'agora é a '+(i+1)+'ª de '+l.length+' no fluxo'};
   });
   if(ok){ renderEtapas(); render(); }
 }
@@ -2403,6 +2654,9 @@ async function alternarEtapa(id){
     const e=lista.find(function(x){ return x.id===id; });
     if(e) e.ativo = (e.ativo===false);
     base.etapas=lista;
+  },function(base){
+    const e=etapasDe(base).find(function(x){ return x.id===id; });
+    return {acao:(e&&e.ativo!==false)?'Ativou etapa':'Inativou etapa', alvo:(e&&e.nome)||id, detalhe:''};
   });
   if(ok){ renderEtapas(); render(); }
 }
@@ -2422,7 +2676,9 @@ async function renomearEtapa(id){
     // faria cada obra apontar para uma etapa que não existe.
     if(e){ e.nome=nome.trim()||e.nome; e.resp=resp.trim()||'—'; }
     base.etapas=lista;
-  });
+  },{acao:'Renomeou etapa',alvo:atual.nome,
+     detalhe:(atual.nome!==nome.trim()?atual.nome+' → '+nome.trim()+' · ':'')+
+             'responsável: '+(atual.resp||'—')+' → '+(resp.trim()||'—')});
   if(ok){ renderEtapas(); render(); }
 }
 
@@ -2443,7 +2699,7 @@ async function excluirEtapa(id){
     // para cá enquanto esta tela estava aberta.
     if(usoEtapa(base,id)>0){ base.etapas=etapasDe(base); return; }
     base.etapas=etapasDe(base).filter(function(x){ return x.id!==id; });
-  });
+  },{acao:'Excluiu etapa',alvo:(e&&e.nome)||id,detalhe:''});
   if(ok){
     if(usoEtapa(dados,id)>0) aviso('Etapa não excluída','Enquanto esta tela estava aberta, alguma obra passou a usar esta etapa.');
     renderEtapas(); render();
@@ -2852,6 +3108,32 @@ async function salvarFicha(manterAberta){
     } else {
       delete o.espera[etAlvo];      // limpou os dois campos: some o registro
     }
+  },function(base){
+    const nomeEt=function(x){ const e=ETAPAS.find(function(y){ return y.id===x; }); return (e&&e.nome)||x||'—'; };
+    if(!id){
+      return {acao:'Criou obra', alvo:novo.cliente+(novo.obra?' · '+novo.obra:''),
+              detalhe:'etapa '+nomeEt(novo.etapa)+(novo.prazo?' · prazo '+novo.prazo:'')};
+    }
+    // Compara com a versão de quando a ficha foi aberta: é isso que diz o que
+    // ESTA pessoa mudou, e não o que o colega mudou enquanto ela editava.
+    const a=base.obras.find(function(x){ return x.id===id; })||{};
+    const b=fichaBase||{};
+    const mudou=[];
+    if((b.etapa||'')!==(a.etapa||''))   mudou.push('etapa: '+nomeEt(b.etapa)+' → '+nomeEt(a.etapa));
+    if((b.prazo||'')!==(a.prazo||''))   mudou.push('prazo: '+(b.prazo||'—')+' → '+(a.prazo||'—'));
+    if((b.responsavel||'')!==(a.responsavel||'')) mudou.push('responsável: '+(b.responsavel||'—')+' → '+(a.responsavel||'—'));
+    if((b.tipo||'')!==(a.tipo||''))     mudou.push('tipo: '+(b.tipo||'—')+' → '+(a.tipo||'—'));
+    const nd=(a.docs||[]).length-(b.docs||[]).length;
+    if(nd>0) mudou.push(nd+' anexo(s) a mais');
+    if(nd<0) mudou.push((-nd)+' anexo(s) a menos');
+    const va=contarVaos(a.vaos), vb=contarVaos(b.vaos);
+    if(va.total!==vb.total)   mudou.push('vãos: '+vb.total+' → '+va.total);
+    if(va.feitos!==vb.feitos) mudou.push('instalados: '+vb.feitos+' → '+va.feitos+' de '+va.total);
+    const eA=((a.espera||{})[a.etapa]||{}), eB=((b.espera||{})[a.etapa]||{});
+    if((eA.previsao||'')!==(eB.previsao||'')) mudou.push('previsão da etapa: '+(eB.previsao||'—')+' → '+(eA.previsao||'—'));
+    if((eA.motivo||'')!==(eB.motivo||''))     mudou.push('justificativa: '+(eA.motivo||'(apagada)'));
+    return {acao:'Editou obra', alvo:(a.cliente||'')+(a.obra?' · '+a.obra:''),
+            detalhe:mudou.length?mudou.join(' · '):'sem mudança nos campos'};
   });
   // Anexar e escanear salvam a ficha na hora, mas precisam dela aberta para a
   // pessoa continuar de onde parou.
@@ -2876,7 +3158,8 @@ async function excluirObra(){
     alvo.excluidaEm=agoraISO();
     if(!Array.isArray(alvo.historico)) alvo.historico=[];
     alvo.historico.push({quando:agoraISO(),quem:usuario,evento:'exclusao'});
-  });
+  },{acao:'Excluiu obra',alvo:(o.cliente||'')+(o.obra?' · '+o.obra:''),
+     detalhe:'foi para a lixeira, dá para restaurar'});
   if(ok) fecharFicha();
 }
 
@@ -2889,6 +3172,9 @@ async function restaurarObra(){
     delete alvo.excluida; delete alvo.excluidaPor; delete alvo.excluidaEm;
     if(!Array.isArray(alvo.historico)) alvo.historico=[];
     alvo.historico.push({quando:agoraISO(),quem:usuario,evento:'restauracao'});
+  },function(base){
+    const a=base.obras.find(x=>x.id===id)||{};
+    return {acao:'Restaurou obra',alvo:(a.cliente||'')+(a.obra?' · '+a.obra:''),detalhe:'voltou da lixeira'};
   });
   if(ok) fecharFicha();
 }
@@ -2943,6 +3229,10 @@ function mostrarLogin(){
 function abrirApp(nome,papelDoUsuario){
   usuario=nome;
   papel=String(papelDoUsuario||'').toLowerCase();
+  // A Fábrica nunca registrava sessão: não aparecia em "Sessões ativas" nem no
+  // tempo de uso, e o Deslogar do portal não a alcançava.
+  registrarSessaoFab(nome, nome);
+  if(!_checkFab) _checkFab=setInterval(checkForceLogoutFab,30000);
   document.getElementById('bloqueio').style.display='none';
   document.getElementById('app').style.display='block';
   // O botão Sair aparece sempre: ele encerra tanto o crachá quanto a sessão
