@@ -266,7 +266,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <button class="tab-btn tab-important" onclick="setTab('importante',this)">🟡 Importantes</button>
     <button class="tab-btn tab-paid" onclick="setTab('pago',this)">🟢 Obras pagas</button>
     <button class="tab-btn tab-manut" onclick="setTab('manutencao',this)">🔧 Manutenção</button>
-    <button class="tab-btn tab-hist" onclick="setTab('historico',this)">📋 Histórico</button>
+    <button class="tab-btn tab-hist" id="tab-hist-btn" onclick="setTab('historico',this)" style="display:none">📋 Histórico</button>
   </div>
 
   <div class="search-bar">
@@ -815,6 +815,15 @@ function render(){
   renderTable('importante',false);
   renderTable('pago',true);
   updateSummary();
+  mostrarAbaHistorico();
+}
+
+// A aba do histórico é só do admin. Fica aqui, dentro do render, porque este é
+// o único ponto por onde passam os três caminhos de entrada — crachá do portal,
+// SSO e sessão já salva —, e o papel só é conhecido depois deles.
+function mostrarAbaHistorico(){
+  const b=document.getElementById('tab-hist-btn');
+  if(b) b.style.display=isAdmin()?'block':'none';
 }
 
 function renderTable(type,isPago){
@@ -901,6 +910,9 @@ function updateSummary(){
 }
 
 function setTab(tab,el){
+  // Esconder a aba não basta: sem esta conferência, quem souber o nome consegue
+  // abrir o histórico chamando setTab pelo console.
+  if(tab==='historico' && !isAdmin()){ alert('O histórico é restrito ao administrador.'); return; }
   currentTab=tab;
   document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');

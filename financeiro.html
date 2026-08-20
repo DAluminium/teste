@@ -339,6 +339,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <button class="tab-btn tab-caixa" onclick="setTab('caixa',this)">🏦 Fluxo de Caixa</button>
     <button class="tab-btn tab-relatorio" onclick="setTab('relatorio',this)">📊 Relatório</button>
     <button class="tab-btn tab-apagar" onclick="setTab('apagar',this)">📅 Por Período</button>
+    <button class="tab-btn tab-hist" id="tab-hist-btn" onclick="setTab('historico',this)" style="display:none">📋 Histórico</button>
 
   </div>
 
@@ -467,6 +468,28 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </div>
     </div>
     <div id="relatorio-content"></div>
+  </div>
+
+  <!-- HISTORICO (so admin) -->
+  <div id="panel-historico" class="panel" style="display:none">
+    <div class="panel-header">
+      <div class="panel-title">📋 Histórico de alterações</div>
+      <div class="panel-actions">
+        <input id="fil-hist-busca" type="text" placeholder="Buscar por usuário, ação ou lançamento" oninput="renderHistorico()"
+               style="width:auto;min-width:250px;font-size:12px;padding:5px 9px;border-radius:var(--radius);border:1px solid var(--gray-3)">
+        <button class="btn btn-outline btn-sm" onclick="exportHistorico()">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Exportar
+        </button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:140px">Data e hora</th><th style="width:120px">Usuário</th>
+          <th style="width:180px">Ação</th><th>Lançamento</th><th>Detalhe</th></tr></thead>
+        <tbody id="tbody-historico"></tbody>
+      </table>
+    </div>
+    <div class="panel-footer" id="t-hist-footer"></div>
   </div>
 
   <!-- A PAGAR POR PERIODO -->
@@ -970,7 +993,7 @@ async function fazerLoginWorker(user,senha){
   return j;
 }
 
-let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inter:0,sicredi:0,caixa:0,antecipacao:0}, usuarios:[] };
+let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inter:0,sicredi:0,caixa:0,antecipacao:0}, usuarios:[], historico:[] };
 let dataReady=false;
 let syncInterval = null;
 // Retrato do que o servidor tinha na ultima vez que lemos. Serve para saber,
@@ -1115,6 +1138,8 @@ function updateSaldosBtn(){
   if(cb) cb.style.display=(role==='admin'||role==='gerente')?'flex':'none';
   const eb=document.getElementById('emp-btn');
   if(eb) eb.style.display=(role==='admin'||role==='gerente')?'flex':'none';
+  const hb=document.getElementById('tab-hist-btn');
+  if(hb) hb.style.display=(role==='admin')?'block':'none';
 }
 
 // ---- SALDOS INICIAIS ----
@@ -1152,6 +1177,12 @@ async function saveSaldosIniciais(){
     antecipacao:parseBR(document.getElementById('si-antecipacao')?document.getElementById('si-antecipacao').value||'0':'0'),
     dataRef:document.getElementById('si-data').value||today(),
   };
+  {
+    const si=data.saldosIniciais;
+    logFin('Editou','Saldos iniciais',
+      ['pagbank','inter','sicredi','caixa','antecipacao']
+        .map(c=>CONTA_LABEL[c]+' R$ '+fmtBR(si[c])).join(' · ')+' · ref. '+fmtDate(si.dataRef));
+  }
   await persist();
   render();
   if(document.getElementById('panel-caixa').style.display!=='none') renderCaixa();
@@ -1490,6 +1521,38 @@ async function persistUsers(){
 }
 
 function _garanteCat(){ try{ buildCatLabel(); popularSelectCat(); popularFiltroCat(); }catch(e){} }
+// ---- HISTORICO DE ALTERACOES ----
+// Registro do que cada pessoa fez. So o admin ve. Guarda os 500 mais recentes:
+// o documento inteiro trafega a cada gravacao, entao uma lista sem limite iria
+// pesando a cada dia.
+function logFin(acao, alvo, detalhe){
+  if(!Array.isArray(data.historico)) data.historico=[];
+  data.historico.unshift({
+    id: genId(),
+    ts: new Date().toISOString(),
+    user: sessionStorage.getItem('fin-user')||'—',
+    acao: acao,
+    alvo: alvo||'—',
+    detalhe: detalhe||''
+  });
+  if(data.historico.length>500) data.historico=data.historico.slice(0,500);
+}
+
+// Junta os dois lados por id. O historico so cresce, entao nao ha o que
+// escolher: o certo e ficar com tudo o que qualquer um dos dois registrou.
+// Fica FORA de LISTAS_DADOS de proposito — se entrasse, cada linha do log
+// apareceria como "alteracao" na janela de conflito, escondendo o que importa.
+function unirHistorico(a,b){
+  const vistos={}, junto=[];
+  [].concat(a||[], b||[]).forEach(function(h){
+    const k=h.id||(h.ts+'|'+h.user+'|'+h.acao+'|'+h.alvo);
+    if(vistos[k]) return;
+    vistos[k]=1; junto.push(h);
+  });
+  junto.sort(function(x,y){ return String(y.ts).localeCompare(String(x.ts)); });
+  return junto.slice(0,500);
+}
+
 // ---- ALTERACAO SIMULTANEA: comparar, mostrar e deixar escolher ----
 // Aqui os lancamentos tem "id", entao da para distinguir inclusao de edicao —
 // diferente do Compras, onde a comparacao e so pelo conteudo.
@@ -1569,6 +1632,9 @@ function juntarAlteracoes(servidor,minhas){
   minhas.inc.forEach(function(x){ if(acha(x.lista,x.chave)<0) res[x.lista].push(x.reg); });
   minhas.alt.forEach(function(x){ const i=acha(x.lista,x.chave); if(i>=0) res[x.lista][i]=x.reg; else res[x.lista].push(x.reg); });
   minhas.rem.forEach(function(x){ const i=acha(x.lista,x.chave); if(i>=0) res[x.lista].splice(i,1); });
+  // O log dos dois lados vai junto: sem isto, ficaria so o do servidor e o que
+  // esta pessoa registrou nesta sessao sumiria.
+  res.historico=unirHistorico(res.historico, data.historico);
   return res;
 }
 
@@ -1607,7 +1673,10 @@ async function persist(){
           localStorage.setItem('fin-data',JSON.stringify(data));
           render();
         }
-        // 'meu' = segue adiante e grava o que esta na tela, por cima
+        // 'meu' = segue adiante e grava o que esta na tela, por cima.
+        // Mesmo escolhendo o meu, o LOG dos dois vai junto: o que a outra
+        // pessoa fez ficou registrado e nao deve sumir por causa da escolha.
+        if(escolha!=='juntar') data.historico=unirHistorico(atual.historico, data.historico);
       }
     }
 
@@ -1700,6 +1769,8 @@ function renderCategorias(){
 }
 async function salvarCategorias(){
   buildCatLabel(); popularSelectCat(); popularFiltroCat(); renderCategorias(); render();
+  logFin('Editou','Contas de despesa',
+    getCategorias().filter(c=>c.ativo!==false).map(c=>c.label).join(' · '));
   await persist();
 }
 async function addCategoria(){
@@ -2508,7 +2579,10 @@ async function uploadAttach(event){
 async function removeAttach(idx){
   if(!confirm('Remover este anexo?')) return;
   const r=attachType==='pagar'?data.pagar[attachIdx]:data.receber[attachIdx];
+  const arq=(r.attachments[idx]||{}).name||'(sem nome)';
   r.attachments.splice(idx,1);
+  logFin('Removeu anexo',
+    (attachType==='pagar'?'A pagar · ':'A receber · ')+(attachType==='pagar'?(r.desc||'—'):(r.cliente||'—')),arq);
   await persist(); render(); renderAttachList();
 }
 
@@ -2583,14 +2657,73 @@ function getParcelas(){
 
 // ---- TABS ----
 function setTab(tab,el){
+  // Esconder a aba nao basta: sem esta conferencia, quem souber o nome consegue
+  // abrir o historico chamando setTab pelo console.
+  if(tab==='historico' && !isAdmin()){ alert('O histórico é restrito ao administrador.'); return; }
   document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
-  ['pagar','receber','caixa','relatorio','apagar'].forEach(t=>{
+  ['pagar','receber','caixa','relatorio','apagar','historico'].forEach(t=>{
     document.getElementById('panel-'+t).style.display=t===tab?'block':'none';
   });
   if(tab==='caixa') renderCaixa();
   if(tab==='relatorio') renderRelatorio();
   if(tab==='apagar') renderAPagar();
+  if(tab==='historico') renderHistorico();
+}
+
+function renderHistorico(){
+  if(!isAdmin()) return;
+  const tbody=document.getElementById('tbody-historico');
+  const todos=Array.isArray(data.historico)?data.historico:[];
+  const q=semAcento((document.getElementById('fil-hist-busca')||{value:''}).value).trim();
+  const lista=q
+    ? todos.filter(h=>{
+        const alvo=semAcento([h.user,h.acao,h.alvo,h.detalhe].join(' '));
+        return q.split(/\s+/).every(p=>alvo.includes(p));
+      })
+    : todos;
+
+  if(!lista.length){
+    tbody.innerHTML='<tr class="empty-row"><td colspan="5">'+
+      (todos.length?'Nenhum registro encontrado para esta busca.':'Nenhuma alteração registrada ainda.')+'</td></tr>';
+  } else {
+    const cor={'Criou':'var(--green)','Editou':'var(--teal-dark)','Removeu':'var(--red)',
+               'Baixou pagamento':'var(--green)','Baixou recebimento':'var(--green)',
+               'Corrigiu baixas':'var(--amber)','Transferência':'var(--teal-dark)'};
+    tbody.innerHTML=lista.map(h=>{
+      const d=new Date(h.ts);
+      const quando=isNaN(d)?'—':d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      return`<tr>
+        <td style="white-space:nowrap;font-size:12px;color:var(--gray-4)">${quando}</td>
+        <td style="font-weight:600">${h.user||'—'}</td>
+        <td><span style="font-weight:600;color:${cor[h.acao]||'var(--gray-5)'}">${h.acao||'—'}</span></td>
+        <td style="font-size:12px">${h.alvo||'—'}</td>
+        <td style="font-size:12px;color:var(--gray-5)">${h.detalhe||''}</td>
+      </tr>`;
+    }).join('');
+  }
+  document.getElementById('t-hist-footer').innerHTML=
+    q ? `${lista.length} de ${todos.length} registro(s)`
+      : `${todos.length} registro(s) · guarda os 500 mais recentes`;
+}
+
+function exportHistorico(){
+  const lista=Array.isArray(data.historico)?data.historico:[];
+  if(!lista.length){ alert('Nenhum histórico para exportar.'); return; }
+  const aspas=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const linhas=[['Data e hora','Usuário','Ação','Lançamento','Detalhe'].map(aspas).join(';')];
+  lista.forEach(h=>{
+    const d=new Date(h.ts);
+    const quando=isNaN(d)?'':d.toLocaleString('pt-BR');
+    linhas.push([quando,h.user,h.acao,h.alvo,h.detalhe].map(aspas).join(';'));
+  });
+  // BOM na frente para o Excel abrir os acentos certos.
+  const blob=new Blob(['﻿'+linhas.join('\r\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='historico_financeiro_'+today()+'.csv';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 
 // ---- RENDER ----
@@ -2896,9 +3029,18 @@ async function savePagar(){
     data.pagar.push(reg);
   });
 
+  logFin(pagarEditId!==null?'Editou':'Criou','A pagar · '+desc,
+    (base.forn?base.forn+' · ':'')+'R$ '+fmtBR(totalValor)+
+    (parcelas.length>1?' em '+parcelas.length+' parcelas':''));
   await persist(); render(); closePagar();
 }
-async function deletePagar(idx){ if(!confirm('Remover esta despesa?')) return; data.pagar.splice(idx,1); await persist(); render(); }
+async function deletePagar(idx){
+  if(!confirm('Remover esta despesa?')) return;
+  const r=data.pagar[idx]||{};
+  logFin('Removeu','A pagar · '+(r.desc||'—'),
+    'R$ '+fmtBR(r.valor)+(pagoDe(r)>0.004?' · já tinha R$ '+fmtBR(pagoDe(r))+' pago':''));
+  data.pagar.splice(idx,1); await persist(); render();
+}
 
 // ---- BAIXA ----
 function openBaixa(type,idx){
@@ -2949,6 +3091,16 @@ async function confirmarBaixa(){
     // conta. Um recebimento parte no Sicredi e parte em dinheiro ia inteiro
     // para um lugar so.
     registrarBaixa(r,'receber',dt,v,document.getElementById('b-conta').value,obs);
+  }
+  {
+    const r=baixaType==='pagar'?data.pagar[baixaIdx]:data.receber[baixaIdx];
+    const l=baixasDe(r,baixaType);
+    const ult=l[l.length-1]||{};
+    const falta=baixaType==='pagar'?faltaPagar(r):faltaReceber(r);
+    logFin(baixaType==='pagar'?'Baixou pagamento':'Baixou recebimento',
+      (baixaType==='pagar'?'A pagar · ':'A receber · ')+(baixaType==='pagar'?(r.desc||'—'):(r.cliente||'—')),
+      'R$ '+fmtBR(ult.valor)+' em '+(CONTA_LABEL[ult.conta]||ult.conta)+' · '+fmtDate(ult.data)+
+      (falta>0.004?' · ainda falta R$ '+fmtBR(falta):' · quitado'));
   }
   await persist(); render(); closeBaixa();
 }
@@ -3111,8 +3263,13 @@ async function salvarBaixasEdit(){
     return;
   }
   if(!baixasEdit.length && !confirm('Sem nenhuma baixa o título volta a ficar em aberto. Confirma?')) return;
+  const antes=baixasDe(r,baixasEditTipo).map(b=>fmtDate(b.data)+' '+(CONTA_LABEL[b.conta]||b.conta)+' R$ '+fmtBR(b.valor)).join(' | ')||'nenhuma';
   r.baixas=baixasEdit.map(b=>({...b}));
   sincronizarTotais(r,baixasEditTipo);
+  const depois=baixasEdit.map(b=>fmtDate(b.data)+' '+(CONTA_LABEL[b.conta]||b.conta)+' R$ '+fmtBR(b.valor)).join(' | ')||'nenhuma';
+  logFin('Corrigiu baixas',
+    (baixasEditTipo==='pagar'?'A pagar · ':'A receber · ')+(baixasEditTipo==='pagar'?(r.desc||'—'):(r.cliente||'—')),
+    'antes: '+antes+'  →  depois: '+depois);
   closeEditarBaixas();
   await persist();
   render();
@@ -3221,6 +3378,8 @@ async function salvarEmpresas(){
     e.cnpj=so.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
   }
   data.empresas=empresasEdit.map(e=>({...e}));
+  logFin('Editou','Cadastro de empresas',
+    empresasEdit.map(e=>e.marca+' ('+e.cnpj+')').join(' · '));
   closeEmpresas();
   await persist();
   alert('Empresas salvas.');
@@ -3496,9 +3655,17 @@ async function saveReceber(){
   // junto, senao o titulo ficaria "recebido" sem ninguem saber quando.
 
   if(receberEditId!==null){ data.receber[receberEditId]=entry; } else { data.receber.push(entry); }
+  logFin(receberEditId!==null?'Editou':'Criou','A receber · '+cliente,
+    (entry.desc?entry.desc+' · ':'')+'R$ '+fmtBR(valor));
   await persist(); render(); closeReceber();
 }
-async function deleteReceber(idx){ if(!confirm('Remover este recebimento?')) return; data.receber.splice(idx,1); await persist(); render(); }
+async function deleteReceber(idx){
+  if(!confirm('Remover este recebimento?')) return;
+  const r=data.receber[idx]||{};
+  logFin('Removeu','A receber · '+(r.cliente||'—'),
+    'R$ '+fmtBR(r.valor)+(recebidoDe(r)>0.004?' · já tinha R$ '+fmtBR(recebidoDe(r))+' recebido':''));
+  data.receber.splice(idx,1); await persist(); render();
+}
 
 // ---- FLUXO DE CAIXA ----
 // Monta a lista de movimentações já filtrada, ordenada e com o saldo corrido.
@@ -3749,6 +3916,8 @@ async function saveTransf(){
   if(origem===destino){ alert('Conta de origem e destino devem ser diferentes.'); return; }
   if(!data.movimentos) data.movimentos=[];
   data.movimentos.push({id:genId(),tipo:'transferencia',origem,destino,valor,data:data_t,obs:document.getElementById('t-obs').value});
+  logFin('Transferência',CONTA_LABEL[origem]+' → '+CONTA_LABEL[destino],
+    'R$ '+fmtBR(valor)+' · '+fmtDate(data_t));
   await persist(); closeTransf(); renderCaixa();
 }
 
