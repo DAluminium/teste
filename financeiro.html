@@ -129,6 +129,11 @@ tbody tr:hover td{background:var(--gray-1)}
 .emp-op.on{border-color:var(--green-mid);background:var(--green-light)}
 .emp-op input{width:auto;margin-top:3px;flex:none}
 .emp-op b{display:block;font-size:14px;letter-spacing:.5px;color:var(--gray-6)}
+/* Cartoes da tela de cadastro das empresas */
+.emp-card{border:1px solid var(--gray-3);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+.emp-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;
+  padding-bottom:8px;border-bottom:1px solid var(--gray-2)}
+.emp-card-top span{font-size:13px;font-weight:700;letter-spacing:.5px;color:var(--gray-6)}
 .emp-op small{display:block;font-size:11px;color:var(--gray-5);line-height:1.35}
 
 /* MODAL */
@@ -269,6 +274,9 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
 
     <button id="saldos-btn" class="btn btn-ghost btn-sm" onclick="openSaldosIniciais()" style="display:none" title="Configurar saldos iniciais dos bancos">
       <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Saldos iniciais
+    </button>
+    <button id="emp-btn" class="btn btn-ghost btn-sm" onclick="openEmpresas()" style="display:none" title="Cadastrar as empresas que emitem comprovante">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M10 21v-6h4v6"/></svg>Empresas
     </button>
     <button id="cat-btn" class="btn btn-ghost btn-sm" onclick="openCategorias()" style="display:none" title="Cadastrar contas de despesa">
       <svg class="icon" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Contas
@@ -704,6 +712,27 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
   </div>
 </div>
 
+<!-- MODAL CADASTRO DAS EMPRESAS -->
+<div class="modal-overlay" id="empresas-overlay">
+  <div class="modal" style="width:min(700px,100%)">
+    <div class="modal-header">
+      <div class="modal-title">Empresas do comprovante</div>
+      <button class="act" onclick="closeEmpresas()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--teal-light);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:16px">
+        ℹ️ Estes dados aparecem no <strong>cabeçalho e na assinatura</strong> do comprovante de recebimento. Ao emitir, o sistema pergunta por qual empresa.
+      </div>
+      <div id="empresas-lista"></div>
+      <button class="btn btn-outline btn-sm" onclick="addEmpresa()">+ Adicionar empresa</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeEmpresas()">Cancelar</button>
+      <button class="btn btn-green" onclick="salvarEmpresas()">Salvar empresas</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL ESCOLHA DA EMPRESA DO COMPROVANTE -->
 <div class="modal-overlay" id="empresa-overlay">
   <div class="modal" style="width:min(480px,100%)">
@@ -1056,6 +1085,8 @@ function updateSaldosBtn(){
   if(btn) btn.style.display=(role==='admin'||role==='gerente')?'flex':'none';
   const cb=document.getElementById('cat-btn');
   if(cb) cb.style.display=(role==='admin'||role==='gerente')?'flex':'none';
+  const eb=document.getElementById('emp-btn');
+  if(eb) eb.style.display=(role==='admin'||role==='gerente')?'flex':'none';
 }
 
 // ---- SALDOS INICIAIS ----
@@ -2929,7 +2960,97 @@ const EMPRESAS=[
     endereco:'R. José Vieira Caula, 4651 — Sala D',
     bairro:'Flodoaldo Pontes Pinto', cep:'76.824-389', cidade:'Porto Velho', uf:'RO' },
 ];
-function empresaPorCod(cod){ return EMPRESAS.find(e=>e.cod===cod)||EMPRESAS[0]; }
+// A lista de verdade e a que esta gravada. Os dois cadastros acima sao so o
+// ponto de partida, usados enquanto ninguem tiver mexido na tela de empresas.
+function empresasCadastradas(){
+  return (Array.isArray(data.empresas)&&data.empresas.length)?data.empresas:EMPRESAS;
+}
+// Se a empresa lembrada foi apagada, cai na primeira em vez de emitir sem
+// cabecalho.
+function empresaPorCod(cod){
+  const l=empresasCadastradas();
+  return l.find(e=>e.cod===cod)||l[0];
+}
+
+// ---- TELA DE CADASTRO DAS EMPRESAS ----
+// Trabalha numa copia. Nada vai para os dados enquanto a pessoa nao salvar, para
+// quem abriu, mexeu e desistiu nao deixar meia edicao gravada.
+let empresasEdit=[];
+
+function openEmpresas(){
+  empresasEdit=empresasCadastradas().map(e=>({...e}));
+  renderEmpresasEdit();
+  document.getElementById('empresas-overlay').classList.add('open');
+}
+function closeEmpresas(){
+  document.getElementById('empresas-overlay').classList.remove('open');
+  empresasEdit=[];
+}
+
+// Antes de qualquer redesenho, recolhe o que ja foi digitado. Sem isto,
+// acrescentar ou remover uma empresa apagaria o que a pessoa acabou de escrever.
+function lerCamposEmpresas(){
+  empresasEdit.forEach((e,i)=>{
+    ['marca','razao','cnpj','endereco','bairro','cep','cidade','uf'].forEach(c=>{
+      const el=document.getElementById(`ecad-${i}-${c}`);
+      if(el) e[c]=el.value.trim();
+    });
+  });
+}
+
+function renderEmpresasEdit(){
+  const campo=(i,c,rot,ph,span)=>`<div class="form-group${span?' span2':''}">
+      <label>${rot}</label>
+      <input id="ecad-${i}-${c}" type="text" value="${(empresasEdit[i][c]||'').replace(/"/g,'&quot;')}" placeholder="${ph||''}">
+    </div>`;
+  document.getElementById('empresas-lista').innerHTML=empresasEdit.map((e,i)=>`
+    <div class="emp-card">
+      <div class="emp-card-top">
+        <span>${e.marca||'Nova empresa'}</span>
+        <button class="btn btn-red btn-sm" onclick="removerEmpresa(${i})">Excluir</button>
+      </div>
+      <div class="form-grid">
+        ${campo(i,'marca','Nome curto (aparece grande no comprovante)','Ex: DALUMINIUM')}
+        ${campo(i,'cnpj','CNPJ','00.000.000/0000-00')}
+        ${campo(i,'razao','Razão social',"Nome completo na Receita",true)}
+        ${campo(i,'endereco','Endereço','Rua, número e complemento',true)}
+        ${campo(i,'bairro','Bairro','')}
+        ${campo(i,'cep','CEP','00.000-000')}
+        ${campo(i,'cidade','Cidade','')}
+        ${campo(i,'uf','UF','RO')}
+      </div>
+    </div>`).join('');
+}
+
+function addEmpresa(){
+  lerCamposEmpresas();
+  empresasEdit.push({cod:genId(),marca:'',razao:'',cnpj:'',endereco:'',bairro:'',cep:'',cidade:'Porto Velho',uf:'RO'});
+  renderEmpresasEdit();
+}
+
+function removerEmpresa(i){
+  lerCamposEmpresas();
+  if(empresasEdit.length<2){ alert('É preciso manter ao menos uma empresa — o comprovante sai com os dados dela.'); return; }
+  if(!confirm('Remover '+(empresasEdit[i].marca||'esta empresa')+' do cadastro?')) return;
+  empresasEdit.splice(i,1);
+  renderEmpresasEdit();
+}
+
+async function salvarEmpresas(){
+  lerCamposEmpresas();
+  for(const e of empresasEdit){
+    if(!e.marca){ alert('Toda empresa precisa do nome curto.'); return; }
+    if(!e.razao){ alert(e.marca+': falta a razão social.'); return; }
+    const so=(e.cnpj||'').replace(/\D/g,'');
+    if(so.length!==14){ alert(e.marca+': o CNPJ precisa ter 14 números.'); return; }
+    // Grava sempre no mesmo formato, mesmo que tenha sido digitado so em numeros.
+    e.cnpj=so.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
+  }
+  data.empresas=empresasEdit.map(e=>({...e}));
+  closeEmpresas();
+  await persist();
+  alert('Empresas salvas.');
+}
 
 // Guarda o titulo escolhido enquanto a pessoa decide de qual empresa emitir.
 let comprovanteIdx=null;
@@ -2941,17 +3062,21 @@ function comprovanteRecebimento(idx){
   if(!r) return;
   if(!baixasDe(r,'receber').length){ alert('Este título ainda não tem recebimento registrado.'); return; }
   comprovanteIdx=idx;
-  const ultima=localStorage.getItem('fin-empresa-comprovante')||EMPRESAS[0].cod;
-  document.getElementById('emp-lista').innerHTML=EMPRESAS.map(e=>`
-    <label class="emp-op${e.cod===ultima?' on':''}">
-      <input type="radio" name="emp" value="${e.cod}" ${e.cod===ultima?'checked':''}
+  const lista=empresasCadastradas();
+  const ultima=localStorage.getItem('fin-empresa-comprovante')||lista[0].cod;
+  const temUltima=lista.some(e=>e.cod===ultima);
+  document.getElementById('emp-lista').innerHTML=lista.map((e,i)=>{
+    const marcada=temUltima?e.cod===ultima:i===0;
+    return `
+    <label class="emp-op${marcada?' on':''}">
+      <input type="radio" name="emp" value="${e.cod}" ${marcada?'checked':''}
              onchange="document.querySelectorAll('.emp-op').forEach(x=>x.classList.remove('on'));this.closest('.emp-op').classList.add('on')">
       <span>
-        <b>${e.marca}</b>
-        <small>${e.razao}</small>
-        <small>CNPJ ${e.cnpj}</small>
+        <b>${e.marca||'(sem nome)'}</b>
+        <small>${e.razao||''}</small>
+        <small>CNPJ ${e.cnpj||'—'}</small>
       </span>
-    </label>`).join('');
+    </label>`;}).join('');
   document.getElementById('empresa-overlay').classList.add('open');
 }
 function closeEmpresa(){ document.getElementById('empresa-overlay').classList.remove('open'); comprovanteIdx=null; }
@@ -3681,11 +3806,11 @@ async function init(){
   },10000);
 }
 
-['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','empresa-overlay'].forEach(id=>{
+['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','empresa-overlay','empresas-overlay'].forEach(id=>{
   document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
 });
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','empresa-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
+  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','empresa-overlay','empresas-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
 });
 document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
 
