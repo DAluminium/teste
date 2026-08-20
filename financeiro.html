@@ -737,7 +737,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
 <div class="modal-overlay" id="empresa-overlay">
   <div class="modal" style="width:min(480px,100%)">
     <div class="modal-header">
-      <div class="modal-title">Emitir comprovante por qual empresa?</div>
+      <div class="modal-title" id="empresa-titulo">Emitir comprovante por qual empresa?</div>
       <button class="act" onclick="closeEmpresa()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
@@ -2722,6 +2722,7 @@ function renderPagar(){
       <td>${pillStatus(r._status)}${r.dtPag?`<span class="td-sub">${fmtDate(r.dtPag)}</span>`:''}</td>
       <td class="td-actions">
         ${r._status!=='pago'?`<button class="act act-pay" onclick="openBaixa('pagar',${r._i})" title="Baixar pagamento"><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>`:''}
+        ${pagoDe(r)>0.004?`<button class="act act-comprov" onclick="abrirComprovante('pagar',${r._i})" title="Comprovante de pagamento"><svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>`:''}
         <button class="act act-attach ${(r.attachments&&r.attachments.length)?'has-files':''}" onclick="openAttach('pagar',${r._i})" title="${(r.attachments&&r.attachments.length)?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
           <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>${(r.attachments&&r.attachments.length)?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
         </button>
@@ -2928,7 +2929,7 @@ function renderReceber(){
         <td>${pillStatus(r._status)}${r.dtRec?`<span class="td-sub">${fmtDate(r.dtRec)}</span>`:''}</td>
         <td class="td-actions">
           ${r._status!=='recebido'?`<button class="act act-pay" onclick="openBaixa('receber',${r._i})" title="Baixar recebimento"><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>`:''}
-          ${recebidoDe(r)>0.004?`<button class="act act-comprov" onclick="comprovanteRecebimento(${r._i})" title="Comprovante de recebimento"><svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>`:''}
+          ${recebidoDe(r)>0.004?`<button class="act act-comprov" onclick="abrirComprovante('receber',${r._i})" title="Comprovante de recebimento"><svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>`:''}
           <button class="act act-attach ${(r.attachments&&r.attachments.length)?'has-files':''}" onclick="openAttach('receber',${r._i})" title="${(r.attachments&&r.attachments.length)?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
             <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>${(r.attachments&&r.attachments.length)?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
           </button>
@@ -3052,16 +3053,22 @@ async function salvarEmpresas(){
   alert('Empresas salvas.');
 }
 
-// Guarda o titulo escolhido enquanto a pessoa decide de qual empresa emitir.
-let comprovanteIdx=null;
+// Guarda qual lancamento e de qual lado, enquanto a pessoa decide de qual
+// empresa emitir.
+let comprovanteIdx=null, comprovanteTipo='receber';
 
 // Abre a escolha da empresa. A ultima usada ja vem marcada, porque na pratica
 // varios comprovantes seguidos saem pela mesma.
-function comprovanteRecebimento(idx){
-  const r=data.receber[idx];
+function abrirComprovante(tipo,idx){
+  const r=(tipo==='pagar'?data.pagar:data.receber)[idx];
   if(!r) return;
-  if(!baixasDe(r,'receber').length){ alert('Este título ainda não tem recebimento registrado.'); return; }
-  comprovanteIdx=idx;
+  if(!baixasDe(r,tipo).length){
+    alert(tipo==='pagar'?'Esta conta ainda não tem pagamento registrado.':'Este título ainda não tem recebimento registrado.');
+    return;
+  }
+  comprovanteIdx=idx; comprovanteTipo=tipo;
+  document.getElementById('empresa-titulo').textContent=
+    (tipo==='pagar'?'Comprovante de pagamento':'Comprovante de recebimento')+' — por qual empresa?';
   const lista=empresasCadastradas();
   const ultima=localStorage.getItem('fin-empresa-comprovante')||lista[0].cod;
   const temUltima=lista.some(e=>e.cod===ultima);
@@ -3084,23 +3091,36 @@ function confirmarEmpresa(){
   const esc=document.querySelector('input[name="emp"]:checked');
   if(!esc){ alert('Escolha a empresa que vai emitir.'); return; }
   localStorage.setItem('fin-empresa-comprovante',esc.value);
-  const idx=comprovanteIdx;
+  const idx=comprovanteIdx, tipo=comprovanteTipo;
   closeEmpresa();
-  emitirComprovante(idx,esc.value);
+  emitirComprovante(tipo,idx,esc.value);
 }
 
 // ---- COMPROVANTE DE RECEBIMENTO ----
 // Documento para entregar a quem pagou. Lista todas as baixas ja registradas no
 // titulo, com o total recebido e o que ainda falta — assim serve tanto para
 // pagamento de uma vez quanto para parcelado, sem precisar escolher qual baixa.
-function emitirComprovante(idx,codEmpresa){
-  const r=data.receber[idx];
+function emitirComprovante(tipo,idx,codEmpresa){
+  const pagando=tipo==='pagar';
+  const r=(pagando?data.pagar:data.receber)[idx];
   if(!r) return;
-  const l=baixasDe(r,'receber');
-  if(!l.length){ alert('Este título ainda não tem recebimento registrado.'); return; }
+  const l=baixasDe(r,tipo);
+  if(!l.length){ alert(pagando?'Esta conta ainda não tem pagamento registrado.':'Este título ainda não tem recebimento registrado.'); return; }
   const emp=empresaPorCod(codEmpresa);
 
-  const recebido=recebidoDe(r), falta=faltaReceber(r);
+  // As duas metades sao o mesmo documento com outros rotulos. Ficam juntas de
+  // proposito: separadas, uma seria corrigida um dia e a outra nao.
+  const t=pagando
+    ? { titulo:'COMPROVANTE DE PAGAMENTO', pessoa:'Pagamos a',
+        total:'Total pago', saldo:'Saldo a pagar', selo:'PAGO' }
+    : { titulo:'COMPROVANTE DE RECEBIMENTO', pessoa:'Recebemos de',
+        total:'Total recebido', saldo:'Saldo a receber', selo:'QUITADO' };
+  // No "a pagar" o beneficiario tem campo proprio; se estiver vazio, sobra a
+  // descricao, que e o que a pessoa escreveu para saber do que se trata.
+  const nome=pagando?(r.forn||r.desc||'—'):r.cliente;
+
+  const recebido=pagando?pagoDe(r):recebidoDe(r);
+  const falta=pagando?faltaPagar(r):faltaReceber(r);
   const quitado=falta<=0.004;
   const money=v=>'R$ '+fmtBR(v);
   const agora=new Date();
@@ -3122,7 +3142,7 @@ function emitirComprovante(idx,codEmpresa){
     </tr>`).join('');
 
   const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
-<title>Comprovante ${numero} · ${r.cliente} · ${emp.marca}</title>
+<title>Comprovante ${numero} · ${nome} · ${emp.marca}</title>
 <style>
   @page{size:A4 portrait;margin:16mm}
   *{box-sizing:border-box}
@@ -3157,6 +3177,9 @@ function emitirComprovante(idx,codEmpresa){
         border-radius:5px;padding:5px 14px;font-weight:800;letter-spacing:1.5px;font-size:13px}
   .local{margin:18px 0 26px;font-size:12px}
   .assina{width:62mm;margin:0 auto;text-align:center;border-top:1px solid #1a1a1a;padding-top:4px;font-size:10px}
+  .assina .sub{font-size:8px;color:#666}
+  .assinas{display:flex;justify-content:space-between;gap:14mm}
+  .assinas .assina{margin:0;flex:1;width:auto}
   .rodape{margin-top:16px;padding-top:6px;border-top:1px solid #d5d9dc;
           display:flex;justify-content:space-between;font-size:8px;color:#888}
 </style></head><body>
@@ -3167,18 +3190,21 @@ function emitirComprovante(idx,codEmpresa){
       <small><b>CNPJ ${emp.cnpj}</b></small>
       <small>${emp.endereco} · ${emp.bairro}</small>
       <small>CEP ${emp.cep} · ${emp.cidade}/${emp.uf}</small></div>
-    <div class="tit"><b>COMPROVANTE DE RECEBIMENTO</b>
+    <div class="tit"><b>${t.titulo}</b>
       <span>Nº ${numero}</span>
       <span>Emitido em ${agora.toLocaleString('pt-BR')}</span></div>
   </div>
 
   <div class="campos">
-    <div class="campo largo"><span class="rot">Recebemos de</span><span class="dado">${r.cliente}</span></div>
-    ${r.contrato?`<div class="campo"><span class="rot">Contrato</span><span class="dado">${r.contrato}</span></div>`:''}
+    <div class="campo largo"><span class="rot">${t.pessoa}</span><span class="dado">${nome}</span></div>
+    ${!pagando&&r.contrato?`<div class="campo"><span class="rot">Contrato</span><span class="dado">${r.contrato}</span></div>`:''}
+    ${pagando&&r.doc?`<div class="campo"><span class="rot">Documento / NF</span><span class="dado">${r.doc}</span></div>`:''}
     <div class="campo"><span class="rot">Vencimento</span><span class="dado">${fmtDate(r.venc)}</span></div>
-    <div class="campo largo"><span class="rot">Referente a</span><span class="dado">${r.desc||'—'}</span></div>
+    <div class="campo largo"><span class="rot">Referente a</span><span class="dado">${(pagando?[r.desc,r.parcelaDesc].filter(Boolean).join(' · '):r.desc)||'—'}</span></div>
     <div class="campo"><span class="rot">Valor do título</span><span class="dado">${money(r.valor)}</span></div>
-    ${formas.length?`<div class="campo"><span class="rot">Forma combinada</span><span class="dado">${formas.join(' · ')}</span></div>`:''}
+    ${pagando
+      ? (r.cat?`<div class="campo"><span class="rot">Conta de despesa</span><span class="dado">${CAT_LABEL[r.cat]||r.cat}</span></div>`:'')
+      : (formas.length?`<div class="campo"><span class="rot">Forma combinada</span><span class="dado">${formas.join(' · ')}</span></div>`:'')}
   </div>
 
   <table>
@@ -3188,13 +3214,18 @@ function emitirComprovante(idx,codEmpresa){
   </table>
 
   <div class="resumo">
-    <div class="selo">${quitado?'QUITADO':'PARCIAL'}</div>
-    <div><span class="rot">Total recebido</span><span class="grande">${money(recebido)}</span></div>
-    ${quitado?'':`<div><span class="rot">Saldo a receber</span><span class="falta">${money(falta)}</span></div>`}
+    <div class="selo">${quitado?t.selo:'PARCIAL'}</div>
+    <div><span class="rot">${t.total}</span><span class="grande">${money(recebido)}</span></div>
+    ${quitado?'':`<div><span class="rot">${t.saldo}</span><span class="falta">${money(falta)}</span></div>`}
   </div>
 
   <div class="local">${emp.cidade}/${emp.uf}, ${porExtensoData}.</div>
-  <div class="assina">${emp.marca}<br><span style="font-size:8px;color:#666">CNPJ ${emp.cnpj}</span></div>
+  ${pagando
+    ? `<div class="assinas">
+         <div class="assina">${nome}<br><span class="sub">Recebi a importância acima</span></div>
+         <div class="assina">${emp.marca}<br><span class="sub">CNPJ ${emp.cnpj}</span></div>
+       </div>`
+    : `<div class="assina">${emp.marca}<br><span class="sub">CNPJ ${emp.cnpj}</span></div>`}
 
   <div class="rodape">
     <span>${emp.marca} · Financeiro${emitidoPor?' · emitido por '+emitidoPor:''}</span>
