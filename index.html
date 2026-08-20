@@ -413,7 +413,7 @@ FROM app_backups ORDER BY created_at DESC LIMIT 20;</code>
 
 <div class="man-box">
   <div class="man-h">5. Encerrar a sessão de alguém</div>
-  <p>Em <em>Sessões ativas</em> aparece quem está logado e em qual módulo. O botão <strong>Deslogar</strong> encerra a sessão da pessoa em até 30 segundos.</p>
+  <p>Em <em>Sessões ativas</em> aparece quem está usando o sistema e em qual módulo. O sistema dá sinal de vida a cada 5 minutos; quem fica <strong>1 hora sem mexer</strong> sai da lista sozinho. Bolinha verde é atividade nos últimos 10 minutos; laranja, mais tempo parado. O botão <strong>Deslogar</strong> encerra a sessão da pessoa em até 30 segundos.</p>
 </div>
 
 <div class="man-box">
@@ -1136,20 +1136,27 @@ async function loadSessoes(){
     });
     if(!r.ok){ lista.innerHTML='<p style="font-size:13px;color:var(--red);text-align:center">Erro ao carregar sessões.</p>'; return; }
     const d=await r.json();
-    const ativas=(d.ativas||[]).filter(s=>Date.now()-s.ts<8*60*60*1000);
+    // Uma hora sem sinal de vida e a pessoa sai da lista. Antes eram 8 horas
+    // contadas do LOGIN, e o carimbo nunca era renovado: quem fechava o
+    // notebook continuava aparecendo como ativo o resto do expediente.
+    const ativas=(d.ativas||[]).filter(s=>Date.now()-s.ts<60*60*1000);
     if(!ativas.length){
       lista.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center">Nenhum usuário ativo no momento.</p>';
       return;
     }
+    ativas.sort((a,b)=>b.ts-a.ts);
     const sistemaLabel={compras:'🛒 Gestão de Compras',financeiro:'💰 Financeiro',portal:'🏠 Portal'};
     lista.innerHTML=ativas.map(s=>{
       const minutos=Math.floor((Date.now()-s.ts)/60000);
-      const tempo=minutos<60?minutos+'min atrás':Math.floor(minutos/60)+'h atrás';
+      // O sinal de vida chega a cada 5 minutos, entao ate 10 minutos e "agora".
+      // Verde so quando e verdade — pintar tudo de verde nao dizia nada.
+      const recente=minutos<=10;
+      const tempo=minutos<1?'agora mesmo':(minutos===1?'há 1 minuto':'há '+minutos+' minutos');
       return`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--gray-1);border-radius:8px;border:1px solid var(--gray-2);margin-bottom:6px">
-        <div style="width:8px;height:8px;border-radius:50%;background:#1A7A45;flex-shrink:0"></div>
+        <div title="${recente?'Usando o sistema agora':'Sem atividade há mais de 10 minutos'}" style="width:8px;height:8px;border-radius:50%;background:${recente?'#1A7A45':'#B9770E'};flex-shrink:0"></div>
         <div style="flex:1">
           <div style="font-weight:600;font-size:13px">${s.nome}</div>
-          <div style="font-size:11px;color:var(--gray-4)">${sistemaLabel[s.sistema]||s.sistema} · Logado há ${tempo}</div>
+          <div style="font-size:11px;color:var(--gray-4)">${sistemaLabel[s.sistema]||s.sistema} · Ativo ${tempo}</div>
         </div>
         <button onclick="forceLogout('${s.sessionId}','${s.nome}')" style="background:var(--red);color:white;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600">Deslogar</button>
       </div>`;
@@ -1222,8 +1229,30 @@ async function checkForceLogoutPortal(){
         body:JSON.stringify({data:d})});
       alert('Sua sessão foi encerrada pelo administrador.');
       forcarSaida();
+      return;
     }
+    await renovarPresencaPortal(d);
   }catch(e){}
+}
+
+// Marca que esta pessoa continua usando o sistema, aproveitando a consulta que
+// ja acontece a cada 30 segundos. So grava quando a marca passa de 5 minutos:
+// gravar a cada 30s encheria o servidor de escrita a troco de nada.
+async function renovarPresencaPortal(d){
+  const AGORA=Date.now(), CADA=5*60*1000;
+  const eu=(d.ativas||[]).find(s=>s.sessionId===_sessionId);
+  if(eu && AGORA-(eu.ts||0)<=CADA) return;
+  if(eu){ eu.ts=AGORA; }
+  else {
+    // Caiu da lista por ter ficado parado, mas voltou a usar: entra de novo.
+    const nome=sessionStorage.getItem('portal-user')||'';
+    d.ativas=(d.ativas||[]).concat([{sessionId:_sessionId,
+      username:(sessionStorage.getItem('portal-admin-key')||nome).toLowerCase().trim(),
+      nome, sistema:'portal', ts:AGORA}]);
+  }
+  await fetch(WORKER_SESS,{method:'PATCH',
+    headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
+    body:JSON.stringify({data:d})});
 }
 function startSessionCheckPortal(){
   if(_sessCheck) return;

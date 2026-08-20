@@ -1016,8 +1016,12 @@ let pagarEditId = null, receberEditId = null, baixaType = null, baixaIdx = null;
 // ---- SESSÕES ----
 const _sessionId = Math.random().toString(36).slice(2)+Date.now().toString(36);
 
+// Guarda quem entrou nesta aba, para a renovacao de presenca poder recadastrar
+// a pessoa se ela cair da lista por ter ficado parada.
+let _sessQuem={nome:'',username:''};
 async function registrarSessao(nome, username){
   try{
+    _sessQuem={nome:nome||'',username:(username||nome||'').toLowerCase().trim()};
     const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
       headers:cabecalhos('sessions')
     });
@@ -1070,8 +1074,35 @@ async function checkForceLogout(){
       });
       alert('Sua sessão foi encerrada pelo administrador.');
       doLogout();
+      return;
     }
+    await renovarPresenca(d);
   }catch(e){}
+}
+
+// Marca que esta pessoa continua usando o sistema, aproveitando a consulta que
+// ja acontece a cada 30 segundos. So grava quando a marca passa de 5 minutos:
+// gravar a cada 30s encheria o servidor de escrita a troco de nada.
+//
+// Sem isto, "Sessoes ativas" mostrava a hora do LOGIN e nada mais — quem fechou
+// o notebook continuava aparecendo como ativo por 8 horas.
+async function renovarPresenca(d){
+  const AGORA=Date.now(), CADA=5*60*1000;
+  const eu=(d.ativas||[]).find(s=>s.sessionId===_sessionId);
+  if(eu && AGORA-(eu.ts||0)<=CADA) return;   // marca ainda esta fresca
+  if(eu){ eu.ts=AGORA; }
+  else {
+    // Caiu da lista por ter ficado parado, mas voltou a usar: entra de novo.
+    const nome=_sessQuem.nome||sessionStorage.getItem('fin-user')||'';
+    d.ativas=(d.ativas||[]).concat([{sessionId:_sessionId,
+      username:_sessQuem.username||nome.toLowerCase().trim(),
+      nome, sistema:'financeiro', ts:AGORA}]);
+  }
+  await fetch('https://daluminium-api.daluminium2.workers.dev',{
+    method:'PATCH',
+    headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
+    body:JSON.stringify({data:d})
+  });
 }
 
 let _forceLogoutInterval=null;
