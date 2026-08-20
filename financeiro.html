@@ -2861,7 +2861,13 @@ function openBaixa(type,idx){
   document.getElementById('baixa-title').textContent=type==='pagar'?`Baixar: ${r.desc}`:`Receber: ${r.cliente}`;
   document.getElementById('b-data').value=today();
   // Numa conta ja paga em parte, vem preenchido o que FALTA, nao o valor cheio.
-  document.getElementById('b-valor').value=fmtBR(type==='pagar'?(faltaPagar(r)||r.valor):r.valor);
+  // O lado do "a receber" vinha com o valor cheio, obrigando a corrigir na mao
+  // toda vez que o cliente pagava o resto.
+  const falta=type==='pagar'?faltaPagar(r):faltaReceber(r);
+  document.getElementById('b-valor').value=fmtBR(falta||r.valor);
+  // Sugere a conta do lancamento, mas quem manda e o que for escolhido aqui:
+  // cada baixa pode cair num banco diferente.
+  document.getElementById('b-conta').value=r.conta||'pagbank';
   document.getElementById('b-obs').value='';
   document.getElementById('baixa-overlay').classList.add('open');
 }
@@ -2875,17 +2881,28 @@ async function confirmarBaixa(){
   const obs=document.getElementById('b-obs').value;
   if(baixaType==='pagar'){
     const r=data.pagar[baixaIdx];
+    const falta=faltaPagar(r);
+    // A trava de "não passar do total" falhava quando não faltava nada:
+    // `faltaPagar(r) || v` devolve v quando o que falta é zero, e a baixa extra
+    // entrava inteira. Uma conta de R$ 1.000 ja quitada aceitava mais R$ 999.
+    if(falta<=0.004){ alert('Esta conta já está totalmente paga.'); return; }
     // O valor digitado é o DESTE pagamento. Em branco, quita o que falta.
-    let v=(val!==null&&val!==undefined&&!isNaN(val)&&val>0) ? val : (faltaPagar(r)||r.valor);
-    if(v>faltaPagar(r)) v=faltaPagar(r)||v;   // não deixa passar do total
+    let v=(val!==null&&val!==undefined&&!isNaN(val)&&val>0) ? val : falta;
+    if(v>falta) v=falta;
     registrarBaixa(r,'pagar',dt,v,document.getElementById('b-conta').value,obs);
     r.obsBaixa=obs;
   } else {
     const r=data.receber[baixaIdx];
-    let v=(val!==null&&val!==undefined&&!isNaN(val)&&val>0) ? val : (faltaReceber(r)||r.valor);
-    if(v>faltaReceber(r)) v=faltaReceber(r)||v;
-    registrarBaixa(r,'receber',dt,v,
-      document.getElementById('r-conta').value||document.getElementById('b-conta').value,obs);
+    const falta=faltaReceber(r);
+    if(falta<=0.004){ alert('Este título já foi totalmente recebido.'); return; }
+    let v=(val!==null&&val!==undefined&&!isNaN(val)&&val>0) ? val : falta;
+    if(v>falta) v=falta;
+    // Le a conta da PROPRIA janela de baixa. Antes lia 'r-conta', que e o campo
+    // da tela de cadastro do recebimento — e como aquele campo nunca esta vazio,
+    // a conta escolhida aqui era sempre ignorada e toda baixa caia na mesma
+    // conta. Um recebimento parte no Sicredi e parte em dinheiro ia inteiro
+    // para um lugar so.
+    registrarBaixa(r,'receber',dt,v,document.getElementById('b-conta').value,obs);
   }
   await persist(); render(); closeBaixa();
 }
