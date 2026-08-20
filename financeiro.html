@@ -121,6 +121,7 @@ tbody tr:hover td{background:var(--gray-1)}
 .act-pay:hover{border-color:var(--green-mid);color:var(--green);background:var(--green-light)}
 .act-del:hover{border-color:var(--red-mid);color:var(--red);background:var(--red-light)}
 .act-edit:hover{border-color:var(--teal);color:var(--teal-dark);background:var(--teal-light)}
+.act-comprov:hover{border-color:var(--green-mid);color:var(--green);background:var(--green-light)}
 
 /* MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center;padding:1rem}
@@ -2871,6 +2872,7 @@ function renderReceber(){
         <td>${pillStatus(r._status)}${r.dtRec?`<span class="td-sub">${fmtDate(r.dtRec)}</span>`:''}</td>
         <td class="td-actions">
           ${r._status!=='recebido'?`<button class="act act-pay" onclick="openBaixa('receber',${r._i})" title="Baixar recebimento"><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>`:''}
+          ${recebidoDe(r)>0.004?`<button class="act act-comprov" onclick="comprovanteRecebimento(${r._i})" title="Comprovante de recebimento"><svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>`:''}
           <button class="act act-attach ${(r.attachments&&r.attachments.length)?'has-files':''}" onclick="openAttach('receber',${r._i})" title="${(r.attachments&&r.attachments.length)?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
             <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>${(r.attachments&&r.attachments.length)?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
           </button>
@@ -2884,6 +2886,121 @@ function renderReceber(){
   const totalRec=data.receber.filter(r=>r.dtRec).reduce((a,r)=>a+(r.valorRecebido||r.valor),0);
   document.getElementById('t-receber').textContent='R$ '+fmtBR(pendRec);
   document.getElementById('t-recebido').textContent='R$ '+fmtBR(totalRec);
+}
+
+// ---- COMPROVANTE DE RECEBIMENTO ----
+// Documento para entregar a quem pagou. Lista todas as baixas ja registradas no
+// titulo, com o total recebido e o que ainda falta — assim serve tanto para
+// pagamento de uma vez quanto para parcelado, sem precisar escolher qual baixa.
+function comprovanteRecebimento(idx){
+  const r=data.receber[idx];
+  if(!r) return;
+  const l=baixasDe(r,'receber');
+  if(!l.length){ alert('Este título ainda não tem recebimento registrado.'); return; }
+
+  const recebido=recebidoDe(r), falta=faltaReceber(r);
+  const quitado=falta<=0.004;
+  const money=v=>'R$ '+fmtBR(v);
+  const agora=new Date();
+  const numero=String(r.id||idx+1).slice(-6).toUpperCase();
+  const porExtensoData=agora.toLocaleDateString('pt-BR',{day:'numeric',month:'long',year:'numeric'});
+  const emitidoPor=sessionStorage.getItem('fin-user')||'';
+
+  const formas=[];
+  if(r.avista) formas.push('À vista '+money(r.avista));
+  if(r.cartao) formas.push('Cartão '+money(r.cartao));
+  if(r.boleto) formas.push('Boleto '+money(r.boleto));
+
+  const linhas=l.map((b,i)=>`<tr>
+      <td class="c">${i+1}</td>
+      <td>${fmtDate(b.data)}</td>
+      <td>${CONTA_LABEL[b.conta]||b.conta||'—'}</td>
+      <td>${b.obs||'—'}</td>
+      <td class="v">${money(b.valor)}</td>
+    </tr>`).join('');
+
+  const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>Comprovante ${numero} · ${r.cliente}</title>
+<style>
+  @page{size:A4 portrait;margin:16mm}
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;color:#1a1a1a;margin:0;font-size:12px;line-height:1.45}
+  .folha{border:1px solid #c9ced2;border-radius:6px;padding:18px 20px}
+  .cab{display:flex;justify-content:space-between;align-items:flex-start;
+       border-bottom:2px solid #0F6E63;padding-bottom:10px;margin-bottom:14px}
+  .marca{font-size:20px;font-weight:800;letter-spacing:1.5px;color:#0F6E63}
+  .marca small{display:block;font-size:9px;font-weight:400;letter-spacing:1px;color:#666;margin-top:1px}
+  .tit{text-align:right}
+  .tit b{font-size:13px;letter-spacing:.5px;color:#0F6E63}
+  .tit span{display:block;font-size:9px;color:#777;margin-top:2px}
+  .campos{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin-bottom:14px}
+  .campo{border-bottom:1px dotted #c9ced2;padding-bottom:3px}
+  .campo.largo{grid-column:1 / -1}
+  .rot{font-size:8px;text-transform:uppercase;letter-spacing:.6px;color:#777;display:block}
+  .dado{font-size:12px;font-weight:600}
+  table{width:100%;border-collapse:collapse;margin-bottom:12px}
+  th{background:#0F6E63;color:#fff;font-size:8px;text-transform:uppercase;letter-spacing:.5px;
+     padding:5px 6px;text-align:left;border:1px solid #0F6E63}
+  td{padding:4px 6px;border:1px solid #e3e6e8}
+  .c{text-align:center;width:8mm}
+  .v{text-align:right;white-space:nowrap;font-weight:600}
+  .resumo{display:flex;justify-content:flex-end;gap:22px;align-items:center;
+          border-top:2px solid #0F6E63;padding-top:8px;margin-bottom:16px}
+  .resumo div{text-align:right}
+  .resumo .rot{text-align:right}
+  .grande{font-size:16px;font-weight:800;color:#146c43}
+  .falta{font-size:13px;font-weight:700;color:#b02a37}
+  .selo{margin-left:auto;border:2px solid ${quitado?'#146c43':'#b58100'};color:${quitado?'#146c43':'#b58100'};
+        border-radius:5px;padding:5px 14px;font-weight:800;letter-spacing:1.5px;font-size:13px}
+  .local{margin:18px 0 26px;font-size:12px}
+  .assina{width:62mm;margin:0 auto;text-align:center;border-top:1px solid #1a1a1a;padding-top:4px;font-size:10px}
+  .rodape{margin-top:16px;padding-top:6px;border-top:1px solid #d5d9dc;
+          display:flex;justify-content:space-between;font-size:8px;color:#888}
+</style></head><body>
+<div class="folha">
+  <div class="cab">
+    <div class="marca">DALUMINIUM<small>ESQUADRIAS DE ALUMÍNIO</small></div>
+    <div class="tit"><b>COMPROVANTE DE RECEBIMENTO</b>
+      <span>Nº ${numero}</span>
+      <span>Emitido em ${agora.toLocaleString('pt-BR')}</span></div>
+  </div>
+
+  <div class="campos">
+    <div class="campo largo"><span class="rot">Recebemos de</span><span class="dado">${r.cliente}</span></div>
+    ${r.contrato?`<div class="campo"><span class="rot">Contrato</span><span class="dado">${r.contrato}</span></div>`:''}
+    <div class="campo"><span class="rot">Vencimento</span><span class="dado">${fmtDate(r.venc)}</span></div>
+    <div class="campo largo"><span class="rot">Referente a</span><span class="dado">${r.desc||'—'}</span></div>
+    <div class="campo"><span class="rot">Valor do título</span><span class="dado">${money(r.valor)}</span></div>
+    ${formas.length?`<div class="campo"><span class="rot">Forma combinada</span><span class="dado">${formas.join(' · ')}</span></div>`:''}
+  </div>
+
+  <table>
+    <thead><tr><th class="c">#</th><th style="width:26mm">Data</th><th style="width:32mm">Conta</th>
+      <th>Observação</th><th style="width:28mm" class="v">Valor</th></tr></thead>
+    <tbody>${linhas}</tbody>
+  </table>
+
+  <div class="resumo">
+    <div class="selo">${quitado?'QUITADO':'PARCIAL'}</div>
+    <div><span class="rot">Total recebido</span><span class="grande">${money(recebido)}</span></div>
+    ${quitado?'':`<div><span class="rot">Saldo a receber</span><span class="falta">${money(falta)}</span></div>`}
+  </div>
+
+  <div class="local">Porto Velho/RO, ${porExtensoData}.</div>
+  <div class="assina">DALUMINIUM</div>
+
+  <div class="rodape">
+    <span>Daluminium · Financeiro${emitidoPor?' · emitido por '+emitidoPor:''}</span>
+    <span>Documento gerado pelo sistema</span>
+  </div>
+</div>
+<script>window.onload=function(){window.print()}<\/script>
+</body></html>`;
+
+  const w=window.open('','_blank');
+  if(!w){ alert('O navegador bloqueou a janela de impressão. Libere os pop-ups para este site e tente de novo.'); return; }
+  w.document.write(html);
+  w.document.close();
 }
 
 function calcTotalRec(){
