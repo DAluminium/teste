@@ -289,6 +289,13 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <div id="f-espera-nota" style="font-size:11.5px;margin-top:5px"></div>
         </div>
         <div class="fg span2"><label>Observações</label><textarea id="f-obs" placeholder="Anotações da obra"></textarea></div>
+        <!-- Avisar quem vai tocar a obra agora. Só aparece se houver alguém com
+             número cadastrado no portal. -->
+        <div class="fg span2" id="notif-group" style="display:none;background:#FFF8E1;border-radius:var(--radius);padding:10px 12px">
+          <label style="color:#B9770E">📲 Notificar responsável via WhatsApp</label>
+          <select id="f-notificar" style="margin-top:6px;background:white"></select>
+          <div style="font-size:11.5px;color:#B9770E;margin-top:4px">Ao salvar, abre o WhatsApp com a mensagem pronta — você confere e aperta enviar</div>
+        </div>
       </div>
 
       <!-- Documentos da obra: a lista de corte, de ferragens e de vidros saem
@@ -549,6 +556,10 @@ const WORKER='https://daluminium-api.daluminium2.workers.dev';
 // Identificador do sistema no banco: SEM acento e SEM cedilha, porque vai
 // num cabeçalho HTTP (X-Sistema) e cabeçalho não aceita caractere acentuado.
 const SUPA_SISTEMA='fabrica_teste';
+// A lista de usuários do sistema inteiro vive no registro do Compras — é ela
+// que a tela "Gerenciar usuários" do portal edita. A Fábrica só lê, para saber
+// quem tem WhatsApp cadastrado.
+const SISTEMA_USUARIOS='compras_teste';
 const LS_KEY='dalum-fabrica';
 
 // As 13 etapas do fluxo (a venda fica no CEM, fora daqui)
@@ -698,6 +709,70 @@ async function fazerLogin(user,senha){
 // Sair apaga o crachá E a sessão do portal. Apagar só o crachá não bastava:
 // quem tivesse entrado pelo portal era reconectado pelo `dalum-sso` no
 // recarregamento, e o botão parecia não fazer nada.
+// ================= AVISAR PELO WHATSAPP =================
+// Abre o WhatsApp com a mensagem pronta, para a pessoa só apertar enviar.
+// Não depende de chave, de robô nem de serviço de terceiros — só do número,
+// que fica no cadastro do portal.
+let _avisaveis=[];
+
+async function carregarAvisaveis(){
+  try{
+    const r=await fetch(WORKER,{cache:'no-store',
+      headers:Object.assign(cabecalhos(),{'X-Sistema':SISTEMA_USUARIOS})});
+    if(!r.ok) return;
+    const d=await r.json();
+    _avisaveis=((d&&d.usuarios)||[])
+      .filter(function(u){ return u.active!==false && u.whatsapp; })
+      .map(function(u){ return {name:u.name,whatsapp:u.whatsapp}; });
+  }catch(e){ _avisaveis=[]; }
+  popularNotificarFab();
+}
+
+function popularNotificarFab(){
+  const sel=document.getElementById('f-notificar');
+  const grupo=document.getElementById('notif-group');
+  if(!sel||!grupo) return;
+  // Não faz sentido avisar a si mesmo.
+  const lista=_avisaveis.filter(function(r){ return r.name!==usuario; });
+  sel.innerHTML='<option value="">— Sem notificação —</option>'+
+    lista.map(function(r,i){ return '<option value="'+i+'">'+esc(r.name)+'</option>'; }).join('');
+  sel.dataset.lista=JSON.stringify(lista);
+  grupo.style.display=lista.length?'block':'none';
+}
+
+function numeroWhats(n){
+  const so=String(n||'').replace(/\D/g,'');
+  if(!so) return '';
+  // Celular do Brasil tem 10 ou 11 dígitos com DDD. Menos que isso é engano de
+  // digitação: melhor não avisar do que abrir um link que não leva a ninguém.
+  if(so.length===10||so.length===11) return '55'+so;
+  if(so.length<12) return '';
+  return so;   // 12 ou mais: já veio com o código do país
+}
+
+// Chamada depois de salvar a ficha, com a obra já gravada.
+function avisarResponsavelFab(o){
+  const sel=document.getElementById('f-notificar');
+  if(!sel||sel.value==='') return;
+  let para=null;
+  try{ para=JSON.parse(sel.dataset.lista||'[]')[parseInt(sel.value)]; }catch(e){}
+  const num=numeroWhats(para&&para.whatsapp);
+  if(!num) return;
+  const et=ETAPAS.find(function(e){ return e.id===o.etapa; });
+  const esp=(o.espera||{})[o.etapa]||{};
+  const dt=function(d){ return d?String(d).split('-').reverse().join('/'):'—'; };
+  const msg='🏭 Obra na sua etapa — Daluminium\n\n'+
+    'Cliente: '+(o.cliente||'—')+'\n'+
+    'Contrato: '+(o.obra||'—')+'\n'+
+    'Etapa: '+((et&&et.nome)||o.etapa||'—')+'\n'+
+    'Prazo de entrega: '+dt(o.prazo)+'\n'+
+    (esp.previsao?'Previsão nesta etapa: '+dt(esp.previsao)+'\n':'')+
+    (esp.motivo?'Justificativa: '+esp.motivo+'\n':'')+
+    '\nEnviado por: '+(usuario||'—');
+  window.open('https://wa.me/'+num+'?text='+encodeURIComponent(msg),'_blank');
+  sel.value='';
+}
+
 // ================= SESSÃO NO PAINEL DO PORTAL =================
 // Identifica ESTA aba. Some quando a aba fecha, que é o que se quer: cada aba
 // aberta é um período de trabalho.
@@ -2782,6 +2857,7 @@ function novaObra(){
   const _primeira=ETAPAS.filter(function(e){ return e.ativo!==false; })[0]||ETAPAS[0];
   document.getElementById('f-etapa').value=_primeira?_primeira.id:'';
   document.getElementById('f-obs').value='';
+  popularNotificarFab();
   fichaDocs=[];
   docsApagados={};
   popularSelectDoc();
@@ -2820,6 +2896,7 @@ function abrirFicha(id){
   fichaVaos=Array.isArray(o.vaos)?JSON.parse(JSON.stringify(o.vaos)):[];
   renderVaos();
   trocouEtapa();          // traz a previsão e a justificativa da etapa atual
+  popularNotificarFab();  // começa sempre em "sem notificação"
   document.getElementById('ficha-linha').innerHTML=htmlLinhaEtapas(o);
   document.getElementById('ficha-hist').innerHTML=htmlHistorico(o);
   // Obra excluida abre em modo consulta: da para restaurar, nao para editar.
@@ -3135,6 +3212,14 @@ async function salvarFicha(manterAberta){
     return {acao:'Editou obra', alvo:(a.cliente||'')+(a.obra?' · '+a.obra:''),
             detalhe:mudou.length?mudou.join(' · '):'sem mudança nos campos'};
   });
+  // O aviso sai depois de gravar, e só se gravou: assim ninguém recebe mensagem
+  // sobre uma alteração que não chegou a existir. Não sai no salvamento
+  // automático do anexo, que não é a pessoa terminando a ficha.
+  if(ok && !manterAberta){
+    const oSalvo=(dados.obras||[]).find(function(x){ return x.id===(fichaId||''); }) ||
+                 (dados.obras||[]).slice(-1)[0];
+    if(oSalvo) avisarResponsavelFab(oSalvo);
+  }
   // Anexar e escanear salvam a ficha na hora, mas precisam dela aberta para a
   // pessoa continuar de onde parou.
   if(ok && !manterAberta) fecharFicha();
@@ -3233,6 +3318,7 @@ function abrirApp(nome,papelDoUsuario){
   // tempo de uso, e o Deslogar do portal não a alcançava.
   registrarSessaoFab(nome, nome);
   if(!_checkFab) _checkFab=setInterval(checkForceLogoutFab,30000);
+  carregarAvisaveis();
   document.getElementById('bloqueio').style.display='none';
   document.getElementById('app').style.display='block';
   // O botão Sair aparece sempre: ele encerra tanto o crachá quanto a sessão

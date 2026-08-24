@@ -426,7 +426,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <select id="f-notificar" style="margin-top:6px;background:white">
             <option value="">— Sem notificação —</option>
           </select>
-          <span class="note" style="color:var(--amber);margin-top:4px">Envia mensagem WhatsApp ao responsável pelo próximo passo</span>
+          <span class="note" style="color:var(--amber);margin-top:4px">Ao salvar, abre o WhatsApp com a mensagem pronta — você confere e aperta enviar</span>
         </div>
         <div class="form-group span2" style="background:var(--teal-light);border-radius:var(--radius);padding:10px 12px">
           <label style="color:var(--teal-dark)">📐 Data de medição <span style="font-weight:400;font-size:11px">(opcional — recalcula entrega automaticamente)</span></label>
@@ -2106,18 +2106,36 @@ function calcEntregaPorMedicao(){
 }
 
 // ---- WHATSAPP NOTIFICAÇÃO ----
-async function enviarWhatsApp(para, mensagem){
-  if(!para.whatsapp||!para.apikey) return;
-  const url=`https://api.callmebot.com/whatsapp.php?phone=${para.whatsapp}&text=${encodeURIComponent(mensagem)}&apikey=${para.apikey}`;
-  try{ await fetch(url); }catch(e){ console.warn('WhatsApp erro:', e); }
+// Abre o WhatsApp com a mensagem pronta, para a pessoa so apertar enviar.
+//
+// Antes isto usava o CallMeBot, um servico de fora que mandava sozinho — mas
+// exigia que CADA pessoa conversasse com um robo para ganhar uma chave, e essa
+// chave ficava guardada no cadastro. Como o cadastro de usuarios passou para o
+// portal, que nunca teve esse campo, ninguem mais conseguia se cadastrar e a
+// notificacao nao saia mais para ninguem. O link nao depende de chave, nem de
+// robo, nem de servico de terceiros.
+function numeroWhats(n){
+  const so=String(n||'').replace(/\D/g,'');
+  if(!so) return '';
+  // O celular do Brasil tem 10 ou 11 digitos com DDD. Menos que isso e engano
+  // de digitacao: melhor avisar do que abrir um link que nao leva a ninguem.
+  if(so.length===10||so.length===11) return '55'+so;
+  if(so.length<12) return '';
+  return so;   // 12 ou mais: ja veio com o codigo do pais
+}
+function enviarWhatsApp(para, mensagem){
+  const num=numeroWhats(para&&para.whatsapp);
+  if(!num){ alert('Esta pessoa não tem WhatsApp cadastrado.\n\nCadastre o número no portal, em Gerenciar usuários.'); return; }
+  window.open('https://wa.me/'+num+'?text='+encodeURIComponent(mensagem),'_blank');
 }
 
+// Quem pode ser avisado: qualquer pessoa ativa com número cadastrado. A chave
+// do CallMeBot deixou de ser exigida — era ela que mantinha a lista sempre
+// vazia, já que o portal nunca teve onde cadastrá-la.
 function getResponsaveis(){
   const todos=[];
-  // Admins com whatsapp
-  ADMINS.forEach(a=>{ if(a.whatsapp&&a.apikey) todos.push({name:a.name,whatsapp:a.whatsapp,apikey:a.apikey}); });
-  // Usuários cadastrados com whatsapp
-  getUsers().forEach(u=>{ if(u.active!==false&&u.whatsapp&&u.apikey) todos.push({name:u.name,whatsapp:u.whatsapp,apikey:u.apikey}); });
+  ADMINS.forEach(a=>{ if(a.whatsapp) todos.push({name:a.name,whatsapp:a.whatsapp}); });
+  getUsers().forEach(u=>{ if(u.active!==false&&u.whatsapp) todos.push({name:u.name,whatsapp:u.whatsapp}); });
   return todos;
 }
 

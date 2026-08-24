@@ -330,6 +330,11 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
             </select>
           </div>
           <div class="form-group span2">
+            <label>WhatsApp (opcional)</label>
+            <input id="nu-whatsapp" type="text" placeholder="Ex: 69 99999-9999">
+            <span style="font-size:11px;color:var(--gray-4)">Serve para avisar esta pessoa quando uma obra passar para ela. O sistema abre o WhatsApp com a mensagem pronta — quem envia é você.</span>
+          </div>
+          <div class="form-group span2">
             <label>Acesso aos módulos</label>
             <div class="modulo-check">
               <label><input type="checkbox" id="nu-mod-compras" checked> 🛒 Gestão de Compras</label>
@@ -998,7 +1003,7 @@ function renderUserList(){
     visiveis.map(({u,i})=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--gray-1);border-radius:8px;border:1px solid var(--gray-2);margin-bottom:6px">
       <div style="flex:1">
         <div style="font-weight:600;font-size:13px">${u.name} <span style="font-size:11px;color:var(--gray-4)">(${u.username})</span></div>
-        <div style="font-size:11px;color:var(--gray-4)">${roleLabel[u.role]||u.role} · Módulos: ${(u.modulos||['compras']).join(', ')} · Senha: ••••••••</div>
+        <div style="font-size:11px;color:var(--gray-4)">${roleLabel[u.role]||u.role} · Módulos: ${(u.modulos||['compras']).join(', ')} · Senha: ••••••••${u.whatsapp?' · 📲 '+u.whatsapp:''}</div>
         ${(souAdmin()&&u.criadoPor)?`<div style="font-size:10.5px;color:${cadastroRecenteDeOutro(u)?'#b9770e':'var(--gray-4)'};margin-top:2px">
           ${cadastroRecenteDeOutro(u)?'⚠️ ':''}cadastrado por <strong>${u.criadoPor}</strong>${u.criadoEm?' em '+fmtDataHora(u.criadoEm):''}</div>`:''}
       </div>
@@ -1033,10 +1038,15 @@ async function addUsuario(){
   const passHash=await sha256(pass);
   // Quem cadastrou fica registrado: e por isso que o gerente consegue depois
   // enxergar so os seus. Sem isto nao haveria como saber de quem e cada um.
+  // Guarda so os digitos: o numero e usado para montar o link do WhatsApp, e
+  // parenteses, traco e espaco atrapalham. O 55 do Brasil entra na hora de
+  // montar o link, para nao depender de quem digitou lembrar dele.
+  const whatsapp=document.getElementById('nu-whatsapp').value.replace(/\D/g,'');
   portalData.usuarios.push({name,username,password:passHash,role,modulos,active:true,tempPass:true,
+    whatsapp:whatsapp,
     criadoPor:meuUsuario(), criadoEm:new Date().toISOString()});
   await savePortalData();
-  ['nu-name','nu-username','nu-pass'].forEach(id=>document.getElementById(id).value='');
+  ['nu-name','nu-username','nu-pass','nu-whatsapp'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('nu-mod-compras').checked=true;
   document.getElementById('nu-mod-financeiro').checked=false;
   document.getElementById('nu-mod-fabrica').checked=false;
@@ -1062,8 +1072,10 @@ async function editUsuario(idx){
     return;
   }
   const novosMods=prompt('Módulos (compras,financeiro):' ,(u.modulos||['compras']).join(',')); if(novosMods===null) return;
+  const novoZap=prompt('WhatsApp (só números, em branco para não avisar):',u.whatsapp||''); if(novoZap===null) return;
   const novaSenha=prompt('Nova senha (deixe em branco para manter):','');
   portalData.usuarios[idx].name=novoNome.trim()||u.name;
+  portalData.usuarios[idx].whatsapp=String(novoZap).replace(/\D/g,'');
   portalData.usuarios[idx].role=novoRole.trim();
   portalData.usuarios[idx].modulos=novosMods.split(',').map(m=>m.trim()).filter(m=>['compras','financeiro','fabrica'].includes(m));
   if(novaSenha&&novaSenha.trim().length>=6){ portalData.usuarios[idx].password=await sha256(novaSenha.trim()); portalData.usuarios[idx].tempPass=false; }
