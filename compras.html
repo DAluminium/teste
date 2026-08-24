@@ -2133,9 +2133,18 @@ function enviarWhatsApp(para, mensagem){
 // do CallMeBot deixou de ser exigida — era ela que mantinha a lista sempre
 // vazia, já que o portal nunca teve onde cadastrá-la.
 function getResponsaveis(){
-  const todos=[];
-  ADMINS.forEach(a=>{ if(a.whatsapp) todos.push({name:a.name,whatsapp:a.whatsapp}); });
-  getUsers().forEach(u=>{ if(u.active!==false&&u.whatsapp) todos.push({name:u.name,whatsapp:u.whatsapp}); });
+  const todos=[], vistos={};
+  const juntar=function(nome,zap){
+    if(!nome||!zap) return;
+    const k=String(nome).toLowerCase().trim();
+    if(vistos[k]) return;
+    vistos[k]=1; todos.push({name:nome,whatsapp:zap});
+  };
+  getUsers().forEach(function(u){ if(u.active!==false) juntar(u.name,u.whatsapp); });
+  // admin e aretusa nao estao na lista de login: sao contas de reserva, com a
+  // senha guardada no Cloudflare. O telefone delas fica no BANCO, em
+  // `contatos`, e nunca neste arquivo — ele esta num repositorio publico.
+  ADMINS.forEach(function(a){ juntar(a.name,(data.contatos||{})[a.user]); });
   return todos;
 }
 

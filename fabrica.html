@@ -721,9 +721,20 @@ async function carregarAvisaveis(){
       headers:Object.assign(cabecalhos(),{'X-Sistema':SISTEMA_USUARIOS})});
     if(!r.ok) return;
     const d=await r.json();
-    _avisaveis=((d&&d.usuarios)||[])
-      .filter(function(u){ return u.active!==false && u.whatsapp; })
-      .map(function(u){ return {name:u.name,whatsapp:u.whatsapp}; });
+    const vistos={};
+    _avisaveis=[];
+    const juntar=function(nome,zap){
+      if(!nome||!zap) return;
+      const k=String(nome).toLowerCase().trim();
+      if(vistos[k]) return;
+      vistos[k]=1; _avisaveis.push({name:nome,whatsapp:zap});
+    };
+    ((d&&d.usuarios)||[]).forEach(function(u){ if(u.active!==false) juntar(u.name,u.whatsapp); });
+    // admin e aretusa não estão na lista de login: são contas de reserva, com a
+    // senha no Cloudflare. O telefone delas fica no banco, em `contatos`, e
+    // nunca em arquivo — estes repositórios são públicos.
+    const rot={admin:'Admin',aretusa:'Aretusa Sendeski'};
+    Object.keys((d&&d.contatos)||{}).forEach(function(k){ juntar(rot[k]||k, d.contatos[k]); });
   }catch(e){ _avisaveis=[]; }
   popularNotificarFab();
 }
