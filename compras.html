@@ -2132,19 +2132,20 @@ function enviarWhatsApp(para, mensagem){
 // Quem pode ser avisado: qualquer pessoa ativa com número cadastrado. A chave
 // do CallMeBot deixou de ser exigida — era ela que mantinha a lista sempre
 // vazia, já que o portal nunca teve onde cadastrá-la.
+// Todo mundo, inclusive Admin e Aretusa, esta na lista de usuarios do banco —
+// a mesma que a tela "Gerenciar usuarios" do portal edita. Um lugar so: se o
+// numero tambem pudesse vir da lista ADMINS deste arquivo, mudar pelo portal
+// nao surtiria efeito e ninguem entenderia por que.
+//
+// E os numeros NUNCA ficam neste arquivo: ele esta num repositorio publico.
 function getResponsaveis(){
   const todos=[], vistos={};
-  const juntar=function(nome,zap){
-    if(!nome||!zap) return;
-    const k=String(nome).toLowerCase().trim();
+  getUsers().forEach(function(u){
+    if(u.active===false||!u.name||!u.whatsapp) return;
+    const k=String(u.name).toLowerCase().trim();
     if(vistos[k]) return;
-    vistos[k]=1; todos.push({name:nome,whatsapp:zap});
-  };
-  getUsers().forEach(function(u){ if(u.active!==false) juntar(u.name,u.whatsapp); });
-  // admin e aretusa nao estao na lista de login: sao contas de reserva, com a
-  // senha guardada no Cloudflare. O telefone delas fica no BANCO, em
-  // `contatos`, e nunca neste arquivo — ele esta num repositorio publico.
-  ADMINS.forEach(function(a){ juntar(a.name,(data.contatos||{})[a.user]); });
+    vistos[k]=1; todos.push({name:u.name,whatsapp:u.whatsapp});
+  });
   return todos;
 }
 

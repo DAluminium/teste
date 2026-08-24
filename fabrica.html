@@ -721,20 +721,16 @@ async function carregarAvisaveis(){
       headers:Object.assign(cabecalhos(),{'X-Sistema':SISTEMA_USUARIOS})});
     if(!r.ok) return;
     const d=await r.json();
+    // Um lugar só: a lista de usuários do banco, que é a mesma que a tela
+    // "Gerenciar usuários" do portal edita.
     const vistos={};
     _avisaveis=[];
-    const juntar=function(nome,zap){
-      if(!nome||!zap) return;
-      const k=String(nome).toLowerCase().trim();
+    ((d&&d.usuarios)||[]).forEach(function(u){
+      if(u.active===false||!u.name||!u.whatsapp) return;
+      const k=String(u.name).toLowerCase().trim();
       if(vistos[k]) return;
-      vistos[k]=1; _avisaveis.push({name:nome,whatsapp:zap});
-    };
-    ((d&&d.usuarios)||[]).forEach(function(u){ if(u.active!==false) juntar(u.name,u.whatsapp); });
-    // admin e aretusa não estão na lista de login: são contas de reserva, com a
-    // senha no Cloudflare. O telefone delas fica no banco, em `contatos`, e
-    // nunca em arquivo — estes repositórios são públicos.
-    const rot={admin:'Admin',aretusa:'Aretusa Sendeski'};
-    Object.keys((d&&d.contatos)||{}).forEach(function(k){ juntar(rot[k]||k, d.contatos[k]); });
+      vistos[k]=1; _avisaveis.push({name:u.name,whatsapp:u.whatsapp});
+    });
   }catch(e){ _avisaveis=[]; }
   popularNotificarFab();
 }
