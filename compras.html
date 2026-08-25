@@ -1057,10 +1057,13 @@ function saveEntry(){
   reclassifyAll();
   persist(); render(); checkNotifications(); closeModal();
 
-  // WhatsApp: notificar responsável apenas em novo lançamento
-  if(!isEdit){
+  // WhatsApp: avisa quem foi escolhido na tela, tanto em lançamento novo quanto
+  // em edição. Antes só saía em lançamento novo — mas passar a obra para outra
+  // pessoa costuma ser justamente uma edição, e nesses casos nada era enviado
+  // sem dizer por quê.
+  {
     const sel=document.getElementById('f-notificar');
-    const idx=sel.value;
+    const idx=sel?sel.value:'';
     if(idx!==''){
       try{
         const responsaveis=JSON.parse(sel.dataset.responsaveis||'[]');
@@ -1068,9 +1071,11 @@ function saveEntry(){
         if(para){
           const tipoLabel=entry.tipo==='especial'?'✦ Especial':'Padrão';
           const entregaFmt=entry.entrega&&entry.entrega!=='—'?entry.entrega.split('-').reverse().join('/'):'Não definida';
-          const msg=`🏗️ Nova obra lançada - Daluminium\n\nObra: ${entry.obra}\nContrato: ${entry.contrato||'—'}\nEntrega: ${entregaFmt}\nTipo: ${tipoLabel}\nLançado por: ${byVal}\n\nAcesse: https://daluminium.github.io/portal/`;
+          const titulo=isEdit?'🏗️ Obra atualizada - Daluminium':'🏗️ Nova obra lançada - Daluminium';
+          const msg=`${titulo}\n\nObra: ${entry.obra}\nContrato: ${entry.contrato||'—'}\nEntrega: ${entregaFmt}\nTipo: ${tipoLabel}\n${isEdit?'Atualizado':'Lançado'} por: ${byVal}\n\nAcesse: https://daluminium.github.io/portal/`;
           enviarWhatsApp(para, msg);
         }
+        sel.value='';   // não repete o aviso no próximo salvamento
       }catch(e){ console.warn('Erro notificação:', e); }
     }
   }
@@ -2256,7 +2261,7 @@ async function enviarRelato(){
   if(_relatoPng){
     try{ navigator.clipboard.write([new ClipboardItem({'image/png':_relatoPng})]); copiou=true; }catch(e){}
   }
-  abrirWhats('https://wa.me/'+num+'?text='+encodeURIComponent(msg));
+  abrirWhats('https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg));
   fecharRelato();
   if(_relatoTela){
     alert(copiou
@@ -2278,6 +2283,17 @@ async function enviarRelato(){
 // ficou para tras por causa de uma espera, e em alguns navegadores acontece
 // sempre —, mostra um botao para a pessoa clicar. Assim a mensagem nunca fica
 // no vacuo: antes, quem apertava enviar nao via nada acontecer.
+// A aba do WhatsApp fecha sozinha quando a pessoa volta para o sistema. Sem
+// isso ela ficava aberta atras, e no fim do dia havia meia duzia delas.
+// Fecha so a que o proprio sistema abriu, e uma unica vez.
+var _abaWhats=null;
+function guardarAbaWhats(w){ if(w) _abaWhats=w; }
+window.addEventListener("focus",function(){
+  if(!_abaWhats) return;
+  var w=_abaWhats; _abaWhats=null;
+  try{ if(!w.closed) w.close(); }catch(e){}
+});
+
 function abrirWhats(url){
   var w=null;
   try{ w=window.open(url,"_blank"); }catch(e){}
@@ -2311,7 +2327,7 @@ function numeroWhats(n){
 function enviarWhatsApp(para, mensagem){
   const num=numeroWhats(para&&para.whatsapp);
   if(!num){ alert('Esta pessoa não tem WhatsApp cadastrado.\n\nCadastre o número no portal, em Gerenciar usuários.'); return; }
-  abrirWhats('https://wa.me/'+num+'?text='+encodeURIComponent(mensagem));
+  abrirWhats('https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(mensagem));
 }
 
 // Quem pode ser avisado: qualquer pessoa ativa com número cadastrado. A chave

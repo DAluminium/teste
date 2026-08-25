@@ -792,10 +792,21 @@ function popularNotificarFab(){
 // ficou para tras por causa de uma espera, e em alguns navegadores acontece
 // sempre —, mostra um botao para a pessoa clicar. Assim a mensagem nunca fica
 // no vacuo: antes, quem apertava enviar nao via nada acontecer.
+// A aba do WhatsApp fecha sozinha quando a pessoa volta para o sistema. Sem
+// isso ela ficava aberta atras, e no fim do dia havia meia duzia delas.
+// Fecha so a que o proprio sistema abriu, e uma unica vez.
+var _abaWhats=null;
+function guardarAbaWhats(w){ if(w) _abaWhats=w; }
+window.addEventListener("focus",function(){
+  if(!_abaWhats) return;
+  var w=_abaWhats; _abaWhats=null;
+  try{ if(!w.closed) w.close(); }catch(e){}
+});
+
 function abrirWhats(url){
   var w=null;
   try{ w=window.open(url,"_blank"); }catch(e){}
-  if(w) return;
+  if(w){ guardarAbaWhats(w); return; }
   var cx=document.getElementById("whats-fallback");
   if(!cx){ cx=document.createElement("div"); cx.id="whats-fallback";
     cx.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;"+
@@ -835,7 +846,7 @@ function abrirAbaDoAviso(){
   let para=null;
   try{ para=JSON.parse(sel.dataset.lista||'[]')[parseInt(sel.value)]; }catch(e){}
   if(!numeroWhats(para&&para.whatsapp)) return null;
-  try{ return window.open('','_blank'); }catch(e){ return null; }
+  try{ const w=window.open('','_blank'); guardarAbaWhats(w); return w; }catch(e){ return null; }
 }
 
 // Chamada depois de salvar a ficha, com a obra já gravada.
@@ -857,7 +868,7 @@ function avisarResponsavelFab(o, aba){
     (esp.previsao?'Previsão nesta etapa: '+dt(esp.previsao)+'\n':'')+
     (esp.motivo?'Justificativa: '+esp.motivo+'\n':'')+
     '\nEnviado por: '+(usuario||'—');
-  const url='https://wa.me/'+num+'?text='+encodeURIComponent(msg);
+  const url='https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg);
   // A aba já foi aberta no clique; aqui só recebe o endereço. Se por algum
   // motivo não veio, tenta abrir — pode ser bloqueada, e aí não há o que fazer.
   if(aba) aba.location.href=url; else abrirWhats(url);
@@ -976,7 +987,7 @@ async function enviarRelato(){
   if(_relatoPng){
     try{ navigator.clipboard.write([new ClipboardItem({'image/png':_relatoPng})]); copiou=true; }catch(e){}
   }
-  abrirWhats('https://wa.me/'+num+'?text='+encodeURIComponent(msg));
+  abrirWhats('https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg));
   fecharRelato();
   if(_relatoTela){
     aviso('Falta colar a imagem', copiou
