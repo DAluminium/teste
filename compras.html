@@ -2304,7 +2304,8 @@ document.addEventListener("visibilitychange",function(){
 function abrirWhats(url){
   var w=null;
   try{ w=window.open(url,"_blank"); }catch(e){}
-  if(w) return;
+  // Guarda a aba para fechá-la quando a pessoa voltar para o sistema.
+  if(w){ guardarAbaWhats(w); return; }
   var cx=document.getElementById("whats-fallback");
   if(!cx){ cx=document.createElement("div"); cx.id="whats-fallback";
     cx.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;"+
