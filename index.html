@@ -1553,7 +1553,11 @@ async function addLembrete(){
   let aba=null, querCopia=false;
   if(meu && confirm('Quer mandar uma cópia deste lembrete para o seu WhatsApp agora?\n\n(A mensagem chega neste momento, não na data — o sistema mostra o lembrete no dia certo quando você entrar.)')){
     querCopia=true;
-    try{ aba=window.open('','_blank'); guardarAbaWhats(aba); }catch(e){}
+    // Não registra a aba para fechar ainda: ela está EM BRANCO. Se a pessoa
+    // voltar para o sistema enquanto a gravação acontece — o normal, já que
+    // não há nada para ver —, ela seria fechada antes de receber o endereço e
+    // nada seria enviado. O registro vem depois, com a mensagem já dentro.
+    try{ aba=window.open('','_blank'); }catch(e){}
   }
 
   const ok=await salvarLembretes(function(meus){ return meus.concat([novo]); });
@@ -1565,7 +1569,8 @@ async function addLembrete(){
         'LEMBRETE — Daluminium\n\n'+texto+'\n\nPara: '+fmtData(data));
       // A aba foi aberta no clique; se o navegador não deixou, o plano B
       // mostra um botão para clicar.
-      if(aba) aba.location.href=url; else abrirWhats(url);
+      if(aba){ aba.location.href=url; guardarAbaWhats(aba); }
+      else abrirWhats(url);
     }
   } else if(aba){
     aba.close();   // não gravou: não faz sentido mandar o bilhete

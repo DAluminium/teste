@@ -869,7 +869,10 @@ function abrirAbaDoAviso(){
   let para=null;
   try{ para=JSON.parse(sel.dataset.lista||'[]')[parseInt(sel.value)]; }catch(e){}
   if(!numeroWhats(para&&para.whatsapp)) return null;
-  try{ const w=window.open('','_blank'); guardarAbaWhats(w); return w; }catch(e){ return null; }
+  // Não registra para fechar ainda: a aba está EM BRANCO. Se a pessoa voltar
+  // ao sistema enquanto a ficha grava, ela seria fechada antes de receber o
+  // endereço e nada seria enviado. O registro vem depois, com a mensagem dentro.
+  try{ return window.open('','_blank'); }catch(e){ return null; }
 }
 
 // Chamada depois de salvar a ficha, com a obra já gravada.
@@ -894,7 +897,8 @@ function avisarResponsavelFab(o, aba){
   const url='https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg);
   // A aba já foi aberta no clique; aqui só recebe o endereço. Se por algum
   // motivo não veio, tenta abrir — pode ser bloqueada, e aí não há o que fazer.
-  if(aba) aba.location.href=url; else abrirWhats(url);
+  if(aba){ aba.location.href=url; guardarAbaWhats(aba); }
+  else abrirWhats(url);
   sel.value='';
 }
 
