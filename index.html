@@ -233,7 +233,20 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
       <p>Escolha o módulo que deseja acessar</p>
     </div>
 
+    <!-- Lembretes que venceram ou vencem hoje. Aparece para qualquer pessoa,
+         logo na entrada, porque é o único momento em que dá para avisar: o
+         sistema não roda com ninguém dentro. -->
+    <div id="aviso-lembretes" style="display:none;background:#fff4e0;border:1px solid #f0d3a0;
+      border-radius:10px;padding:11px 15px;margin-bottom:14px;font-size:12.5px;color:#7d5a10;
+      cursor:pointer;line-height:1.5" onclick="openLembretes()"></div>
+
     <div class="modulos" id="modulos-container"></div>
+
+    <div style="text-align:center;margin-top:6px">
+      <button class="btn btn-outline" style="font-size:12.5px;padding:7px 16px" onclick="openLembretes()">
+        ⏰ Meus lembretes<span id="card-lembretes-conta"></span>
+      </button>
+    </div>
 
     <!-- ADMIN -->
     <div class="admin-section" id="admin-section" style="display:none">
@@ -305,6 +318,33 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
 </div>
 
 <!-- MODAL USUÁRIOS -->
+<!-- MEUS LEMBRETES -->
+<div class="modal-overlay" id="lembretes-overlay">
+  <div class="modal" style="width:min(560px,100%)">
+    <div class="modal-header">
+      <div class="modal-title">⏰ Meus lembretes</div>
+      <button class="btn btn-outline" style="padding:4px 10px;font-size:12px" onclick="closeLembretes()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--teal-light);border-radius:8px;padding:9px 13px;font-size:12px;color:var(--teal-dark);margin-bottom:14px;line-height:1.5">
+        ℹ️ São só seus — ninguém mais vê. O sistema mostra o lembrete <strong>quando você entrar</strong>, no dia marcado e nos dias seguintes, até você dar como resolvido. Ele não envia nada sozinho.
+      </div>
+      <div class="form-grid">
+        <div class="form-group span2"><label>O que você não quer esquecer</label>
+          <input id="lem-texto" type="text" placeholder="Ex: cobrar o vidro da Construtora Silva" onkeydown="if(event.key==='Enter')addLembrete()">
+        </div>
+        <div class="form-group"><label>Lembrar em</label>
+          <input id="lem-data" type="date">
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end">
+          <button class="btn btn-teal" style="width:100%" onclick="addLembrete()">Guardar lembrete</button>
+        </div>
+      </div>
+      <div id="lem-lista" style="margin-top:14px"></div>
+    </div>
+  </div>
+</div>
+
 <!-- RELATAR PROBLEMA PARA O ADMIN -->
 <div class="modal-overlay" id="relato-overlay">
   <div class="modal" style="width:min(520px,100%)">
@@ -832,6 +872,7 @@ function showPortal(nome, modulos, isAdmin){
   setSSOToken(nome, isAdmin?'admin':'user', modulos);
   registrarSessaoPortal(nome, sessionStorage.getItem('portal-admin-key')||nome);
   carregarAvisaveis();   // quem pode receber relato
+  carregarLembretes();   // o que ficou marcado para hoje
   startSessionCheckPortal();
   renderModulos(modulos);
   // 1 módulo e não admin — entra direto
@@ -1369,6 +1410,161 @@ function limparParadas(d){
   return mexeu;
 }
 
+// ---- MEUS LEMBRETES ----
+// Recado que a pessoa deixa para si mesma, com data. O sistema NÃO manda nada
+// sozinho: não existe servidor nosso ligado, as páginas só rodam enquanto
+// alguém está com elas abertas. O lembrete aparece quando a pessoa entra —
+// no dia marcado e em todos os dias seguintes, até ela dar como resolvido.
+//
+// Ficam num registro separado no banco, longe dos dados de compras e do
+// financeiro. Seguem a pessoa entre o computador e o celular.
+const SISTEMA_LEMBRETES='lembretes_teste';
+let _lembretes=[];
+
+// O texto do lembrete é escrito pela pessoa e entra no HTML da lista. Sem
+// tratar, um "<" digitado quebraria a tela.
+function escTexto(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+function meuLogin(){ return String(sessionStorage.getItem('portal-admin-key')||sessionStorage.getItem('portal-user')||'').toLowerCase().trim(); }
+function meusLembretes(){ return _lembretes.filter(function(l){ return String(l.user||'').toLowerCase()===meuLogin(); }); }
+function hojeISO(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+
+async function carregarLembretes(){
+  try{
+    const r=await fetch(WORKER_URL+'?t='+Date.now(),{cache:'no-store',headers:cabecalhos(SISTEMA_LEMBRETES)});
+    if(!r.ok) return;
+    const d=await r.json();
+    _lembretes=Array.isArray(d&&d.lembretes)?d.lembretes:[];
+  }catch(e){}
+  mostrarAvisoLembretes();
+  if(document.getElementById('lembretes-overlay').classList.contains('open')) renderLembretes();
+}
+
+// Grava relendo antes: duas pessoas podem estar mexendo nos seus lembretes ao
+// mesmo tempo, e cada uma só pode alterar os próprios.
+async function salvarLembretes(mudar){
+  let atual=[];
+  try{
+    const r=await fetch(WORKER_URL+'?t='+Date.now(),{cache:'no-store',headers:cabecalhos(SISTEMA_LEMBRETES)});
+    if(r.ok){ const d=await r.json(); atual=Array.isArray(d&&d.lembretes)?d.lembretes:[]; }
+  }catch(e){}
+  const eu=meuLogin();
+  const dosOutros=atual.filter(function(l){ return String(l.user||'').toLowerCase()!==eu; });
+  const meus=mudar(atual.filter(function(l){ return String(l.user||'').toLowerCase()===eu; }));
+  const novo=dosOutros.concat(meus);
+  const resp=await fetch(WORKER_URL,{method:'PATCH',
+    headers:cabecalhos(SISTEMA_LEMBRETES,{'Content-Type':'application/json'}),
+    body:JSON.stringify({data:{lembretes:novo}})});
+  if(!resp.ok){ alert('Não consegui salvar o lembrete.\n\nVerifique a internet e tente de novo.'); return false; }
+  _lembretes=novo;
+  mostrarAvisoLembretes();
+  renderLembretes();
+  return true;
+}
+
+// O que já venceu ou vence hoje, ainda não resolvido.
+function lembretesParaHoje(){
+  const h=hojeISO();
+  return meusLembretes().filter(function(l){ return !l.feito && String(l.data||'')<=h; })
+    .sort(function(a,b){ return String(a.data).localeCompare(String(b.data)); });
+}
+
+function mostrarAvisoLembretes(){
+  const el=document.getElementById('aviso-lembretes');
+  if(!el) return;
+  const lista=lembretesParaHoje();
+  const btn=document.getElementById('card-lembretes-conta');
+  if(btn) btn.textContent=lista.length?' ('+lista.length+')':'';
+  if(!lista.length){ el.style.display='none'; return; }
+  const h=hojeISO();
+  el.innerHTML='<strong>⏰ '+(lista.length===1?'Você tem 1 lembrete':'Você tem '+lista.length+' lembretes')+' para resolver</strong><br>'+
+    lista.slice(0,4).map(function(l){
+      const atrasado=String(l.data)<h;
+      return '<span style="display:block;margin-top:3px">'+(atrasado?'🔴':'🟡')+' '+
+        escTexto(l.texto)+' <span style="opacity:.75">· '+fmtData(l.data)+(atrasado?' (atrasado)':' (hoje)')+'</span></span>';
+    }).join('')+
+    (lista.length>4?'<span style="display:block;margin-top:3px;opacity:.75">e mais '+(lista.length-4)+'…</span>':'')+
+    '<span style="display:block;margin-top:6px;font-size:11.5px;text-decoration:underline">clique para abrir</span>';
+  el.style.display='block';
+}
+
+function fmtData(d){ if(!d) return '—'; const p=String(d).split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+
+function openLembretes(){
+  document.getElementById('lembretes-overlay').classList.add('open');
+  document.getElementById('lem-texto').value='';
+  document.getElementById('lem-data').value=hojeISO();
+  renderLembretes();
+  carregarLembretes();
+}
+function closeLembretes(){ document.getElementById('lembretes-overlay').classList.remove('open'); }
+
+function renderLembretes(){
+  const el=document.getElementById('lem-lista');
+  if(!el) return;
+  const h=hojeISO();
+  const lista=meusLembretes().slice().sort(function(a,b){
+    if(!!a.feito!==!!b.feito) return a.feito?1:-1;          // pendentes primeiro
+    return String(a.data).localeCompare(String(b.data));
+  });
+  if(!lista.length){
+    el.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center;padding:14px">Nenhum lembrete. Escreva um acima.</p>';
+    return;
+  }
+  el.innerHTML=lista.map(function(l){
+    const atrasado=!l.feito && String(l.data||'')<h;
+    const hoje=!l.feito && String(l.data||'')===h;
+    const cor=l.feito?'var(--gray-4)':(atrasado?'#b02a37':(hoje?'#b9770e':'var(--gray-6)'));
+    return '<div style="display:flex;align-items:flex-start;gap:9px;padding:9px 11px;background:var(--gray-1);'+
+      'border:1px solid var(--gray-2);border-radius:8px;margin-bottom:6px">'+
+      '<input type="checkbox" '+(l.feito?'checked':'')+' onchange="marcarLembrete(\''+l.id+'\',this.checked)" style="width:auto;margin-top:2px;flex:none">'+
+      '<div style="flex:1">'+
+        '<div style="font-size:13px;color:'+cor+';'+(l.feito?'text-decoration:line-through':'font-weight:600')+'">'+escTexto(l.texto)+'</div>'+
+        '<div style="font-size:11px;color:var(--gray-4);margin-top:2px">'+fmtData(l.data)+
+          (l.feito?' · resolvido':(atrasado?' · atrasado':(hoje?' · é hoje':'')))+'</div>'+
+      '</div>'+
+      '<button class="btn btn-outline" style="padding:3px 9px;font-size:11px" onclick="excluirLembrete(\''+l.id+'\')">Excluir</button>'+
+    '</div>';
+  }).join('');
+}
+
+async function addLembrete(){
+  const texto=document.getElementById('lem-texto').value.trim();
+  const data=document.getElementById('lem-data').value;
+  if(!texto){ alert('Escreva o que você não quer esquecer.'); return; }
+  if(!data){ alert('Escolha a data em que quer ser lembrado.'); return; }
+  const novo={id:'lem-'+Math.random().toString(36).slice(2)+Date.now().toString(36),
+              user:meuLogin(), texto:texto, data:data, feito:false, criadoEm:new Date().toISOString()};
+  const ok=await salvarLembretes(function(meus){ return meus.concat([novo]); });
+  if(ok){
+    document.getElementById('lem-texto').value='';
+    document.getElementById('lem-data').value=hojeISO();
+    // Bilhete no celular, para quem quiser. Chega AGORA, não na data — o
+    // WhatsApp também não agenda. Serve como cópia no aparelho.
+    const meu=numeroWhats((_avisaveis.filter(function(u){
+      return String(u.name||'').toLowerCase()===String(sessionStorage.getItem('portal-user')||'').toLowerCase();
+    })[0]||{}).whatsapp);
+    if(meu && confirm('Lembrete guardado.\n\nQuer mandar uma cópia para o seu WhatsApp agora?\n\n(A mensagem chega neste momento, não na data — o sistema mostra o lembrete no dia certo quando você entrar.)')){
+      window.open('https://wa.me/'+meu+'?text='+encodeURIComponent(
+        '⏰ Lembrete — Daluminium\n\n'+texto+'\n\nPara: '+fmtData(data)),'_blank');
+    }
+  }
+}
+
+async function marcarLembrete(id,feito){
+  await salvarLembretes(function(meus){
+    return meus.map(function(l){ return l.id===id?Object.assign({},l,{feito:!!feito}):l; });
+  });
+}
+async function excluirLembrete(id){
+  if(!confirm('Excluir este lembrete?')) return;
+  await salvarLembretes(function(meus){ return meus.filter(function(l){ return l.id!==id; }); });
+}
+
 // ---- RELATAR PROBLEMA PARA O ADMIN ----
 const RELATO_MODULO='Portal';
 
@@ -1651,6 +1847,7 @@ function voltarPortal(){
   const nome=sessionStorage.getItem('portal-user')||'';
   if(nome) registrarSessaoPortal(nome, sessionStorage.getItem('portal-admin-key')||nome);
   carregarAvisaveis();   // quem pode receber relato
+  carregarLembretes();   // o que ficou marcado para hoje
 }
 function abrirModulo(url,titulo){
   document.getElementById('portal').style.display='none';
