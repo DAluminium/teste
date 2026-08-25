@@ -556,10 +556,13 @@ const WORKER='https://daluminium-api.daluminium2.workers.dev';
 // Identificador do sistema no banco: SEM acento e SEM cedilha, porque vai
 // num cabeçalho HTTP (X-Sistema) e cabeçalho não aceita caractere acentuado.
 const SUPA_SISTEMA='fabrica_teste';
-// A lista de usuários do sistema inteiro vive no registro do Compras — é ela
-// que a tela "Gerenciar usuários" do portal edita. A Fábrica só lê, para saber
-// quem tem WhatsApp cadastrado.
-const SISTEMA_USUARIOS='compras_teste';
+// A lista de usuários do sistema inteiro vive no registro do Compras de
+// PRODUÇÃO — é ela que a tela "Gerenciar usuários" do portal edita, e é dela
+// que o login sempre leu, em qualquer ambiente.
+//
+// Sem o "_teste" de propósito: o cadastro é único. Apontar para o de teste
+// deixava a lista de quem avisar vazia aqui, porque os números estão lá.
+const SISTEMA_USUARIOS='compras';
 const LS_KEY='dalum-fabrica';
 
 // As 13 etapas do fluxo (a venda fica no CEM, fora daqui)

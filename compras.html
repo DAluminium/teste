@@ -2138,16 +2138,29 @@ function enviarWhatsApp(para, mensagem){
 // nao surtiria efeito e ninguem entenderia por que.
 //
 // E os numeros NUNCA ficam neste arquivo: ele esta num repositorio publico.
-function getResponsaveis(){
-  const todos=[], vistos={};
-  getUsers().forEach(function(u){
-    if(u.active===false||!u.name||!u.whatsapp) return;
-    const k=String(u.name).toLowerCase().trim();
-    if(vistos[k]) return;
-    vistos[k]=1; todos.push({name:u.name,whatsapp:u.whatsapp});
-  });
-  return todos;
+//
+// A lista e buscada do registro de PRODUCAO, sem o "_teste": o cadastro de
+// usuarios e unico e vive la, igual ao login. Lendo do proprio registro, no
+// ambiente de teste a lista vinha vazia e o campo sumia da tela.
+let _avisaveis=[];
+async function carregarAvisaveis(){
+  try{
+    const r=await fetch(WORKER_URL+'?t='+Date.now(),{cache:'no-store',
+      headers:cabecalhos('compras')});
+    if(!r.ok) return;
+    const d=await r.json();
+    const vistos={};
+    _avisaveis=[];
+    ((d&&d.usuarios)||[]).forEach(function(u){
+      if(u.active===false||!u.name||!u.whatsapp) return;
+      const k=String(u.name).toLowerCase().trim();
+      if(vistos[k]) return;
+      vistos[k]=1; _avisaveis.push({name:u.name,whatsapp:u.whatsapp});
+    });
+  }catch(e){ /* sem lista, o campo apenas nao aparece */ }
+  try{ popularNotificarSelect(); }catch(e){}
 }
+function getResponsaveis(){ return _avisaveis; }
 
 function popularNotificarSelect(){
   const sel=document.getElementById('f-notificar');
@@ -2785,6 +2798,12 @@ function sessaoExpirada(){
   if(window.__sessaoExpirada) return;   // um aviso só, mesmo com várias chamadas
   window.__sessaoExpirada = true;
   try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){}
+  // A marca de "está logado" mora na ABA, não no crachá. Sem apagar também
+  // aqui, ao recarregar o módulo achava que a pessoa continuava dentro, ia
+  // buscar dados sem crachá, levava 401 e mostrava esta mesma mensagem de
+  // novo — sem fim. Clicar em OK trazia a mensagem outra vez.
+  try{ ['dalum-logged','dalum-user','dalum-user-role','dalum-admin-key']
+        .forEach(function(k){ sessionStorage.removeItem(k); }); }catch(e){}
   alert('Sua sessão expirou.\n\n' +
         'O acesso vale 8 horas e o seu venceu. Nada foi perdido — o que você ' +
         'já tinha salvo continua guardado.\n\n' +
@@ -3187,6 +3206,9 @@ async function load(){
   // Always sync automatically — config is embedded
   await syncFromCloud();
   startAutoSync();
+  // Quem pode ser avisado pelo WhatsApp. Vem depois do resto porque não é
+  // urgente: se demorar, o campo apenas aparece um instante mais tarde.
+  carregarAvisaveis();
   setStatus('🟢 Sincronizado · '+new Date().toLocaleTimeString('pt-BR'));
 }
 

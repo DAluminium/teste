@@ -1475,6 +1475,12 @@ function sessaoExpirada(){
   if(window.__sessaoExpirada) return;   // um aviso só, mesmo com várias chamadas
   window.__sessaoExpirada = true;
   try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){}
+  // A marca de "está logado" mora na ABA, não no crachá. Sem apagar também
+  // aqui, ao recarregar o módulo achava que a pessoa continuava dentro, ia
+  // buscar dados sem crachá, levava 401 e mostrava esta mesma mensagem de
+  // novo — sem fim. Clicar em OK trazia a mensagem outra vez.
+  try{ ['fin-logged','fin-user','fin-role','fin-admin-key']
+        .forEach(function(k){ sessionStorage.removeItem(k); }); }catch(e){}
   alert('Sua sessão expirou.\n\n' +
         'O acesso vale 8 horas e o seu venceu. Nada foi perdido — o que você ' +
         'já tinha salvo continua guardado.\n\n' +
