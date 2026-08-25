@@ -3469,6 +3469,31 @@ function numeroDoAdmin(){
   return porNome?porNome.whatsapp:'';
 }
 
+// Abre o WhatsApp. Se o navegador bloquear a aba — acontece quando o clique
+// ficou para tras por causa de uma espera, e em alguns navegadores acontece
+// sempre —, mostra um botao para a pessoa clicar. Assim a mensagem nunca fica
+// no vacuo: antes, quem apertava enviar nao via nada acontecer.
+function abrirWhats(url){
+  var w=null;
+  try{ w=window.open(url,"_blank"); }catch(e){}
+  if(w) return;
+  var cx=document.getElementById("whats-fallback");
+  if(!cx){ cx=document.createElement("div"); cx.id="whats-fallback";
+    cx.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;"+
+      "display:flex;align-items:center;justify-content:center;padding:16px";
+    document.body.appendChild(cx); }
+  cx.innerHTML="<div style=\"background:#fff;border-radius:12px;padding:20px 22px;max-width:380px;text-align:center\">"+
+    "<div style=\"font-size:14px;font-weight:700;margin-bottom:8px\">Falta um clique</div>"+
+    "<div style=\"font-size:12.5px;color:#555;line-height:1.5;margin-bottom:14px\">O navegador nao deixou o sistema abrir o WhatsApp sozinho. Clique no botao abaixo — a mensagem ja esta pronta.</div>"+
+    '<a href="'+String(url).replace(/"/g,"&quot;")+'" target="_blank" rel="noopener" '+
+    'style="display:inline-block;background:#25D366;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;font-size:13px" '+
+    'onclick="document.getElementById(&quot;whats-fallback&quot;).remove()">Abrir o WhatsApp</a>'+
+    '<div style="margin-top:12px"><button type="button" style="background:none;border:none;color:#777;font-size:12px;cursor:pointer" '+
+    'onclick="document.getElementById(&quot;whats-fallback&quot;).remove()">Agora nao</button></div>'+
+    "</div>";
+  cx.style.display="flex";
+}
+
 function numeroWhats(n){
   const so=String(n||'').replace(/\D/g,'');
   if(!so) return '';
@@ -3478,7 +3503,7 @@ function numeroWhats(n){
   return so;
 }
 
-let _relatoTela=null;
+let _relatoTela=null, _relatoArquivo=null, _relatoPng=null;
 
 function mostrarBotaoRelato(){
   const b=document.getElementById('btn-relato');
@@ -3526,6 +3551,11 @@ function relatoEscolheuImagem(input){
     c.width=Math.round(img.width*esc); c.height=Math.round(img.height*esc);
     c.getContext('2d').drawImage(img,0,0,c.width,c.height);
     _relatoTela=c;
+    // Prepara os arquivos JA, e nao na hora de enviar: o navegador so permite
+    // compartilhar ou abrir aba como consequencia direta do clique, e esperar
+    // a conversao da imagem no meio quebra esse vinculo.
+    c.toBlob(function(b){ if(b) _relatoArquivo=new File([b],'problema.jpg',{type:'image/jpeg'}); },'image/jpeg',0.85);
+    c.toBlob(function(b){ _relatoPng=b; },'image/png');
     document.getElementById('rel-previa').innerHTML=
       '<img src="'+c.toDataURL('image/jpeg',0.85)+'" style="max-width:100%;max-height:170px;border-radius:8px;border:1px solid var(--gray-3);display:block">'+
       '<button type="button" class="btn btn-outline btn-sm" style="margin-top:6px" onclick="relatoTirarImagem()">Remover imagem</button>';
@@ -3559,28 +3589,24 @@ async function enviarRelato(){
     'Descrição:\n'+texto+
     (_ultimoErro?'\n\n--- detalhe técnico ---\n'+_ultimoErro:'');
 
-  if(_relatoTela){
-    try{
-      const jpg=await relatoBlob(_relatoTela,'image/jpeg',0.85);
-      const arq=new File([jpg],'problema.jpg',{type:'image/jpeg'});
-      if(navigator.canShare && navigator.canShare({files:[arq]})){
-        await navigator.share({files:[arq],text:msg});
-        fecharRelato(); return;
-      }
-    }catch(e){ if(e && e.name==='AbortError') return; }
-    // No computador o link do WhatsApp não carrega imagem: copio o print.
-    let copiou=false;
-    try{
-      const png=await relatoBlob(_relatoTela,'image/png');
-      await navigator.clipboard.write([new ClipboardItem({'image/png':png})]);
-      copiou=true;
-    }catch(e){}
-    alert(copiou
-      ? 'Vou abrir o WhatsApp com o texto pronto.\n\nA imagem já está copiada: dentro da conversa, aperte Ctrl+V para colar antes de enviar.'
-      : 'Vou abrir o WhatsApp com o texto pronto.\n\nNão consegui copiar a imagem sozinho — anexe o print pela própria conversa.');
+  // Daqui para baixo nada de esperar: compartilhar e abrir aba so valem como
+  // consequencia direta do clique. Os arquivos ja ficaram prontos na hora de
+  // escolher a imagem, justamente por isso.
+  if(_relatoArquivo && navigator.canShare && navigator.canShare({files:[_relatoArquivo]})){
+    navigator.share({files:[_relatoArquivo],text:msg}).then(fecharRelato).catch(function(){});
+    return;
   }
-  window.open('https://wa.me/'+num+'?text='+encodeURIComponent(msg),'_blank');
+  let copiou=false;
+  if(_relatoPng){
+    try{ navigator.clipboard.write([new ClipboardItem({'image/png':_relatoPng})]); copiou=true; }catch(e){}
+  }
+  abrirWhats('https://wa.me/'+num+'?text='+encodeURIComponent(msg));
   fecharRelato();
+  if(_relatoTela){
+    alert(copiou
+      ? 'A imagem ja esta copiada: dentro da conversa do WhatsApp, aperte Ctrl+V para colar antes de enviar.'
+      : 'Nao consegui copiar a imagem sozinho — anexe o print pela propria conversa do WhatsApp.');
+  }
 }
 
 // ---- EMPRESAS QUE EMITEM COMPROVANTE ----
