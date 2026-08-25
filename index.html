@@ -218,6 +218,9 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
     <div class="topbar-logo">DALUMINIUM <span>Portal</span></div>
     <div class="topbar-user">
       <strong id="topbar-nome"></strong>
+      <button class="btn-sair" id="btn-relato" onclick="abrirRelato()" style="display:none" title="Avisar o administrador sobre um erro ou pedir uma alteração">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Relatar
+      </button>
       <button class="btn-sair" onclick="doLogout()">
         <svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sair
       </button>
@@ -302,6 +305,39 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
 </div>
 
 <!-- MODAL USUÁRIOS -->
+<!-- RELATAR PROBLEMA PARA O ADMIN -->
+<div class="modal-overlay" id="relato-overlay">
+  <div class="modal" style="width:min(520px,100%)">
+    <div class="modal-header">
+      <div class="modal-title">Relatar para o administrador</div>
+      <button class="btn btn-outline" style="padding:4px 10px;font-size:12px" onclick="fecharRelato()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group span2"><label>Do que se trata</label>
+          <select id="rel-tipo">
+            <option value="erro">⚠️ Erro no sistema</option>
+            <option value="alteracao">✏️ Pedido de alteração</option>
+            <option value="duvida">❓ Dúvida</option>
+          </select>
+        </div>
+        <div class="form-group span2"><label>O que aconteceu *</label>
+          <textarea id="rel-texto" rows="4" placeholder="Ex: cliquei em salvar e a janela não fechou"></textarea>
+          <span style="font-size:11px;color:var(--gray-4)">Escreva com suas palavras. O sistema já manda junto o módulo, a tela, o seu nome, a hora e o detalhe técnico do erro.</span>
+        </div>
+        <div class="form-group span2"><label>Print ou foto (opcional)</label>
+          <input id="rel-arquivo" type="file" accept="image/*" onchange="relatoEscolheuImagem(this)">
+          <div id="rel-previa" style="margin-top:8px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="fecharRelato()">Cancelar</button>
+      <button class="btn btn-teal" onclick="enviarRelato()">Abrir WhatsApp</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="usuarios-overlay">
   <div class="modal">
     <div class="modal-header">
@@ -795,6 +831,7 @@ function showPortal(nome, modulos, isAdmin){
   ajustarCadastroDeUsuarios();
   setSSOToken(nome, isAdmin?'admin':'user', modulos);
   registrarSessaoPortal(nome, sessionStorage.getItem('portal-admin-key')||nome);
+  carregarAvisaveis();   // quem pode receber relato
   startSessionCheckPortal();
   renderModulos(modulos);
   // 1 módulo e não admin — entra direto
@@ -1332,6 +1369,155 @@ function limparParadas(d){
   return mexeu;
 }
 
+// ---- RELATAR PROBLEMA PARA O ADMIN ----
+const RELATO_MODULO='Portal';
+
+// Guarda o último erro que o navegador registrou. É esta linha que diz onde
+// olhar quando o relato é "cliquei e não acontece nada".
+let _ultimoErro='';
+window.addEventListener('error',function(e){
+  const arq=e&&e.filename?String(e.filename).split('/').pop():'';
+  _ultimoErro=((e&&e.message)||'erro')+(arq?' ('+arq+':'+(e.lineno||'?')+')':'');
+});
+window.addEventListener('unhandledrejection',function(e){
+  const r=e&&e.reason;
+  _ultimoErro='falha em segundo plano: '+((r&&r.message)||r||'');
+});
+
+// A lista de usuários vem do registro do Compras de PRODUÇÃO — é o cadastro
+// único, o mesmo de onde o login sempre leu.
+let _avisaveis=[];
+async function carregarAvisaveis(){
+  try{
+    const r=await fetch(WORKER_URL+'?t='+Date.now(),{cache:'no-store',headers:cabecalhos('compras')});
+    if(!r.ok) return;
+    const d=await r.json();
+    const vistos={};
+    _avisaveis=[];
+    ((d&&d.usuarios)||[]).forEach(function(u){
+      if(u.active===false||!u.name||!u.whatsapp) return;
+      const k=String(u.name).toLowerCase().trim();
+      if(vistos[k]) return;
+      vistos[k]=1; _avisaveis.push({name:u.name,whatsapp:u.whatsapp,role:u.role||''});
+    });
+  }catch(e){}
+  try{ mostrarBotaoRelato(); }catch(e){}
+}
+
+function numeroDoAdmin(){
+  const porFuncao=_avisaveis.filter(function(u){ return String(u.role||'').toLowerCase()==='admin'; })[0];
+  if(porFuncao) return porFuncao.whatsapp;
+  const porNome=_avisaveis.filter(function(u){ return String(u.name||'').toLowerCase()==='admin'; })[0];
+  return porNome?porNome.whatsapp:'';
+}
+
+function numeroWhats(n){
+  const so=String(n||'').replace(/\D/g,'');
+  if(!so) return '';
+  // Celular do Brasil tem 10 ou 11 dígitos com DDD. Menos que isso é engano.
+  if(so.length===10||so.length===11) return '55'+so;
+  if(so.length<12) return '';
+  return so;
+}
+
+let _relatoTela=null;
+
+function mostrarBotaoRelato(){
+  const b=document.getElementById('btn-relato');
+  if(!b) return;
+  const eu=sessionStorage.getItem('portal-user')||'';
+  b.style.display=(!soAdmin() && eu && numeroDoAdmin())?'inline-flex':'none';
+}
+
+function relatoOndeEstou(){
+  const frame=document.getElementById('frame-container');
+  if(frame && frame.classList.contains('active')){
+    return 'dentro do módulo '+((document.getElementById('frame-title')||{}).textContent||'—');
+  }
+  return 'escolha de módulos';
+}
+
+function abrirRelato(){
+  document.getElementById('rel-tipo').value='erro';
+  document.getElementById('rel-texto').value='';
+  document.getElementById('rel-arquivo').value='';
+  document.getElementById('rel-previa').innerHTML='';
+  _relatoTela=null;
+  document.getElementById('relato-overlay').classList.add('open');
+}
+function fecharRelato(){ document.getElementById('relato-overlay').classList.remove('open'); }
+
+// Print de celular passa fácil de 3 MB. Reduzir aqui é o que faz a cópia e o
+// compartilhamento funcionarem sem engasgar.
+function relatoEscolheuImagem(input){
+  const f=input.files&&input.files[0];
+  if(!f) return;
+  const img=new Image();
+  const url=URL.createObjectURL(f);
+  img.onload=function(){
+    const MAX=1400;
+    const esc=Math.min(1,MAX/Math.max(img.width,img.height));
+    const c=document.createElement('canvas');
+    c.width=Math.round(img.width*esc); c.height=Math.round(img.height*esc);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    _relatoTela=c;
+    document.getElementById('rel-previa').innerHTML=
+      '<img src="'+c.toDataURL('image/jpeg',0.85)+'" style="max-width:100%;max-height:170px;border-radius:8px;border:1px solid var(--gray-2);display:block">'+
+      '<button type="button" class="btn btn-outline" style="margin-top:6px;font-size:11px;padding:4px 10px" onclick="relatoTirarImagem()">Remover imagem</button>';
+    URL.revokeObjectURL(url);
+  };
+  img.onerror=function(){ URL.revokeObjectURL(url); alert('Não consegui ler esta imagem. Tente outra.'); };
+  img.src=url;
+}
+function relatoTirarImagem(){
+  _relatoTela=null;
+  document.getElementById('rel-arquivo').value='';
+  document.getElementById('rel-previa').innerHTML='';
+}
+function relatoBlob(tela,tipo,qualidade){
+  return new Promise(function(ok){ tela.toBlob(ok,tipo,qualidade); });
+}
+
+async function enviarRelato(){
+  const texto=document.getElementById('rel-texto').value.trim();
+  if(!texto){ alert('Escreva o que aconteceu, nem que seja em poucas palavras.'); return; }
+  const num=numeroWhats(numeroDoAdmin());
+  if(!num){ alert('Não encontrei o WhatsApp do administrador no cadastro.'); return; }
+
+  const rotulo={erro:'⚠️ Erro no sistema',alteracao:'✏️ Pedido de alteração',duvida:'❓ Dúvida'};
+  const tipo=document.getElementById('rel-tipo').value;
+  const msg=(rotulo[tipo]||tipo)+' — Daluminium\n\n'+
+    'Módulo: '+RELATO_MODULO+'\n'+
+    'Tela: '+relatoOndeEstou()+'\n'+
+    'De: '+(sessionStorage.getItem('portal-user')||'—')+'\n'+
+    'Quando: '+new Date().toLocaleString('pt-BR')+'\n\n'+
+    'Descrição:\n'+texto+
+    (_ultimoErro?'\n\n--- detalhe técnico ---\n'+_ultimoErro:'');
+
+  if(_relatoTela){
+    try{
+      const jpg=await relatoBlob(_relatoTela,'image/jpeg',0.85);
+      const arq=new File([jpg],'problema.jpg',{type:'image/jpeg'});
+      if(navigator.canShare && navigator.canShare({files:[arq]})){
+        await navigator.share({files:[arq],text:msg});
+        fecharRelato(); return;
+      }
+    }catch(e){ if(e && e.name==='AbortError') return; }
+    // No computador o link do WhatsApp não carrega imagem: copio o print.
+    let copiou=false;
+    try{
+      const png=await relatoBlob(_relatoTela,'image/png');
+      await navigator.clipboard.write([new ClipboardItem({'image/png':png})]);
+      copiou=true;
+    }catch(e){}
+    alert(copiou
+      ? 'Vou abrir o WhatsApp com o texto pronto.\n\nA imagem já está copiada: dentro da conversa, aperte Ctrl+V para colar antes de enviar.'
+      : 'Vou abrir o WhatsApp com o texto pronto.\n\nNão consegui copiar a imagem sozinho — anexe o print pela própria conversa.');
+  }
+  window.open('https://wa.me/'+num+'?text='+encodeURIComponent(msg),'_blank');
+  fecharRelato();
+}
+
 // ---- TEMPO DE USO ----
 // Soma quanto cada pessoa passou dentro de cada modulo. As sessoes ainda
 // abertas entram com o tempo ate agora, senao o dia de hoje apareceria vazio
@@ -1464,6 +1650,7 @@ function voltarPortal(){
   // volta a constar como "no portal" na lista de sessoes
   const nome=sessionStorage.getItem('portal-user')||'';
   if(nome) registrarSessaoPortal(nome, sessionStorage.getItem('portal-admin-key')||nome);
+  carregarAvisaveis();   // quem pode receber relato
 }
 function abrirModulo(url,titulo){
   document.getElementById('portal').style.display='none';
