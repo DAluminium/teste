@@ -1562,7 +1562,7 @@ async function addLembrete(){
     document.getElementById('lem-data').value=hojeISO();
     if(querCopia){
       const url='https://api.whatsapp.com/send?phone='+meu+'&text='+encodeURIComponent(
-        '⏰ Lembrete — Daluminium\n\n'+texto+'\n\nPara: '+fmtData(data));
+        'LEMBRETE — Daluminium\n\n'+texto+'\n\nPara: '+fmtData(data));
       // A aba foi aberta no clique; se o navegador não deixou, o plano B
       // mostra um botão para clicar.
       if(aba) aba.location.href=url; else abrirWhats(url);
@@ -1633,10 +1633,17 @@ function numeroDoAdmin(){
 // Fecha so a que o proprio sistema abriu, e uma unica vez.
 var _abaWhats=null;
 function guardarAbaWhats(w){ if(w) _abaWhats=w; }
-window.addEventListener("focus",function(){
+function _voltouParaOSistema(){
   if(!_abaWhats) return;
   var w=_abaWhats; _abaWhats=null;
   try{ if(!w.closed) w.close(); }catch(e){}
+}
+// Dois avisos, porque um so nao cobre os dois jeitos de usar: dentro do
+// portal o modulo roda numa moldura, e ai o "foco" vai para a pagina de fora,
+// nunca para ele. Ja a mudanca de visibilidade chega tambem na moldura.
+window.addEventListener("focus",_voltouParaOSistema);
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="visible") _voltouParaOSistema();
 });
 
 function abrirWhats(url){
@@ -1738,7 +1745,7 @@ async function enviarRelato(){
   const num=numeroWhats(numeroDoAdmin());
   if(!num){ alert('Não encontrei o WhatsApp do administrador no cadastro.'); return; }
 
-  const rotulo={erro:'⚠️ Erro no sistema',alteracao:'✏️ Pedido de alteração',duvida:'❓ Dúvida'};
+  const rotulo={erro:'ERRO NO SISTEMA',alteracao:'PEDIDO DE ALTERACAO',duvida:'DUVIDA'};
   const tipo=document.getElementById('rel-tipo').value;
   const msg=(rotulo[tipo]||tipo)+' — Daluminium\n\n'+
     'Módulo: '+RELATO_MODULO+'\n'+

@@ -1069,9 +1069,9 @@ function saveEntry(){
         const responsaveis=JSON.parse(sel.dataset.responsaveis||'[]');
         const para=responsaveis[parseInt(idx)];
         if(para){
-          const tipoLabel=entry.tipo==='especial'?'✦ Especial':'Padrão';
+          const tipoLabel=entry.tipo==='especial'?'Especial':'Padrão';
           const entregaFmt=entry.entrega&&entry.entrega!=='—'?entry.entrega.split('-').reverse().join('/'):'Não definida';
-          const titulo=isEdit?'🏗️ Obra atualizada - Daluminium':'🏗️ Nova obra lançada - Daluminium';
+          const titulo=isEdit?'OBRA ATUALIZADA - Daluminium':'NOVA OBRA LANCADA - Daluminium';
           const msg=`${titulo}\n\nObra: ${entry.obra}\nContrato: ${entry.contrato||'—'}\nEntrega: ${entregaFmt}\nTipo: ${tipoLabel}\n${isEdit?'Atualizado':'Lançado'} por: ${byVal}\n\nAcesse: https://daluminium.github.io/portal/`;
           enviarWhatsApp(para, msg);
         }
@@ -1869,7 +1869,7 @@ function gerarImpressao(opts){
     const dt=new Date(r.entrega); dt.setHours(0,0,0,0);
     const diff=Math.round((dt-today)/(1000*60*60*24));
     const threshold=r.tipo==='especial'?60:30;
-    const tipoLabel=r.tipo==='especial'?'✦ Especial':'Padrão';
+    const tipoLabel=r.tipo==='especial'?'Especial':'Padrão';
     const label=`${r.obra} — ${r.fornecedor} [${tipoLabel}] (R$ ${Number(r.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})})`;
     const entregaStr=r.entrega?r.entrega.split('-').reverse().join('/'):'';
     if(diff<0) overdue.push({label,days:Math.abs(diff),entrega:entregaStr});
@@ -2237,7 +2237,7 @@ async function enviarRelato(){
   const num=numeroWhats(numeroDoAdmin());
   if(!num){ alert('Não encontrei o WhatsApp do administrador no cadastro.'); return; }
 
-  const rotulo={erro:'⚠️ Erro no sistema',alteracao:'✏️ Pedido de alteração',duvida:'❓ Dúvida'};
+  const rotulo={erro:'ERRO NO SISTEMA',alteracao:'PEDIDO DE ALTERACAO',duvida:'DUVIDA'};
   const tipo=document.getElementById('rel-tipo').value;
   const msg=(rotulo[tipo]||tipo)+' — Daluminium\n\n'+
     'Módulo: '+RELATO_MODULO+'\n'+
@@ -2288,10 +2288,17 @@ async function enviarRelato(){
 // Fecha so a que o proprio sistema abriu, e uma unica vez.
 var _abaWhats=null;
 function guardarAbaWhats(w){ if(w) _abaWhats=w; }
-window.addEventListener("focus",function(){
+function _voltouParaOSistema(){
   if(!_abaWhats) return;
   var w=_abaWhats; _abaWhats=null;
   try{ if(!w.closed) w.close(); }catch(e){}
+}
+// Dois avisos, porque um so nao cobre os dois jeitos de usar: dentro do
+// portal o modulo roda numa moldura, e ai o "foco" vai para a pagina de fora,
+// nunca para ele. Ja a mudanca de visibilidade chega tambem na moldura.
+window.addEventListener("focus",_voltouParaOSistema);
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="visible") _voltouParaOSistema();
 });
 
 function abrirWhats(url){
@@ -2764,7 +2771,7 @@ function checkNotifications(){
     const dt = new Date(r.entrega); dt.setHours(0,0,0,0);
     const diff = Math.round((dt-today)/(1000*60*60*24));
     const threshold = r.tipo==='especial' ? 60 : 30;
-    const tipoLabel = r.tipo==='especial' ? '✦ Especial' : 'Padrão';
+    const tipoLabel = r.tipo==='especial' ? 'Especial' : 'Padrão';
     const label = `${r.obra} — ${r.fornecedor} [${tipoLabel}] (R$ ${fmtBR(r.valor)})`;
     if(diff < 0) overdue.push({label, days: Math.abs(diff), tipo: r.tipo||'padrao'});
     else if(diff === 0) dueToday.push({label, tipo: r.tipo||'padrao'});
@@ -2830,7 +2837,7 @@ function showBanner(overdue, dueToday, leadCompromised, manutHoje, manutSemana, 
         <div style="font-size:11px;color:#8B0000;margin:4px 0 8px">O prazo de entrega do material já está comprometido. Compre imediatamente!</div>
         ${padrao.length?`<div style="font-size:11px;font-weight:700;color:#8B0000;margin-bottom:4px">📦 Padrão (Lead Time 30 dias)</div>
           ${padrao.map(o=>`<div class="notif-item">🔴 ${o.label} — entrega em <strong>${o.days} dia${o.days>1?'s':''}</strong> — compra atrasada ${o.threshold-o.days} dia${o.threshold-o.days>1?'s':''}</div>`).join('')}`:''}
-        ${especial.length?`<div style="font-size:11px;font-weight:700;color:#8B0000;margin-top:6px;margin-bottom:4px">✦ Especial (Lead Time 60 dias)</div>
+        ${especial.length?`<div style="font-size:11px;font-weight:700;color:#8B0000;margin-top:6px;margin-bottom:4px">Especial (Lead Time 60 dias)</div>
           ${especial.map(o=>`<div class="notif-item">🔴 ${o.label} — entrega em <strong>${o.days} dia${o.days>1?'s':''}</strong> — compra atrasada ${o.threshold-o.days} dia${o.threshold-o.days>1?'s':''}</div>`).join('')}`:''}
       </div>
       <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>

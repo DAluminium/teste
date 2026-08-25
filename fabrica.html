@@ -797,10 +797,17 @@ function popularNotificarFab(){
 // Fecha so a que o proprio sistema abriu, e uma unica vez.
 var _abaWhats=null;
 function guardarAbaWhats(w){ if(w) _abaWhats=w; }
-window.addEventListener("focus",function(){
+function _voltouParaOSistema(){
   if(!_abaWhats) return;
   var w=_abaWhats; _abaWhats=null;
   try{ if(!w.closed) w.close(); }catch(e){}
+}
+// Dois avisos, porque um so nao cobre os dois jeitos de usar: dentro do
+// portal o modulo roda numa moldura, e ai o "foco" vai para a pagina de fora,
+// nunca para ele. Ja a mudanca de visibilidade chega tambem na moldura.
+window.addEventListener("focus",_voltouParaOSistema);
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="visible") _voltouParaOSistema();
 });
 
 function abrirWhats(url){
@@ -860,7 +867,7 @@ function avisarResponsavelFab(o, aba){
   const et=ETAPAS.find(function(e){ return e.id===o.etapa; });
   const esp=(o.espera||{})[o.etapa]||{};
   const dt=function(d){ return d?String(d).split('-').reverse().join('/'):'—'; };
-  const msg='🏭 Obra na sua etapa — Daluminium\n\n'+
+  const msg='OBRA NA SUA ETAPA — Daluminium\n\n'+
     'Cliente: '+(o.cliente||'—')+'\n'+
     'Contrato: '+(o.obra||'—')+'\n'+
     'Etapa: '+((et&&et.nome)||o.etapa||'—')+'\n'+
@@ -966,7 +973,7 @@ async function enviarRelato(){
   const num=numeroWhats(numeroDoAdmin());
   if(!num){ aviso('Sem destino','Não encontrei o WhatsApp do administrador no cadastro.'); return; }
 
-  const rotulo={erro:'⚠️ Erro no sistema',alteracao:'✏️ Pedido de alteração',duvida:'❓ Dúvida'};
+  const rotulo={erro:'ERRO NO SISTEMA',alteracao:'PEDIDO DE ALTERACAO',duvida:'DUVIDA'};
   const tipo=document.getElementById('rel-tipo').value;
   const msg=(rotulo[tipo]||tipo)+' — Daluminium\n\n'+
     'Módulo: '+RELATO_MODULO+'\n'+
