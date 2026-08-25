@@ -2302,39 +2302,60 @@ document.addEventListener("visibilitychange",function(){
 });
 
 var _urlWhats="";
+// Abre a conversa no WhatsApp.
+//
+// Chama o APLICATIVO direto (whatsapp://), sem abrir pagina nenhuma. E o que
+// evita deixar uma aba do navegador para tras — antes sobrava uma aberta na
+// pagina do WhatsApp depois de cada mensagem, e ela so sumia quando a pessoa
+// voltava para o sistema.
+//
+// Se o aplicativo nao atender em pouco mais de um segundo (nao esta instalado,
+// ou a pessoa recusou), ai sim aparece um botao para abrir pelo navegador.
 function abrirWhats(url){
-  var w=null;
-  try{ w=window.open(url,"_blank"); }catch(e){}
-  // Guarda a aba para fechá-la quando a pessoa voltar para o sistema.
-  if(w){ guardarAbaWhats(w); return; }
+  _urlWhats=url;
+  var doApp=String(url).replace("https://api.whatsapp.com/send?","whatsapp://send?");
+  var atendeu=false;
+  var aoSumir=function(){ if(document.visibilityState==="hidden") atendeu=true; };
+  document.addEventListener("visibilitychange",aoSumir);
+  window.addEventListener("blur",aoSumir);
+  setTimeout(function(){
+    document.removeEventListener("visibilitychange",aoSumir);
+    window.removeEventListener("blur",aoSumir);
+    if(atendeu) return;          // o aplicativo abriu: nada mais a fazer
+    mostrarBotaoWhats();
+  },1400);
+  try{ location.href=doApp; }catch(e){ mostrarBotaoWhats(); }
+}
+
+// Plano B: o aplicativo nao atendeu. Um botao para abrir a conversa pelo
+// navegador. Quem abre e o SISTEMA, no clique da pessoa — assim a aba fica
+// na nossa mao e fecha quando ela voltar.
+function mostrarBotaoWhats(){
   var cx=document.getElementById("whats-fallback");
   if(!cx){ cx=document.createElement("div"); cx.id="whats-fallback";
     cx.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;"+
       "display:flex;align-items:center;justify-content:center;padding:16px";
     document.body.appendChild(cx); }
-  // Quem abre continua sendo o SISTEMA, no clique da pessoa. Se fosse um link
-  // comum, quem abriria seria o NAVEGADOR — e não há como fechar depois uma
-  // janela que não fomos nós que abrimos. Era o que estava acontecendo.
-  _urlWhats=url;
-  cx.innerHTML="<div style=\"background:#fff;border-radius:12px;padding:20px 22px;max-width:380px;text-align:center\">"+
-    "<div style=\"font-size:14px;font-weight:700;margin-bottom:8px\">Falta um clique</div>"+
-    "<div style=\"font-size:12.5px;color:#555;line-height:1.5;margin-bottom:14px\">O navegador nao deixou o sistema abrir o WhatsApp sozinho. Clique no botao abaixo — a mensagem ja esta pronta.</div>"+
+  cx.innerHTML=
+    '<div style="background:#fff;border-radius:12px;padding:20px 22px;max-width:380px;text-align:center">'+
+    '<div style="font-size:14px;font-weight:700;margin-bottom:8px">Abrir o WhatsApp</div>'+
+    '<div style="font-size:12.5px;color:#555;line-height:1.5;margin-bottom:14px">A mensagem ja esta pronta. Clique para abrir a conversa.</div>'+
     '<button type="button" onclick="abrirWhatsAgora()" style="background:#25D366;color:#fff;border:none;'+
-    'padding:10px 18px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Abrir o WhatsApp</button>'+
+    'padding:10px 18px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Abrir a conversa</button>'+
     '<div style="margin-top:12px"><button type="button" style="background:none;border:none;color:#777;font-size:12px;cursor:pointer;font-family:inherit" '+
     'onclick="var e=document.getElementById(&quot;whats-fallback&quot;); if(e) e.remove();">Agora nao</button></div>'+
-    "</div>";
+    '</div>';
   cx.style.display="flex";
 }
 
-// Abre pelo sistema, no clique da pessoa. Clique direto nunca é bloqueado, e
-// assim ficamos com a janela na mão para fechar quando ela voltar.
+// Abre pelo navegador, no clique da pessoa, e guarda a aba para fecha-la
+// quando ela voltar.
 function abrirWhatsAgora(){
   var cx=document.getElementById("whats-fallback"); if(cx) cx.remove();
   var w=null;
   try{ w=window.open(_urlWhats,"_blank"); }catch(e){}
   if(w) guardarAbaWhats(w);
-  else location.href=_urlWhats;   // último recurso: abre nesta mesma aba
+  else location.href=_urlWhats;
 }
 
 function numeroWhats(n){
