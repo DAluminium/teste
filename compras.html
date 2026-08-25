@@ -2257,9 +2257,12 @@ async function enviarRelato(){
   }
   // No computador o link do WhatsApp não carrega imagem. Copio o print para a
   // pessoa colar dentro da conversa.
+  // Espera a cópia terminar ANTES de chamar o WhatsApp. Chamar o aplicativo
+  // não exige que o clique esteja "fresco", então dá para esperar — e sem
+  // esperar a cópia falhava às vezes, porque a página perdia o foco no meio.
   let copiou=false;
   if(_relatoPng){
-    try{ navigator.clipboard.write([new ClipboardItem({'image/png':_relatoPng})]); copiou=true; }catch(e){}
+    try{ await navigator.clipboard.write([new ClipboardItem({'image/png':_relatoPng})]); copiou=true; }catch(e){}
   }
   abrirWhats('https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg));
   fecharRelato();

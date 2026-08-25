@@ -1011,9 +1011,12 @@ async function enviarRelato(){
     navigator.share({files:[_relatoArquivo],text:msg}).then(fecharRelato).catch(function(){});
     return;
   }
+  // Espera a copia terminar ANTES de chamar o WhatsApp. Chamar o aplicativo
+  // nao exige que o clique esteja "fresco", entao da para esperar — e sem
+  // esperar, a copia falhava as vezes: a pagina perdia o foco no meio.
   let copiou=false;
   if(_relatoPng){
-    try{ navigator.clipboard.write([new ClipboardItem({'image/png':_relatoPng})]); copiou=true; }catch(e){}
+    try{ await navigator.clipboard.write([new ClipboardItem({'image/png':_relatoPng})]); copiou=true; }catch(e){}
   }
   abrirWhats('https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg));
   fecharRelato();
