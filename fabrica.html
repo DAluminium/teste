@@ -330,8 +330,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
              número cadastrado no portal. -->
         <div class="fg span2" id="notif-group" style="display:none;background:#FFF8E1;border-radius:var(--radius);padding:10px 12px">
           <label style="color:#B9770E">📲 Notificar responsável via WhatsApp</label>
-          <select id="f-notificar" style="margin-top:6px;background:white"></select>
-          <div style="font-size:11.5px;color:#B9770E;margin-top:4px">Ao salvar, abre o WhatsApp com a mensagem pronta — você confere e aperta enviar</div>
+          <div id="f-notificar" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px"></div>
+          <div style="font-size:11.5px;color:#B9770E;margin-top:4px">Marque quem deve ser avisado. Ao salvar, abre o WhatsApp com a mensagem pronta — você confere e aperta enviar. O WhatsApp abre uma conversa por vez, então com mais de um o sistema mostra quem ainda falta.</div>
         </div>
       </div>
 
@@ -777,16 +777,31 @@ async function carregarAvisaveis(){
   try{ mostrarBotaoRelato(); }catch(e){}
 }
 
+// Caixas para marcar, e não uma lista de escolher um só: quase sempre a obra
+// interessa a mais de uma pessoa, e antes era preciso salvar várias vezes.
 function popularNotificarFab(){
-  const sel=document.getElementById('f-notificar');
+  const cx=document.getElementById('f-notificar');
   const grupo=document.getElementById('notif-group');
-  if(!sel||!grupo) return;
+  if(!cx||!grupo) return;
   // Não faz sentido avisar a si mesmo.
   const lista=_avisaveis.filter(function(r){ return r.name!==usuario; });
-  sel.innerHTML='<option value="">— Sem notificação —</option>'+
-    lista.map(function(r,i){ return '<option value="'+i+'">'+esc(r.name)+'</option>'; }).join('');
-  sel.dataset.lista=JSON.stringify(lista);
+  cx.innerHTML=lista.map(function(r,i){
+    return '<label style="display:inline-flex;align-items:center;gap:5px;background:white;'+
+      'border:1px solid var(--gray-3);border-radius:20px;padding:4px 11px;font-size:12.5px;cursor:pointer">'+
+      '<input type="checkbox" value="'+i+'" style="width:auto;margin:0;flex:none">'+esc(r.name)+'</label>';
+  }).join('');
+  cx.dataset.lista=JSON.stringify(lista);
   grupo.style.display=lista.length?'block':'none';
+}
+
+// Quem está marcado agora.
+function marcadosNaFicha(){
+  const cx=document.getElementById('f-notificar');
+  if(!cx) return [];
+  let lista=[];
+  try{ lista=JSON.parse(cx.dataset.lista||'[]'); }catch(e){}
+  return [].slice.call(cx.querySelectorAll('input:checked'))
+    .map(function(i){ return lista[parseInt(i.value)]; }).filter(Boolean);
 }
 
 // Abre o WhatsApp. Se o navegador bloquear a aba — acontece quando o clique
@@ -821,6 +836,59 @@ var _urlWhats="";
 //
 // Se o aplicativo nao atender em pouco mais de um segundo (nao esta instalado,
 // ou a pessoa recusou), ai sim aparece um botao para abrir pelo navegador.
+// ---- AVISAR VARIAS PESSOAS ----
+// O WhatsApp abre UMA conversa por vez: nao existe jeito de mandar para
+// varias de uma so vez por link. Entao o sistema abre a primeira e mostra
+// quem ainda falta, com um botao para cada — um clique por pessoa, que e o
+// minimo que da para fazer.
+var _filaWhats=[], _msgWhats="";
+
+function avisarVarios(pessoas,msg){
+  _filaWhats=(pessoas||[]).filter(function(p){ return p && numeroWhats(p.whatsapp); });
+  _msgWhats=msg;
+  if(!_filaWhats.length) return;
+  proximoDaFila();
+}
+
+function proximoDaFila(){
+  var p=_filaWhats.shift();
+  if(!p){ fecharFilaWhats(); return; }
+  abrirWhats("https://api.whatsapp.com/send?phone="+numeroWhats(p.whatsapp)+
+             "&text="+encodeURIComponent(_msgWhats));
+  mostrarFilaWhats(p);
+}
+
+function fecharFilaWhats(){
+  var e=document.getElementById("fila-whats"); if(e) e.remove();
+  _filaWhats=[]; _msgWhats="";
+}
+
+// Painel discreto no canto, com quem ainda falta avisar.
+function mostrarFilaWhats(atual){
+  var e=document.getElementById("fila-whats");
+  if(!_filaWhats.length){ if(e) e.remove(); return; }
+  if(!e){ e=document.createElement("div"); e.id="fila-whats";
+    e.style.cssText="position:fixed;right:16px;bottom:16px;z-index:9998;background:#fff;"+
+      "border:1px solid #d5d9dc;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.18);"+
+      "padding:14px 16px;max-width:300px;font-size:12.5px";
+    document.body.appendChild(e); }
+  e.innerHTML=
+    '<div style="font-weight:700;margin-bottom:4px">Falta avisar'+
+      (_filaWhats.length>1?" ("+_filaWhats.length+")":"")+'</div>'+
+    '<div style="color:#666;margin-bottom:10px;line-height:1.45">'+
+      (atual?("Abri a conversa com <strong>"+atual.name+"</strong>. Envie e volte aqui."):"")+'</div>'+
+    _filaWhats.map(function(p,i){
+      return '<button type="button" onclick="proximoDaFila()" style="display:block;width:100%;'+
+        'background:#25D366;color:#fff;border:none;border-radius:8px;padding:8px 12px;'+
+        'font-weight:600;font-size:12.5px;cursor:pointer;font-family:inherit;margin-bottom:6px">'+
+        (i===0?("Avisar "+p.name):p.name)+'</button>';
+    }).slice(0,1).join('')+
+    (_filaWhats.length>1?'<div style="color:#888;font-size:11.5px;margin-bottom:8px">Depois: '+
+      _filaWhats.slice(1).map(function(p){ return p.name; }).join(", ")+'</div>':'')+
+    '<button type="button" onclick="fecharFilaWhats()" style="background:none;border:none;color:#777;'+
+    'font-size:11.5px;cursor:pointer;font-family:inherit;padding:0">Parar de avisar</button>';
+}
+
 function abrirWhats(url){
   _urlWhats=url;
   var doApp=String(url).replace("https://api.whatsapp.com/send?","whatsapp://send?");
@@ -880,12 +948,8 @@ function numeroWhats(n){
 
 // Chamada depois de salvar a ficha, com a obra já gravada.
 function avisarResponsavelFab(o){
-  const sel=document.getElementById('f-notificar');
-  if(!sel||sel.value==='') return;
-  let para=null;
-  try{ para=JSON.parse(sel.dataset.lista||'[]')[parseInt(sel.value)]; }catch(e){}
-  const num=numeroWhats(para&&para.whatsapp);
-  if(!num) return;
+  const paraQuem=marcadosNaFicha();
+  if(!paraQuem.length) return;
   const et=ETAPAS.find(function(e){ return e.id===o.etapa; });
   const esp=(o.espera||{})[o.etapa]||{};
   const dt=function(d){ return d?String(d).split('-').reverse().join('/'):'—'; };
@@ -897,11 +961,10 @@ function avisarResponsavelFab(o){
     (esp.previsao?'Previsão nesta etapa: '+dt(esp.previsao)+'\n':'')+
     (esp.motivo?'Justificativa: '+esp.motivo+'\n':'')+
     '\nEnviado por: '+(usuario||'—');
-  const url='https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg);
-  // A aba já foi aberta no clique; aqui só recebe o endereço. Se por algum
-  // motivo não veio, tenta abrir — pode ser bloqueada, e aí não há o que fazer.
-  abrirWhats(url);
-  sel.value='';
+  avisarVarios(paraQuem, msg);
+  // Desmarca, para o mesmo aviso não sair de novo no próximo salvamento.
+  const cx=document.getElementById('f-notificar');
+  if(cx) cx.querySelectorAll('input:checked').forEach(function(i){ i.checked=false; });
 }
 
 // ================= RELATAR PROBLEMA PARA O ADMIN =================
