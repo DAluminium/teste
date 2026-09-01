@@ -161,42 +161,6 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
 </style>
 </head>
 <body>
-<!-- ================================================================
-     AVISO DE AMBIENTE DE TESTE
-     Este bloco existe SOMENTE nos arquivos de teste. Ao levar um
-     arquivo daqui para producao, ELE PRECISA SAIR — junto com a troca
-     do identificador do sistema.
-     Motivo: em 11/08/2026 contas reais foram lancadas aqui achando que
-     era producao, porque as duas telas eram identicas.
-     ================================================================ -->
-<div id="faixa-teste">Ambiente de teste &middot; o que voce lancar aqui nao vale</div>
-<style>
-  #faixa-teste{position:fixed;top:0;left:0;right:0;height:30px;z-index:100000;
-    background:repeating-linear-gradient(45deg,#B9770E 0 14px,#8a5a0a 14px 28px);
-    color:#fff;font:700 12px/30px system-ui,-apple-system,"Segoe UI",sans-serif;
-    letter-spacing:.08em;text-align:center;text-transform:uppercase;
-    box-shadow:0 1px 6px rgba(0,0,0,.3);pointer-events:none}
-  body{padding-top:30px}
-  /* A barra de cima desce para nao ficar embaixo da faixa, e muda de cor:
-     a faixa a pessoa aprende a ignorar, a cor diferente ela percebe sem ler. */
-  .topbar{top:30px !important;background:#B9770E !important}
-  .login-screen,.bloqueio{padding-top:30px}
-  /* A area do modulo comeca abaixo da faixa. Sem isto a barra com o botao de
-     voltar ao portal nasce no topo absoluto e fica escondida atras do aviso. */
-  .frame-container{top:30px !important}
-  /* Na impressao o navegador nao imprime fundo colorido por padrao — a faixa
-     sairia como texto branco em papel branco. Por isso ela vira texto preto
-     com moldura. Um relatorio tirado do teste TEM de sair marcado: foi um
-     relatorio impresso sem marca que escondeu o problema de 11/08/2026. */
-  @media print{
-    #faixa-teste{position:static;background:none;color:#000;border:2px solid #000;
-      box-shadow:none;line-height:1.6;margin-bottom:8px}
-    body{padding-top:0}
-    .topbar{top:0 !important}
-    .frame-container{top:0 !important}
-  }
-</style>
-
 
 <!-- LOGIN -->
 <div class="login-screen active" id="login-screen">
@@ -732,7 +696,7 @@ function bloqueioAcesso(){
 async function loadPortalData(){
   try{
     // Busca usuários do sistema compras (base principal de usuários)
-    const r=await fetch(WORKER_URL+'?t='+Date.now(),{cache:'no-store',headers:cabecalhos('compras_teste')});
+    const r=await fetch(WORKER_URL+'?t='+Date.now(),{cache:'no-store',headers:cabecalhos('compras')});
     if(r.status===503){ let m=''; try{ m=(await r.json()).mensagem||''; }catch(e){} telaManutencao(m); return; }
     if(r.status===403){ bloqueioAcesso(); return; }
     if(!r.ok) return;
@@ -747,7 +711,7 @@ async function loadPortalData(){
 
 async function savePortalData(){
   // Save usuarios to both sistemas
-  for(const sis of ['compras_teste','financeiro_teste']){
+  for(const sis of ['compras','financeiro']){
     try{
       const r=await fetch(WORKER_URL,{headers:cabecalhos(sis)});
       if(!r.ok) continue;
@@ -772,6 +736,32 @@ function toggleSenha(btn){
   btn.innerHTML=ver?`<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`:`<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
   btn.title=ver?'Ocultar senha':'Mostrar senha';
   inp.focus();
+}
+
+async function verificarEEncerrarSesoesAntigas(usuario){
+  try{
+    const r=await fetch(WORKER_SESS,{headers:cabecalhos('sessions')});
+    if(!r.ok) return true;
+    const d=await r.json();
+    const _u=(usuario||'').toLowerCase().trim();
+    const sesoesAnteriores=(d.ativas||[]).filter(s=>(s.username||'').toLowerCase().trim()===_u);
+    if(sesoesAnteriores.length===0) return true;
+    const confirmou=confirm('Você já está conectado em outro lugar.\n\nDeseja continuar? Isso vai desconectar a outra sessão.');
+    if(!confirmou) return false;
+    let mexeu=false;
+    sesoesAnteriores.forEach(s=>{
+      if(encerrarNaLista(d,s.sessionId,'deslogado-novo-login')) mexeu=true;
+    });
+    if(mexeu){
+      await fetch(WORKER_SESS,{method:'PATCH',
+        headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
+        body:JSON.stringify({data:d})});
+    }
+    return true;
+  }catch(e){
+    console.error('Erro ao verificar sessões antigas:',e);
+    return true;
+  }
 }
 
 async function doLogin(){
@@ -804,6 +794,14 @@ async function doLogin(){
       err.textContent='Não consegui falar com o servidor ('+(e.message||'erro')+'). Tente de novo.';
     }
     err.style.display='block';
+    document.getElementById('login-pass').value='';
+    document.getElementById('login-pass').focus();
+    return;
+  }
+
+  const podeEntrar=await verificarEEncerrarSesoesAntigas(cracha.username||cracha.nome);
+  if(!podeEntrar){
+    btn.textContent='Entrar'; btn.disabled=false;
     document.getElementById('login-pass').value='';
     document.getElementById('login-pass').focus();
     return;
@@ -878,7 +876,7 @@ function showPortal(nome, modulos, isAdmin){
   renderModulos(modulos);
   // 1 módulo e não admin — entra direto
   if(modulos.length===1&&!isAdmin){
-    const URLS={compras:'https://daluminium.github.io/teste/compras.html',financeiro:'https://daluminium.github.io/teste/financeiro.html',fabrica:'https://daluminium.github.io/teste/fabrica.html'};
+    const URLS={compras:'https://daluminium.github.io/gestaodecompras/',financeiro:'https://daluminium.github.io/financeiro/',fabrica:'https://daluminium.github.io/fabrica/'};
     const TITULOS={compras:'Gestão de Compras',financeiro:'Financeiro',fabrica:'Fábrica'};
     const m=modulos[0];
     if(URLS[m]){ document.getElementById('portal').style.display='none'; abrirModulo(URLS[m],TITULOS[m]); }
@@ -888,9 +886,9 @@ function showPortal(nome, modulos, isAdmin){
 function renderModulos(modulos){
   const container=document.getElementById('modulos-container');
   const MODULOS={
-    compras:{icon:'🛒',title:'Gestão de Compras',desc:'Orçamentos, fornecedores, manutenção e controle de entregas das obras',url:'https://daluminium.github.io/teste/compras.html',cls:'compras',badge:'badge-compras',badgeText:'Compras'},
-    financeiro:{icon:'💰',title:'Financeiro',desc:'Contas a pagar, contas a receber, fluxo de caixa e relatórios',url:'https://daluminium.github.io/teste/financeiro.html',cls:'financeiro',badge:'badge-financeiro',badgeText:'Financeiro'},
-    fabrica:{icon:'🏭',title:'Fábrica',desc:'Acompanhamento das obras da conferência técnica até a entrega ao cliente',url:'https://daluminium.github.io/teste/fabrica.html',cls:'fabrica',badge:'badge-fabrica',badgeText:'Fábrica'}
+    compras:{icon:'🛒',title:'Gestão de Compras',desc:'Orçamentos, fornecedores, manutenção e controle de entregas das obras',url:'https://daluminium.github.io/gestaodecompras/',cls:'compras',badge:'badge-compras',badgeText:'Compras'},
+    financeiro:{icon:'💰',title:'Financeiro',desc:'Contas a pagar, contas a receber, fluxo de caixa e relatórios',url:'https://daluminium.github.io/financeiro/',cls:'financeiro',badge:'badge-financeiro',badgeText:'Financeiro'},
+    fabrica:{icon:'🏭',title:'Fábrica',desc:'Acompanhamento das obras da conferência técnica até a entrega ao cliente',url:'https://daluminium.github.io/fabrica/',cls:'fabrica',badge:'badge-fabrica',badgeText:'Fábrica'}
   };
   container.innerHTML=modulos.map(m=>{
     const mod=MODULOS[m];
@@ -1419,7 +1417,7 @@ function limparParadas(d){
 //
 // Ficam num registro separado no banco, longe dos dados de compras e do
 // financeiro. Seguem a pessoa entre o computador e o celular.
-const SISTEMA_LEMBRETES='lembretes_teste';
+const SISTEMA_LEMBRETES='lembretes';
 let _lembretes=[];
 
 // O texto do lembrete é escrito pela pessoa e entra no HTML da lista. Sem
