@@ -744,18 +744,12 @@ async function verificarEEncerrarSesoesAntigas(usuario){
     if(!r.ok) return true;
     const d=await r.json();
     const _u=(usuario||'').toLowerCase().trim();
-    const sesoesAnteriores=(d.ativas||[]).filter(s=>(s.username||'').toLowerCase().trim()===_u);
+    const sesoesAnteriores=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&(s.username||'').toLowerCase().trim()===_u);
     if(sesoesAnteriores.length===0) return true;
     const confirmou=confirm('Você já está conectado em outro lugar.\n\nDeseja continuar? Isso vai desconectar a outra sessão.');
-    if(!confirmou) return false;
-    let mexeu=false;
-    sesoesAnteriores.forEach(s=>{
-      if(encerrarNaLista(d,s.sessionId,'deslogado-novo-login')) mexeu=true;
-    });
-    if(mexeu){
-      await fetch(WORKER_SESS,{method:'PATCH',
-        headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
-        body:JSON.stringify({data:d})});
+    if(!confirmou){
+      await removerSessaoPortal();
+      return false;
     }
     return true;
   }catch(e){
@@ -799,14 +793,6 @@ async function doLogin(){
     return;
   }
 
-  const podeEntrar=await verificarEEncerrarSesoesAntigas(cracha.username||cracha.nome);
-  if(!podeEntrar){
-    btn.textContent='Entrar'; btn.disabled=false;
-    document.getElementById('login-pass').value='';
-    document.getElementById('login-pass').focus();
-    return;
-  }
-
   resetTent();
   const isAdmin=(cracha.role==='admin');
   const modulos=cracha.modulos&&cracha.modulos.length?cracha.modulos:['compras'];
@@ -816,6 +802,13 @@ async function doLogin(){
   sessionStorage.setItem('portal-modulos',JSON.stringify(modulos));
   sessionStorage.setItem('portal-admin-key',cracha.username||'');
   btn.textContent='Entrar'; btn.disabled=false;
+  const podeEntrar=await verificarEEncerrarSesoesAntigas(cracha.username||cracha.nome);
+  if(!podeEntrar){
+    btn.textContent='Entrar'; btn.disabled=false;
+    document.getElementById('login-pass').value='';
+    document.getElementById('login-pass').focus();
+    return;
+  }
   showPortal(cracha.nome, modulos, isAdmin);
 
   // Esta leitura tem de acontecer TAMBÉM ao entrar, não só ao recarregar a
