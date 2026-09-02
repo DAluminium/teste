@@ -593,6 +593,11 @@ const WORKER='https://daluminium-api.daluminium2.workers.dev';
 // Identificador do sistema no banco: SEM acento e SEM cedilha, porque vai
 // num cabeçalho HTTP (X-Sistema) e cabeçalho não aceita caractere acentuado.
 const SUPA_SISTEMA='fabrica_teste';
+// ATENCAO: muda de teste para producao, igual ao SUPA_SISTEMA acima.
+// Producao: https://daluminium.github.io/portal/
+// Este modulo nao tem mais porta propria — quem chega sem cracha vai para o
+// portal, que e o unico lugar onde a regra de um acesso por pessoa e aplicada.
+const PORTAL_URL='https://daluminium.github.io/teste/';
 // A lista de usuários do sistema inteiro vive no registro do Compras de
 // PRODUÇÃO — é ela que a tela "Gerenciar usuários" do portal edita, e é dela
 // que o login sempre leu, em qualquer ambiente.
@@ -1164,12 +1169,18 @@ async function checkForceLogoutFab(){
     const d=await r.json();
     const forcados=(d.forceLogout||[]);
     if(forcados.indexOf(_sessionIdFab)>=0){
+      // O motivo vem junto do portal. Sem ele a pessoa lia "encerrada pelo
+      // administrador" mesmo quando o administrador nao tinha feito nada.
+      const motivo=(d.forceLogoutMotivo||{})[_sessionIdFab]==='outro-login'?'outro-login':'deslogado';
       d.forceLogout=forcados.filter(function(x){ return x!==_sessionIdFab; });
-      encerrarNaListaFab(d,_sessionIdFab,'deslogado');
+      if(d.forceLogoutMotivo) delete d.forceLogoutMotivo[_sessionIdFab];
+      encerrarNaListaFab(d,_sessionIdFab,motivo);
       await fetch(WORKER,{method:'PATCH',
         headers:cabecalhosSessoesFab({'Content-Type':'application/json'}),
         body:JSON.stringify({data:d})});
-      alert('Sua sessão foi encerrada pelo administrador.');
+      alert(motivo==='outro-login'
+        ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
+        :'Sua sessão foi encerrada pelo administrador.');
       localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso');
       location.reload();
       return;
@@ -3639,7 +3650,9 @@ function abrirApp(nome,papelDoUsuario){
   // A Fábrica nunca registrava sessão: não aparecia em "Sessões ativas" nem no
   // tempo de uso, e o Deslogar do portal não a alcançava.
   registrarSessaoFab(nome, nome);
-  if(!_checkFab) _checkFab=setInterval(checkForceLogoutFab,30000);
+  // 5s, igual ao portal: com 30s a pessoa continuava trabalhando por meio minuto
+  // depois de ja ter sido derrubada em outro navegador.
+  if(!_checkFab) _checkFab=setInterval(checkForceLogoutFab,5000);
   carregarAvisaveis();
   document.getElementById('bloqueio').style.display='none';
   document.getElementById('app').style.display='block';
@@ -3689,8 +3702,13 @@ function abrirApp(nome,papelDoUsuario){
   //    portal não ter de digitar a senha duas vezes.
   const sso=lerSSO();
   if(sso){ abrirApp(sso.nome, sso.role); return; }
-  // 3) Sem nenhum dos dois: pede login aqui mesmo.
-  mostrarLogin();
+  // 3) Sem nenhum dos dois: vai para o portal. Antes aparecia a tela de login
+  //    daqui, e entrar por ela furava a regra de um acesso por pessoa — quem
+  //    sabia o endereco do modulo entrava sem aviso e sem derrubar a outra
+  //    sessao. Usa o window.top porque dentro do portal isto roda num iframe:
+  //    trocar so o endereco do iframe abriria portal dentro de portal.
+  try{ (window.top||window).location.replace(PORTAL_URL); }
+  catch(e){ window.location.replace(PORTAL_URL); }
 })();
 </script>
 </body>

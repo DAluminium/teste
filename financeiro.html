@@ -967,6 +967,11 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
 const SUPA_URL='';
 const SUPA_KEY='';
 const SUPA_SISTEMA='financeiro_teste';
+// ATENCAO: muda de teste para producao, igual ao SUPA_SISTEMA acima.
+// Producao: https://daluminium.github.io/portal/
+// Este modulo nao tem mais porta propria — quem chega sem cracha vai para o
+// portal, que e o unico lugar onde a regra de um acesso por pessoa e aplicada.
+const PORTAL_URL='https://daluminium.github.io/teste/';
 let JSONBIN_BIN_ID = SUPA_SISTEMA;
 
 // ---- CRACHÁ (login pelo Worker) ----
@@ -1133,14 +1138,20 @@ async function checkForceLogout(){
     const forced=(d.forceLogout||[]);
     if(forced.includes(_sessionId)){
       // Fecha a sessao guardando o tempo, e faz logout
+      // O motivo vem junto do portal. Sem ele a pessoa lia "encerrada pelo
+      // administrador" mesmo quando o administrador nao tinha feito nada.
+      const motivo=(d.forceLogoutMotivo||{})[_sessionId]==='outro-login'?'outro-login':'deslogado';
       d.forceLogout=forced.filter(s=>s!==_sessionId);
-      encerrarNaLista(d,_sessionId,'deslogado');
+      if(d.forceLogoutMotivo) delete d.forceLogoutMotivo[_sessionId];
+      encerrarNaLista(d,_sessionId,motivo);
       await fetch('https://daluminium-api.daluminium2.workers.dev',{
         method:'PATCH',
         headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
         body:JSON.stringify({data:d})
       });
-      alert('Sua sessão foi encerrada pelo administrador.');
+      alert(motivo==='outro-login'
+        ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
+        :'Sua sessão foi encerrada pelo administrador.');
       doLogout();
       return;
     }
@@ -1180,7 +1191,9 @@ async function renovarPresenca(d){
 let _forceLogoutInterval=null;
 function startSessionCheck(){
   if(_forceLogoutInterval) return;
-  _forceLogoutInterval=setInterval(checkForceLogout, 30000);
+  // 5s, igual ao portal: com 30s a pessoa continuava lancando por meio minuto
+  // depois de ja ter sido derrubada em outro navegador.
+  _forceLogoutInterval=setInterval(checkForceLogout, 5000);
 }
 
 // ---- SEGURANÇA ----
@@ -4650,7 +4663,13 @@ if(checkCracha()){
   updateSaldosBtn();
   init();
 } else {
-  setTimeout(()=>document.getElementById('login-user').focus(),300);
+  // Porta unica. Antes aparecia a tela de login daqui, e entrar por ela furava a
+  // regra de um acesso por pessoa: quem sabia o endereco do modulo entrava sem
+  // aviso e sem derrubar a outra sessao. Agora manda para o portal.
+  // Usa o window.top porque dentro do portal este arquivo roda num iframe —
+  // trocar so o endereco do iframe abriria portal dentro de portal.
+  try{ (window.top||window).location.replace(PORTAL_URL); }
+  catch(e){ window.location.replace(PORTAL_URL); }
 }
 </script>
 <!-- ESCANEAR PELO CELULAR.
