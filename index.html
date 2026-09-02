@@ -752,6 +752,10 @@ async function verificarEEncerrarSesoesAntigas(usuario){
       return false;
     }
     d.forceLogout=[...(d.forceLogout||[]),...sesoesAnteriores.map(s=>s.sessionId)];
+    // Guarda POR QUE cada sessao caiu. Sem isso a pessoa que e derrubada le
+    // "encerrada pelo administrador", que nao e verdade e assusta a toa.
+    d.forceLogoutMotivo=Object.assign({},d.forceLogoutMotivo||{});
+    sesoesAnteriores.forEach(s=>{ d.forceLogoutMotivo[s.sessionId]='outro-login'; });
     await fetch(WORKER_SESS,{method:'PATCH',
       headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
       body:JSON.stringify({data:d})});
@@ -1338,12 +1342,16 @@ async function checkForceLogoutPortal(){
     const d=await r.json();
     const forced=(d.forceLogout||[]);
     if(forced.includes(_sessionId)){
+      const motivo=(d.forceLogoutMotivo||{})[_sessionId]==='outro-login'?'outro-login':'deslogado';
       d.forceLogout=forced.filter(x=>x!==_sessionId);
-      encerrarNaLista(d,_sessionId,'deslogado');
+      if(d.forceLogoutMotivo) delete d.forceLogoutMotivo[_sessionId];
+      encerrarNaLista(d,_sessionId,motivo);
       await fetch(WORKER_SESS,{method:'PATCH',
         headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
         body:JSON.stringify({data:d})});
-      alert('Sua sessão foi encerrada pelo administrador.');
+      alert(motivo==='outro-login'
+        ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
+        :'Sua sessão foi encerrada pelo administrador.');
       forcarSaida();
       return;
     }
@@ -1865,7 +1873,7 @@ async function loadTempoUso(){
         `<div style="font-size:11px;color:var(--gray-4);padding:2px 0">
            ${dia(x.inicio)} · ${hora(x.inicio)} → ${x.aberta?'agora':hora(x.fim)} ·
            ${rot[x.sistema]||x.sistema} · <strong>${duracaoTexto(x.minutos)}</strong>
-           ${x.aberta?'<span style="color:#1A7A45">• em andamento</span>':(x.motivo==='parou'?'<span style="color:#B9770E">• parou de usar</span>':(x.motivo==='deslogado'?'<span style="color:var(--red)">• deslogado</span>':''))}
+           ${x.aberta?'<span style="color:#1A7A45">• em andamento</span>':motivoTexto(x.motivo)}
          </div>`).join('');
       return `<div style="padding:10px 12px;background:var(--gray-1);border-radius:8px;border:1px solid var(--gray-2);margin-bottom:8px">
         <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap">
@@ -1899,6 +1907,15 @@ function exportTempoUso(){
   a.download='tempo_de_uso_'+new Date().toISOString().slice(0,10)+'.csv';
   a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+// Como a sessao acabou, no relatorio de tempo de uso. Motivo desconhecido nao
+// mostra rotulo nenhum — melhor um espaco vazio do que um rotulo errado.
+function motivoTexto(motivo){
+  if(motivo==='parou') return '<span style="color:#B9770E">• parou de usar</span>';
+  if(motivo==='deslogado') return '<span style="color:var(--red)">• deslogado</span>';
+  if(motivo==='outro-login') return '<span style="color:var(--red)">• entrou em outro lugar</span>';
+  return '';
 }
 
 // "3h12" em vez de "192 minutos".
