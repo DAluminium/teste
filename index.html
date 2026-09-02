@@ -751,9 +751,6 @@ async function verificarEEncerrarSesoesAntigas(usuario){
       await removerSessaoPortal();
       return false;
     }
-    sesoesAnteriores.forEach(s=>{
-      localStorage.setItem('dalum-logout-'+s.sessionId,Date.now());
-    });
     d.forceLogout=[...(d.forceLogout||[]),...sesoesAnteriores.map(s=>s.sessionId)];
     await fetch(WORKER_SESS,{method:'PATCH',
       headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
@@ -1922,16 +1919,6 @@ function forcarSaida(){
   location.reload();
 }
 window.addEventListener('beforeunload',()=>{ try{ removerSessaoPortal(); }catch(e){} });
-
-window.addEventListener('storage',function(e){
-  if(e.key&&e.key.startsWith('dalum-logout-')&&e.newValue){
-    const logoutSessionId=e.key.replace('dalum-logout-','');
-    if(logoutSessionId===_sessionId){
-      alert('Sua sessão foi encerrada — você se conectou em outro lugar.');
-      forcarSaida();
-    }
-  }
-});
 
 function setSSOToken(nome,role,modulos){
   const username=sessionStorage.getItem('portal-admin-key')||nome;
