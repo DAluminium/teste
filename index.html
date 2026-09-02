@@ -751,6 +751,10 @@ async function verificarEEncerrarSesoesAntigas(usuario){
       await removerSessaoPortal();
       return false;
     }
+    d.forceLogout=[...(d.forceLogout||[]),...sesoesAnteriores.map(s=>s.sessionId)];
+    await fetch(WORKER_SESS,{method:'PATCH',
+      headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
+      body:JSON.stringify({data:d})});
     return true;
   }catch(e){
     console.error('Erro ao verificar sessões antigas:',e);
