@@ -1911,7 +1911,7 @@ function duracaoTexto(minutos){
 }
 function startSessionCheckPortal(){
   if(_sessCheck) return;
-  _sessCheck=setInterval(checkForceLogoutPortal,30000);
+  _sessCheck=setInterval(checkForceLogoutPortal,5000);
 }
 function forcarSaida(){
   localStorage.removeItem('dalum-sso'); localStorage.removeItem(TOKEN_KEY);
