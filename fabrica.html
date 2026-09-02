@@ -598,6 +598,15 @@ const SUPA_SISTEMA='fabrica_teste';
 // Este modulo nao tem mais porta propria — quem chega sem cracha vai para o
 // portal, que e o unico lugar onde a regra de um acesso por pessoa e aplicada.
 const PORTAL_URL='https://daluminium.github.io/teste/';
+// De qual ambiente sao as sessoes deste modulo. A lista de sessoes e UMA SO para
+// teste e producao — nao existe 'sessions_teste'. Sem esta marca, entrar aqui
+// derrubava quem estava trabalhando no outro lado. Sai do proprio SUPA_SISTEMA
+// para o mesmo codigo servir nos dois, sem virar mais uma diferenca a manter.
+// Nome com sufixo Fab igual ao resto do arquivo, que usa _sessionIdFab.
+const AMBIENTE_FAB = /_teste$/.test(SUPA_SISTEMA) ? 'teste' : 'producao';
+// Sessao gravada antes desta marca existir conta como producao, que era o
+// comportamento de entao.
+function mesmoAmbienteFab(s){ return (s.ambiente||'producao')===AMBIENTE_FAB; }
 // A lista de usuários do sistema inteiro vive no registro do Compras de
 // PRODUÇÃO — é ela que a tela "Gerenciar usuários" do portal edita, e é dela
 // que o login sempre leu, em qualquer ambiente.
@@ -1138,9 +1147,9 @@ async function registrarSessaoFab(nome, username){
     const d=await r.json();
     const u=(username||nome||'').toLowerCase().trim();
     const ativas=(d.ativas||[]).filter(function(s){
-      return s.sessionId!==_sessionIdFab && !((s.username||'').toLowerCase().trim()===u && s.sistema==='fabrica');
+      return s.sessionId!==_sessionIdFab && !((s.username||'').toLowerCase().trim()===u && s.sistema==='fabrica' && mesmoAmbienteFab(s));
     });
-    ativas.push({sessionId:_sessionIdFab,username:u,nome:nome,sistema:'fabrica',ts:Date.now(),inicio:Date.now()});
+    ativas.push({sessionId:_sessionIdFab,username:u,nome:nome,sistema:'fabrica',ambiente:AMBIENTE_FAB,ts:Date.now(),inicio:Date.now()});
     d.ativas=ativas;
     await fetch(WORKER,{method:'PATCH',
       headers:cabecalhosSessoesFab({'Content-Type':'application/json'}),
@@ -1193,7 +1202,7 @@ async function checkForceLogoutFab(){
     } else {
       d.ativas=(d.ativas||[]).concat([{sessionId:_sessionIdFab,
         username:(usuario||'').toLowerCase().trim(), nome:usuario,
-        sistema:'fabrica', ts:AGORA, inicio:AGORA}]);
+        sistema:'fabrica', ambiente:AMBIENTE_FAB, ts:AGORA, inicio:AGORA}]);
       precisaGravar=true;
     }
     if(!precisaGravar) return;

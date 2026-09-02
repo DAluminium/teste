@@ -779,7 +779,9 @@ async function verificarEEncerrarSesoesAntigas(usuario){
     if(!r.ok) return true;
     const d=await r.json();
     const _u=(usuario||'').toLowerCase().trim();
-    const sesoesAnteriores=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&(s.username||'').toLowerCase().trim()===_u);
+    // So conta sessao do MESMO ambiente: entrar no teste nao pode derrubar quem
+    // esta trabalhando em producao, e vice-versa.
+    const sesoesAnteriores=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&(s.username||'').toLowerCase().trim()===_u&&mesmoAmbiente(s));
     if(sesoesAnteriores.length===0) return true;
     const confirmou=confirm('Você já está conectado em outro lugar.\n\nDeseja continuar? Isso vai desconectar a outra sessão.');
     if(!confirmou){
@@ -1344,6 +1346,15 @@ async function forceLogout(sessionId, nome){
 // ---- SESSAO DO PROPRIO PORTAL ----
 const WORKER_SESS='https://daluminium-api.daluminium2.workers.dev';
 const _sessionId = Math.random().toString(36).slice(2)+Date.now().toString(36);
+// De qual ambiente e esta sessao. A lista de sessoes e UMA SO para teste e
+// producao — nao existe 'sessions_teste'. Sem esta marca, entrar no teste
+// derrubava quem estava trabalhando em producao, porque a busca por "outra
+// sessao desta pessoa" encontrava as duas. Detectado automaticamente para o
+// mesmo codigo servir nos dois lados, sem virar mais uma diferenca a manter.
+const AMBIENTE = ambienteDeTeste() ? 'teste' : 'producao';
+// Sessao gravada antes desta marca existir conta como producao, que era o
+// comportamento de entao.
+function mesmoAmbiente(s){ return (s.ambiente||'producao')===AMBIENTE; }
 let _sessCheck=null;
 async function registrarSessaoPortal(nome, username){
   try{
@@ -1351,8 +1362,8 @@ async function registrarSessaoPortal(nome, username){
     if(!r.ok) return;
     const d=await r.json();
     const _u=(username||nome||'').toLowerCase().trim();
-    const ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&(s.username||'').toLowerCase().trim()!==_u);
-    ativas.push({sessionId:_sessionId,username:_u,nome,sistema:'portal',ts:Date.now()});
+    const ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&!((s.username||'').toLowerCase().trim()===_u&&mesmoAmbiente(s)));
+    ativas.push({sessionId:_sessionId,username:_u,nome,sistema:'portal',ambiente:AMBIENTE,ts:Date.now()});
     d.ativas=ativas;
     await fetch(WORKER_SESS,{method:'PATCH',
       headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
