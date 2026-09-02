@@ -793,9 +793,7 @@ async function verificarEEncerrarSesoesAntigas(usuario){
     // "encerrada pelo administrador", que nao e verdade e assusta a toa.
     d.forceLogoutMotivo=Object.assign({},d.forceLogoutMotivo||{});
     sesoesAnteriores.forEach(s=>{ d.forceLogoutMotivo[s.sessionId]='outro-login'; });
-    await fetch(WORKER_SESS,{method:'PATCH',
-      headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
-      body:JSON.stringify({data:d})});
+    await gravarSessoes(d);
     return true;
   }catch(e){
     console.error('Erro ao verificar sessões antigas:',e);
@@ -1291,9 +1289,7 @@ async function loadSessoes(){
     // Fecha aqui mesmo quem passou de 1 hora sem sinal, para o tempo de uso
     // dessas pessoas ficar guardado em vez de simplesmente sumir da tela.
     if(limparParadas(d)){
-      try{ await fetch(WORKER_SESS,{method:'PATCH',
-        headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
-        body:JSON.stringify({data:d})}); }catch(e){}
+      try{ await gravarSessoes(d); }catch(e){}
     }
     const ativas=(d.ativas||[]).filter(s=>Date.now()-s.ts<60*60*1000);
     if(!ativas.length){
@@ -1355,6 +1351,30 @@ const AMBIENTE = ambienteDeTeste() ? 'teste' : 'producao';
 // Sessao gravada antes desta marca existir conta como producao, que era o
 // comportamento de entao.
 function mesmoAmbiente(s){ return (s.ambiente||'producao')===AMBIENTE; }
+
+// Grava a lista de sessoes e CONFERE se o servidor aceitou. Antes cada gravacao
+// ignorava a resposta: se o Worker recusasse — cracha vencido, por exemplo — o
+// sistema seguia achando que gravou. A pessoa some da lista de ativas, a regra
+// de um acesso por pessoa deixa de enxerga-la, e ninguem fica sabendo. Foi
+// exatamente assim que um defeito passou despercebido em 02/09/2026.
+let _avisouFalhaSessao=false;
+async function gravarSessoes(d){
+  try{
+    const r=await fetch(WORKER_SESS,{method:'PATCH',
+      headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
+      body:JSON.stringify({data:d})});
+    if(r.ok){ _avisouFalhaSessao=false; return true; }
+    console.error('Sessao NAO gravada. Worker respondeu '+r.status);
+    // Cracha vencido ou recusado e o unico caso em que a pessoa precisa agir, e
+    // avisa uma vez so — este ciclo repete a cada 5s e encheria a tela.
+    if((r.status===401||r.status===403)&&!_avisouFalhaSessao){
+      _avisouFalhaSessao=true;
+      alert('O seu acesso venceu e o sistema parou de registrar esta sessão.\n\n'
+        +'Saia e entre de novo para voltar ao normal.');
+    }
+    return false;
+  }catch(e){ console.error('Sessao NAO gravada:',e); return false; }
+}
 let _sessCheck=null;
 async function registrarSessaoPortal(nome, username){
   try{
@@ -1365,9 +1385,7 @@ async function registrarSessaoPortal(nome, username){
     const ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&!((s.username||'').toLowerCase().trim()===_u&&mesmoAmbiente(s)));
     ativas.push({sessionId:_sessionId,username:_u,nome,sistema:'portal',ambiente:AMBIENTE,ts:Date.now()});
     d.ativas=ativas;
-    await fetch(WORKER_SESS,{method:'PATCH',
-      headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
-      body:JSON.stringify({data:d})});
+    await gravarSessoes(d);
   }catch(e){}
 }
 async function removerSessaoPortal(){
@@ -1376,9 +1394,7 @@ async function removerSessaoPortal(){
     if(!r.ok) return;
     const d=await r.json();
     encerrarNaLista(d,_sessionId,'saiu');
-    await fetch(WORKER_SESS,{method:'PATCH',
-      headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
-      body:JSON.stringify({data:d})});
+    await gravarSessoes(d);
   }catch(e){}
 }
 async function checkForceLogoutPortal(){
@@ -1392,9 +1408,7 @@ async function checkForceLogoutPortal(){
       d.forceLogout=forced.filter(x=>x!==_sessionId);
       if(d.forceLogoutMotivo) delete d.forceLogoutMotivo[_sessionId];
       encerrarNaLista(d,_sessionId,motivo);
-      await fetch(WORKER_SESS,{method:'PATCH',
-        headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
-        body:JSON.stringify({data:d})});
+      await gravarSessoes(d);
       alert(motivo==='outro-login'
         ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
         :'Sua sessão foi encerrada pelo administrador.');
@@ -1420,13 +1434,11 @@ async function renovarPresencaPortal(d){
     const nome=sessionStorage.getItem('portal-user')||'';
     d.ativas=(d.ativas||[]).concat([{sessionId:_sessionId,
       username:(sessionStorage.getItem('portal-admin-key')||nome).toLowerCase().trim(),
-      nome, sistema:'portal', ts:AGORA, inicio:AGORA}]);
+      nome, sistema:'portal', ambiente:AMBIENTE, ts:AGORA, inicio:AGORA}]);
     precisaGravar=true;
   }
   if(!precisaGravar) return;
-  await fetch(WORKER_SESS,{method:'PATCH',
-    headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
-    body:JSON.stringify({data:d})});
+  await gravarSessoes(d);
 }
 
 // Fecha uma sessao: tira das ativas e guarda quanto tempo durou. Serve para os

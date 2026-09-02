@@ -1185,7 +1185,7 @@ async function renovarPresenca(d){
     const nome=_sessQuem.nome||sessionStorage.getItem('fin-user')||'';
     d.ativas=(d.ativas||[]).concat([{sessionId:_sessionId,
       username:_sessQuem.username||nome.toLowerCase().trim(),
-      nome, sistema:'financeiro', ts:AGORA, inicio:AGORA}]);
+      nome, sistema:'financeiro', ambiente:AMBIENTE, ts:AGORA, inicio:AGORA}]);
     precisaGravar=true;
   }
   if(!precisaGravar) return;
