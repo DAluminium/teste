@@ -428,6 +428,10 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <label style="color:var(--amber)">📲 Notificar responsável via WhatsApp</label>
           <div id="f-notificar" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px"></div>
           <span class="note" style="color:var(--amber);margin-top:4px">Marque quem deve ser avisado. Ao salvar, abre o WhatsApp com a mensagem pronta — você confere e aperta enviar. O WhatsApp abre uma conversa por vez, então com mais de um o sistema mostra quem ainda falta.</span>
+          <div id="pedido-status" style="display:none;margin-top:8px"></div>
+          <label style="color:var(--amber);margin-top:10px;display:block">📋 O que você está pedindo <span style="font-weight:400;font-size:11px">(opcional — ex: a lista de material)</span></label>
+          <textarea id="f-pedido" rows="3" placeholder="Ex: Colocar nesta obra:&#10;12 perfis 25x25&#10;8 fechos&#10;4 roldanas" style="width:100%;margin-top:6px;padding:8px 10px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box;background:white"></textarea>
+          <span class="note" style="color:var(--amber);margin-top:4px">Se escrever aqui, o texto vai junto na mensagem e a obra fica <strong>aguardando confirmação</strong> de quem foi marcado. Na lista de obras aparece o botão de cobrar, e quem recebeu o pedido aperta "Já coloquei".</span>
         </div>
         <div class="form-group span2" style="background:var(--teal-light);border-radius:var(--radius);padding:10px 12px">
           <label style="color:var(--teal-dark)">📐 Data de medição <span style="font-weight:400;font-size:11px">(opcional — recalcula entrega automaticamente)</span></label>
@@ -906,7 +910,7 @@ function renderTable(type,isPago){
     const pixInfo=r.pix?`<span class="td-by" style="display:flex;align-items:center;gap:3px"><svg style="width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>${r.pix}</span>`:'';
     return`<tr>
       <td class="td-num">${i+1}</td>
-      <td class="td-obra">${highlight(r.obra)}${contratoLabel}${byLabel}${obsLabel}</td>
+      <td class="td-obra">${highlight(r.obra)}${contratoLabel}${byLabel}${obsLabel}${blocoPedido(type,i,r)}</td>
       <td>${r.material||'—'}</td>
       <td style="color:var(--gray-4)">${r.nrOrc||'—'}</td>
       <td>${r.fornecedor}${pixInfo}</td>
@@ -986,6 +990,13 @@ function openModal(type,idx=null){
     document.getElementById('f-banco').value=r.banco||'';
     document.getElementById('f-conta').value=r.conta||'';
     document.getElementById('f-obs').value=r.obs||'';
+    // O campo do pedido abre sempre vazio, e ao lado dele fica o aviso de que
+    // ja existe um pedido em aberto. Trazer o texto de volta faria a pessoa
+    // reenviar o mesmo pedido sem perceber, so por ter salvado outra coisa.
+    document.getElementById('f-pedido').value='';
+    popularNotificarSelect();
+    limparMarcados();            // marcacao de outra obra nao vem junto
+    mostrarStatusPedido(r.pedido);
     document.getElementById('modal-title').textContent='Editar orçamento';
   } else {
     ['f-obra','f-contrato','f-material','f-nrorc','f-fornecedor','f-valor','f-dataorc','f-entrega','f-datapag','f-pix','f-pix-nome','f-banco','f-conta','f-medicao','f-obs'].forEach(id=>document.getElementById(id).value='');
@@ -993,6 +1004,8 @@ function openModal(type,idx=null){
     document.getElementById('f-dias-uteis').value='';
     popularNotificarSelect();
     limparMarcados();   // abre sempre sem ninguém marcado
+    document.getElementById('f-pedido').value='';
+    mostrarStatusPedido(null);
     // Auto-fill nome do usuário logado
   const _nomeLogado=sessionStorage.getItem('dalum-user')||lastBy||'';
   document.getElementById('f-by').value=_nomeLogado;
@@ -1031,6 +1044,10 @@ function saveEntry(){
     conta:document.getElementById('f-conta').value.trim(),
     obs:document.getElementById('f-obs').value.trim(),
     attachments: editId!==null ? (data[modalType][editId].attachments||[]) : [],
+    // O pedido de material vem junto do registro antigo. Este objeto e montado
+    // do zero a cada gravacao: sem esta linha, editar qualquer campo apagaria
+    // o pedido em aberto — foi exatamente o que ja aconteceu com os anexos.
+    pedido: editId!==null ? (data[modalType][editId].pedido||null) : null,
   };
   if(modalType==='pago') entry.dataPag=document.getElementById('f-datapag').value;
   if(!entry.obra||!entry.contrato){ alert('Obra / Cliente e Nº do Contrato são obrigatórios.'); return; }
@@ -1051,8 +1068,29 @@ function saveEntry(){
                       '.\n\nCadastrar mesmo assim?');
     if(!ok) return;
   }
+  // Pedido de material. Precisa entrar no registro ANTES de gravar: feito
+  // depois, ficaria so na tela e sumiria no proximo carregamento.
+  const _paraQuem=marcadosParaNotificar();
+  const _elPedido=document.getElementById('f-pedido');
+  const _textoPedido=((_elPedido&&_elPedido.value)||'').trim();
+  if(_paraQuem.length && _textoPedido){
+    entry.pedido={
+      texto:_textoPedido,
+      para:_paraQuem.map(function(p){ return {name:p.name,whatsapp:p.whatsapp}; }),
+      por:byVal,
+      em:new Date().toISOString(),
+      cobrancas:[],
+      feito:null
+    };
+  }
+
   if(isEdit){ data[modalType][editId]=entry; } else { data[modalType].push(entry); }
   logAction(byVal, isEdit?'Editou':'Criou', entry, isEdit?'Dados atualizados':'Novo orçamento lançado');
+  if(_paraQuem.length && _textoPedido){
+    logAction(byVal,'Pediu material',entry,
+      'Para '+_paraQuem.map(function(p){ return p.name; }).join(', ')+': '+
+      _textoPedido.replace(/\s+/g,' ').slice(0,140));
+  }
   reclassifyAll();
   persist(); render(); checkNotifications(); closeModal();
 
@@ -1062,13 +1100,19 @@ function saveEntry(){
   // sem dizer por quê.
   {
     try{
-      const paraQuem=marcadosParaNotificar();
-      if(paraQuem.length){
-        const tipoLabel=entry.tipo==='especial'?'Especial':'Padrão';
+      if(_paraQuem.length){
         const entregaFmt=entry.entrega&&entry.entrega!=='—'?entry.entrega.split('-').reverse().join('/'):'Não definida';
-        const titulo=isEdit?'OBRA ATUALIZADA - Daluminium':'NOVA OBRA LANCADA - Daluminium';
-        const msg=`${titulo}\n\nObra: ${entry.obra}\nContrato: ${entry.contrato||'—'}\nEntrega: ${entregaFmt}\nTipo: ${tipoLabel}\n${isEdit?'Atualizado':'Lançado'} por: ${byVal}\n\nAcesse: https://daluminium.github.io/portal/`;
-        avisarVarios(paraQuem, msg);
+        let msg;
+        if(_textoPedido){
+          // Escreveu um pedido: a mensagem deixa de ser o aviso generico de
+          // obra e passa a ser o pedido em si, com o que fazer para responder.
+          msg=montarMsgPedido(entry,_textoPedido,byVal,entregaFmt,false);
+        } else {
+          const tipoLabel=entry.tipo==='especial'?'Especial':'Padrão';
+          const titulo=isEdit?'OBRA ATUALIZADA - Daluminium':'NOVA OBRA LANCADA - Daluminium';
+          msg=`${titulo}\n\nObra: ${entry.obra}\nContrato: ${entry.contrato||'—'}\nEntrega: ${entregaFmt}\nTipo: ${tipoLabel}\n${isEdit?'Atualizado':'Lançado'} por: ${byVal}\n\nAcesse: https://daluminium.github.io/portal/`;
+        }
+        avisarVarios(_paraQuem, msg);
         limparMarcados();   // não repete o aviso no próximo salvamento
       }
     }catch(e){ console.warn('Erro notificação:', e); }
@@ -2265,6 +2309,165 @@ async function enviarRelato(){
       ? 'A imagem já está copiada: dentro da conversa do WhatsApp, aperte Ctrl+V para colar antes de enviar.'
       : 'Não consegui copiar a imagem sozinho — anexe o print pela própria conversa do WhatsApp.');
   }
+}
+
+// ---- PEDIDO DE MATERIAL ----
+// Criado em 08/09/2026. Avisar da obra nao bastava: o Ander precisa mandar a
+// lista do que tem de ser colocado e saber quando foi feito. Antes isso vivia
+// solto no WhatsApp e ninguem conseguia dizer o que ainda estava pendente.
+//
+// O pedido mora DENTRO do proprio lancamento (entry.pedido), nao numa lista
+// separada. Assim ele acompanha a obra por qualquer aba e nao sobra registro
+// orfao quando a obra e movida de Importante para Urgente, ou marcada como paga.
+//
+// So existe UM pedido em aberto por obra. Escrever outro substitui o anterior,
+// que continua no historico. Duas listas em aberto na mesma obra so criariam
+// duvida sobre qual delas esta sendo cobrada.
+
+function escHtml(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function diasDesde(iso){
+  if(!iso) return 0;
+  return Math.max(0,Math.floor((Date.now()-new Date(iso).getTime())/86400000));
+}
+function textoDias(n){ return n<=0?'hoje':(n===1?'há 1 dia':'há '+n+' dias'); }
+function nomesDoPedido(p){
+  return (((p&&p.para)||[]).map(function(x){ return x.name; }).join(', '))||'—';
+}
+
+// Quem esta usando o sistema agora. E o que decide se a pessoa ve o botao
+// verde de confirmar ou o laranja de cobrar. O nome guardado na sessao e o
+// mesmo que aparece nas caixas de "notificar", entao da para comparar.
+function usuarioLogado(){ return (sessionStorage.getItem('dalum-user')||lastBy||'').trim(); }
+function souDestinatario(p){
+  const eu=usuarioLogado().toLowerCase();
+  if(!eu) return false;
+  return (((p&&p.para)||[])).some(function(x){
+    return String(x.name||'').toLowerCase().trim()===eu;
+  });
+}
+
+// A mensagem que vai pelo WhatsApp. Sem emoji: eles chegam quebrados no
+// aplicativo, entao as marcas sao em texto puro.
+function montarMsgPedido(reg,texto,por,entregaFmt,ehCobranca){
+  return (ehCobranca?'COBRANCA DE MATERIAL - Daluminium':'PEDIDO DE MATERIAL - Daluminium')+
+    '\n\nObra: '+reg.obra+
+    '\nContrato: '+(reg.contrato||'—')+
+    '\nEntrega da obra: '+entregaFmt+
+    '\n\nPrecisa ser colocado:\n'+texto+
+    '\n\nPedido por: '+por+
+    (ehCobranca?'\nEste pedido continua em aberto.':'')+
+    '\n\nQuando terminar, entre no sistema e aperte "Ja coloquei" na obra — ou responda por aqui.'+
+    '\n\nAcesse: https://daluminium.github.io/portal/';
+}
+
+// O aviso que aparece embaixo do nome da obra, na lista. Fica na coluna da
+// obra, e nao na dos botoes, porque a lista do material precisa de largura
+// para ser lida — na coluna de acoes ela sairia espremida numa linha so.
+function blocoPedido(type,i,r){
+  const p=r&&r.pedido;
+  if(!p||!p.texto) return '';
+  const txt=escHtml(p.texto).replace(/\n/g,'<br>');
+  if(p.feito){
+    return '<span class="td-by" style="display:block;margin-top:4px;white-space:normal;'+
+      'background:#E8F5E9;border:1px solid #A5D6A7;border-radius:6px;padding:5px 7px;color:#2E7D32">'+
+      '✅ Colocado por <strong>'+escHtml(p.feito.por)+'</strong> em '+
+      new Date(p.feito.em).toLocaleDateString('pt-BR')+
+      '<span style="display:block;color:#558B2F;margin-top:2px">'+txt+'</span></span>';
+  }
+  const cob=((p.cobrancas||[]).length);
+  const btnEstilo='border:none;border-radius:6px;padding:4px 10px;font-weight:600;'+
+    'font-size:11.5px;cursor:pointer;font-family:inherit';
+  const botoes=souDestinatario(p)
+    ? '<button type="button" onclick="confirmarPedido(\''+type+'\','+i+',true)" '+
+      'style="background:#25D366;color:#fff;'+btnEstilo+'">Já coloquei</button>'
+    : '<button type="button" onclick="cobrarPedido(\''+type+'\','+i+')" '+
+      'style="background:#FB8C00;color:#fff;'+btnEstilo+'">Cobrar</button> '+
+      '<button type="button" onclick="confirmarPedido(\''+type+'\','+i+',false)" '+
+      'style="background:#fff;border:1px solid #D6BC6E;color:#8D6E00;border-radius:6px;'+
+      'padding:4px 10px;font-weight:600;font-size:11.5px;cursor:pointer;font-family:inherit">Já foi feito</button>';
+  return '<span class="td-by" style="display:block;margin-top:4px;white-space:normal;'+
+    'background:#FFF8E1;border:1px solid #FFE082;border-radius:6px;padding:5px 7px;color:#8D6E00">'+
+    '⏳ Aguardando <strong>'+escHtml(nomesDoPedido(p))+'</strong> — pedido '+textoDias(diasDesde(p.em))+
+    (cob?' · '+cob+' cobrança'+(cob>1?'s':''):'')+
+    '<span style="display:block;margin:3px 0 6px;color:#6D5600">'+txt+'</span>'+
+    botoes+'</span>';
+}
+
+// Dentro da janela de editar: diz em que pe esta o pedido daquela obra. Sem
+// isto, o campo vazio pareceria querer dizer "nao ha pedido nenhum".
+function mostrarStatusPedido(p){
+  const cx=document.getElementById('pedido-status');
+  if(!cx) return;
+  if(!p||!p.texto){ cx.style.display='none'; cx.innerHTML=''; return; }
+  cx.style.display='block';
+  cx.innerHTML = p.feito
+    ? '<div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:6px;padding:6px 9px;font-size:12px;color:#2E7D32;line-height:1.45">'+
+      '✅ Pedido já atendido — colocado por <strong>'+escHtml(p.feito.por)+'</strong> em '+
+      new Date(p.feito.em).toLocaleDateString('pt-BR')+'.</div>'
+    : '<div style="background:#FFF3E0;border:1px solid #FFCC80;border-radius:6px;padding:6px 9px;font-size:12px;color:#8D6E00;line-height:1.45">'+
+      '⏳ Já existe um pedido em aberto com <strong>'+escHtml(nomesDoPedido(p))+'</strong>, feito '+
+      textoDias(diasDesde(p.em))+'.<br>Escrever no campo abaixo e salvar <strong>substitui</strong> esse pedido.</div>';
+}
+
+// Cobrar de novo. Nao mexe no pedido: so registra a cobranca e reabre o
+// WhatsApp com o mesmo texto, para nao ter de reescrever a lista.
+function cobrarPedido(type,i){
+  const r=(data[type]||[])[i], p=r&&r.pedido;
+  if(!p||p.feito) return;
+  const eu=usuarioLogado()||p.por||'—';
+  if(!p.cobrancas) p.cobrancas=[];
+  p.cobrancas.push({por:eu,em:new Date().toISOString()});
+  logAction(eu,'Cobrou material',r,'Pedido em aberto '+textoDias(diasDesde(p.em))+
+    ' — '+((p.cobrancas.length))+'ª cobrança');
+  persist(); render();
+  const entregaFmt=(r.entrega&&r.entrega!=='—')?r.entrega.split('-').reverse().join('/'):'Não definida';
+  avisarVarios(p.para,montarMsgPedido(r,p.texto,p.por||eu,entregaFmt,true));
+}
+
+// Confirmar que foi feito, por dois caminhos:
+//  - o proprio destinatario aperta "Ja coloquei", e o sistema avisa quem pediu;
+//  - quem pediu marca a mao, depois de receber a resposta pelo WhatsApp.
+// O segundo caminho existe porque sem ele um pedido ficaria aberto para sempre
+// toda vez que a pessoa resolvesse so pelo WhatsApp, sem entrar no sistema.
+function confirmarPedido(type,i,peloDestinatario){
+  const r=(data[type]||[])[i], p=r&&r.pedido;
+  if(!p||p.feito) return;
+  const eu=usuarioLogado();
+  const pergunta=peloDestinatario
+    ? 'Confirmar que o material já foi colocado em "'+r.obra+'"?\n\nQuem pediu vai ser avisado pelo WhatsApp.'
+    : 'Marcar o pedido de "'+r.obra+'" como já feito?\n\nUse quando a pessoa já respondeu pelo WhatsApp.';
+  if(!confirm(pergunta)) return;
+  p.feito={
+    por: peloDestinatario ? (eu||nomesDoPedido(p)) : nomesDoPedido(p),
+    em: new Date().toISOString(),
+    como: peloDestinatario ? 'sistema' : 'manual',
+    marcadoPor: eu||'—'
+  };
+  logAction(eu||'—','Material colocado',r,
+    peloDestinatario ? 'Confirmado por quem recebeu o pedido'
+                     : 'Marcado à mão por quem pediu');
+  persist(); render();
+  if(!peloDestinatario) return;
+  // Avisa de volta quem pediu. O numero sai do cadastro de usuarios, o mesmo
+  // de onde o login le — nunca de uma lista escrita neste arquivo.
+  const quem=getResponsaveis().filter(function(u){
+    return String(u.name||'').toLowerCase().trim()===String(p.por||'').toLowerCase().trim();
+  })[0];
+  if(!quem||!numeroWhats(quem.whatsapp)){
+    alert('Marcado como feito.\n\nNão consegui avisar '+(p.por||'quem pediu')+
+          ' pelo WhatsApp: não encontrei o número no cadastro de usuários.');
+    return;
+  }
+  avisarVarios([quem],
+    'MATERIAL COLOCADO - Daluminium'+
+    '\n\nObra: '+r.obra+
+    '\nContrato: '+(r.contrato||'—')+
+    '\n\nO que tinha sido pedido:\n'+p.texto+
+    '\n\nColocado por: '+(eu||'—')+
+    '\n\nAcesse: https://daluminium.github.io/portal/');
 }
 
 // ---- WHATSAPP NOTIFICAÇÃO ----
