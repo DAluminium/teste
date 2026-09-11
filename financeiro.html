@@ -1049,6 +1049,14 @@ let syncInterval = null;
 // Retrato do que o servidor tinha na ultima vez que lemos. Serve para saber,
 // na hora de gravar, se outra pessoa mexeu nesse meio-tempo.
 let ultimoServidor = null;
+// Gravacao em andamento e alteracao local ainda nao confirmada pelo servidor.
+// Mesma falha achada no Compras em 11/09/2026: a sincronizacao automatica (a
+// cada 10 s) buscava a versao ANTIGA antes de um clique, chegava depois dele e
+// trocava os dados da tela por ela — e a gravacao, ainda a caminho, gravava
+// essa versao antiga e dizia "Salvo". Com estes dois contadores, a
+// sincronizacao nao substitui nada enquanto ha gravacao em curso, e descarta a
+// leitura que saiu antes de uma alteracao feita aqui.
+let _gravando = 0, _versaoLocal = 0;
 let pagarEditId = null, receberEditId = null, baixaType = null, baixaIdx = null;
 
 
@@ -1609,7 +1617,12 @@ function bloqueioAcesso(){
   document.body.appendChild(d);
 }
 
-async function syncFromCloud(){
+// forcar: so a opcao "descartar" do aviso de conflito usa. Ela roda DE DENTRO
+// da gravacao, entao sem isso a trava abaixo a ignoraria e a tela ficaria com
+// a versao descartada.
+async function syncFromCloud(forcar){
+  if(_gravando && !forcar) return;   // a gravacao em curso ja vai trazer a versao nova
+  const versaoAntes=_versaoLocal;
   try{
     const r=await fetch('https://daluminium-api.daluminium2.workers.dev?t='+Date.now(),{
       cache:'no-store',
@@ -1620,6 +1633,10 @@ async function syncFromCloud(){
     if(!r.ok) return;
     const remote=await r.json();
     if(!remote) return;
+    // A leitura saiu ANTES de alguma alteracao feita nesta tela? Entao ela e
+    // velha: aplicar trocaria a alteracao pela versao antiga. Descarta — a
+    // proxima rodada, em 10 s, busca de novo.
+    if(!forcar && (_gravando || _versaoLocal!==versaoAntes)) return;
     const remoteStr=JSON.stringify(remote);
     // So o servidor mudou de verdade desde a ultima leitura? Reconstruir a
     // lista sem necessidade fazia a pagina voltar pro topo sozinha a cada
@@ -1771,7 +1788,17 @@ function juntarAlteracoes(servidor,minhas){
   return res;
 }
 
+// Toda gravacao passa por aqui. Marca que ha uma alteracao local e que ela
+// esta a caminho do servidor, e desmarca ao terminar — de qualquer jeito que
+// termine, inclusive com erro. Quem olha isso e a syncFromCloud.
 async function persist(){
+  _versaoLocal++;
+  _gravando++;
+  try{ return await gravarNoServidor(); }
+  finally{ _gravando--; }
+}
+
+async function gravarNoServidor(){
   if(!dataReady) return; // Nunca salva antes de carregar da nuvem
   const totalItems=(data.pagar||[]).length+(data.receber||[]).length+(data.usuarios||[]).length;
   const hasSaldo=Object.values(data.saldosIniciais||{}).some(v=>v>0);
@@ -1798,7 +1825,7 @@ async function persist(){
         if(escolha==='descartar'){
           setStatus('↩️ Carregando a versão mais nova...');
           ultimoServidor=null;
-          await syncFromCloud();
+          await syncFromCloud(true);
           return;
         }
         if(escolha==='juntar'){

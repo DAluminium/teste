@@ -677,6 +677,13 @@ function sincronizarEtapas(){
 }
 
 let dados={obras:[]};
+// Gravacao em andamento e alteracao local ainda nao confirmada pelo servidor.
+// A atualizacao automatica (a cada 60 s) podia sair ANTES de um clique e chegar
+// DEPOIS da gravacao: trocava os dados da tela pela versao antiga. O servidor
+// ficava certo, mas a alteracao sumia da tela por ate um minuto — e quem nao a
+// ve refaz, gerando duplicidade. Com estes contadores a leitura velha e
+// descartada. Mesma trava do Compras e do Financeiro (11/09/2026).
+let _gravando = 0, _versaoLocal = 0;
 let usuario='';
 // Papel de quem entrou: admin, gerente, compras, financeiro ou consulta.
 // Cadastrar obra e mexer nas etapas do fluxo e coisa de admin e gerente.
@@ -1385,6 +1392,13 @@ function logFab(base, acao, alvo, detalhe){
 // ser um objeto {acao,alvo,detalhe} ou uma função que recebe o documento já
 // alterado — útil quando o detalhe só se conhece depois da mudança.
 async function alterar(fn, registro){
+  _versaoLocal++;
+  _gravando++;
+  try{ return await gravarAlteracao(fn, registro); }
+  finally{ _gravando--; }
+}
+
+async function gravarAlteracao(fn, registro){
   status('🔄 Salvando...');
   try{
     let base=null;
@@ -1515,9 +1529,13 @@ async function atualizarDoBanco(manual){
     if(manual) status('✋ Feche a ficha para atualizar o resto','#ffe6a8');
     return;
   }
+  if(_gravando) return;   // a gravacao em curso ja traz a versao nova
   if(manual) status('🔄 Atualizando...');
+  const versaoAntes=_versaoLocal;
   try{
     const r=await buscarRemoto();
+    // A leitura saiu antes de uma alteracao feita aqui? Entao e velha — descarta.
+    if(_gravando || _versaoLocal!==versaoAntes) return;
     if(!r){ status('🟢 Em dia · '+agoraHora()); return; }
     const mudou = JSON.stringify(r)!==JSON.stringify(dados);
     if(mudou){ dados=r; gravarLocal(); render(); }
