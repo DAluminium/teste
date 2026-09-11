@@ -3556,10 +3556,14 @@ async function createBin(apiKey, payload){
   return j.metadata.id;
 }
 
-async function syncFromCloud(){
+// forcar: so a opcao "descartar" do aviso de conflito usa. Ela roda DE DENTRO
+// da gravacao, entao sem isso as travas abaixo a ignoravam: a tela ficava com a
+// versao descartada e, sem a referencia do servidor, a gravacao seguinte
+// passava por cima da outra pessoa sem perguntar.
+async function syncFromCloud(forcar){
   const cfg=getCfg(); if(!cfg) return;
-  if(isSyncing) return;
-  if(_gravando) return;          // a gravacao em curso ja vai trazer a versao nova
+  if(isSyncing && !forcar) return;
+  if(_gravando && !forcar) return;   // a gravacao em curso ja vai trazer a versao nova
   isSyncing=true;
   const versaoAntes=_versaoLocal;
   try{
@@ -3569,7 +3573,7 @@ async function syncFromCloud(){
     // A leitura saiu ANTES de alguma alteracao feita nesta tela? Entao ela e
     // velha: aplicar trocaria a alteracao pela versao antiga. Descarta — a
     // proxima rodada, em 10 s, busca de novo.
-    if(_gravando || _versaoLocal!==versaoAntes){
+    if(!forcar && (_gravando || _versaoLocal!==versaoAntes)){
       isSyncing=false;
       return;
     }
@@ -3803,7 +3807,7 @@ async function gravarNoServidor(){
           if(escolha==='descartar'){
             setStatus('↩️ Carregando a versão mais nova...');
             ultimoServidor=null;
-            await syncFromCloud();
+            await syncFromCloud(true);
             return;
           }
           if(escolha==='juntar'){
