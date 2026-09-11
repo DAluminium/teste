@@ -56,6 +56,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .modulo-card.financeiro:hover{border-color:var(--purple)}
 .modulo-card.fabrica{border-top:4px solid var(--amber)}
 .modulo-card.fabrica:hover{border-color:var(--amber)}
+.modulo-card.obra{border-top:4px solid var(--green)}
+.modulo-card.obra:hover{border-color:var(--green)}
 .modulo-icon{font-size:52px;margin-bottom:1rem}
 .modulo-title{font-size:18px;font-weight:700;margin-bottom:6px}
 .modulo-desc{font-size:13px;color:var(--gray-4);line-height:1.5}
@@ -63,6 +65,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .badge-compras{background:var(--teal-light);color:var(--teal-dark)}
 .badge-financeiro{background:var(--purple-light);color:var(--purple)}
 .badge-fabrica{background:var(--amber-light);color:var(--amber)}
+.badge-obra{background:var(--green-light);color:var(--green)}
 .modulo-arrow{margin-top:1.5rem;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
 .modulo-card.compras .modulo-arrow{color:var(--teal-dark)}
 .modulo-card.financeiro .modulo-arrow{color:var(--purple)}
@@ -416,6 +419,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
               <label><input type="checkbox" id="nu-mod-compras" checked> 🛒 Gestão de Compras</label>
               <label><input type="checkbox" id="nu-mod-financeiro"> 💰 Financeiro</label>
               <label><input type="checkbox" id="nu-mod-fabrica"> 🏭 Fábrica</label>
+              <label><input type="checkbox" id="nu-mod-obra"> 📋 Gerenciamento de Obra</label>
             </div>
           </div>
         </div>
@@ -912,8 +916,8 @@ function showPortal(nome, modulos, isAdmin){
   renderModulos(modulos);
   // 1 módulo e não admin — entra direto
   if(modulos.length===1&&!isAdmin){
-    const URLS={compras:'https://daluminium.github.io/teste/compras.html',financeiro:'https://daluminium.github.io/teste/financeiro.html',fabrica:'https://daluminium.github.io/teste/fabrica.html'};
-    const TITULOS={compras:'Gestão de Compras',financeiro:'Financeiro',fabrica:'Fábrica'};
+    const URLS={compras:'https://daluminium.github.io/teste/compras.html',financeiro:'https://daluminium.github.io/teste/financeiro.html',fabrica:'https://daluminium.github.io/teste/fabrica.html',obra:'https://daluminium.github.io/teste/obra.html'};
+    const TITULOS={compras:'Gestão de Compras',financeiro:'Financeiro',fabrica:'Fábrica',obra:'Gerenciamento de Obra'};
     const m=modulos[0];
     if(URLS[m]){ document.getElementById('portal').style.display='none'; abrirModulo(URLS[m],TITULOS[m]); }
   }
@@ -924,7 +928,8 @@ function renderModulos(modulos){
   const MODULOS={
     compras:{icon:'🛒',title:'Gestão de Compras',desc:'Orçamentos, fornecedores, manutenção e controle de entregas das obras',url:'https://daluminium.github.io/teste/compras.html',cls:'compras',badge:'badge-compras',badgeText:'Compras'},
     financeiro:{icon:'💰',title:'Financeiro',desc:'Contas a pagar, contas a receber, fluxo de caixa e relatórios',url:'https://daluminium.github.io/teste/financeiro.html',cls:'financeiro',badge:'badge-financeiro',badgeText:'Financeiro'},
-    fabrica:{icon:'🏭',title:'Fábrica',desc:'Acompanhamento das obras da conferência técnica até a entrega ao cliente',url:'https://daluminium.github.io/teste/fabrica.html',cls:'fabrica',badge:'badge-fabrica',badgeText:'Fábrica'}
+    fabrica:{icon:'🏭',title:'Fábrica',desc:'Acompanhamento das obras da conferência técnica até a entrega ao cliente',url:'https://daluminium.github.io/teste/fabrica.html',cls:'fabrica',badge:'badge-fabrica',badgeText:'Fábrica'},
+    obra:{icon:'📋',title:'Gerenciamento de Obra',desc:'A carteira de contratos: status, prazos, medição, entrega e anexos de cada obra',url:'https://daluminium.github.io/teste/obra.html',cls:'obra',badge:'badge-obra',badgeText:'Obra'}
   };
   container.innerHTML=modulos.map(m=>{
     const mod=MODULOS[m];
@@ -1137,6 +1142,7 @@ async function addUsuario(){
   if(document.getElementById('nu-mod-compras').checked) modulos.push('compras');
   if(document.getElementById('nu-mod-financeiro').checked) modulos.push('financeiro');
   if(document.getElementById('nu-mod-fabrica').checked) modulos.push('fabrica');
+  if(document.getElementById('nu-mod-obra').checked) modulos.push('obra');
   if(!name||!username||!pass){ alert('Preencha nome, usuário e senha.'); return; }
   if(ADMINS.find(a=>a.user===username)){ alert('Usuário reservado para administradores.'); return; }
   if(portalData.usuarios.find(u=>u.username===username)){ alert('Usuário já cadastrado.'); return; }
@@ -1163,6 +1169,7 @@ async function addUsuario(){
   document.getElementById('nu-mod-compras').checked=true;
   document.getElementById('nu-mod-financeiro').checked=false;
   document.getElementById('nu-mod-fabrica').checked=false;
+  document.getElementById('nu-mod-obra').checked=false;
   renderUserList();
   alert('Usuário cadastrado e salvo! ✅');
 }
@@ -1190,7 +1197,7 @@ async function editUsuario(idx){
   portalData.usuarios[idx].name=novoNome.trim()||u.name;
   portalData.usuarios[idx].whatsapp=String(novoZap).replace(/\D/g,'');
   portalData.usuarios[idx].role=novoRole.trim();
-  portalData.usuarios[idx].modulos=novosMods.split(',').map(m=>m.trim()).filter(m=>['compras','financeiro','fabrica'].includes(m));
+  portalData.usuarios[idx].modulos=novosMods.split(',').map(m=>m.trim()).filter(m=>['compras','financeiro','fabrica','obra'].includes(m));
   if(novaSenha&&novaSenha.trim().length>=6){ portalData.usuarios[idx].password=await sha256(novaSenha.trim()); portalData.usuarios[idx].tempPass=false; }
   await savePortalData();
   renderUserList();
@@ -1297,7 +1304,7 @@ async function loadSessoes(){
       return;
     }
     ativas.sort((a,b)=>b.ts-a.ts);
-    const sistemaLabel={compras:'🛒 Gestão de Compras',financeiro:'💰 Financeiro',portal:'🏠 Portal',fabrica:'🏭 Fábrica'};
+    const sistemaLabel={compras:'🛒 Gestão de Compras',financeiro:'💰 Financeiro',portal:'🏠 Portal',fabrica:'🏭 Fábrica',obra:'📋 Gerenciamento de Obra'};
     lista.innerHTML=ativas.map(s=>{
       const minutos=Math.floor((Date.now()-s.ts)/60000);
       // O sinal de vida chega a cada 5 minutos, entao ate 10 minutos e "agora".
@@ -1909,7 +1916,7 @@ async function loadTempoUso(){
       return;
     }
 
-    const rot={compras:'🛒 Compras',financeiro:'💰 Financeiro',portal:'🏠 Portal',fabrica:'🏭 Fábrica'};
+    const rot={compras:'🛒 Compras',financeiro:'💰 Financeiro',portal:'🏠 Portal',fabrica:'🏭 Fábrica',obra:'📋 Obra'};
     // Agrupa por pessoa, e dentro dela por modulo.
     const porPessoa={};
     periodos.forEach(p=>{

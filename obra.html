@@ -1,0 +1,1881 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gerenciamento de Obra · Daluminium</title>
+<style>
+:root{--teal:#1FB6CF;--teal-dark:#0E8FA6;--teal-light:#E6F8FB;--red:#C0392B;--red-light:#FDF0EE;--amber:#B9770E;--amber-light:#FEF7E6;--amber-mid:#F5D98A;--green:#1A7A45;--green-light:#EDFAF3;--purple:#7B2D8B;--purple-light:#F3E8FF;--blue:#1F5FA8;--blue-light:#E8F1FB;--gray-0:#FFFFFF;--gray-1:#F7F8F9;--gray-2:#EEF0F2;--gray-3:#DEE1E5;--gray-4:#9AA1AB;--gray-5:#5A6370;--gray-6:#23282F;--radius:8px;--shadow:0 1px 4px rgba(0,0,0,0.07),0 0 0 0.5px rgba(0,0,0,0.05)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--gray-1);color:var(--gray-6);font-size:14px;min-height:100vh}
+
+.topbar{background:var(--teal-dark);color:white;padding:0 1rem;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:50;box-shadow:0 1px 6px rgba(0,0,0,0.15)}
+.topbar-logo{font-size:16px;font-weight:600;letter-spacing:.04em;display:flex;align-items:center;gap:10px}
+.topbar-logo span{opacity:.75;font-weight:400;font-size:13px}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 14px;border-radius:var(--radius);border:1px solid transparent;font-size:13px;font-family:inherit;cursor:pointer;font-weight:500;transition:background .1s;white-space:nowrap}
+.btn-ghost{background:rgba(255,255,255,.15);color:white;border-color:rgba(255,255,255,.25)}.btn-ghost:hover{background:rgba(255,255,255,.25)}
+.btn-outline{background:white;color:var(--gray-6);border-color:var(--gray-3)}.btn-outline:hover{background:var(--gray-1)}
+.btn-teal{background:var(--teal);color:white;border-color:var(--teal-dark)}.btn-teal:hover{background:var(--teal-dark)}
+.btn-red{background:var(--red);color:white;border-color:var(--red)}.btn-red:hover{opacity:.9}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-block{width:100%}
+.icon{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+
+.main{max-width:1500px;margin:0 auto;padding:1rem 1rem 4rem}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:1rem}
+.busca{flex:1;min-width:150px;padding:8px 12px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:13px;background:white}
+.busca:focus{outline:none;border-color:var(--teal)}
+.filtro{padding:8px 10px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:13px;background:white;color:var(--gray-6)}
+.filtro:focus{outline:none;border-color:var(--teal)}
+.view-switch{display:flex;background:white;border-radius:var(--radius);padding:3px;box-shadow:var(--shadow)}
+.view-btn{padding:6px 12px;border:none;background:transparent;border-radius:6px;font-family:inherit;font-size:12.5px;cursor:pointer;color:var(--gray-5);font-weight:500}
+.view-btn.active{background:var(--teal-dark);color:white}
+
+/* CARTEIRA — a tabela no formato da planilha */
+.tabela-cx{background:white;border-radius:10px;box-shadow:var(--shadow);overflow-x:auto}
+table.carteira{border-collapse:collapse;width:100%;min-width:900px;font-size:12.5px}
+table.carteira th{background:var(--gray-1);text-align:left;padding:9px 10px;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-5);font-weight:700;border-bottom:2px solid var(--gray-3);white-space:nowrap;position:sticky;top:0;z-index:1}
+table.carteira td{padding:9px 10px;border-bottom:1px solid var(--gray-2);vertical-align:top}
+table.carteira tbody tr{cursor:pointer}
+table.carteira tbody tr:hover{background:var(--teal-light)}
+.td-ct{font-weight:700;color:var(--teal-dark);white-space:nowrap}
+.td-ano{display:block;font-size:10.5px;color:var(--gray-4);font-weight:400}
+.td-cliente{font-weight:600;color:var(--gray-6);line-height:1.35;min-width:190px}
+.td-local{display:block;font-size:11px;color:var(--gray-4);font-weight:400;margin-top:2px}
+.td-nowrap{white-space:nowrap}
+.td-fraco{color:var(--gray-4)}
+
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap;letter-spacing:.02em}
+.pill-cinza{background:var(--gray-2);color:var(--gray-5)}
+.pill-vermelho{background:var(--red-light);color:var(--red)}
+.pill-ambar{background:var(--amber-light);color:var(--amber)}
+.pill-verde{background:var(--green-light);color:var(--green)}
+.pill-azul{background:var(--blue-light);color:var(--blue)}
+.pill-roxo{background:var(--purple-light);color:var(--purple)}
+.pill-teal{background:var(--teal-light);color:var(--teal-dark)}
+
+/* PAINEL */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px;margin-bottom:1rem}
+.card{background:white;border-radius:10px;box-shadow:var(--shadow);padding:13px 14px;cursor:pointer;border-left:4px solid var(--gray-3)}
+.card:hover{box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.card-n{font-size:26px;font-weight:700;line-height:1.1}
+.card-t{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-5);font-weight:700;margin-top:3px}
+.bloco{background:white;border-radius:10px;box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden}
+.bloco-head{padding:11px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:var(--gray-1);border-bottom:1px solid var(--gray-2);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.bloco-body{padding:10px 14px}
+.linha-alerta{padding:8px 0;border-bottom:1px solid var(--gray-1);font-size:12.5px;line-height:1.45;cursor:pointer;display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.linha-alerta:last-child{border-bottom:none}
+.linha-alerta:hover{background:var(--gray-1)}
+
+/* FICHA / MODAL */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:.6rem}
+.overlay.open{display:flex}
+.modal{background:white;border-radius:12px;width:min(680px,100%);max-height:92vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.modal-head{padding:13px 16px;border-bottom:1px solid var(--gray-2);display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;background:white;z-index:2}
+.modal-title{font-size:15px;font-weight:600}
+.modal-body{padding:14px 16px 26px}
+.modal-foot{padding:12px 16px;border-top:1px solid var(--gray-2);display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;bottom:0;background:white;z-index:2;box-shadow:0 -6px 10px -6px rgba(0,0,0,.18)}
+.modal-foot .btn{flex-shrink:0}
+#ficha-btn-excluir,#ficha-btn-restaurar{margin-right:auto;margin-left:10px}
+
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg.span2{grid-column:1/-1}
+.fg label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-5)}
+.fg input,.fg select,.fg textarea{padding:9px 11px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:14px;background:white;width:100%}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--teal)}
+.fg textarea{resize:vertical;min-height:58px}
+.fg .dica{font-size:11.5px;color:var(--gray-4);line-height:1.4}
+.fg .dica b{color:var(--teal-dark)}
+.secao{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-5);border-top:1px solid var(--gray-2);padding-top:12px;margin:14px 0 10px}
+.secao:first-of-type{border-top:none;padding-top:0;margin-top:0}
+
+.caixa{border:1px solid var(--gray-3);border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.5;background:var(--gray-1)}
+.caixa-linha{padding:5px 0;border-bottom:1px solid var(--gray-2);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.caixa-linha:last-child{border-bottom:none}
+
+.aviso{background:var(--amber-light);border:1px solid var(--amber-mid);border-radius:8px;padding:11px 13px;font-size:12.5px;color:var(--gray-6);line-height:1.5;margin-bottom:12px}
+.vazio{text-align:center;padding:50px 20px;color:var(--gray-4)}
+.vazio-t{font-size:15px;font-weight:600;color:var(--gray-5);margin-bottom:6px}
+
+.hist-item{font-size:12px;color:var(--gray-5);padding:6px 0;border-bottom:1px solid var(--gray-1);line-height:1.45}
+.hist-item:last-child{border-bottom:none}
+.hist-quem{font-weight:600;color:var(--gray-6)}
+.hist-quando{color:var(--gray-4);font-size:11px}
+
+.bloqueio{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1.5rem;text-align:center}
+.bloqueio-cx{background:white;border-radius:12px;padding:28px 24px;box-shadow:var(--shadow);max-width:380px}
+.sync{font-size:11.5px;opacity:.85;display:flex;align-items:center;gap:5px}
+
+@media(max-width:760px){
+  .topbar{padding:6px .7rem;height:auto;flex-wrap:wrap;gap:6px}
+  .topbar-actions{flex-wrap:wrap;justify-content:flex-end}
+  .topbar-logo span{display:none}
+  .main{padding:.7rem .6rem 4rem}
+  .form-grid{grid-template-columns:1fr}
+  .fg.span2{grid-column:1}
+  .modal{height:100dvh;max-height:100dvh;border-radius:0;width:100%;display:flex;flex-direction:column;overflow:hidden}
+  .modal-head{flex-shrink:0}
+  .modal-body{flex:1 1 auto;overflow-y:auto;min-height:0}
+  .modal-foot{flex-shrink:0;position:relative}
+  .overlay{padding:0}
+  .btn{padding:9px 14px}
+  .btn-sm{padding:7px 11px}
+}
+</style>
+<script>
+// Marca que este modulo esta aberto DENTRO do portal, para o CSS esconder
+// a faixa duplicada. Se a leitura falhar por ser outro dominio, e porque
+// estamos num quadro — entao vale a mesma regra.
+try{ if(window.self!==window.top) document.documentElement.classList.add('dentro-do-portal'); }
+catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
+</script>
+</head>
+<body>
+<!-- ================================================================
+     AVISO DE AMBIENTE DE TESTE
+     Este bloco existe SOMENTE nos arquivos de teste. Ao levar um
+     arquivo daqui para producao, ELE PRECISA SAIR — junto com a troca
+     do identificador do sistema.
+     ================================================================ -->
+<div id="faixa-teste">Ambiente de teste &middot; o que voce lancar aqui nao vale</div>
+<style>
+  #faixa-teste{position:fixed;top:0;left:0;right:0;height:30px;z-index:100000;
+    background:repeating-linear-gradient(45deg,#B9770E 0 14px,#8a5a0a 14px 28px);
+    color:#fff;font:700 12px/30px system-ui,-apple-system,"Segoe UI",sans-serif;
+    letter-spacing:.08em;text-align:center;text-transform:uppercase;
+    box-shadow:0 1px 6px rgba(0,0,0,.3);pointer-events:none}
+  body{padding-top:30px}
+  .topbar{top:30px !important;background:#B9770E !important}
+  .login-screen,.bloqueio{padding-top:30px}
+  html.dentro-do-portal #faixa-teste{display:none}
+  html.dentro-do-portal body{padding-top:0}
+  html.dentro-do-portal .topbar{top:0 !important}
+  html.dentro-do-portal .login-screen,html.dentro-do-portal .bloqueio{padding-top:0}
+  @media print{
+    #faixa-teste{position:static;background:none;color:#000;border:2px solid #000;
+      box-shadow:none;line-height:1.6;margin-bottom:8px}
+    body{padding-top:0}
+    .topbar{top:0 !important}
+  }
+</style>
+
+<!-- SEM SESSÃO — login próprio do módulo -->
+<div class="bloqueio" id="bloqueio" style="display:none">
+  <div class="bloqueio-cx" style="text-align:left;width:340px;max-width:100%">
+    <div style="text-align:center;font-size:34px;margin-bottom:8px">🔒</div>
+    <div style="text-align:center;font-size:16px;font-weight:600;margin-bottom:16px">Gerenciamento de Obra</div>
+    <div class="fg" style="margin-bottom:12px">
+      <label for="login-user">Usuário</label>
+      <input type="text" id="login-user" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="seu usuário">
+    </div>
+    <div class="fg" style="margin-bottom:12px">
+      <label for="login-pass">Senha</label>
+      <div style="display:flex;gap:6px">
+        <input type="password" id="login-pass" autocomplete="current-password" placeholder="••••••" style="flex:1">
+        <button type="button" class="btn btn-ghost" id="login-olho" title="Mostrar ou esconder a senha" style="background:var(--gray-2);color:var(--gray-6);border-color:var(--gray-3)">👁️</button>
+      </div>
+    </div>
+    <div id="login-erro" style="display:none;font-size:12.5px;color:var(--red);background:var(--red-light);border-radius:6px;padding:7px 9px;margin-bottom:12px;line-height:1.45"></div>
+    <button class="btn btn-teal btn-block" id="login-btn">Entrar</button>
+    <p style="font-size:12px;color:var(--gray-5);line-height:1.5;margin-top:14px;text-align:center">
+      Mesmo usuário e senha do portal.<br>
+      <a href="https://daluminium.github.io/teste/" style="color:var(--teal-dark)">Ir para o portal</a>
+    </p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <div class="topbar">
+    <div class="topbar-logo">DALUMINIUM <span>Gerenciamento de Obra</span></div>
+    <div class="topbar-actions">
+      <span class="sync" id="sync"></span>
+      <button class="btn btn-ghost btn-sm" onclick="atualizarDoBanco(true)" title="Buscar alterações de outras pessoas agora">
+        <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Atualizar
+      </button>
+      <button class="btn btn-ghost btn-sm" data-so-gestor onclick="abrirCadastros()" title="Feriados do cálculo de dias úteis e rótulos dos anexos">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Cadastros
+      </button>
+      <button class="btn btn-ghost btn-sm" data-so-gestor onclick="novoContrato()">
+        <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Novo
+      </button>
+      <button class="btn btn-ghost btn-sm" id="btn-sair" onclick="sairDaObra()" style="display:none" title="Encerrar a sessão neste módulo">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sair
+      </button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="toolbar">
+      <input class="busca" id="busca" placeholder="Buscar contrato, cliente, cidade, condomínio..." oninput="render()">
+      <select class="filtro" id="f-status-filtro" onchange="render()"><option value="">Todos os status</option></select>
+      <select class="filtro" id="f-ano-filtro" onchange="render()"><option value="">Todos os anos</option></select>
+      <select class="filtro" id="f-coord-filtro" onchange="render()"><option value="">Todos os coordenadores</option></select>
+      <div class="view-switch">
+        <button class="view-btn" id="vb-painel" onclick="setView('painel')">Painel</button>
+        <button class="view-btn" id="vb-carteira" onclick="setView('carteira')">Carteira</button>
+        <button class="view-btn" id="vb-hist" onclick="setView('historico')" style="display:none">📋 Histórico</button>
+      </div>
+      <button class="btn btn-outline btn-sm" id="btn-lixeira" onclick="alternarLixeira()">Lixeira</button>
+    </div>
+    <div id="conteudo"></div>
+  </div>
+</div>
+
+<!-- FICHA DO CONTRATO -->
+<div class="overlay" id="ficha-ov">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="ficha-titulo">Contrato</div>
+      <button class="btn btn-outline btn-sm" onclick="fecharFicha()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div class="secao">Identificação</div>
+      <div class="form-grid">
+        <div class="fg"><label>Contrato (CT) <span style="color:var(--red)">*</span></label><input id="f-ct" placeholder="Ex.: 0073"></div>
+        <div class="fg"><label>Ano <span style="color:var(--red)">*</span></label><input id="f-ano" inputmode="numeric" placeholder="Ex.: 2026"></div>
+        <div class="fg span2"><label>Cliente / Obra <span style="color:var(--red)">*</span></label><input id="f-cliente" placeholder="Ex.: CONDOMINIO RESIDENCIAL RIO DE JANEIRO II"></div>
+        <div class="fg"><label>Coordenador</label><input id="f-coord" list="lista-coord" placeholder="Ex.: Jefersson"></div>
+        <div class="fg"><label>Responsável comercial</label><input id="f-respcom" list="lista-respcom" placeholder="Ex.: Aretusa"></div>
+        <div class="fg"><label>Cidade</label><input id="f-cidade" list="lista-cidade" placeholder="Ex.: PORTO VELHO - RO"></div>
+        <div class="fg"><label>Condomínio / Local</label><input id="f-condominio" list="lista-condominio" placeholder="Ex.: COND. VERANA"></div>
+      </div>
+
+      <div class="secao">Situação</div>
+      <div class="form-grid">
+        <div class="fg"><label>Status</label><select id="f-status"></select></div>
+        <div class="fg"><label>Revisão do projeto</label><select id="f-revisao"></select></div>
+      </div>
+
+      <div class="secao">Prazos</div>
+      <div class="form-grid">
+        <div class="fg"><label>Fechamento</label><input type="date" id="f-fechamento" onchange="recalcular()"></div>
+        <div class="fg"><label>Prazo de material (dias úteis)</label><input type="number" min="0" id="f-prazomat" oninput="recalcular()" placeholder="Ex.: 30">
+          <span class="dica" id="d-limite"></span></div>
+        <div class="fg"><label>Medição prevista</label><input type="date" id="f-medicao" onchange="recalcular()"></div>
+        <div class="fg"><label>Dias de produção (úteis)</label><input type="number" min="0" id="f-diasprod" oninput="recalcular()" placeholder="Ex.: 30"></div>
+        <div class="fg"><label>Projeção de entrada na obra</label><input type="date" id="f-projentrada" onchange="marcarManual('projEntrada');recalcular()">
+          <span class="dica" id="d-projentrada"></span></div>
+        <div class="fg"><label>Dias de instalação (úteis)</label><input type="number" min="0" id="f-diasinst" oninput="recalcular()" placeholder="Ex.: 15"></div>
+        <div class="fg"><label>Entrega</label><input type="date" id="f-entrega" onchange="marcarManual('entrega');recalcular()">
+          <span class="dica" id="d-entrega"></span></div>
+        <div class="fg"><label>&nbsp;</label>
+          <button type="button" class="btn btn-outline" onclick="usarCalculo()" title="Preencher projeção de entrada e entrega com as contas em dias úteis">Recalcular pelas contas</button></div>
+      </div>
+
+      <div class="secao">Esquadrias</div>
+      <div class="form-grid">
+        <div class="fg span2"><label>Linhas</label><input id="f-linhas" placeholder="Ex.: SUPREMA | GOLD | ATLANTA"><span class="dica">Separe com barra vertical, como na planilha.</span></div>
+        <div class="fg"><label>Cores</label><input id="f-cores" placeholder="Ex.: PRETO FOSCO"></div>
+        <div class="fg"><label>Vidros</label><input id="f-vidros" placeholder="Ex.: TEMP. INCOLOR 6 MM"></div>
+        <div class="fg"><label>Peças</label><input type="number" min="0" id="f-pecas" placeholder="Ex.: 21"></div>
+      </div>
+
+      <div class="secao">Observações</div>
+      <div class="form-grid">
+        <div class="fg span2"><textarea id="f-obs" placeholder="Anotações do contrato"></textarea></div>
+      </div>
+
+      <!-- ANEXOS — contrato, proposta, projeto, medição, ART, nota, foto.
+           O arquivo sobe para o serviço de arquivos e a ficha guarda só o
+           endereço dele. O rótulo diz o que é o arquivo sem precisar abrir. -->
+      <div class="secao">Anexos</div>
+      <div class="form-grid">
+        <div class="fg"><label>Rótulo do próximo anexo</label><select id="f-doc-tipo"></select></div>
+        <div class="fg"><label>Arquivo</label>
+          <input type="file" id="f-doc-arq" onchange="anexarDoc(event)" style="display:none">
+          <button type="button" class="btn btn-outline" id="f-doc-btn" onclick="document.getElementById('f-doc-arq').click()">📎 Anexar arquivo</button>
+          <span class="dica" id="f-doc-status"></span>
+        </div>
+      </div>
+      <div id="ficha-docs" style="display:flex;flex-direction:column;gap:6px;margin:8px 0 0"></div>
+
+      <div class="secao">Nos outros módulos</div>
+      <div id="f-fabrica" class="caixa" style="margin-bottom:10px">Carregando a Fábrica...</div>
+      <div id="f-compras" class="caixa">Carregando as compras...</div>
+
+      <div id="f-quem" style="font-size:11.5px;color:var(--gray-4);margin-top:12px;line-height:1.5"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-red btn-sm" id="ficha-btn-excluir" onclick="excluirContrato()" style="display:none">Excluir</button>
+      <button class="btn btn-outline btn-sm" id="ficha-btn-restaurar" onclick="restaurarContrato()" style="display:none">Restaurar</button>
+      <button class="btn btn-outline" onclick="fecharFicha()">Cancelar</button>
+      <button class="btn btn-teal" id="ficha-btn-salvar" onclick="salvarFicha()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- CADASTROS — feriados (cálculo de dias úteis) e rótulos dos anexos -->
+<div class="overlay" id="cad-ov">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head">
+      <div class="modal-title">Cadastros</div>
+      <button class="btn btn-outline btn-sm" onclick="fecharCadastros()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div class="secao">Feriados</div>
+      <div class="aviso">Os feriados <strong>nacionais</strong> o sistema já conhece e calcula sozinho, ano a ano — inclusive Carnaval, Sexta-feira Santa e Corpus Christi, que mudam de data. Cadastre aqui só os <strong>municipais e estaduais</strong> e os pontos facultativos em que a fábrica para.</div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="fg"><label>Data</label><input type="date" id="fer-data"></div>
+        <div class="fg"><label>Nome</label><input id="fer-nome" placeholder="Ex.: Aniversário de Porto Velho"></div>
+        <div class="fg span2"><button class="btn btn-teal btn-block" onclick="addFeriado()">Acrescentar feriado</button></div>
+      </div>
+      <div id="fer-lista"></div>
+
+      <div class="secao">Rótulos dos anexos</div>
+      <div class="aviso">São as etiquetas que aparecem na frente de cada arquivo anexado na ficha — o rótulo diz o que é o documento sem precisar abrir. Um rótulo em uso não pode ser removido.</div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="fg span2"><label>Novo rótulo</label><input id="td-nome" placeholder="Ex.: Aditivo de contrato"></div>
+        <div class="fg span2"><button class="btn btn-teal btn-block" onclick="addTipoDoc()">Acrescentar rótulo</button></div>
+      </div>
+      <div id="td-lista"></div>
+    </div>
+  </div>
+</div>
+
+<!-- AVISO — substitui o alert() do navegador -->
+<div class="overlay" id="aviso-ov">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-head"><div class="modal-title" id="aviso-titulo">Aviso</div></div>
+    <div class="modal-body"><div id="aviso-texto" style="font-size:13.5px;line-height:1.6;white-space:pre-wrap"></div></div>
+    <div class="modal-foot"><button class="btn btn-teal" id="aviso-btn" onclick="fecharAviso()">Entendi</button></div>
+  </div>
+</div>
+
+<datalist id="lista-coord"></datalist>
+<datalist id="lista-respcom"></datalist>
+<datalist id="lista-cidade"></datalist>
+<datalist id="lista-condominio"></datalist>
+
+<script>
+// ================= CONFIG =================
+const WORKER='https://daluminium-api.daluminium2.workers.dev';
+// Identificador do sistema no banco: SEM acento e SEM cedilha, porque vai
+// num cabeçalho HTTP (X-Sistema) e cabeçalho não aceita caractere acentuado.
+// ATENCAO: ao levar para producao muda para 'obra'.
+const SUPA_SISTEMA='obra_teste';
+const PORTAL_URL='https://daluminium.github.io/teste/';
+// Os outros dois módulos que este aqui alimenta e consulta. Seguem o mesmo
+// ambiente deste arquivo: no teste falam com os registros de teste.
+const SISTEMA_FABRICA = /_teste$/.test(SUPA_SISTEMA) ? 'fabrica_teste' : 'fabrica';
+const SISTEMA_COMPRAS = /_teste$/.test(SUPA_SISTEMA) ? 'compras_teste' : 'compras';
+// De qual ambiente sao as sessoes deste modulo. A lista de sessoes e UMA SO para
+// teste e producao — nao existe 'sessions_teste'.
+const AMBIENTE_OBRA = /_teste$/.test(SUPA_SISTEMA) ? 'teste' : 'producao';
+function mesmoAmbienteObra(s){ return (s.ambiente||'producao')===AMBIENTE_OBRA; }
+// A lista de usuários do sistema inteiro vive no registro do Compras de
+// PRODUÇÃO, em qualquer ambiente. É dela que o portal lê.
+const SISTEMA_USUARIOS='compras';
+const LS_KEY='dalum-obra';
+
+// As duas listas fechadas que a planilha usava (validação de dados do Excel).
+const STATUS_LISTA=['A MEDIR','A FABRICAR','FABRICANDO','A INSTALAR','INSTALANDO','FINALIZADA','PARALISADA','PENDENCIA'];
+const REVISAO_LISTA=['OK','PARCIAL','PENDENTE'];
+// Cor de cada status na tela. O que está andando é azul/teal, o que travou é
+// vermelho, o que terminou é verde.
+const STATUS_COR={'A MEDIR':'pill-ambar','A FABRICAR':'pill-azul','FABRICANDO':'pill-azul',
+  'A INSTALAR':'pill-roxo','INSTALANDO':'pill-roxo','FINALIZADA':'pill-verde',
+  'PARALISADA':'pill-vermelho','PENDENCIA':'pill-vermelho','':'pill-cinza'};
+const REVISAO_COR={'OK':'pill-verde','PARCIAL':'pill-ambar','PENDENTE':'pill-vermelho','':'pill-cinza'};
+// Status em que a obra ainda vai passar pela fábrica. Contrato finalizado,
+// parado ou pendente NÃO é empurrado para o quadro da Fábrica: a planilha tem
+// dezenas de contratos antigos e eles entupiriam o quadro de quem produz.
+const STATUS_VAO_PARA_FABRICA=['A MEDIR','A FABRICAR','FABRICANDO','A INSTALAR','INSTALANDO'];
+
+// Serviço de arquivos dos anexos — o mesmo que a Fábrica usa. Só o endereço
+// do arquivo fica guardado no banco; o arquivo em si vive lá.
+// A chave é de envio público (upload_preset sem assinatura), por isso pode
+// estar aqui: ela não dá acesso a ler nem apagar nada.
+const CLOUD_NAME='ks3znltm';
+const UPLOAD_PRESET='daluminium';
+const PASTA_ARQUIVOS='daluminium_obra';
+// 10 MB é o limite do plano do serviço de arquivos.
+const MAX_ARQUIVO=10*1024*1024;
+// Rótulos dos anexos. É só o ponto de partida: a tela de Cadastros manda.
+const TIPOS_DOC_PADRAO=['Contrato','Proposta','Projeto','Medição','ART',
+  'Nota fiscal','Termo de entrega','Foto','Outro'];
+
+let dados={contratos:[],feriados:[],historico:[]};
+// Gravacao em andamento e alteracao local ainda nao confirmada pelo servidor.
+// A atualizacao automatica podia sair ANTES de um clique e chegar DEPOIS da
+// gravacao: trocava os dados da tela pela versao antiga. Mesma trava do
+// Compras, do Financeiro e da Fabrica (11/09/2026).
+let _gravando=0, _versaoLocal=0;
+let usuario='';
+// Papel de quem entrou: admin, gerente, compras, financeiro ou consulta.
+let papel='';
+function podeGerenciar(){ return papel==='admin' || papel==='gerente'; }
+let view='painel';
+let verExcluidos=false;
+let fichaId=null;
+// Campos de data que a pessoa digitou à mão nesta ficha. Enquanto o campo for
+// automático, a conta em dias úteis o preenche; depois de digitado, não mexe
+// mais — quem manda é quem digitou.
+let _manual={};
+// Cópia do que os outros módulos responderam, para a ficha mostrar sem
+// buscar de novo a cada abertura.
+let _fabricaObras=null, _comprasDados=null;
+
+// ================= SESSÃO =================
+function lerSSO(){
+  try{
+    const s=JSON.parse(localStorage.getItem('dalum-sso')||'null');
+    if(!s||!s.nome) return null;
+    if(Date.now()-s.ts>8*60*60*1000){ localStorage.removeItem('dalum-sso'); return null; }
+    return s;
+  }catch(e){ return null; }
+}
+
+const TOKEN_KEY='dalum-token';
+
+function b64urlParaTexto(s){
+  const b64=s.replace(/-/g,'+').replace(/_/g,'/');
+  const bin=atob(b64+'==='.slice((b64.length+3)%4));
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+function lerToken(){
+  try{
+    const t=localStorage.getItem(TOKEN_KEY);
+    if(!t) return null;
+    const partes=t.split('.');
+    if(partes.length!==2) return null;
+    const d=JSON.parse(b64urlParaTexto(partes[0]));
+    if(!d||!d.exp||Date.now()>=d.exp){ localStorage.removeItem(TOKEN_KEY); return null; }
+    return {token:t,dados:d};
+  }catch(e){ localStorage.removeItem(TOKEN_KEY); return null; }
+}
+
+function cabecalhos(extra){
+  const h=Object.assign({'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'},extra||{});
+  const t=lerToken();
+  if(t) h['Authorization']='Bearer '+t.token;
+  return h;
+}
+
+async function fazerLogin(user,senha){
+  const r=await fetch(WORKER,{
+    method:'POST',
+    cache:'no-store',
+    headers:{'Content-Type':'application/json','X-Action':'login'},
+    body:JSON.stringify({usuario:user,senha:senha})
+  });
+  let j=null;
+  try{ j=await r.json(); }catch(e){}
+  if(r.status===503){ telaManutencao((j&&j.mensagem)||''); const e=new Error('Em manutencao'); e.status=503; throw e; }
+  if(!r.ok||!j||!j.token){
+    const e=new Error((j&&j.erro)||('Worker '+r.status));
+    e.status=r.status;
+    throw e;
+  }
+  localStorage.setItem(TOKEN_KEY,j.token);
+  return j;
+}
+
+// ================= UM ACESSO POR PESSOA =================
+let _sessionIdObra=Math.random().toString(36).slice(2)+Date.now().toString(36);
+let _checkObra=null;
+
+function cabecalhosSessoesObra(extra){
+  return Object.assign(cabecalhos(extra||{}),{'X-Sistema':'sessions'});
+}
+
+function encerrarNaListaObra(d, sessionId, motivo){
+  const i=(d.ativas||[]).findIndex(function(s){ return s.sessionId===sessionId; });
+  if(i<0) return false;
+  const s=d.ativas[i];
+  d.ativas.splice(i,1);
+  const inicio=s.inicio||s.ts||Date.now();
+  const fim=(motivo==='parou')?(s.ts||inicio):Date.now();
+  d.encerradas=[{sessionId:s.sessionId,username:s.username||'',nome:s.nome||'',
+    sistema:s.sistema||'',inicio:inicio,fim:fim,
+    minutos:Math.max(0,Math.round((fim-inicio)/60000)),motivo:motivo}]
+    .concat(d.encerradas||[]).slice(0,500);
+  return true;
+}
+
+function limparParadasObra(d){
+  const LIMITE=60*60*1000, agora=Date.now();
+  let mexeu=false;
+  (d.ativas||[]).slice().forEach(function(s){
+    if(agora-(s.ts||0)>=LIMITE && encerrarNaListaObra(d,s.sessionId,'parou')) mexeu=true;
+  });
+  return mexeu;
+}
+
+async function registrarSessaoObra(nome, username){
+  try{
+    const r=await fetch(WORKER,{headers:cabecalhosSessoesObra()});
+    if(!r.ok) return;
+    const d=await r.json();
+    const u=(username||nome||'').toLowerCase().trim();
+    const ativas=(d.ativas||[]).filter(function(s){
+      return s.sessionId!==_sessionIdObra && !((s.username||'').toLowerCase().trim()===u && s.sistema==='obra' && mesmoAmbienteObra(s));
+    });
+    ativas.push({sessionId:_sessionIdObra,username:u,nome:nome,sistema:'obra',ambiente:AMBIENTE_OBRA,ts:Date.now(),inicio:Date.now()});
+    d.ativas=ativas;
+    await fetch(WORKER,{method:'PATCH',
+      headers:cabecalhosSessoesObra({'Content-Type':'application/json'}),
+      body:JSON.stringify({data:d})});
+  }catch(e){}
+}
+
+async function removerSessaoObra(){
+  try{
+    const r=await fetch(WORKER,{headers:cabecalhosSessoesObra()});
+    if(!r.ok) return;
+    const d=await r.json();
+    encerrarNaListaObra(d,_sessionIdObra,'saiu');
+    await fetch(WORKER,{method:'PATCH',
+      headers:cabecalhosSessoesObra({'Content-Type':'application/json'}),
+      body:JSON.stringify({data:d})});
+  }catch(e){}
+}
+
+async function checkForceLogoutObra(){
+  try{
+    const r=await fetch(WORKER,{headers:cabecalhosSessoesObra()});
+    if(!r.ok) return;
+    const d=await r.json();
+    const forcados=(d.forceLogout||[]);
+    if(forcados.indexOf(_sessionIdObra)>=0){
+      const motivo=(d.forceLogoutMotivo||{})[_sessionIdObra]==='outro-login'?'outro-login':'deslogado';
+      d.forceLogout=forcados.filter(function(x){ return x!==_sessionIdObra; });
+      if(d.forceLogoutMotivo) delete d.forceLogoutMotivo[_sessionIdObra];
+      encerrarNaListaObra(d,_sessionIdObra,motivo);
+      await fetch(WORKER,{method:'PATCH',
+        headers:cabecalhosSessoesObra({'Content-Type':'application/json'}),
+        body:JSON.stringify({data:d})});
+      // Este aviso PRECISA parar o código até o clique: o que vem depois
+      // recarrega a página. Por isso a ação vai no callback.
+      aviso('Sessão encerrada',
+        motivo==='outro-login'
+          ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
+          :'Sua sessão foi encerrada pelo administrador.',
+        function(){
+          try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){}
+          location.reload();
+        });
+      return;
+    }
+    const AGORA=Date.now(), CADA=5*60*1000;
+    let precisaGravar=limparParadasObra(d);
+    const eu=(d.ativas||[]).find(function(s){ return s.sessionId===_sessionIdObra; });
+    if(eu){
+      if(AGORA-(eu.ts||0)>CADA){ eu.ts=AGORA; precisaGravar=true; }
+    } else {
+      d.ativas=(d.ativas||[]).concat([{sessionId:_sessionIdObra,
+        username:(usuario||'').toLowerCase().trim(), nome:usuario,
+        sistema:'obra', ambiente:AMBIENTE_OBRA, ts:AGORA, inicio:AGORA}]);
+      precisaGravar=true;
+    }
+    if(!precisaGravar) return;
+    await fetch(WORKER,{method:'PATCH',
+      headers:cabecalhosSessoesObra({'Content-Type':'application/json'}),
+      body:JSON.stringify({data:d})});
+  }catch(e){}
+}
+
+async function sairDaObra(){
+  if(!confirm('Deseja sair?')) return;
+  await removerSessaoObra();
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('dalum-sso');
+  if(window.self!==window.top) window.parent.postMessage('logout','*');
+  location.reload();
+}
+
+// ================= DADOS =================
+function arrumar(d){
+  if(!d||typeof d!=='object') d={};
+  if(!Array.isArray(d.contratos)) d.contratos=[];
+  if(!Array.isArray(d.feriados)) d.feriados=[];
+  if(!Array.isArray(d.historico)) d.historico=[];
+  if(!Array.isArray(d.tiposDoc)||!d.tiposDoc.length) d.tiposDoc=TIPOS_DOC_PADRAO.slice();
+  return d;
+}
+function lerLocal(){
+  try{ const s=localStorage.getItem(LS_KEY); if(s) dados=JSON.parse(s); }catch(e){}
+  dados=arrumar(dados);
+}
+function gravarLocal(){ try{ localStorage.setItem(LS_KEY,JSON.stringify(dados)); }catch(e){} }
+
+function status(txt,cor){ const e=document.getElementById('sync'); if(e){ e.textContent=txt; e.style.color=cor||'rgba(255,255,255,.85)'; } }
+
+// ---- AVISO NA TELA ----
+// No lugar do alert() do navegador. Uma diferença que importa: o alert() PARA
+// o código até a pessoa clicar; este não para. Onde o que vem depois não pode
+// acontecer antes da leitura — recarregar a página, por exemplo — passe a ação
+// em `aoFechar`, que roda no clique.
+let _avisoAoFechar=null;
+function aviso(titulo, texto, aoFechar){
+  document.getElementById('aviso-titulo').textContent = titulo || 'Aviso';
+  document.getElementById('aviso-texto').textContent  = texto || '';
+  _avisoAoFechar = aoFechar || null;
+  document.getElementById('aviso-ov').classList.add('open');
+  setTimeout(function(){ const b=document.getElementById('aviso-btn'); if(b) b.focus(); }, 60);
+}
+function fecharAviso(){
+  document.getElementById('aviso-ov').classList.remove('open');
+  const fn=_avisoAoFechar; _avisoAoFechar=null;
+  if(fn) fn();
+}
+
+function sessaoExpirada(){
+  if(window.__sessaoExpirada) return;
+  window.__sessaoExpirada = true;
+  try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){}
+  aviso('Sessão expirada',
+        'O acesso vale 8 horas e o seu venceu. Nada foi perdido — o que você ' +
+        'já tinha salvo continua guardado.\n\nVamos voltar para a tela de entrada.',
+        function(){ location.reload(); });
+}
+
+function telaManutencao(msg){
+  const ja=document.getElementById('tela-manutencao');
+  if(ja){
+    const p=ja.querySelector('[data-msg]');
+    if(p&&msg) p.textContent=msg;
+    return;
+  }
+  const d=document.createElement('div');
+  d.id='tela-manutencao';
+  d.style.cssText='position:fixed;inset:0;z-index:300000;background:#fff;display:flex;'+
+    'align-items:center;justify-content:center;padding:24px;'+
+    'font-family:system-ui,-apple-system,"Segoe UI",sans-serif';
+  d.innerHTML='<div style="max-width:460px;text-align:center">'+
+    '<div style="font-size:46px;line-height:1;margin-bottom:16px">&#128736;</div>'+
+    '<h1 style="font-size:20px;margin:0 0 12px;color:#1f2937;font-weight:700">'+
+      'Sistema em manutenção</h1>'+
+    '<p data-msg style="font-size:14.5px;line-height:1.65;color:#4b5563;margin:0 0 10px">'+
+      (msg||'Estamos ajustando o sistema. Volta já.')+'</p>'+
+    '<p style="font-size:13.5px;line-height:1.65;color:#6b7280;margin:0 0 22px">'+
+      'Seus lançamentos estão guardados. Nada foi perdido — só não dá para '+
+      'gravar durante estes minutos.</p>'+
+    '<button onclick="location.reload()" style="background:#0e7490;color:#fff;border:0;'+
+      'padding:11px 20px;border-radius:8px;font-size:14.5px;font-weight:600;'+
+      'cursor:pointer;font-family:inherit">Tentar de novo</button>'+
+    '</div>';
+  document.body.appendChild(d);
+}
+
+function bloqueioAcesso(){
+  if(document.getElementById('bloqueio-acesso')) return;
+  const d=document.createElement('div');
+  d.id='bloqueio-acesso';
+  d.style.cssText='position:fixed;inset:0;z-index:300000;background:#fff;display:flex;'+
+    'align-items:center;justify-content:center;padding:24px;'+
+    'font-family:system-ui,-apple-system,"Segoe UI",sans-serif';
+  d.innerHTML='<div style="max-width:480px;text-align:center">'+
+    '<div style="font-size:46px;line-height:1;margin-bottom:16px">&#128274;</div>'+
+    '<h1 style="font-size:20px;margin:0 0 12px;color:#1f2937;font-weight:700">'+
+      'Este ambiente é só para administradores</h1>'+
+    '<p style="font-size:14.5px;line-height:1.65;color:#4b5563;margin:0 0 10px">'+
+      'Você abriu o <strong>ambiente de teste</strong>, que serve para experimentar '+
+      'mudanças antes de valerem. Ele não é o sistema do dia a dia.</p>'+
+    '<p style="font-size:13.5px;line-height:1.65;color:#6b7280;margin:0 0 22px">'+
+      'Não há nada errado e nada foi perdido. Seus lançamentos estão no sistema '+
+      'de verdade, no endereço abaixo.</p>'+
+    '<a href="https://daluminium.github.io/portal/" target="_top" style="display:inline-block;'+
+      'background:#0e7490;color:#fff;text-decoration:none;padding:11px 20px;'+
+      'border-radius:8px;font-size:14.5px;font-weight:600">Ir para o sistema</a>'+
+    '<p style="font-size:12px;color:#9ca3af;margin:16px 0 0">'+
+      'daluminium.github.io/portal/</p>'+
+    '</div>';
+  document.body.appendChild(d);
+}
+
+async function buscarRemoto(){
+  // O Worker nao manda cabecalho de cache, entao o navegador decide sozinho por
+  // quanto tempo reaproveita a resposta — e chegava a devolver dados velhos na
+  // releitura feita logo apos gravar. Dois cintos de seguranca: no-store e um
+  // parametro que muda a cada chamada.
+  const url=WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7);
+  const r=await fetch(url,{cache:'no-store',headers:cabecalhos()});
+  if(r.status===503){ let m=''; try{ m=(await r.json()).mensagem||''; }catch(e){} telaManutencao(m); throw new Error('Em manutencao'); }
+  if(r.status===403){ bloqueioAcesso(); throw new Error('Acesso negado'); }
+  if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
+  if(!r.ok) throw new Error('Worker '+r.status);
+  const j=await r.json();
+  if(!j||typeof j!=='object'||Array.isArray(j)) return null;
+  return arrumar(j);
+}
+
+async function enviarRemoto(payload){
+  const r=await fetch(WORKER,{
+    method:'PATCH',
+    headers:cabecalhos({'Content-Type':'application/json'}),
+    body:JSON.stringify({data:payload})
+  });
+  if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
+  if(!r.ok) throw new Error('Worker '+r.status);
+}
+
+// Registro do que foi feito no módulo. Fica no mesmo documento dos contratos e
+// é gravado JUNTO com a alteração — se fossem duas gravações separadas, uma
+// poderia acontecer sem a outra e o histórico mentiria.
+function logObra(base, acao, alvo, detalhe){
+  if(!Array.isArray(base.historico)) base.historico=[];
+  base.historico.unshift({
+    id: Math.random().toString(36).slice(2)+Date.now().toString(36),
+    ts: agoraISO(), user: usuario||'—',
+    acao: acao, alvo: alvo||'—', detalhe: detalhe||''
+  });
+  if(base.historico.length>500) base.historico=base.historico.slice(0,500);
+}
+
+// Toda alteração passa por aqui: relê o servidor, aplica a mudança em cima do
+// que está lá e só então grava. Evita que duas pessoas salvando ao mesmo tempo
+// apaguem o trabalho uma da outra.
+async function alterar(fn, registro){
+  _versaoLocal++;
+  _gravando++;
+  try{ return await gravarAlteracao(fn, registro); }
+  finally{ _gravando--; }
+}
+
+async function gravarAlteracao(fn, registro){
+  status('🔄 Salvando...');
+  try{
+    let base=null;
+    try{ base=await buscarRemoto(); }catch(e){ base=null; }
+    if(!base) base=arrumar(JSON.parse(JSON.stringify(dados)));
+    await fn(base);
+    if(registro){
+      try{
+        const r=(typeof registro==='function')?registro(base):registro;
+        if(r && r.acao) logObra(base, r.acao, r.alvo, r.detalhe);
+      }catch(e){}   // histórico nunca pode impedir a gravação do trabalho
+    }
+    const carimbo=agoraISO();
+    base.atualizadoEm=carimbo;
+    base.atualizadoPor=usuario;
+    await enviarRemoto(base);
+
+    // O Worker responde {"ok":true} mesmo quando NÃO grava nada — é o que
+    // acontece se o registro do módulo ainda não existir no banco. Por isso
+    // não dá para confiar na resposta dele: relemos e conferimos o carimbo.
+    let confere=null;
+    try{ confere=await buscarRemoto(); }catch(e){ confere=null; }
+    if(!confere || confere.atualizadoEm!==carimbo){
+      status('🔴 NÃO gravou no servidor','#ffcccc');
+      aviso('Os dados NÃO foram salvos',
+            'O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+
+            'A causa mais comum é o registro do módulo ainda não ter sido criado no banco.\n\n'+
+            'Não continue cadastrando: o que você digitar será perdido. Avise o responsável pelo sistema.');
+      return false;
+    }
+
+    dados=confere; gravarLocal(); render();
+    status('🟢 Salvo · '+agoraHora());
+    return true;
+  }catch(e){
+    status('🔴 Não salvou — sem conexão','#ffcccc');
+    aviso('Não foi possível salvar','Verifique a internet e tente de novo.\n\nNada foi perdido: seus dados continuam na tela.');
+    return false;
+  }
+}
+
+async function sincronizar(){
+  status('🔄 Buscando...');
+  try{
+    const r=await buscarRemoto();
+    if(r){ dados=r; gravarLocal(); }
+    render();
+    status('🟢 Atualizado · '+agoraHora());
+  }catch(e){
+    render();
+    status('🔴 Sem conexão — dados locais','#ffcccc');
+  }
+}
+
+// Alguma tela de edição aberta? Enquanto houver, não redesenhamos: trocar
+// valores por baixo de quem está digitando faria a pessoa perder o que escreveu.
+function telaAbertaParaEdicao(){
+  return ['ficha-ov','cad-ov'].some(function(id){
+    const el=document.getElementById(id);
+    return el && el.classList.contains('open');
+  });
+}
+
+// Relê o banco e redesenha só se algo mudou. Roda sozinha a cada 60 segundos
+// e também pelo botão Atualizar.
+async function atualizarDoBanco(manual){
+  if(!manual && (telaAbertaParaEdicao() || _gravando>0)) return;
+  const versaoAoSair=_versaoLocal;
+  try{
+    const r=await buscarRemoto();
+    if(!r) return;
+    // Leitura que saiu antes de uma gravação e chegou depois dela é lixo:
+    // descartar é o que impede a alteração de sumir da tela.
+    if(_gravando>0 || _versaoLocal!==versaoAoSair) return;
+    const mudou=JSON.stringify(r)!==JSON.stringify(dados);
+    dados=r; gravarLocal();
+    if(mudou && !telaAbertaParaEdicao()) render();
+    status('🟢 Atualizado · '+agoraHora());
+  }catch(e){
+    if(manual) status('🔴 Sem conexão','#ffcccc');
+  }
+}
+
+// ================= DATAS E DIAS ÚTEIS =================
+// A planilha calculava a projeção de entrada e a entrega com WORKDAY.INTL —
+// dias úteis, pulando sábado, domingo e feriado. A lista de feriados dela
+// estava parada em 2023; aqui os nacionais são calculados ano a ano, e os
+// municipais ficam cadastráveis na tela de Feriados.
+function agoraISO(){ return new Date().toISOString(); }
+function agoraHora(){ return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+function novoId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function hojeISO(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function fmtData(iso){
+  if(!iso||!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+  const p=iso.split('-');
+  return p[2]+'/'+p[1]+'/'+p[0];
+}
+function esc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+// Diferença em dias entre duas datas ISO. Positivo = a segunda é depois.
+function diasEntre(a,b){
+  if(!a||!b) return null;
+  const d1=Date.UTC(+a.slice(0,4),+a.slice(5,7)-1,+a.slice(8,10));
+  const d2=Date.UTC(+b.slice(0,4),+b.slice(5,7)-1,+b.slice(8,10));
+  return Math.round((d2-d1)/86400000);
+}
+
+// Domingo de Páscoa pelo algoritmo de Gauss. Dele saem Carnaval (-47 dias),
+// Sexta-feira Santa (-2) e Corpus Christi (+60).
+function domingoDePascoa(ano){
+  const a=ano%19, b=Math.floor(ano/100), c=ano%100;
+  const d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25);
+  const g=Math.floor((b-f+1)/3), h=(19*a+b-d-g+15)%30;
+  const i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7;
+  const m=Math.floor((a+11*h+22*l)/451);
+  const mes=Math.floor((h+l-7*m+114)/31), dia=((h+l-7*m+114)%31)+1;
+  return Date.UTC(ano,mes-1,dia);
+}
+function isoDeUTC(ms){
+  const d=new Date(ms);
+  return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+}
+const _cacheFeriados={};
+function feriadosNacionais(ano){
+  if(_cacheFeriados[ano]) return _cacheFeriados[ano];
+  const p=domingoDePascoa(ano);
+  const lista={};
+  [[0,1,'Confraternização Universal'],[3,21,'Tiradentes'],[4,1,'Dia do Trabalho'],
+   [8,7,'Independência do Brasil'],[9,12,'Nossa Senhora Aparecida'],
+   [10,2,'Finados'],[10,15,'Proclamação da República'],[11,25,'Natal']]
+   .forEach(function(f){ lista[isoDeUTC(Date.UTC(ano,f[0],f[1]))]=f[2]; });
+  lista[isoDeUTC(p-47*86400000)]='Carnaval';
+  lista[isoDeUTC(p-2*86400000)]='Sexta-feira Santa';
+  lista[isoDeUTC(p+60*86400000)]='Corpus Christi';
+  _cacheFeriados[ano]=lista;
+  return lista;
+}
+// É feriado ou fim de semana? Serve para a conta de dias úteis e para avisar
+// na tela quando uma data cai em dia não útil.
+function nomeDoFeriado(iso){
+  if(!iso) return '';
+  const extra=(dados.feriados||[]).find(function(f){ return f.data===iso; });
+  if(extra) return extra.nome||'Feriado';
+  const ano=+iso.slice(0,4);
+  return feriadosNacionais(ano)[iso]||'';
+}
+function ehDiaUtil(iso){
+  const d=new Date(Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10)));
+  const s=d.getUTCDay();
+  if(s===0||s===6) return false;
+  return !nomeDoFeriado(iso);
+}
+// Soma N dias úteis a uma data, como o WORKDAY do Excel: o dia de partida não
+// conta, e o resultado nunca cai em sábado, domingo ou feriado.
+function somaDiasUteis(iso, n){
+  if(!iso||!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+  const qtd=Number(n);
+  if(!isFinite(qtd)||qtd<0) return '';
+  let ms=Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10));
+  let faltam=Math.round(qtd);
+  if(faltam===0) return iso;
+  // Trava de segurança: 5 anos de dias. Sem ela, uma lista de feriados
+  // maluca poderia rodar para sempre e travar a tela.
+  let voltas=0;
+  while(faltam>0 && voltas<2000){
+    ms+=86400000; voltas++;
+    if(ehDiaUtil(isoDeUTC(ms))) faltam--;
+  }
+  return isoDeUTC(ms);
+}
+
+// ================= AS CONTAS DA FICHA =================
+// Limite de compra do material = fechamento + prazo de material
+// Projeção de entrada na obra  = medição prevista + dias de produção
+// Entrega                      = projeção de entrada + dias de instalação
+function contasDe(c){
+  return {
+    limiteMaterial: somaDiasUteis(c.fechamento, c.prazoMaterial),
+    projEntrada:    somaDiasUteis(c.medicao, c.diasProd),
+    entrega:        somaDiasUteis(c.projEntrada || somaDiasUteis(c.medicao, c.diasProd), c.diasInst)
+  };
+}
+
+function lerFicha(){
+  const v=id=>document.getElementById(id).value.trim();
+  return {
+    ct:v('f-ct'), ano:v('f-ano'), cliente:v('f-cliente'),
+    coord:v('f-coord'), respCom:v('f-respcom'),
+    cidade:v('f-cidade'), condominio:v('f-condominio'),
+    status:v('f-status'), revisao:v('f-revisao'),
+    fechamento:v('f-fechamento'), prazoMaterial:v('f-prazomat'),
+    medicao:v('f-medicao'), diasProd:v('f-diasprod'),
+    projEntrada:v('f-projentrada'), diasInst:v('f-diasinst'),
+    entrega:v('f-entrega'),
+    linhas:v('f-linhas'), cores:v('f-cores'), vidros:v('f-vidros'),
+    pecas:v('f-pecas'), obs:document.getElementById('f-obs').value.trim()
+  };
+}
+
+function marcarManual(campo){ _manual[campo]=true; }
+
+// Mostra as contas embaixo dos campos e, enquanto o campo for automático,
+// preenche sozinho. Quem digitou a data manda: aí só aparece o aviso.
+function recalcular(){
+  const c=lerFicha();
+  const r=contasDe(c);
+  const d=(id,txt,cor)=>{ const e=document.getElementById(id); if(e){ e.innerHTML=txt; e.style.color=cor||''; } };
+
+  d('d-limite', r.limiteMaterial
+    ? 'Comprar até <b>'+fmtData(r.limiteMaterial)+'</b> (dias úteis a partir do fechamento).'
+    : 'Preencha fechamento e prazo para ver até quando dá para comprar.');
+
+  if(r.projEntrada && !_manual.projEntrada){
+    document.getElementById('f-projentrada').value=r.projEntrada;
+    c.projEntrada=r.projEntrada;
+  }
+  d('d-projentrada', r.projEntrada
+    ? (document.getElementById('f-projentrada').value===r.projEntrada
+        ? 'Bate com a conta: medição + dias de produção.'
+        : 'A conta daria <b>'+fmtData(r.projEntrada)+'</b>.')
+    : '');
+
+  const rEntrega=contasDe(Object.assign({},c,{projEntrada:document.getElementById('f-projentrada').value})).entrega;
+  if(rEntrega && !_manual.entrega){
+    document.getElementById('f-entrega').value=rEntrega;
+  }
+  const eAtual=document.getElementById('f-entrega').value;
+  let txt='';
+  if(rEntrega) txt = (eAtual===rEntrega) ? 'Bate com a conta: entrada na obra + dias de instalação.'
+                                         : 'A conta daria <b>'+fmtData(rEntrega)+'</b>.';
+  const fer=eAtual?nomeDoFeriado(eAtual):'';
+  if(fer) txt+=(txt?' ':'')+'⚠️ '+fmtData(eAtual)+' é feriado ('+fer+').';
+  d('d-entrega', txt);
+}
+
+// Botão "Recalcular pelas contas": joga fora o que foi digitado à mão e
+// refaz as duas datas pela regra de dias úteis.
+function usarCalculo(){
+  _manual={};
+  const c=lerFicha();
+  const r=contasDe(c);
+  if(r.projEntrada) document.getElementById('f-projentrada').value=r.projEntrada;
+  const r2=contasDe(Object.assign({},c,{projEntrada:document.getElementById('f-projentrada').value}));
+  if(r2.entrega) document.getElementById('f-entrega').value=r2.entrega;
+  recalcular();
+}
+
+// ================= LISTAS E FILTROS =================
+function ativos(){ return (dados.contratos||[]).filter(function(c){ return !c.excluido; }); }
+function excluidos(){ return (dados.contratos||[]).filter(function(c){ return !!c.excluido; }); }
+
+function valoresDe(campo){
+  const vistos={}, saida=[];
+  (dados.contratos||[]).forEach(function(c){
+    const v=(c[campo]||'').trim();
+    if(!v||vistos[v.toUpperCase()]) return;
+    vistos[v.toUpperCase()]=1; saida.push(v);
+  });
+  return saida.sort(function(a,b){ return a.localeCompare(b,'pt-BR'); });
+}
+
+function preencherListas(){
+  [['lista-coord','coord'],['lista-respcom','respCom'],
+   ['lista-cidade','cidade'],['lista-condominio','condominio']].forEach(function(p){
+    const el=document.getElementById(p[0]);
+    if(el) el.innerHTML=valoresDe(p[1]).map(function(v){ return '<option value="'+esc(v)+'">'; }).join('');
+  });
+  // Os filtros do topo guardam o que estava escolhido: redesenhar não pode
+  // zerar o filtro de quem está olhando.
+  function enche(id, primeiro, valores){
+    const el=document.getElementById(id); if(!el) return;
+    const antes=el.value;
+    el.innerHTML='<option value="">'+primeiro+'</option>'+
+      valores.map(function(v){ return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join('');
+    if(valores.indexOf(antes)>=0) el.value=antes;
+  }
+  enche('f-status-filtro','Todos os status',STATUS_LISTA.filter(function(s){
+    return (dados.contratos||[]).some(function(c){ return c.status===s; });
+  }));
+  enche('f-ano-filtro','Todos os anos',valoresDe('ano').slice().sort().reverse());
+  enche('f-coord-filtro','Todos os coordenadores',valoresDe('coord'));
+}
+
+function filtrados(){
+  const busca=(document.getElementById('busca').value||'').toLowerCase().trim();
+  const fs=document.getElementById('f-status-filtro').value;
+  const fa=document.getElementById('f-ano-filtro').value;
+  const fc=document.getElementById('f-coord-filtro').value;
+  return (verExcluidos?excluidos():ativos()).filter(function(c){
+    if(fs && c.status!==fs) return false;
+    if(fa && c.ano!==fa) return false;
+    if(fc && c.coord!==fc) return false;
+    if(!busca) return true;
+    return [c.ct,c.ano,c.cliente,c.coord,c.respCom,c.cidade,c.condominio,
+            c.linhas,c.cores,c.vidros,c.status,c.obs]
+      .join(' ').toLowerCase().indexOf(busca)>=0;
+  });
+}
+
+// Ordem da tela: quem tem entrega mais próxima primeiro; sem data vai para o
+// fim. É a mesma ordem que a planilha usava (classificada pela entrega).
+function ordenar(lista){
+  return lista.slice().sort(function(a,b){
+    const da=a.entrega||'9999-99-99', db=b.entrega||'9999-99-99';
+    if(da!==db) return da<db?-1:1;
+    return (a.cliente||'').localeCompare(b.cliente||'','pt-BR');
+  });
+}
+
+// ================= TELA =================
+function setView(v){
+  view=v;
+  try{ localStorage.setItem('dalum-obra-view',v); }catch(e){}
+  ['painel','carteira','hist'].forEach(function(k){
+    const b=document.getElementById('vb-'+k);
+    if(b) b.classList.remove('active');
+  });
+  const alvo=document.getElementById('vb-'+(v==='historico'?'hist':v));
+  if(alvo) alvo.classList.add('active');
+  render();
+}
+
+function render(){
+  preencherListas();
+  const el=document.getElementById('conteudo');
+  if(view==='historico'){ el.innerHTML=htmlHistorico(); return; }
+  if(view==='painel'){ el.innerHTML=htmlPainel(); return; }
+  el.innerHTML=htmlCarteira();
+}
+
+function pill(txt,classe){ return '<span class="pill '+classe+'">'+esc(txt||'—')+'</span>'; }
+
+// Quanto falta (ou já passou) para a entrega.
+function selo(c){
+  if(c.status==='FINALIZADA') return pill('Entregue','pill-verde');
+  if(c.status==='PARALISADA') return pill('Parada','pill-vermelho');
+  if(!c.entrega) return pill('Sem data','pill-cinza');
+  const d=diasEntre(hojeISO(),c.entrega);
+  if(d===null) return '';
+  if(d<0) return pill(Math.abs(d)+(Math.abs(d)===1?' dia atrasado':' dias atrasado'),'pill-vermelho');
+  if(d===0) return pill('Entrega hoje','pill-ambar');
+  if(d<=7) return pill('Faltam '+d+(d===1?' dia':' dias'),'pill-ambar');
+  return pill('Faltam '+d+' dias','pill-cinza');
+}
+
+function htmlCarteira(){
+  const lista=ordenar(filtrados());
+  if(!lista.length){
+    return '<div class="vazio"><div class="vazio-t">Nada para mostrar</div>'+
+      (verExcluidos?'A lixeira está vazia.':'Nenhum contrato bate com a busca ou com os filtros.')+'</div>';
+  }
+  const linhas=lista.map(function(c){
+    return '<tr onclick="abrirFicha(\''+c.id+'\')">'+
+      '<td class="td-ct">'+esc(c.ct||'—')+'<span class="td-ano">'+esc(c.ano||'')+'</span></td>'+
+      '<td class="td-cliente">'+esc(c.cliente||'—')+
+        (((c.docs)||[]).length?' <span class="pill pill-teal" title="'+((c.docs)||[]).length+
+          ' arquivo(s) anexado(s)">&#128206; '+((c.docs)||[]).length+'</span>':'')+
+        ((c.condominio||c.cidade)?'<span class="td-local">'+esc([c.condominio,c.cidade].filter(Boolean).join(' · '))+'</span>':'')+'</td>'+
+      '<td>'+pill(c.status||'—',STATUS_COR[c.status]||'pill-cinza')+'</td>'+
+      '<td class="td-nowrap">'+pill(c.revisao||'—',REVISAO_COR[c.revisao]||'pill-cinza')+'</td>'+
+      '<td class="td-nowrap">'+esc(c.coord||'')+'</td>'+
+      '<td class="td-nowrap">'+(c.entrega?fmtData(c.entrega):'<span class="td-fraco">—</span>')+'</td>'+
+      '<td class="td-nowrap">'+selo(c)+'</td>'+
+      '<td class="td-fraco">'+esc(c.linhas||'')+'</td>'+
+      '<td class="td-nowrap td-fraco">'+esc(c.pecas||'')+'</td>'+
+      '</tr>';
+  }).join('');
+  return '<div class="tabela-cx"><table class="carteira"><thead><tr>'+
+    '<th>CT</th><th>Cliente / Obra</th><th>Status</th><th>Revisão</th><th>Coord.</th>'+
+    '<th>Entrega</th><th>Prazo</th><th>Linhas</th><th>Peças</th>'+
+    '</tr></thead><tbody>'+linhas+'</tbody></table></div>'+
+    '<div style="font-size:11.5px;color:var(--gray-4);margin-top:8px">'+lista.length+
+    ' contrato'+(lista.length===1?'':'s')+' na lista.</div>';
+}
+
+function htmlPainel(){
+  const lista=filtrados();
+  const porStatus={};
+  STATUS_LISTA.forEach(function(s){ porStatus[s]=0; });
+  let semStatus=0;
+  lista.forEach(function(c){
+    if(c.status && porStatus[c.status]!==undefined) porStatus[c.status]++;
+    else semStatus++;
+  });
+  let cards=STATUS_LISTA.filter(function(s){ return porStatus[s]>0; }).map(function(s){
+    const cor={'A MEDIR':'var(--amber)','A FABRICAR':'var(--blue)','FABRICANDO':'var(--blue)',
+      'A INSTALAR':'var(--purple)','INSTALANDO':'var(--purple)','FINALIZADA':'var(--green)',
+      'PARALISADA':'var(--red)','PENDENCIA':'var(--red)'}[s]||'var(--gray-3)';
+    return '<div class="card" style="border-left-color:'+cor+'" onclick="filtrarStatus(\''+s+'\')">'+
+      '<div class="card-n" style="color:'+cor+'">'+porStatus[s]+'</div>'+
+      '<div class="card-t">'+esc(s)+'</div></div>';
+  }).join('');
+  if(semStatus) cards+='<div class="card" onclick="filtrarStatus(\'\')"><div class="card-n">'+semStatus+
+    '</div><div class="card-t">Sem status</div></div>';
+
+  // Os avisos. São o motivo de existir o painel: dizem o que cobrar hoje.
+  const hoje=hojeISO();
+  const andando=lista.filter(function(c){ return c.status!=='FINALIZADA' && c.status!=='PARALISADA'; });
+  const atrasados=ordenar(andando.filter(function(c){ return c.entrega && c.entrega<hoje; }));
+  const semana=ordenar(andando.filter(function(c){
+    if(!c.entrega||c.entrega<hoje) return false;
+    const d=diasEntre(hoje,c.entrega); return d!==null && d<=7;
+  }));
+  const revisao=ordenar(andando.filter(function(c){ return c.revisao==='PENDENTE'||c.revisao==='PARCIAL'; }));
+  const semData=ordenar(andando.filter(function(c){ return !c.entrega; }));
+  const semCoord=ordenar(andando.filter(function(c){ return !c.coord; }));
+
+  function blocoLista(titulo, arr, cor, vazio){
+    if(!arr.length) return '';
+    return '<div class="bloco"><div class="bloco-head"><span style="color:'+cor+'">'+esc(titulo)+'</span>'+
+      '<span class="pill pill-cinza">'+arr.length+'</span></div><div class="bloco-body">'+
+      arr.map(function(c){
+        return '<div class="linha-alerta" onclick="abrirFicha(\''+c.id+'\')">'+
+          '<strong style="min-width:52px">'+esc(c.ct||'—')+'</strong>'+
+          '<span style="flex:1;min-width:150px">'+esc(c.cliente||'')+'</span>'+
+          pill(c.status||'—',STATUS_COR[c.status]||'pill-cinza')+
+          (c.entrega?'<span class="td-fraco">'+fmtData(c.entrega)+'</span>':'')+
+          selo(c)+'</div>';
+      }).join('')+'</div></div>';
+  }
+
+  let blocos='';
+  blocos+=blocoLista('🔴 Entrega atrasada',atrasados,'var(--red)');
+  blocos+=blocoLista('🟡 Entrega nos próximos 7 dias',semana,'var(--amber)');
+  blocos+=blocoLista('📐 Revisão de projeto pendente',revisao,'var(--gray-5)');
+  blocos+=blocoLista('📅 Sem data de entrega',semData,'var(--gray-5)');
+  blocos+=blocoLista('👤 Sem coordenador',semCoord,'var(--gray-5)');
+  if(!blocos) blocos='<div class="bloco"><div class="bloco-body" style="color:var(--green);font-weight:600">'+
+    'Nenhum alerta: nada atrasado, nada sem data.</div></div>';
+
+  return '<div class="cards">'+cards+'</div>'+blocos;
+}
+
+function filtrarStatus(s){
+  document.getElementById('f-status-filtro').value=s;
+  setView('carteira');
+}
+
+function htmlHistorico(){
+  const h=(dados.historico||[]);
+  if(!h.length) return '<div class="vazio"><div class="vazio-t">Sem histórico</div>Nada foi alterado ainda.</div>';
+  return '<div class="bloco"><div class="bloco-head">Histórico de alterações</div><div class="bloco-body">'+
+    h.slice(0,300).map(function(x){
+      const d=new Date(x.ts);
+      const quando=isNaN(d)?'':d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      return '<div class="hist-item"><span class="hist-quem">'+esc(x.user)+'</span> — '+esc(x.acao)+
+        ' <strong>'+esc(x.alvo)+'</strong>'+(x.detalhe?' · '+esc(x.detalhe):'')+
+        '<br><span class="hist-quando">'+esc(quando)+'</span></div>';
+    }).join('')+'</div></div>';
+}
+
+function alternarLixeira(){
+  verExcluidos=!verExcluidos;
+  const b=document.getElementById('btn-lixeira');
+  if(b) b.textContent=verExcluidos?'Ver ativos':'Lixeira';
+  if(view==='historico') setView('carteira'); else render();
+}
+
+// ================= FICHA =================
+function preencherSelects(){
+  const st=document.getElementById('f-status');
+  st.innerHTML='<option value="">— sem status —</option>'+
+    STATUS_LISTA.map(function(s){ return '<option value="'+esc(s)+'">'+esc(s)+'</option>'; }).join('');
+  const rv=document.getElementById('f-revisao');
+  rv.innerHTML='<option value="">— sem revisão —</option>'+
+    REVISAO_LISTA.map(function(s){ return '<option value="'+esc(s)+'">'+esc(s)+'</option>'; }).join('');
+}
+
+function novoContrato(){
+  if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente cadastra contrato.'); return; }
+  fichaId=null;
+  _manual={};
+  fichaDocs=[]; docsApagados={};
+  preencherTiposDoc(); renderDocs();
+  const p=(id,v)=>{ document.getElementById(id).value=v; };
+  ['f-ct','f-cliente','f-coord','f-respcom','f-cidade','f-condominio','f-fechamento',
+   'f-prazomat','f-medicao','f-diasprod','f-projentrada','f-diasinst','f-entrega',
+   'f-linhas','f-cores','f-vidros','f-pecas','f-obs'].forEach(function(id){ p(id,''); });
+  p('f-ano',String(new Date().getFullYear()));
+  p('f-status','A MEDIR');
+  p('f-revisao','PENDENTE');
+  document.getElementById('ficha-titulo').textContent='Novo contrato';
+  document.getElementById('ficha-btn-excluir').style.display='none';
+  document.getElementById('ficha-btn-restaurar').style.display='none';
+  document.getElementById('ficha-btn-salvar').style.display='';
+  document.getElementById('f-quem').textContent='';
+  document.getElementById('f-fabrica').innerHTML='Ao salvar, esta obra entra no quadro da Fábrica.';
+  document.getElementById('f-compras').innerHTML='Sem compras ainda — elas aparecem aqui depois de lançadas no módulo Compras.';
+  recalcular();
+  document.getElementById('ficha-ov').classList.add('open');
+  setTimeout(function(){ document.getElementById('f-ct').focus(); },80);
+}
+
+function abrirFicha(id){
+  const c=(dados.contratos||[]).find(function(x){ return x.id===id; });
+  if(!c) return;
+  fichaId=id;
+  _manual={projEntrada:!!c.projEntrada, entrega:!!c.entrega};
+  fichaDocs=Array.isArray(c.docs)?JSON.parse(JSON.stringify(c.docs)):[];
+  docsApagados={};
+  preencherTiposDoc(); renderDocs();
+  const p=(campo,v)=>{ document.getElementById(campo).value=v||''; };
+  p('f-ct',c.ct); p('f-ano',c.ano); p('f-cliente',c.cliente);
+  p('f-coord',c.coord); p('f-respcom',c.respCom);
+  p('f-cidade',c.cidade); p('f-condominio',c.condominio);
+  p('f-status',c.status); p('f-revisao',c.revisao);
+  p('f-fechamento',c.fechamento); p('f-prazomat',c.prazoMaterial);
+  p('f-medicao',c.medicao); p('f-diasprod',c.diasProd);
+  p('f-projentrada',c.projEntrada); p('f-diasinst',c.diasInst);
+  p('f-entrega',c.entrega);
+  p('f-linhas',c.linhas); p('f-cores',c.cores); p('f-vidros',c.vidros);
+  p('f-pecas',c.pecas); p('f-obs',c.obs);
+  document.getElementById('ficha-titulo').textContent='CT '+(c.ct||'—')+' · '+(c.cliente||'');
+  const gestor=podeGerenciar();
+  document.getElementById('ficha-btn-excluir').style.display=(gestor&&!c.excluido)?'':'none';
+  document.getElementById('ficha-btn-restaurar').style.display=(gestor&&c.excluido)?'':'none';
+  document.getElementById('ficha-btn-salvar').style.display=(gestor&&!c.excluido)?'':'none';
+  const quem=[];
+  if(c.criadoPor) quem.push('Cadastrado por '+c.criadoPor+(c.criadoEm?' em '+fmtData(c.criadoEm.slice(0,10)):''));
+  if(c.atualizadoPor) quem.push('Última alteração de '+c.atualizadoPor+(c.atualizadoEm?' em '+fmtData(c.atualizadoEm.slice(0,10)):''));
+  document.getElementById('f-quem').textContent=quem.join(' · ');
+  recalcular();
+  mostrarFabrica(c);
+  mostrarCompras(c);
+  document.getElementById('ficha-ov').classList.add('open');
+}
+
+function fecharFicha(){
+  document.getElementById('ficha-ov').classList.remove('open');
+  fichaId=null;
+}
+
+// `manterAberta` é usado pelo anexo: ele grava sozinho, sem fechar a ficha e
+// sem mandar nada para a Fábrica — anexar arquivo não é a pessoa terminando o
+// cadastro. Devolve se gravou, para o anexo saber se precisa avisar.
+async function salvarFicha(manterAberta){
+  if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente altera contrato.'); return false; }
+  const c=lerFicha();
+  if(!c.ct){ aviso('Falta o contrato','Preencha o número do contrato (CT).'); document.getElementById('f-ct').focus(); return false; }
+  if(!c.ano){ aviso('Falta o ano','Preencha o ano do contrato.'); document.getElementById('f-ano').focus(); return false; }
+  if(!c.cliente){ aviso('Falta o cliente','Preencha o cliente ou o nome da obra.'); document.getElementById('f-cliente').focus(); return false; }
+
+  const novo=!fichaId;
+  // Mesmo CT e mesmo ano já cadastrados? Avisa e deixa decidir — a planilha
+  // tem contratos repetidos de propósito (116-84, 116-89, 116-113).
+  if(novo){
+    const igual=ativos().find(function(x){
+      return (x.ct||'').toUpperCase()===c.ct.toUpperCase() && (x.ano||'')===c.ano;
+    });
+    if(igual && !confirm('Já existe o contrato '+c.ct+' de '+c.ano+' ("'+igual.cliente+'").\n\nCadastrar mesmo assim?')) return false;
+  }
+
+  const id=fichaId||novoId();
+  const ok=await alterar(function(base){
+    let alvo=(base.contratos||[]).find(function(x){ return x.id===id; });
+    if(!alvo){
+      alvo={id:id, criadoEm:agoraISO(), criadoPor:usuario};
+      base.contratos.push(alvo);
+    }
+    Object.assign(alvo, c);
+    // Anexos: junta o que está no servidor com o que foi anexado nesta tela e
+    // tira o que foi apagado aqui. Nessa ordem, o arquivo que um colega anexou
+    // enquanto a ficha estava aberta não é perdido — e o que eu apaguei não
+    // volta.
+    const doServidor=Array.isArray(alvo.docs)?alvo.docs:[];
+    const vistos={};
+    alvo.docs=doServidor.concat(fichaDocs).filter(function(d){
+      if(!d||!d.url) return false;
+      if(docsApagados[d.id]||docsApagados[d.url]) return false;
+      if(vistos[d.url]) return false;
+      vistos[d.url]=1;
+      return true;
+    });
+    alvo.atualizadoEm=agoraISO();
+    alvo.atualizadoPor=usuario;
+    // A tela passa a mostrar exatamente o que foi gravado.
+    fichaDocs=JSON.parse(JSON.stringify(alvo.docs));
+  }, {acao:novo?'cadastrou':'alterou', alvo:'CT '+c.ct+' · '+c.cliente});
+
+  if(!ok) return false;
+  if(manterAberta){
+    // A ficha continua aberta e o id passa a existir: um anexo em contrato
+    // novo grava o contrato, e o próximo anexo já cai no mesmo registro.
+    fichaId=id;
+    renderDocs();
+    return true;
+  }
+  fecharFicha();
+
+  // A obra vai para o quadro da Fábrica. Se falhar, o contrato JÁ está salvo
+  // aqui — por isso o aviso diz o que deu errado em vez de sumir.
+  const salvo=(dados.contratos||[]).find(function(x){ return x.id===id; });
+  if(salvo) await enviarParaFabrica(salvo, novo);
+  return true;
+}
+
+async function excluirContrato(){
+  if(!fichaId) return;
+  const c=(dados.contratos||[]).find(function(x){ return x.id===fichaId; });
+  if(!c) return;
+  if(!confirm('Mover o contrato '+(c.ct||'')+' — '+(c.cliente||'')+' para a lixeira?\n\nEle sai da carteira mas continua guardado, e dá para restaurar.')) return;
+  const id=fichaId;
+  const ok=await alterar(function(base){
+    const alvo=(base.contratos||[]).find(function(x){ return x.id===id; });
+    if(alvo){ alvo.excluido=true; alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario; }
+  }, {acao:'mandou para a lixeira', alvo:'CT '+(c.ct||'')+' · '+(c.cliente||'')});
+  if(ok) fecharFicha();
+}
+
+async function restaurarContrato(){
+  if(!fichaId) return;
+  const c=(dados.contratos||[]).find(function(x){ return x.id===fichaId; });
+  if(!c) return;
+  const id=fichaId;
+  const ok=await alterar(function(base){
+    const alvo=(base.contratos||[]).find(function(x){ return x.id===id; });
+    if(alvo){ alvo.excluido=false; alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario; }
+  }, {acao:'restaurou', alvo:'CT '+(c.ct||'')+' · '+(c.cliente||'')});
+  if(ok) fecharFicha();
+}
+
+// ================= ANEXOS =================
+// Os anexos ficam numa lista de rascunho enquanto a ficha está aberta, e só
+// entram no contrato quando você salva. Assim, anexar e desistir não deixa
+// arquivo perdido no meio do caminho.
+let fichaDocs=[];
+// O que a pessoa apagou nesta tela. Sem esta lista, a atualização automática
+// vê o arquivo ainda no servidor, acha que é novidade e traz de volta.
+let docsApagados={};
+
+function fmtTamanho(b){
+  return b>1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(b/1024))+' KB';
+}
+
+function tiposDoc(){
+  return (Array.isArray(dados.tiposDoc)&&dados.tiposDoc.length)?dados.tiposDoc:TIPOS_DOC_PADRAO;
+}
+
+function preencherTiposDoc(){
+  const el=document.getElementById('f-doc-tipo');
+  if(!el) return;
+  const antes=el.value;
+  el.innerHTML=tiposDoc().map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
+  if(tiposDoc().indexOf(antes)>=0) el.value=antes;
+}
+
+// Nenhum documento entra duas vezes. O mesmo endereço de arquivo aparecendo
+// de novo significa reenvio, não documento novo — e um anexo repetido no
+// contrato confunde quem for procurar o certo depois.
+function juntarDoc(novo){
+  if(fichaDocs.some(function(d){ return d.url===novo.url; })) return false;
+  if(docsApagados[novo.id]||docsApagados[novo.url]) return false;
+  fichaDocs.push(novo);
+  return true;
+}
+
+function renderDocs(){
+  const el=document.getElementById('ficha-docs');
+  if(!el) return;
+  if(!fichaDocs.length){
+    el.innerHTML='<div style="font-size:11.5px;color:var(--gray-4)">Nenhum arquivo anexado.</div>';
+    return;
+  }
+  el.innerHTML=fichaDocs.map(function(d){
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;'+
+      'background:var(--gray-1);border:1px solid var(--gray-3);border-radius:8px">'+
+      '<span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--teal-dark);'+
+        'background:var(--teal-light);padding:2px 6px;border-radius:5px;white-space:nowrap">'+
+        esc(d.tipo||'Documento')+'</span>'+
+      '<a href="'+esc(d.url)+'" target="_blank" rel="noopener" '+
+        'style="flex:1;font-size:12px;color:var(--gray-6);text-decoration:none;overflow:hidden;'+
+        'text-overflow:ellipsis;white-space:nowrap" title="'+esc(d.nome)+'">'+esc(d.nome)+'</a>'+
+      '<span style="font-size:10.5px;color:var(--gray-4);white-space:nowrap">'+fmtTamanho(d.tamanho||0)+'</span>'+
+      '<button type="button" onclick="removerDoc(\''+esc(d.id)+'\')" title="Remover"'+
+        ' style="border:0;background:transparent;color:var(--red);cursor:pointer;font-size:15px;padding:0 3px">&times;</button>'+
+      '</div>';
+  }).join('');
+}
+
+async function anexarDoc(ev){
+  const arq=ev.target.files && ev.target.files[0];
+  ev.target.value='';           // permite anexar o mesmo arquivo de novo
+  if(!arq) return;
+  if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente anexa arquivo.'); return; }
+
+  // Avisar antes é melhor do que deixar a pessoa esperar o envio para levar
+  // erro no fim.
+  if(arq.size>MAX_ARQUIVO){
+    aviso('Arquivo muito grande','O arquivo tem '+fmtTamanho(arq.size)+'.\n\n'+
+          'O limite é 10 MB. Se for um PDF de projeto, tente salvar em qualidade menor.');
+    return;
+  }
+
+  const st=document.getElementById('f-doc-status');
+  const btn=document.getElementById('f-doc-btn');
+  btn.disabled=true;
+  st.textContent='Enviando '+arq.name+'...';
+  try{
+    const ehPdf=arq.type==='application/pdf';
+    const fd=new FormData();
+    fd.append('file',arq);
+    fd.append('upload_preset',UPLOAD_PRESET);
+    fd.append('folder',PASTA_ARQUIVOS);
+    const r=await fetch('https://api.cloudinary.com/v1_1/'+CLOUD_NAME+'/'+(ehPdf?'raw':'auto')+'/upload',
+      {method:'POST',body:fd});
+    if(!r.ok) throw new Error('Servidor de arquivos recusou ('+r.status+')');
+    const j=await r.json();
+    if(!j||!j.secure_url) throw new Error('o servidor não devolveu o endereço do arquivo');
+    juntarDoc({
+      id:novoId(),
+      tipo:document.getElementById('f-doc-tipo').value,
+      nome:arq.name,
+      url:j.secure_url,
+      tamanho:arq.size,
+      quem:usuario,
+      quando:agoraISO()
+    });
+    renderDocs();
+    // O arquivo já subiu. Fechar a ficha sem salvar o deixaria sem dono, com o
+    // trabalho perdido — então grava na hora. No celular o botão Salvar fica
+    // lá embaixo e a pessoa fecha achando que já foi.
+    if(fichaId){
+      st.textContent='Salvando no contrato...';
+      const gravou=await salvarFicha(true);
+      if(!gravou) aviso('Anexado, mas NÃO salvo',
+        'O arquivo foi anexado à ficha, mas a gravação falhou.\n\n'+
+        'Não feche esta tela: toque em Salvar para tentar de novo.');
+      st.textContent='';
+    } else {
+      // Contrato ainda não existe no banco, então não há onde gravar o anexo.
+      // O aviso precisa ficar visível: fechar agora perde o arquivo.
+      st.innerHTML='<b style="color:var(--amber)">Anexado. Toque em Salvar para guardar.</b>';
+      btn.disabled=false;
+      return;
+    }
+  }catch(e){
+    st.textContent='';
+    aviso('Não consegui anexar','O envio falhou: '+e.message+
+          '\n\nO documento NÃO foi guardado. Tente de novo.');
+  }
+  btn.disabled=false;
+}
+
+async function removerDoc(id){
+  const d=fichaDocs.find(function(x){ return x.id===id; });
+  if(!d) return;
+  if(!confirm('Remover "'+d.nome+'" deste contrato?')) return;
+  docsApagados[d.id]=1;
+  if(d.url) docsApagados[d.url]=1;
+  fichaDocs=fichaDocs.filter(function(x){ return x.id!==id; });
+  renderDocs();
+  if(fichaId){
+    const gravou=await salvarFicha(true);
+    if(!gravou) aviso('Removido, mas NÃO salvo',
+      'O documento saiu da tela, mas a gravação falhou.\n\n'+
+      'Não feche esta tela: toque em Salvar para tentar de novo.');
+  }
+}
+
+// ================= CADASTROS =================
+function abrirCadastros(){
+  if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente mexe nos cadastros.'); return; }
+  renderFeriados();
+  renderTiposDoc();
+  document.getElementById('cad-ov').classList.add('open');
+}
+function fecharCadastros(){ document.getElementById('cad-ov').classList.remove('open'); }
+
+// Quantos contratos usam um rótulo. Serve para não deixar remover rótulo em
+// uso: os anexos guardam o texto, e tirá-lo deixaria o arquivo sem etiqueta.
+function usoTipoDoc(rotulo){
+  let n=0;
+  (dados.contratos||[]).forEach(function(c){
+    ((c.docs)||[]).forEach(function(d){ if((d.tipo||'')===rotulo) n++; });
+  });
+  return n;
+}
+
+function renderTiposDoc(){
+  const el=document.getElementById('td-lista');
+  if(!el) return;
+  el.innerHTML='<div class="caixa">'+tiposDoc().map(function(t){
+    const uso=usoTipoDoc(t);
+    return '<div class="caixa-linha"><span>'+esc(t)+'</span>'+
+      '<span style="display:flex;gap:8px;align-items:center">'+
+      '<span style="font-size:11px;color:var(--gray-4)">'+(uso?uso+' em uso':'não usado')+'</span>'+
+      '<button class="btn btn-outline btn-sm" onclick="delTipoDoc('+JSON.stringify(t).replace(/"/g,'&quot;')+')">Tirar</button>'+
+      '</span></div>';
+  }).join('')+'</div>';
+}
+
+async function addTipoDoc(){
+  const nome=document.getElementById('td-nome').value.trim();
+  if(!nome){ aviso('Falta o nome','Escreva o rótulo.'); return; }
+  if(tiposDoc().some(function(t){ return t.toUpperCase()===nome.toUpperCase(); })){
+    aviso('Já existe','Esse rótulo já está cadastrado.'); return;
+  }
+  const ok=await alterar(function(base){
+    if(!Array.isArray(base.tiposDoc)||!base.tiposDoc.length) base.tiposDoc=TIPOS_DOC_PADRAO.slice();
+    base.tiposDoc.push(nome);
+  }, {acao:'cadastrou rótulo de anexo', alvo:nome});
+  if(ok){
+    document.getElementById('td-nome').value='';
+    renderTiposDoc();
+    preencherTiposDoc();
+  }
+}
+
+async function delTipoDoc(rotulo){
+  const uso=usoTipoDoc(rotulo);
+  if(uso){
+    aviso('Rótulo em uso','Existem '+uso+' arquivo(s) com o rótulo "'+rotulo+'".\n\n'+
+      'Tirar o rótulo deixaria esses arquivos sem etiqueta. Troque a etiqueta deles primeiro.');
+    return;
+  }
+  if(tiposDoc().length<=1){ aviso('Precisa de um','Tem de sobrar pelo menos um rótulo.'); return; }
+  if(!confirm('Tirar o rótulo "'+rotulo+'"?')) return;
+  const ok=await alterar(function(base){
+    base.tiposDoc=(base.tiposDoc||TIPOS_DOC_PADRAO).filter(function(t){ return t!==rotulo; });
+  }, {acao:'tirou rótulo de anexo', alvo:rotulo});
+  if(ok){ renderTiposDoc(); preencherTiposDoc(); }
+}
+
+function renderFeriados(){
+  const l=(dados.feriados||[]).slice().sort(function(a,b){ return (a.data||'')<(b.data||'')?-1:1; });
+  const el=document.getElementById('fer-lista');
+  if(!l.length){ el.innerHTML='<div style="font-size:12.5px;color:var(--gray-4)">Nenhum feriado próprio cadastrado. Só os nacionais estão valendo.</div>'; return; }
+  el.innerHTML='<div class="caixa">'+l.map(function(f){
+    return '<div class="caixa-linha"><span><strong>'+fmtData(f.data)+'</strong> · '+esc(f.nome)+'</span>'+
+      '<button class="btn btn-outline btn-sm" onclick="delFeriado(\''+esc(f.data)+'\')">Tirar</button></div>';
+  }).join('')+'</div>';
+}
+
+async function addFeriado(){
+  const data=document.getElementById('fer-data').value;
+  const nome=document.getElementById('fer-nome').value.trim();
+  if(!data){ aviso('Falta a data','Escolha a data do feriado.'); return; }
+  if(!nome){ aviso('Falta o nome','Escreva o nome do feriado.'); return; }
+  const ok=await alterar(function(base){
+    if(!Array.isArray(base.feriados)) base.feriados=[];
+    base.feriados=base.feriados.filter(function(f){ return f.data!==data; });
+    base.feriados.push({data:data,nome:nome});
+  }, {acao:'cadastrou feriado', alvo:fmtData(data)+' · '+nome});
+  if(ok){
+    document.getElementById('fer-data').value='';
+    document.getElementById('fer-nome').value='';
+    renderFeriados();
+  }
+}
+
+async function delFeriado(data){
+  const f=(dados.feriados||[]).find(function(x){ return x.data===data; });
+  if(!f) return;
+  if(!confirm('Tirar o feriado '+fmtData(data)+' ('+f.nome+')?')) return;
+  const ok=await alterar(function(base){
+    base.feriados=(base.feriados||[]).filter(function(x){ return x.data!==data; });
+  }, {acao:'tirou feriado', alvo:fmtData(data)+' · '+f.nome});
+  if(ok) renderFeriados();
+}
+
+// ================= A FÁBRICA =================
+// O contrato cadastrado aqui vira obra no quadro da Fábrica. O vínculo é o
+// campo `ctoId`, que guarda o id do contrato: é por ele que a obra é
+// encontrada depois, e não pelo número do CT — que a pessoa pode corrigir.
+function cabecalhosFabrica(extra){
+  return Object.assign(cabecalhos(extra||{}),{'X-Sistema':SISTEMA_FABRICA});
+}
+
+async function lerFabrica(){
+  const url=WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7);
+  const r=await fetch(url,{cache:'no-store',headers:cabecalhosFabrica()});
+  if(!r.ok) throw new Error('Fábrica '+r.status);
+  const j=await r.json();
+  if(!j||typeof j!=='object'||Array.isArray(j)) throw new Error('Fábrica sem dados');
+  if(!Array.isArray(j.obras)) j.obras=[];
+  return j;
+}
+
+// A primeira etapa ativa do fluxo da Fábrica. As etapas são cadastráveis lá,
+// então a lista NÃO é copiada para cá: é lida na hora. Se a leitura falhar,
+// a obra não é criada — melhor não criar do que criar numa etapa inventada,
+// que faria a obra sumir do quadro.
+function primeiraEtapa(fab){
+  const lista=(Array.isArray(fab.etapas)&&fab.etapas.length)?fab.etapas:null;
+  if(!lista) return null;
+  const ativa=lista.find(function(e){ return e.ativo!==false; });
+  return ativa?ativa.id:(lista[0]?lista[0].id:null);
+}
+
+async function enviarParaFabrica(c, ehNovo){
+  // Contrato finalizado, parado ou com pendência não entra no quadro de quem
+  // produz — a planilha tem dezenas de contratos antigos e eles entupiriam a
+  // tela da Fábrica. Se a obra JÁ existe lá, continua sendo atualizada.
+  status('🔄 Levando para a Fábrica...');
+  try{
+    const fab=await lerFabrica();
+    const jaExiste=(fab.obras||[]).find(function(o){ return o.ctoId===c.id; });
+    const deveEntrar=STATUS_VAO_PARA_FABRICA.indexOf(c.status)>=0;
+    if(!jaExiste && !deveEntrar){
+      status('🟢 Salvo · '+agoraHora());
+      return;
+    }
+    const etapa=jaExiste?jaExiste.etapa:primeiraEtapa(fab);
+    if(!etapa){
+      aviso('Contrato salvo, mas não foi para a Fábrica',
+        'O contrato está guardado aqui. Só não deu para criar a obra no quadro da '+
+        'Fábrica porque não consegui ler as etapas do fluxo dela.\n\n'+
+        'Abra a Fábrica e cadastre a obra por lá, ou tente salvar de novo daqui a pouco.');
+      return;
+    }
+    if(jaExiste){
+      // Só os campos que este módulo manda. Etapa, previsão, justificativa,
+      // documentos e vãos são da Fábrica: mexer neles daqui apagaria trabalho
+      // de quem produz.
+      jaExiste.cliente=c.cliente;
+      jaExiste.obra=c.ct;
+      if(c.entrega) jaExiste.prazo=c.entrega;
+      if(c.coord) jaExiste.resp=c.coord;
+      jaExiste.atualizadoEm=agoraISO();
+      jaExiste.atualizadoPor=usuario;
+    } else {
+      fab.obras.push({
+        id: novoId(), ctoId: c.id,
+        cliente: c.cliente, obra: c.ct, tipo:'',
+        resp: c.coord||'', prazo: c.entrega||'',
+        etapa: etapa, prev:'', just:'',
+        obs: 'Veio do Gerenciamento de Obra · CT '+(c.ct||'')+'/'+(c.ano||''),
+        criadoEm: agoraISO(), criadoPor: usuario
+      });
+      if(!Array.isArray(fab.historico)) fab.historico=[];
+      fab.historico.unshift({
+        id: Math.random().toString(36).slice(2)+Date.now().toString(36),
+        ts: agoraISO(), user: usuario||'—',
+        acao:'cadastrou (pelo Gerenciamento de Obra)',
+        alvo: c.cliente||'', detalhe:'CT '+(c.ct||'')
+      });
+      if(fab.historico.length>500) fab.historico=fab.historico.slice(0,500);
+    }
+    const carimbo=agoraISO();
+    fab.atualizadoEm=carimbo; fab.atualizadoPor=usuario;
+    const r=await fetch(WORKER,{method:'PATCH',
+      headers:cabecalhosFabrica({'Content-Type':'application/json'}),
+      body:JSON.stringify({data:fab})});
+    if(!r.ok) throw new Error('Fábrica '+r.status);
+    // O Worker responde ok mesmo sem gravar. Confere pelo carimbo.
+    const confere=await lerFabrica();
+    if(confere.atualizadoEm!==carimbo) throw new Error('não gravou');
+    _fabricaObras=confere.obras||[];
+    status('🟢 Salvo e na Fábrica · '+agoraHora());
+  }catch(e){
+    status('🟡 Salvo aqui, não foi para a Fábrica','#ffe9b0');
+    aviso('Contrato salvo, mas não foi para a Fábrica',
+      'O contrato está guardado aqui — nada foi perdido.\n\n'+
+      'O que falhou foi levar a obra para o quadro da Fábrica ('+(e.message||'erro')+').\n\n'+
+      'Tente salvar de novo daqui a pouco, ou cadastre a obra direto na Fábrica.');
+  }
+}
+
+async function carregarFabrica(){
+  try{ const f=await lerFabrica(); _fabricaObras=f.obras||[]; }
+  catch(e){ _fabricaObras=null; }
+}
+
+function mostrarFabrica(c){
+  const el=document.getElementById('f-fabrica');
+  if(_fabricaObras===null){ el.innerHTML='<span class="td-fraco">Não consegui ler a Fábrica agora.</span>'; return; }
+  const o=_fabricaObras.find(function(x){ return x.ctoId===c.id; });
+  if(!o){
+    el.innerHTML='<strong>Fábrica:</strong> esta obra ainda não está no quadro. '+
+      (STATUS_VAO_PARA_FABRICA.indexOf(c.status)>=0
+        ? 'Ao salvar, ela entra.'
+        : 'Contratos <em>'+esc(c.status||'sem status')+'</em> não entram no quadro de produção.');
+    return;
+  }
+  el.innerHTML='<div class="caixa-linha"><span><strong>Fábrica</strong> · obra no quadro</span>'+
+    '<span>'+pill('etapa: '+esc(o.etapa||'—'),'pill-teal')+'</span></div>'+
+    '<div class="caixa-linha"><span>Responsável na fábrica</span><span>'+esc(o.resp||'—')+'</span></div>'+
+    '<div class="caixa-linha"><span>Prazo lá</span><span>'+(o.prazo?fmtData(o.prazo):'—')+'</span></div>'+
+    (o.just?'<div class="caixa-linha"><span>Justificativa da etapa</span><span>'+esc(o.just)+'</span></div>':'');
+}
+
+// ================= AS COMPRAS =================
+// Só leitura. O lançamento da compra é do módulo Compras — aqui a ficha só
+// mostra o que já foi comprado para este contrato, para não ter de abrir os
+// dois sistemas lado a lado.
+async function carregarCompras(){
+  try{
+    const url=WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7);
+    const r=await fetch(url,{cache:'no-store',
+      headers:Object.assign(cabecalhos(),{'X-Sistema':SISTEMA_COMPRAS})});
+    if(!r.ok) throw new Error('Compras '+r.status);
+    const j=await r.json();
+    _comprasDados=(j&&typeof j==='object'&&!Array.isArray(j))?j:null;
+  }catch(e){ _comprasDados=null; }
+}
+
+function comprasDoContrato(c){
+  if(!_comprasDados) return null;
+  const alvo=(c.ct||'').toUpperCase().trim();
+  if(!alvo) return [];
+  const saida=[];
+  ['urgente','importante','pago'].forEach(function(aba){
+    (_comprasDados[aba]||[]).forEach(function(r){
+      if((r.contrato||'').toUpperCase().trim()===alvo) saida.push(Object.assign({aba:aba},r));
+    });
+  });
+  return saida;
+}
+
+function mostrarCompras(c){
+  const el=document.getElementById('f-compras');
+  const lista=comprasDoContrato(c);
+  if(lista===null){ el.innerHTML='<span class="td-fraco">Não consegui ler o módulo Compras agora.</span>'; return; }
+  if(!lista.length){
+    el.innerHTML='<strong>Compras:</strong> nada lançado para o contrato '+esc(c.ct||'—')+' ainda.';
+    return;
+  }
+  let total=0;
+  const linhas=lista.map(function(r){
+    const v=Number(r.valor)||0; total+=v;
+    const rotulo={urgente:'Urgente',importante:'Importante',pago:'Pago'}[r.aba]||r.aba;
+    const cor={urgente:'pill-vermelho',importante:'pill-ambar',pago:'pill-verde'}[r.aba]||'pill-cinza';
+    return '<div class="caixa-linha"><span>'+pill(rotulo,cor)+' '+esc(r.material||'')+
+      (r.fornecedor?' · <span class="td-fraco">'+esc(r.fornecedor)+'</span>':'')+'</span>'+
+      '<span><strong>'+v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+'</strong></span></div>';
+  }).join('');
+  el.innerHTML='<div class="caixa-linha"><span><strong>Compras deste contrato</strong></span>'+
+    '<span><strong>'+total.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+'</strong></span></div>'+linhas;
+}
+
+// ================= PERMISSÕES =================
+function aplicarPermissoes(){
+  const gestor=podeGerenciar();
+  document.querySelectorAll('[data-so-gestor]').forEach(function(el){
+    el.style.display=gestor?'':'none';
+  });
+  const h=document.getElementById('vb-hist');
+  if(h) h.style.display=gestor?'':'none';
+  const l=document.getElementById('btn-lixeira');
+  if(l) l.style.display=gestor?'':'none';
+}
+
+// ================= INÍCIO =================
+function mostrarLogin(){
+  const cx=document.getElementById('bloqueio');
+  const inpUser=document.getElementById('login-user');
+  const inpPass=document.getElementById('login-pass');
+  const erro=document.getElementById('login-erro');
+  const btn=document.getElementById('login-btn');
+  cx.style.display='flex';
+  setTimeout(function(){ inpUser.focus(); },50);
+
+  document.getElementById('login-olho').addEventListener('click',function(){
+    inpPass.type=(inpPass.type==='password')?'text':'password';
+  });
+
+  function avisar(msg){ erro.textContent=msg; erro.style.display='block'; }
+
+  async function entrar(){
+    const u=inpUser.value.trim();
+    const s=inpPass.value;
+    erro.style.display='none';
+    if(!u||!s){ avisar('Preencha usuário e senha.'); return; }
+    btn.disabled=true; btn.textContent='Entrando...';
+    try{
+      const r=await fazerLogin(u,s);
+      abrirApp(r.nome||r.username||u, r.role);
+    }catch(e){
+      if(e.status===401) avisar('Usuário ou senha inválidos.');
+      else avisar('Não consegui falar com o servidor ('+(e.message||'erro')+'). Tente de novo.');
+      btn.disabled=false; btn.textContent='Entrar';
+    }
+  }
+
+  btn.addEventListener('click',entrar);
+  [inpUser,inpPass].forEach(function(i){
+    i.addEventListener('keydown',function(ev){ if(ev.key==='Enter') entrar(); });
+  });
+}
+
+function abrirApp(nome,papelDoUsuario){
+  usuario=nome;
+  papel=String(papelDoUsuario||'').toLowerCase();
+  registrarSessaoObra(nome, nome);
+  // 5s, igual ao portal: com 30s a pessoa continuava trabalhando por meio
+  // minuto depois de já ter sido derrubada em outro navegador.
+  if(!_checkObra) _checkObra=setInterval(checkForceLogoutObra,5000);
+  document.getElementById('bloqueio').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('btn-sair').style.display='';
+  preencherSelects();
+  aplicarPermissoes();
+  lerLocal();
+  try{ const v=localStorage.getItem('dalum-obra-view'); if(v) view=v; }catch(e){}
+  setView(view);
+  sincronizar();
+  carregarFabrica();
+  carregarCompras();
+
+  // Clicar fora ou apertar Esc fecha as janelas. Os dois caminhos passam por
+  // fecharAviso(), então o que ficou pendente em `aoFechar` acontece igual.
+  document.getElementById('aviso-ov').addEventListener('click',function(e){ if(e.target===this) fecharAviso(); });
+  document.getElementById('ficha-ov').addEventListener('click',function(e){ if(e.target===this) fecharFicha(); });
+  document.getElementById('cad-ov').addEventListener('click',function(e){ if(e.target===this) fecharCadastros(); });
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape') return;
+    if(document.getElementById('aviso-ov').classList.contains('open')) fecharAviso();
+    else if(document.getElementById('cad-ov').classList.contains('open')) fecharCadastros();
+    else if(document.getElementById('ficha-ov').classList.contains('open')) fecharFicha();
+  });
+
+  // Busca alterações de outras pessoas a cada 60 segundos.
+  setInterval(function(){ atualizarDoBanco(false); },60000);
+  setInterval(function(){ carregarFabrica(); carregarCompras(); },5*60000);
+  document.addEventListener('visibilitychange',function(){
+    if(!document.hidden) atualizarDoBanco(false);
+  });
+}
+
+(function iniciar(){
+  // 1) Crachá do próprio módulo, se ainda estiver no prazo.
+  const t=lerToken();
+  if(t){ abrirApp(t.dados.n||t.dados.u||'usuário', t.dados.r); return; }
+  // 2) Sessão do portal, para quem entra por lá não digitar a senha duas vezes.
+  const sso=lerSSO();
+  if(sso){ abrirApp(sso.nome, sso.role); return; }
+  // 3) Sem nenhum dos dois: vai para o portal, que é o único lugar onde a
+  //    regra de um acesso por pessoa é aplicada. window.top porque dentro do
+  //    portal isto roda num quadro.
+  try{ (window.top||window).location.replace(PORTAL_URL); }
+  catch(e){ window.location.replace(PORTAL_URL); }
+})();
+</script>
+</body>
+</html>
