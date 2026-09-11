@@ -2381,7 +2381,9 @@ function blocoPedido(type,i,r){
   if(p.feito){
     return '<span class="td-by" style="display:block;margin-top:4px;white-space:normal;'+
       'background:#E8F5E9;border:1px solid #A5D6A7;border-radius:6px;padding:5px 7px;color:#2E7D32">'+
-      '✅ Colocado por <strong>'+escHtml(p.feito.por)+'</strong> em '+
+      (p.feito.como==='manual'
+        ? '✅ Marcado como feito por <strong>'+escHtml(p.feito.marcadoPor||'—')+'</strong> em '
+        : '✅ Colocado por <strong>'+escHtml(p.feito.por)+'</strong> em ')+
       new Date(p.feito.em).toLocaleDateString('pt-BR')+
       '<span style="display:block;color:#558B2F;margin-top:2px">'+txt+'</span></span>';
   }
@@ -2415,7 +2417,9 @@ function mostrarStatusPedido(p){
   cx.style.display='block';
   cx.innerHTML = p.feito
     ? '<div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:6px;padding:6px 9px;font-size:12px;color:#2E7D32;line-height:1.45">'+
-      '✅ Pedido já atendido — colocado por <strong>'+escHtml(p.feito.por)+'</strong> em '+
+      (p.feito.como==='manual'
+        ? '✅ Pedido marcado como feito por <strong>'+escHtml(p.feito.marcadoPor||'—')+'</strong> em '
+        : '✅ Pedido já atendido — colocado por <strong>'+escHtml(p.feito.por)+'</strong> em ')+
       new Date(p.feito.em).toLocaleDateString('pt-BR')+'.</div>'
     : '<div style="background:#FFF3E0;border:1px solid #FFCC80;border-radius:6px;padding:6px 9px;font-size:12px;color:#8D6E00;line-height:1.45">'+
       '⏳ Já existe um pedido em aberto com <strong>'+escHtml(nomesDoPedido(p))+'</strong>, feito '+
