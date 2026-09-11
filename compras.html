@@ -855,6 +855,9 @@ function render(){
   renderTable('pago',true);
   updateSummary();
   mostrarAbaHistorico();
+  // Confirmacoes de material colocado que chegaram para quem esta usando agora.
+  // Fica no render porque ele roda na abertura e em toda sincronizacao.
+  try{ mostrarConfirmacoesRecebidas(); }catch(e){ console.warn('aviso de material:',e); }
 }
 
 // A aba do histórico é só do admin. Fica aqui, dentro do render, porque este é
@@ -2427,38 +2430,47 @@ function cobrarPedido(type,i){
   avisarVarios(p.para,montarMsgPedido(r,p.texto,p.por||eu,entregaFmt,true));
 }
 
-// Confirmar que foi feito, por dois caminhos:
-//  - o proprio destinatario aperta "Ja coloquei", e o sistema avisa quem pediu;
-//  - quem pediu marca a mao, depois de receber a resposta pelo WhatsApp.
-// O segundo caminho existe porque sem ele um pedido ficaria aberto para sempre
-// toda vez que a pessoa resolvesse so pelo WhatsApp, sem entrar no sistema.
+// Confirmar que foi feito.
+//
+// Quem decide o que acontece e QUEM aperta, e nao qual botao:
+//  - quem PEDIU marcando a mao (ja recebeu a resposta pelo WhatsApp): so grava;
+//  - QUALQUER OUTRA pessoa, seja pelo "Ja coloquei" ou pelo "Ja foi feito":
+//    grava com o nome dela e avisa quem pediu.
+//
+// Em 11/09/2026 o Weverton confirmou e o Ander nao ficou sabendo. Duas falhas:
+// o "Ja foi feito" so gravava, sem avisar ninguem; e o aviso de volta dependia
+// de o Weverton apertar enviar no WhatsApp do celular dele. Por isso o aviso
+// principal agora fica GRAVADO na obra e aparece como janela para quem pediu
+// (mostrarConfirmacoesRecebidas). O WhatsApp continua, mas so como reforco.
+function normNome(s){ return String(s||'').toLowerCase().trim().replace(/\s+/g,' '); }
+
 function confirmarPedido(type,i,peloDestinatario){
   const r=(data[type]||[])[i], p=r&&r.pedido;
   if(!p||p.feito) return;
   const eu=usuarioLogado();
-  const pergunta=peloDestinatario
-    ? 'Confirmar que o material já foi colocado em "'+r.obra+'"?\n\nQuem pediu vai ser avisado pelo WhatsApp.'
-    : 'Marcar o pedido de "'+r.obra+'" como já feito?\n\nUse quando a pessoa já respondeu pelo WhatsApp.';
+  const souQuemPediu=!!eu && normNome(eu)===normNome(p.por);
+  const pergunta=souQuemPediu
+    ? 'Marcar o pedido de "'+r.obra+'" como já feito?\n\nUse quando a pessoa já respondeu pelo WhatsApp.'
+    : 'Confirmar que o material já foi colocado em "'+r.obra+'"?\n\n'+(p.por||'Quem pediu')+
+      ' vai receber o aviso no sistema. O WhatsApp também abre com a mensagem pronta — aperte enviar.';
   if(!confirm(pergunta)) return;
   p.feito={
-    por: peloDestinatario ? (eu||nomesDoPedido(p)) : nomesDoPedido(p),
+    por: souQuemPediu ? nomesDoPedido(p) : (eu||nomesDoPedido(p)),
     em: new Date().toISOString(),
-    como: peloDestinatario ? 'sistema' : 'manual',
+    como: souQuemPediu ? 'manual' : (peloDestinatario ? 'sistema' : 'botao-feito'),
     marcadoPor: eu||'—'
   };
   logAction(eu||'—','Material colocado',r,
-    peloDestinatario ? 'Confirmado por quem recebeu o pedido'
-                     : 'Marcado à mão por quem pediu');
+    souQuemPediu ? 'Marcado à mão por quem pediu'
+                 : 'Confirmado por '+(eu||'—')+' — aviso para '+(p.por||'—'));
   persist(); render();
-  if(!peloDestinatario) return;
-  // Avisa de volta quem pediu. O numero sai do cadastro de usuarios, o mesmo
-  // de onde o login le — nunca de uma lista escrita neste arquivo.
-  const quem=getResponsaveis().filter(function(u){
-    return String(u.name||'').toLowerCase().trim()===String(p.por||'').toLowerCase().trim();
-  })[0];
+  if(souQuemPediu) return;
+  // Reforco pelo WhatsApp. O numero sai do cadastro de usuarios, o mesmo de
+  // onde o login le — nunca de uma lista escrita neste arquivo.
+  const quem=getResponsaveis().filter(function(u){ return normNome(u.name)===normNome(p.por); })[0];
   if(!quem||!numeroWhats(quem.whatsapp)){
-    alert('Marcado como feito.\n\nNão consegui avisar '+(p.por||'quem pediu')+
-          ' pelo WhatsApp: não encontrei o número no cadastro de usuários.');
+    alert('Marcado como feito. '+(p.por||'Quem pediu')+' vai ver o aviso ao abrir o sistema.\n\n'+
+          '(Não encontrei o WhatsApp dessa pessoa no cadastro de usuários.)');
     return;
   }
   avisarVarios([quem],
@@ -2468,6 +2480,92 @@ function confirmarPedido(type,i,peloDestinatario){
     '\n\nO que tinha sido pedido:\n'+p.texto+
     '\n\nColocado por: '+(eu||'—')+
     '\n\nAcesse: https://daluminium.github.io/portal/');
+}
+
+// ---- AVISO DE MATERIAL COLOCADO ----
+// A janela que avisa quem pediu. Ela sai do que esta GRAVADO na obra, nao de
+// uma mensagem: por isso chega mesmo que a pessoa esteja com o sistema fechado
+// na hora — aparece quando ela abrir. E como a sincronizacao automatica redesenha
+// a tela, com o sistema aberto ela surge sozinha poucos segundos depois.
+//
+// Some quando a pessoa aperta "Ok, vi", que grava o visto na obra. Sem gravar,
+// a janela voltaria a cada atualizacao e em qualquer outro computador.
+
+// Pedidos que EU fiz, que outra pessoa marcou como colocados, e que eu ainda
+// nao vi. Quando eu mesmo marco, nao ha o que avisar.
+function confirmacoesParaMim(){
+  const eu=normNome(usuarioLogado());
+  if(!eu) return [];
+  const lista=[];
+  ['urgente','importante','pago'].forEach(function(L){
+    (data[L]||[]).forEach(function(r){
+      const p=r&&r.pedido;
+      if(!p||!p.feito||p.feito.visto) return;
+      if(normNome(p.por)!==eu) return;
+      if(normNome(p.feito.marcadoPor)===eu) return;
+      lista.push(r);
+    });
+  });
+  return lista;
+}
+
+var _jaAviseiNoNavegador={};
+function mostrarConfirmacoesRecebidas(){
+  const lista=confirmacoesParaMim();
+  let ov=document.getElementById('aviso-colocado');
+  if(!lista.length){ if(ov) ov.remove(); return; }
+  if(!ov){
+    ov=document.createElement('div'); ov.id='aviso-colocado';
+    // Abaixo das janelas do WhatsApp (9998 e 9999), para nao esconder o botao
+    // de abrir a conversa quando as duas aparecerem juntas.
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9990;'+
+      'display:flex;align-items:center;justify-content:center;padding:16px';
+    document.body.appendChild(ov);
+  }
+  const quando=function(iso){
+    const d=new Date(iso);
+    return d.toLocaleDateString('pt-BR')+' às '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  };
+  ov.innerHTML=
+    '<div style="background:#fff;border-radius:12px;padding:20px 22px;max-width:440px;width:100%;'+
+      'max-height:85vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.25)">'+
+    '<div style="font-size:16px;font-weight:700;color:#2E7D32;margin-bottom:12px">✅ Material colocado'+
+      (lista.length>1?' ('+lista.length+' obras)':'')+'</div>'+
+    lista.map(function(r){
+      const p=r.pedido;
+      return '<div style="border:1px solid #A5D6A7;background:#F1F8F1;border-radius:8px;padding:10px 12px;'+
+        'margin-bottom:10px;font-size:13px;line-height:1.5;color:#1B5E20">'+
+        '<strong>'+escHtml(p.feito.por)+'</strong> confirmou que já colocou o material da obra '+
+        '<strong>'+escHtml(r.obra)+'</strong>'+(r.contrato?' (contrato '+escHtml(r.contrato)+')':'')+'.'+
+        '<div style="font-size:11.5px;color:#558B2F;margin-top:3px">'+quando(p.feito.em)+'</div>'+
+        '<div style="font-size:12px;color:#33691E;margin-top:6px;padding-top:6px;border-top:1px dashed #C5E1A5">'+
+          escHtml(p.texto).replace(/\n/g,'<br>')+'</div>'+
+        '</div>';
+    }).join('')+
+    '<div style="text-align:right;margin-top:4px">'+
+      '<button type="button" onclick="marcarConfirmacoesVistas()" style="background:#2E7D32;color:#fff;border:none;'+
+      'border-radius:8px;padding:9px 20px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Ok, vi</button>'+
+    '</div></div>';
+  // Aviso do Windows tambem, uma vez so por confirmacao, se o navegador ja
+  // tiver permissao. Nao pede permissao aqui: quem pede e o aviso de prazos.
+  try{
+    if('Notification' in window && Notification.permission==='granted'){
+      lista.forEach(function(r){
+        const k=(r.id||r.obra)+'|'+r.pedido.feito.em;
+        if(_jaAviseiNoNavegador[k]) return;
+        _jaAviseiNoNavegador[k]=1;
+        new Notification('Material colocado — Daluminium',
+          {body:r.pedido.feito.por+' confirmou: '+r.obra,tag:'colocado-'+k});
+      });
+    }
+  }catch(e){}
+}
+
+function marcarConfirmacoesVistas(){
+  const eu=usuarioLogado()||'—', agora=new Date().toISOString();
+  confirmacoesParaMim().forEach(function(r){ r.pedido.feito.visto={por:eu,em:agora}; });
+  const ov=document.getElementById('aviso-colocado'); if(ov) ov.remove();
+  persist(); render();
 }
 
 // ---- WHATSAPP NOTIFICAÇÃO ----
