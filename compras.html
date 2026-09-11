@@ -3357,6 +3357,15 @@ let isSyncing = false;
 // Retrato do que o servidor tinha na ultima vez que lemos. Serve para saber,
 // na hora de gravar, se outra pessoa mexeu nesse meio-tempo.
 let ultimoServidor = null;
+// Gravacao em andamento e alteracao local ainda nao confirmada pelo servidor.
+// Em 11/09/2026 o Admin apertou "Ja coloquei", a tela ficou verde, e no
+// servidor continuou amarelo: a sincronizacao automatica (a cada 10 s) tinha
+// buscado a versao ANTIGA antes do clique, chegou depois dele, trocou os dados
+// da tela por ela — e a gravacao, que ainda estava a caminho, gravou essa
+// versao antiga e disse "Salvo". Com estes dois contadores, a sincronizacao
+// nao substitui nada enquanto ha gravacao em curso, e descarta a leitura que
+// saiu antes de uma alteracao feita aqui.
+let _gravando = 0, _versaoLocal = 0;
 
 function getCfg(){ return {apiKey:SUPA_KEY,binId:SUPA_SISTEMA}; }
 function saveCfg(cfg){}
@@ -3550,11 +3559,20 @@ async function createBin(apiKey, payload){
 async function syncFromCloud(){
   const cfg=getCfg(); if(!cfg) return;
   if(isSyncing) return;
+  if(_gravando) return;          // a gravacao em curso ja vai trazer a versao nova
   isSyncing=true;
+  const versaoAntes=_versaoLocal;
   try{
     setStatus('🔄 Sincronizando...');
     const remote=await fetchBin(cfg.apiKey,cfg.binId);
     if(!remote||typeof remote!=='object'||Array.isArray(remote)) throw new Error('Resposta invalida do servidor');
+    // A leitura saiu ANTES de alguma alteracao feita nesta tela? Entao ela e
+    // velha: aplicar trocaria a alteracao pela versao antiga. Descarta — a
+    // proxima rodada, em 10 s, busca de novo.
+    if(_gravando || _versaoLocal!==versaoAntes){
+      isSyncing=false;
+      return;
+    }
     const remoteStr=JSON.stringify(remote);
     // So o servidor mudou de verdade desde a ultima leitura? Reconstruir a
     // lista sem necessidade fazia a pagina voltar pro topo sozinha a cada
@@ -3724,7 +3742,17 @@ function juntarAlteracoes(servidor,minhas){
   return res;
 }
 
+// Toda gravacao passa por aqui. Marca que ha uma alteracao local e que ela
+// esta a caminho do servidor, e desmarca ao terminar — de qualquer jeito que
+// termine, inclusive com erro. Quem olha isso e a syncFromCloud.
 async function persist(){
+  _versaoLocal++;
+  _gravando++;
+  try{ return await gravarNoServidor(); }
+  finally{ _gravando--; }
+}
+
+async function gravarNoServidor(){
   if(!dataReady) return; // Nunca salva antes de carregar da nuvem
   const totalItems=(data.urgente||[]).length+(data.importante||[]).length+(data.pago||[]).length+(data.manutencao||[]).length+(data.historico||[]).length+(data.usuarios||[]).length;
   const hasSaldo=Object.values(data.saldosIniciais||{}).some(v=>v>0);
