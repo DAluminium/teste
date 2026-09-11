@@ -278,6 +278,12 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg span2"><textarea id="f-obs" placeholder="Anotações do contrato"></textarea></div>
       </div>
 
+      <!-- CAMPOS EXTRAS — as colunas que o Ander criar pela tela de Cadastros.
+           A seção inteira só aparece quando existe algum campo cadastrado;
+           módulo sem campo extra não mostra um título vazio. -->
+      <div class="secao" id="f-extras-titulo" style="display:none">Outros campos</div>
+      <div class="form-grid" id="f-extras"></div>
+
       <!-- ANEXOS — contrato, proposta, projeto, medição, ART, nota, foto.
            O arquivo sobe para o serviço de arquivos e a ficha guarda só o
            endereço dele. O rótulo diz o que é o arquivo sem precisar abrir. -->
@@ -323,6 +329,23 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg span2"><button class="btn btn-teal btn-block" onclick="addFeriado()">Acrescentar feriado</button></div>
       </div>
       <div id="fer-lista"></div>
+
+      <div class="secao">Campos extras da ficha</div>
+      <div class="aviso">Serve para acrescentar uma coluna que hoje não existe na ficha, <strong>sem precisar mexer no sistema</strong>. O campo passa a aparecer na ficha de todos os contratos e entra na busca. Um campo em uso não pode ser removido — primeiro esvazie o valor nos contratos que o usam.</div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="fg"><label>Nome do campo</label><input id="ce-nome" placeholder="Ex.: Custo do material"></div>
+        <div class="fg"><label>Tipo</label>
+          <select id="ce-tipo">
+            <option value="texto">Texto</option>
+            <option value="numero">Número</option>
+            <option value="dinheiro">Dinheiro (R$)</option>
+            <option value="data">Data</option>
+          </select>
+        </div>
+        <div class="fg span2"><button class="btn btn-teal btn-block" onclick="addCampoExtra()">Acrescentar campo</button></div>
+        <div class="fg span2" id="ce-atalho"></div>
+      </div>
+      <div id="ce-lista"></div>
 
       <div class="secao">Rótulos dos anexos</div>
       <div class="aviso">São as etiquetas que aparecem na frente de cada arquivo anexado na ficha — o rótulo diz o que é o documento sem precisar abrir. Um rótulo em uso não pode ser removido.</div>
@@ -596,6 +619,7 @@ function arrumar(d){
   if(!Array.isArray(d.feriados)) d.feriados=[];
   if(!Array.isArray(d.historico)) d.historico=[];
   if(!Array.isArray(d.tiposDoc)||!d.tiposDoc.length) d.tiposDoc=TIPOS_DOC_PADRAO.slice();
+  if(!Array.isArray(d.camposExtras)) d.camposExtras=[];
   return d;
 }
 function lerLocal(){
@@ -939,7 +963,8 @@ function lerFicha(){
     projEntrada:v('f-projentrada'), diasInst:v('f-diasinst'),
     entrega:v('f-entrega'),
     linhas:v('f-linhas'), cores:v('f-cores'), vidros:v('f-vidros'),
-    pecas:v('f-pecas'), obs:document.getElementById('f-obs').value.trim()
+    pecas:v('f-pecas'), obs:document.getElementById('f-obs').value.trim(),
+    extras:lerExtras()
   };
 }
 
@@ -1037,8 +1062,12 @@ function filtrados(){
     if(fa && c.ano!==fa) return false;
     if(fc && c.coord!==fc) return false;
     if(!busca) return true;
+    // Os campos extras entram na busca: criar uma coluna e não poder procurar
+    // por ela deixaria o campo pela metade.
+    const valoresExtras=Object.keys(c.extras||{}).map(function(k){ return c.extras[k]; });
     return [c.ct,c.ano,c.cliente,c.coord,c.respCom,c.cidade,c.condominio,
             c.linhas,c.cores,c.vidros,c.status,c.obs]
+      .concat(valoresExtras)
       .join(' ').toLowerCase().indexOf(busca)>=0;
   });
 }
@@ -1218,6 +1247,7 @@ function novoContrato(){
   _manual={};
   fichaDocs=[]; docsApagados={};
   preencherTiposDoc(); renderDocs();
+  renderExtrasNaFicha(null);
   const p=(id,v)=>{ document.getElementById(id).value=v; };
   ['f-ct','f-cliente','f-coord','f-respcom','f-cidade','f-condominio','f-fechamento',
    'f-prazomat','f-medicao','f-diasprod','f-projentrada','f-diasinst','f-entrega',
@@ -1245,6 +1275,7 @@ function abrirFicha(id){
   fichaDocs=Array.isArray(c.docs)?JSON.parse(JSON.stringify(c.docs)):[];
   docsApagados={};
   preencherTiposDoc(); renderDocs();
+  renderExtrasNaFicha(c);
   const p=(campo,v)=>{ document.getElementById(campo).value=v||''; };
   p('f-ct',c.ct); p('f-ano',c.ano); p('f-cliente',c.cliente);
   p('f-coord',c.coord); p('f-respcom',c.respCom);
@@ -1303,7 +1334,12 @@ async function salvarFicha(manterAberta){
       alvo={id:id, criadoEm:agoraISO(), criadoPor:usuario};
       base.contratos.push(alvo);
     }
+    // Os campos extras entram por junção, não por substituição: se um colega
+    // criou um campo novo e o preencheu enquanto esta ficha estava aberta, a
+    // minha tela não tem aquele campo — e substituir apagaria o valor dele.
+    const extrasJuntos=Object.assign({}, alvo.extras||{}, c.extras||{});
     Object.assign(alvo, c);
+    alvo.extras=extrasJuntos;
     // Anexos: junta o que está no servidor com o que foi anexado nesta tela e
     // tira o que foi apagado aqui. Nessa ordem, o arquivo que um colega anexou
     // enquanto a ficha estava aberta não é perdido — e o que eu apaguei não
@@ -1363,6 +1399,195 @@ async function restaurarContrato(){
     if(alvo){ alvo.excluido=false; alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario; }
   }, {acao:'restaurou', alvo:'CT '+(c.ct||'')+' · '+(c.cliente||'')});
   if(ok) fecharFicha();
+}
+
+// ================= CAMPOS EXTRAS =================
+// Colunas que o gestor cria pela tela de Cadastros, sem alteração no código.
+// Nasceram das três colunas da planilha que estavam vazias (PF, PR e CUSTO
+// MATERIAL): em vez de adivinhar para que serviam, o módulo deixa criá-las
+// quando tiverem uso.
+//
+// Mesma regra das etapas da Fábrica: o `id` NUNCA muda depois de criado — os
+// contratos guardam o valor por id, e trocá-lo faria o valor apontar para o
+// nada. Renomear mexe só no rótulo.
+const TIPOS_CAMPO={
+  texto:   {rotulo:'Texto',        input:'text'},
+  numero:  {rotulo:'Número',       input:'number'},
+  dinheiro:{rotulo:'Dinheiro (R$)',input:'number'},
+  data:    {rotulo:'Data',         input:'date'}
+};
+// Sugestões prontas: são as três colunas da planilha. Assim o Ander não precisa
+// lembrar do nome nem do tipo se um dia elas passarem a ter uso.
+const CAMPOS_DA_PLANILHA=[
+  {nome:'PF', tipo:'texto'},
+  {nome:'PR', tipo:'texto'},
+  {nome:'Custo do material', tipo:'dinheiro'}
+];
+
+function camposExtras(){
+  return Array.isArray(dados.camposExtras)?dados.camposExtras:[];
+}
+
+// Identificador a partir do nome, sem acento e sem espaço, mais um sufixo
+// curto. O sufixo existe para que dois campos de nome parecido nunca colidam.
+function idDeCampo(nome){
+  const base=String(nome||'campo').normalize('NFD').replace(/[^\w\s-]/g,'')
+    .trim().toLowerCase().replace(/\s+/g,'_').slice(0,24) || 'campo';
+  return 'x_'+base+'_'+Math.random().toString(36).slice(2,6);
+}
+
+// Quantos contratos têm valor neste campo. Serve para não deixar remover campo
+// em uso: os contratos guardam o valor por id, e tirar o campo esconderia o
+// valor sem apagá-lo — o dado ficaria lá, invisível.
+function usoCampoExtra(id){
+  let n=0;
+  (dados.contratos||[]).forEach(function(c){
+    const v=(c.extras||{})[id];
+    if(v!==undefined && v!==null && String(v).trim()!=='') n++;
+  });
+  return n;
+}
+
+// Desenha os campos extras na ficha, com o valor do contrato aberto.
+function renderExtrasNaFicha(c){
+  const grid=document.getElementById('f-extras');
+  const titulo=document.getElementById('f-extras-titulo');
+  const lista=camposExtras();
+  if(!grid||!titulo) return;
+  if(!lista.length){ titulo.style.display='none'; grid.innerHTML=''; return; }
+  titulo.style.display='';
+  const vals=(c&&c.extras)||{};
+  grid.innerHTML=lista.map(function(cp){
+    const t=TIPOS_CAMPO[cp.tipo]||TIPOS_CAMPO.texto;
+    const passo=cp.tipo==='dinheiro'?' step="0.01" min="0"':(cp.tipo==='numero'?' min="0"':'');
+    const v=vals[cp.id]===undefined?'':vals[cp.id];
+    return '<div class="fg"><label>'+esc(cp.nome)+'</label>'+
+      '<input type="'+t.input+'"'+passo+' data-extra="'+esc(cp.id)+'" value="'+esc(v)+'"></div>';
+  }).join('');
+}
+
+// Lê o que está digitado nos campos extras da ficha.
+function lerExtras(){
+  const saida={};
+  document.querySelectorAll('#f-extras [data-extra]').forEach(function(el){
+    saida[el.getAttribute('data-extra')]=el.value.trim();
+  });
+  return saida;
+}
+
+function renderCamposExtras(){
+  const el=document.getElementById('ce-lista');
+  const at=document.getElementById('ce-atalho');
+  if(at){
+    // Só oferece a sugestão do que ainda não existe.
+    const faltam=CAMPOS_DA_PLANILHA.filter(function(s){
+      return !camposExtras().some(function(cp){ return cp.nome.toUpperCase()===s.nome.toUpperCase(); });
+    });
+    at.innerHTML=faltam.length
+      ? '<span class="dica">Da planilha, ainda não criados: '+
+        faltam.map(function(s){
+          return '<button type="button" class="btn btn-outline btn-sm" style="margin:3px 4px 0 0" '+
+            'onclick="sugerirCampo('+JSON.stringify(s.nome).replace(/"/g,'&quot;')+','+
+            JSON.stringify(s.tipo).replace(/"/g,'&quot;')+')">+ '+esc(s.nome)+'</button>';
+        }).join('')+'</span>'
+      : '';
+  }
+  if(!el) return;
+  const lista=camposExtras();
+  if(!lista.length){
+    el.innerHTML='<div style="font-size:12.5px;color:var(--gray-4)">Nenhum campo extra criado. A ficha mostra só os campos que vieram da planilha.</div>';
+    return;
+  }
+  el.innerHTML='<div class="caixa">'+lista.map(function(cp){
+    const uso=usoCampoExtra(cp.id);
+    const t=TIPOS_CAMPO[cp.tipo]||TIPOS_CAMPO.texto;
+    return '<div class="caixa-linha"><span><strong>'+esc(cp.nome)+'</strong>'+
+      ' <span class="pill pill-cinza">'+esc(t.rotulo)+'</span></span>'+
+      '<span style="display:flex;gap:8px;align-items:center">'+
+      '<span style="font-size:11px;color:var(--gray-4)">'+(uso?uso+' preenchido(s)':'vazio')+'</span>'+
+      '<button class="btn btn-outline btn-sm" onclick="renomearCampoExtra('+
+        JSON.stringify(cp.id).replace(/"/g,'&quot;')+')">Renomear</button>'+
+      '<button class="btn btn-outline btn-sm" onclick="delCampoExtra('+
+        JSON.stringify(cp.id).replace(/"/g,'&quot;')+')">Tirar</button>'+
+      '</span></div>';
+  }).join('')+'</div>';
+}
+
+function sugerirCampo(nome,tipo){
+  document.getElementById('ce-nome').value=nome;
+  document.getElementById('ce-tipo').value=tipo;
+  document.getElementById('ce-nome').focus();
+}
+
+async function addCampoExtra(){
+  const nome=document.getElementById('ce-nome').value.trim();
+  const tipo=document.getElementById('ce-tipo').value;
+  if(!nome){ aviso('Falta o nome','Escreva o nome do campo.'); document.getElementById('ce-nome').focus(); return; }
+  if(!TIPOS_CAMPO[tipo]){ aviso('Tipo inválido','Escolha um tipo da lista.'); return; }
+  if(camposExtras().some(function(cp){ return cp.nome.toUpperCase()===nome.toUpperCase(); })){
+    aviso('Já existe','Já existe um campo chamado "'+nome+'".'); return;
+  }
+  // 12 é folga com sobra e evita que a ficha vire um formulário sem fim.
+  if(camposExtras().length>=12){
+    aviso('Muitos campos','A ficha já tem 12 campos extras, que é o limite.\n\n'+
+      'Se precisar de outro, tire um que não esteja em uso.'); return;
+  }
+  const novo={id:idDeCampo(nome), nome:nome, tipo:tipo, criadoEm:agoraISO(), criadoPor:usuario};
+  const ok=await alterar(function(base){
+    if(!Array.isArray(base.camposExtras)) base.camposExtras=[];
+    base.camposExtras.push(novo);
+  }, {acao:'criou campo extra', alvo:nome, detalhe:(TIPOS_CAMPO[tipo]||{}).rotulo||tipo});
+  if(ok){
+    document.getElementById('ce-nome').value='';
+    renderCamposExtras();
+    // A ficha pode estar aberta por trás: o campo novo aparece nela na hora.
+    if(fichaId) renderExtrasNaFicha((dados.contratos||[]).find(function(x){ return x.id===fichaId; }));
+    else renderExtrasNaFicha(null);
+  }
+}
+
+// Renomear mexe SÓ no rótulo. O id fica, então nenhum valor já preenchido se
+// perde — é a mesma regra das etapas da Fábrica.
+async function renomearCampoExtra(id){
+  const cp=camposExtras().find(function(x){ return x.id===id; });
+  if(!cp) return;
+  const novo=prompt('Novo nome para o campo "'+cp.nome+'":', cp.nome);
+  if(novo===null) return;
+  const nome=novo.trim();
+  if(!nome){ aviso('Falta o nome','O nome não pode ficar vazio.'); return; }
+  if(nome===cp.nome) return;
+  if(camposExtras().some(function(x){ return x.id!==id && x.nome.toUpperCase()===nome.toUpperCase(); })){
+    aviso('Já existe','Já existe um campo chamado "'+nome+'".'); return;
+  }
+  const ok=await alterar(function(base){
+    const alvo=(base.camposExtras||[]).find(function(x){ return x.id===id; });
+    if(alvo) alvo.nome=nome;
+  }, {acao:'renomeou campo extra', alvo:cp.nome, detalhe:'passou a ser "'+nome+'"'});
+  if(ok){
+    renderCamposExtras();
+    if(fichaId) renderExtrasNaFicha((dados.contratos||[]).find(function(x){ return x.id===fichaId; }));
+  }
+}
+
+async function delCampoExtra(id){
+  const cp=camposExtras().find(function(x){ return x.id===id; });
+  if(!cp) return;
+  const uso=usoCampoExtra(id);
+  if(uso){
+    aviso('Campo em uso','O campo "'+cp.nome+'" está preenchido em '+uso+' contrato(s).\n\n'+
+      'Tirá-lo agora esconderia esses valores sem apagá-los — o dado ficaria lá, invisível.\n\n'+
+      'Esvazie o campo nesses contratos primeiro, ou deixe-o onde está.');
+    return;
+  }
+  if(!confirm('Tirar o campo "'+cp.nome+'" da ficha?\n\nEle está vazio em todos os contratos, então nada se perde.')) return;
+  const ok=await alterar(function(base){
+    base.camposExtras=(base.camposExtras||[]).filter(function(x){ return x.id!==id; });
+  }, {acao:'tirou campo extra', alvo:cp.nome});
+  if(ok){
+    renderCamposExtras();
+    if(fichaId) renderExtrasNaFicha((dados.contratos||[]).find(function(x){ return x.id===fichaId; }));
+    else renderExtrasNaFicha(null);
+  }
 }
 
 // ================= ANEXOS =================
@@ -1507,6 +1732,7 @@ async function removerDoc(id){
 function abrirCadastros(){
   if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente mexe nos cadastros.'); return; }
   renderFeriados();
+  renderCamposExtras();
   renderTiposDoc();
   document.getElementById('cad-ov').classList.add('open');
 }
