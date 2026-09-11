@@ -2067,14 +2067,15 @@ function entrarPeloCracha(){
 
 if(entrarPeloCracha()){
   // já entrou
-} else if(sessionStorage.getItem('portal-logged')==='true'){
-  const nome=sessionStorage.getItem('portal-user')||'';
-  const role=sessionStorage.getItem('portal-role')||'';
-  const modulos=JSON.parse(sessionStorage.getItem('portal-modulos')||'["compras"]');
-  document.getElementById('login-screen').classList.remove('active');
-  showPortal(nome, modulos, role==='admin');
-  loadPortalData();
 } else {
+  // Sem crachá valido, a marca de "logado" da aba nao vale mais nada: desde
+  // 10/08 o servidor recusa tudo sem crachá. Antes o portal entrava por ela
+  // mesmo assim — e em 11/09 isso prendeu o Ander num ciclo: o Compras dizia
+  // "Sua sessão expirou", voltava para o portal, o portal entrava sem crachá e
+  // reabria o Compras, que levava recusa e mostrava a mensagem de novo.
+  ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key']
+    .forEach(k=>sessionStorage.removeItem(k));
+  localStorage.removeItem('dalum-sso');
   setTimeout(()=>document.getElementById('login-user').focus(),300);
 }
 
