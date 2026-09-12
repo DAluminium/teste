@@ -333,10 +333,17 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     </div>
     <div class="modal-body">
       <div class="secao">Feriados</div>
-      <div class="aviso">Os feriados <strong>nacionais</strong> o sistema já conhece e calcula sozinho, ano a ano — inclusive Carnaval, Sexta-feira Santa e Corpus Christi, que mudam de data. Cadastre aqui só os <strong>municipais e estaduais</strong> e os pontos facultativos em que a fábrica para.</div>
+      <div class="aviso">Os feriados <strong>nacionais</strong> o sistema já conhece e calcula sozinho, <strong>ano a ano</strong> — inclusive Carnaval, Sexta-feira Santa e Corpus Christi, que mudam de data. Cadastre aqui só os <strong>municipais e estaduais</strong> e os pontos facultativos em que a fábrica para. A lista abaixo mostra <strong>todas as datas que contam</strong> no ano escolhido; passe o ano para conferir os próximos.</div>
       <div class="form-grid" style="margin-bottom:12px">
         <div class="fg"><label>Data</label><input type="date" id="fer-data"></div>
         <div class="fg"><label>Nome</label><input id="fer-nome" placeholder="Ex.: Aniversário de Porto Velho"></div>
+        <div class="fg span2">
+          <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;font-weight:400;cursor:pointer">
+            <input type="checkbox" id="fer-todoano" checked style="width:18px;height:18px">
+            Repete todo ano (feriado municipal quase sempre repete)
+          </label>
+          <span class="dica">Marcado, ele conta em <b>todos os anos</b> na mesma data — não precisa recadastrar em janeiro. Desmarcado, vale só nesta data (ponto facultativo de um ano só).</span>
+        </div>
         <div class="fg span2"><button class="btn btn-teal btn-block" onclick="addFeriado()">Acrescentar feriado</button></div>
       </div>
       <div id="fer-lista"></div>
@@ -940,13 +947,6 @@ function feriadosNacionais(ano){
 }
 // É feriado ou fim de semana? Serve para a conta de dias úteis e para avisar
 // na tela quando uma data cai em dia não útil.
-function nomeDoFeriado(iso){
-  if(!iso) return '';
-  const extra=(dados.feriados||[]).find(function(f){ return f.data===iso; });
-  if(extra) return extra.nome||'Feriado';
-  const ano=+iso.slice(0,4);
-  return feriadosNacionais(ano)[iso]||'';
-}
 function ehDiaUtil(iso){
   const d=new Date(Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10)));
   const s=d.getUTCDay();
@@ -1435,7 +1435,7 @@ function novoContrato(){
   document.getElementById('ficha-btn-salvar').style.display='';
   document.getElementById('f-quem').textContent='';
   document.getElementById('f-fabrica').innerHTML='Ao salvar, esta obra entra no quadro da Fábrica.';
-  document.getElementById('f-compras').innerHTML='Sem compras ainda — elas aparecem aqui depois de lançadas no módulo Compras.';
+  document.getElementById('f-compras').innerHTML='Ao salvar, esta obra entra na lista do Compras com o contrato, o cliente e a data de entrega — para o Compras já poder cobrar a lista de material.';
   recalcular();
   document.getElementById('ficha-ov').classList.add('open');
   setTimeout(function(){ document.getElementById('f-ct').focus(); },80);
@@ -1546,7 +1546,13 @@ async function salvarFicha(manterAberta){
   // A obra vai para o quadro da Fábrica. Se falhar, o contrato JÁ está salvo
   // aqui — por isso o aviso diz o que deu errado em vez de sumir.
   const salvo=(dados.contratos||[]).find(function(x){ return x.id===id; });
-  if(salvo) await enviarParaFabrica(salvo, novo);
+  if(salvo){
+    await enviarParaFabrica(salvo, novo);
+    // O Compras vem depois da Fabrica de proposito: se o primeiro falhar, o
+    // segundo ainda tenta. Os dois avisam por conta propria, e o contrato JA
+    // esta salvo aqui em qualquer caso.
+    await enviarParaCompras(salvo);
+  }
   return true;
 }
 
@@ -2214,27 +2220,127 @@ async function delTipoDoc(rotulo){
   if(ok){ renderTiposDoc(); preencherTiposDoc(); }
 }
 
+// Um feriado cadastrado aqui pode valer SÓ naquela data ou REPETIR TODO ANO.
+// Feriado municipal repete: o aniversário de Porto Velho é 2 de outubro todo
+// ano. Sem essa opção seria preciso recadastrar cada um em janeiro, e é assim
+// que a lista envelhece sem ninguém perceber — foi o que aconteceu com a lista
+// da planilha, que ficou parada em 2023.
+function diaMes(iso){ return String(iso||'').slice(5,10); }
+
+function nomeDoFeriado(iso){
+  if(!iso) return '';
+  const lista=(dados.feriados||[]);
+  const exato=lista.find(function(f){ return f.data===iso; });
+  if(exato) return exato.nome||'Feriado';
+  const todoAno=lista.find(function(f){ return f.todoAno && diaMes(f.data)===diaMes(iso); });
+  if(todoAno) return todoAno.nome||'Feriado';
+  const ano=+iso.slice(0,4);
+  return feriadosNacionais(ano)[iso]||'';
+}
+
+// Todos os feriados que contam num ano, com a origem de cada um. É o que a
+// tela mostra: sem isso o Ander não tinha onde conferir as datas que estão
+// entrando na conta de dias úteis.
+function feriadosDoAno(ano){
+  const saida=[];
+  const nac=feriadosNacionais(ano);
+  Object.keys(nac).forEach(function(iso){
+    saida.push({data:iso, nome:nac[iso], origem:'nacional'});
+  });
+  (dados.feriados||[]).forEach(function(f){
+    if(!f||!f.data) return;
+    if(f.todoAno){
+      const iso=ano+'-'+diaMes(f.data);
+      // 29 de fevereiro em ano que não tem 29 de fevereiro: não existe nesse
+      // ano, então não entra.
+      if(!ehDataDeVerdade(iso)) return;
+      saida.push({data:iso, nome:f.nome, origem:'todoAno', chave:f.data});
+    } else if(f.data.slice(0,4)===String(ano)){
+      saida.push({data:f.data, nome:f.nome, origem:'uma-vez', chave:f.data});
+    }
+  });
+  // Cadastrado manda mais que nacional na mesma data: se o Ander escreveu algo
+  // ali, é porque quis. Fica um por data.
+  const porData={};
+  saida.forEach(function(f){
+    if(!porData[f.data] || f.origem!=='nacional') porData[f.data]=f;
+  });
+  return Object.keys(porData).sort().map(function(d){ return porData[d]; });
+}
+
+function ehDataDeVerdade(iso){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
+  const d=new Date(iso+'T00:00:00Z');
+  return !isNaN(d) && isoDeUTC(d.getTime())===iso;
+}
+
+const DIAS_DA_SEMANA=['domingo','segunda-feira','terça-feira','quarta-feira',
+  'quinta-feira','sexta-feira','sábado'];
+function diaDaSemana(iso){
+  const d=new Date(Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10)));
+  return DIAS_DA_SEMANA[d.getUTCDay()]||'';
+}
+
+// O ano que a tela está mostrando.
+let _anoFeriados=new Date().getFullYear();
+function trocarAnoFeriados(passo){
+  _anoFeriados+=passo;
+  renderFeriados();
+}
+
 function renderFeriados(){
-  const l=(dados.feriados||[]).slice().sort(function(a,b){ return (a.data||'')<(b.data||'')?-1:1; });
   const el=document.getElementById('fer-lista');
-  if(!l.length){ el.innerHTML='<div style="font-size:12.5px;color:var(--gray-4)">Nenhum feriado próprio cadastrado. Só os nacionais estão valendo.</div>'; return; }
-  el.innerHTML='<div class="caixa">'+l.map(function(f){
-    return '<div class="caixa-linha"><span><strong>'+fmtData(f.data)+'</strong> · '+esc(f.nome)+'</span>'+
-      '<button class="btn btn-outline btn-sm" onclick="delFeriado(\''+esc(f.data)+'\')">Tirar</button></div>';
-  }).join('')+'</div>';
+  if(!el) return;
+  const ano=_anoFeriados;
+  const lista=feriadosDoAno(ano);
+  const rotulo={nacional:'nacional', 'todoAno':'seu, todo ano', 'uma-vez':'seu, só em '+ano};
+  const cor={nacional:'pill-cinza', 'todoAno':'pill-verde', 'uma-vez':'pill-ambar'};
+  const linhas=lista.map(function(f){
+    const podeTirar=(f.origem!=='nacional');
+    return '<div class="caixa-linha">'+
+      '<span><strong>'+fmtData(f.data)+'</strong> · '+esc(f.nome)+
+        '<span class="td-fraco" style="font-size:11px"> · '+diaDaSemana(f.data)+'</span></span>'+
+      '<span style="display:flex;gap:7px;align-items:center">'+
+        pill(rotulo[f.origem]||f.origem, cor[f.origem]||'pill-cinza')+
+        (podeTirar?'<button class="btn btn-outline btn-sm" onclick="delFeriado('+
+          JSON.stringify(f.chave).replace(/"/g,'&quot;')+')">Tirar</button>':'')+
+      '</span></div>';
+  }).join('');
+  const proprios=lista.filter(function(f){ return f.origem!=='nacional'; }).length;
+  el.innerHTML=
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+      '<button class="btn btn-outline btn-sm" onclick="trocarAnoFeriados(-1)" title="Ano anterior">&lsaquo;</button>'+
+      '<strong style="font-size:14px">'+ano+'</strong>'+
+      '<button class="btn btn-outline btn-sm" onclick="trocarAnoFeriados(1)" title="Ano seguinte">&rsaquo;</button>'+
+      '<span class="td-fraco" style="font-size:11.5px;margin-left:6px">'+
+        lista.length+' feriado'+(lista.length===1?'':'s')+' contam em '+ano+
+        ' · '+proprios+' cadastrado'+(proprios===1?'':'s')+' por você</span>'+
+    '</div>'+
+    '<div class="caixa">'+(linhas||'<div class="td-fraco">Nenhum feriado neste ano.</div>')+'</div>'+
+    '<div class="td-fraco" style="font-size:11.5px;margin-top:7px;line-height:1.5">'+
+      'Os <strong>nacionais</strong> o sistema recalcula para qualquer ano — passe o ano '+
+      'para a frente e veja: Carnaval, Sexta-feira Santa e Corpus Christi mudam de data sozinhos. '+
+      'Os seus, marcados como <strong>todo ano</strong>, também aparecem em todos os anos.'+
+    '</div>';
 }
 
 async function addFeriado(){
   const data=document.getElementById('fer-data').value;
   const nome=document.getElementById('fer-nome').value.trim();
+  const todoAno=document.getElementById('fer-todoano').checked;
   if(!data){ aviso('Falta a data','Escolha a data do feriado.'); return; }
   if(!nome){ aviso('Falta o nome','Escreva o nome do feriado.'); return; }
   const ok=await alterar(function(base){
     if(!Array.isArray(base.feriados)) base.feriados=[];
     base.feriados=base.feriados.filter(function(f){ return f.data!==data; });
-    base.feriados.push({data:data,nome:nome});
-  }, {acao:'cadastrou feriado', alvo:fmtData(data)+' · '+nome});
+    base.feriados.push({data:data,nome:nome,todoAno:todoAno,
+      criadoEm:agoraISO(), criadoPor:usuario});
+  }, {acao:'cadastrou feriado', alvo:fmtData(data)+' · '+nome,
+      detalhe:todoAno?'repete todo ano':'vale só nesta data'});
   if(ok){
+    // Mostra o ano da data cadastrada, senão o feriado novo pode não aparecer
+    // na tela e parecer que não foi gravado.
+    _anoFeriados=+data.slice(0,4);
     document.getElementById('fer-data').value='';
     document.getElementById('fer-nome').value='';
     renderFeriados();
@@ -2244,7 +2350,8 @@ async function addFeriado(){
 async function delFeriado(data){
   const f=(dados.feriados||[]).find(function(x){ return x.data===data; });
   if(!f) return;
-  if(!confirm('Tirar o feriado '+fmtData(data)+' ('+f.nome+')?')) return;
+  if(!confirm('Tirar o feriado '+fmtData(data)+' ('+f.nome+')?'+
+      (f.todoAno?'\n\nEle vale em TODOS os anos, então sai de todos.':''))) return;
   const ok=await alterar(function(base){
     base.feriados=(base.feriados||[]).filter(function(x){ return x.data!==data; });
   }, {acao:'tirou feriado', alvo:fmtData(data)+' · '+f.nome});
@@ -2373,28 +2480,146 @@ function mostrarFabrica(c){
 }
 
 // ================= AS COMPRAS =================
-// Só leitura. O lançamento da compra é do módulo Compras — aqui a ficha só
-// mostra o que já foi comprado para este contrato, para não ter de abrir os
-// dois sistemas lado a lado.
-async function carregarCompras(){
-  try{
-    const url=WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7);
-    const r=await fetch(url,{cache:'no-store',
-      headers:Object.assign(cabecalhos(),{'X-Sistema':SISTEMA_COMPRAS})});
-    if(!r.ok) throw new Error('Compras '+r.status);
-    const j=await r.json();
-    _comprasDados=(j&&typeof j==='object'&&!Array.isArray(j))?j:null;
-  }catch(e){ _comprasDados=null; }
+// Duas coisas diferentes acontecem aqui:
+//
+// 1. ESCREVE um lançamento "semente" no Compras, com as TRÊS informações que o
+//    Ander chamou de prioridade: contrato, nome do cliente e data de entrega da
+//    obra. É o que faz a obra nova já aparecer na lista do Compras, para ele
+//    poder cobrar a lista de material sem esperar ninguém digitar nada.
+//
+//    Material, fornecedor, valor e nota ficam vazios de propósito: quem compra
+//    preenche. O pedido de material do Compras mora DENTRO do lançamento, então
+//    sem um lançamento não há como cobrar — era isso que faltava.
+//
+// 2. LÊ para mostrar na ficha o que já foi comprado para o contrato.
+function cabecalhosCompras(extra){
+  return Object.assign(cabecalhos(extra||{}),{'X-Sistema':SISTEMA_COMPRAS});
 }
 
+// As três abas do Compras. O próprio Compras move o lançamento entre
+// Importantes e Urgentes conforme a data de entrega se aproxima, então não
+// escolhemos a aba pela urgência: entra em Importantes e ele decide.
+const ABAS_COMPRAS=['urgente','importante','pago'];
+
+async function lerCompras(){
+  const url=WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7);
+  const r=await fetch(url,{cache:'no-store',headers:cabecalhosCompras()});
+  if(!r.ok) throw new Error('Compras '+r.status);
+  const j=await r.json();
+  if(!j||typeof j!=='object'||Array.isArray(j)) throw new Error('Compras sem dados');
+  ABAS_COMPRAS.forEach(function(a){ if(!Array.isArray(j[a])) j[a]=[]; });
+  return j;
+}
+
+async function carregarCompras(){
+  try{ _comprasDados=await lerCompras(); }
+  catch(e){ _comprasDados=null; }
+}
+
+// O lançamento que nasceu deste contrato, em qualquer das três abas. O vínculo
+// é o `ctoId` — o id do contrato —, nunca o número do CT, que a pessoa corrige.
+function acharLancamentoDaObra(comp, idContrato){
+  for(let i=0;i<ABAS_COMPRAS.length;i++){
+    const aba=ABAS_COMPRAS[i];
+    const achado=(comp[aba]||[]).find(function(r){ return r.ctoId===idContrato; });
+    if(achado) return {aba:aba, reg:achado};
+  }
+  return null;
+}
+
+async function enviarParaCompras(c){
+  // Contrato finalizado, parado ou pendente não vira cobrança de material.
+  // Se o lançamento JÁ existe, continua sendo atualizado.
+  // Sem data de entrega não dá: o Compras exige a data, e é dela que sai o
+  // alerta de prazo. Melhor avisar do que criar um lançamento que o Compras
+  // não saberia priorizar.
+  status('🔄 Levando para o Compras...');
+  try{
+    const comp=await lerCompras();
+    const ja=acharLancamentoDaObra(comp, c.id);
+    const deveEntrar=STATUS_VAO_PARA_FABRICA.indexOf(c.status)>=0;
+    if(!ja && !deveEntrar){ status('🟢 Salvo · '+agoraHora()); return; }
+    if(!ja && !c.entrega){
+      aviso('Contrato salvo, mas não foi para o Compras',
+        'O contrato está guardado aqui. Só não deu para criar o lançamento no '+
+        'Compras porque ele exige a DATA DE ENTREGA DA OBRA — é dela que sai o '+
+        'alerta de prazo de material.\n\n'+
+        'Preencha a entrega e salve de novo: aí ele vai.');
+      return;
+    }
+
+    if(ja){
+      // Só as três que este módulo manda. Material, fornecedor, valor, nota,
+      // anexos, pedido de material e a aba são de quem compra: mexer neles
+      // daqui apagaria trabalho dele.
+      ja.reg.obra=c.cliente;
+      ja.reg.contrato=c.ct;
+      if(c.entrega) ja.reg.entrega=c.entrega;
+    } else {
+      // Campos na mesma forma que o Compras grava, para a tela dele não
+      // encontrar buraco nenhum.
+      comp.importante.push({
+        id: novoId(),
+        ctoId: c.id,
+        obra: c.cliente,
+        contrato: c.ct,
+        entrega: c.entrega,
+        material:'', nrOrc:'', fornecedor:'', valor:0, dataOrc:'',
+        medicao:'', diasUteis:0,
+        status:'Pendente', tipo:'padrao',
+        by: usuario,
+        pix:'', pixNome:'', banco:'', conta:'',
+        obs:'Obra nova, veio do Gerenciamento de Obra · CT '+(c.ct||'')+'/'+(c.ano||'')+
+            '. Falta lançar o material.',
+        attachments:[], pedido:null
+      });
+      if(!Array.isArray(comp.historico)) comp.historico=[];
+      comp.historico.unshift({
+        ts: agoraISO(), user: usuario||'—',
+        action:'Obra nova (pelo Gerenciamento de Obra)',
+        obra: c.cliente||'—', contrato: c.ct||'—',
+        detail:'Entrega '+(c.entrega?fmtData(c.entrega):'—')+' · material ainda não lançado'
+      });
+      if(comp.historico.length>500) comp.historico=comp.historico.slice(0,500);
+    }
+
+    const carimbo=agoraISO();
+    comp.atualizadoEm=carimbo;
+    comp.atualizadoPor=usuario;
+    const r=await fetch(WORKER,{method:'PATCH',
+      headers:cabecalhosCompras({'Content-Type':'application/json'}),
+      body:JSON.stringify({data:comp})});
+    if(!r.ok) throw new Error('Compras '+r.status);
+    // O Worker responde ok mesmo sem gravar. Confere pelo carimbo.
+    const confere=await lerCompras();
+    if(confere.atualizadoEm!==carimbo) throw new Error('não gravou');
+    _comprasDados=confere;
+    status((ja?'🟢 Salvo e atualizado no Compras · ':'🟢 Salvo e no Compras · ')+agoraHora());
+  }catch(e){
+    status('🟡 Salvo aqui, não foi para o Compras','#ffe9b0');
+    aviso('Contrato salvo, mas não foi para o Compras',
+      'O contrato está guardado aqui — nada foi perdido.\n\n'+
+      'O que falhou foi levar a obra para a lista do Compras ('+(e.message||'erro')+').\n\n'+
+      'Tente salvar de novo daqui a pouco, ou lance a obra direto no Compras.');
+  }
+}
+
+// Tudo que o Compras tem deste contrato: o lançamento que nasceu daqui (achado
+// pelo `ctoId`) e os que quem compra lançou à mão (achados pelo número do CT).
 function comprasDoContrato(c){
   if(!_comprasDados) return null;
   const alvo=(c.ct||'').toUpperCase().trim();
-  if(!alvo) return [];
+  const vistos={};
   const saida=[];
-  ['urgente','importante','pago'].forEach(function(aba){
+  ABAS_COMPRAS.forEach(function(aba){
     (_comprasDados[aba]||[]).forEach(function(r){
-      if((r.contrato||'').toUpperCase().trim()===alvo) saida.push(Object.assign({aba:aba},r));
+      const meu = (r.ctoId && r.ctoId===c.id);
+      const mesmoCT = alvo && (r.contrato||'').toUpperCase().trim()===alvo;
+      if(!meu && !mesmoCT) return;
+      const chave=r.id||(aba+'|'+(r.contrato||'')+'|'+(r.material||''));
+      if(vistos[chave]) return;
+      vistos[chave]=1;
+      saida.push(Object.assign({aba:aba},r));
     });
   });
   return saida;
@@ -2405,7 +2630,16 @@ function mostrarCompras(c){
   const lista=comprasDoContrato(c);
   if(lista===null){ el.innerHTML='<span class="td-fraco">Não consegui ler o módulo Compras agora.</span>'; return; }
   if(!lista.length){
-    el.innerHTML='<strong>Compras:</strong> nada lançado para o contrato '+esc(c.ct||'—')+' ainda.';
+    // Por que pode estar vazio: ou a obra ainda nao foi levada (status que nao
+    // vai, ou falta a data de entrega), ou foi e ninguem lancou material.
+    let motivo;
+    if(STATUS_VAO_PARA_FABRICA.indexOf(c.status)<0)
+      motivo='Contrato <em>'+esc(c.status||'sem status')+'</em> não entra na lista do Compras.';
+    else if(!c.entrega)
+      motivo='Falta a <strong>data de entrega da obra</strong>: sem ela o Compras não entra, porque é dela que sai o alerta de prazo.';
+    else
+      motivo='Ao salvar, esta obra entra na lista do Compras para ele cobrar a lista de material.';
+    el.innerHTML='<strong>Compras:</strong> nada lançado para o contrato '+esc(c.ct||'—')+' ainda. '+motivo;
     return;
   }
   let total=0;
@@ -2413,7 +2647,9 @@ function mostrarCompras(c){
     const v=Number(r.valor)||0; total+=v;
     const rotulo={urgente:'Urgente',importante:'Importante',pago:'Pago'}[r.aba]||r.aba;
     const cor={urgente:'pill-vermelho',importante:'pill-ambar',pago:'pill-verde'}[r.aba]||'pill-cinza';
-    return '<div class="caixa-linha"><span>'+pill(rotulo,cor)+' '+esc(r.material||'')+
+    const oQue = r.material ? esc(r.material)
+      : '<em class="td-fraco">material ainda não lançado'+(r.ctoId?' (veio daqui)':'')+'</em>';
+    return '<div class="caixa-linha"><span>'+pill(rotulo,cor)+' '+oQue+
       (r.fornecedor?' · <span class="td-fraco">'+esc(r.fornecedor)+'</span>':'')+'</span>'+
       '<span><strong>'+v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+'</strong></span></div>';
   }).join('');
