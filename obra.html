@@ -221,7 +221,6 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <button class="view-btn" id="vb-carteira" onclick="setView('carteira')">Carteira</button>
         <button class="view-btn" id="vb-hist" onclick="setView('historico')" style="display:none">📋 Histórico</button>
       </div>
-      <button class="btn btn-outline btn-sm" id="btn-colunas" onclick="abrirColunas()" title="Escolher quais colunas aparecem na carteira">Colunas</button>
       <button class="btn btn-outline btn-sm" id="btn-lixeira" onclick="alternarLixeira()">Lixeira</button>
     </div>
     <div id="conteudo"></div>
@@ -377,27 +376,6 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg span2"><button class="btn btn-teal btn-block" onclick="addTipoDoc()">Acrescentar rótulo</button></div>
       </div>
       <div id="td-lista"></div>
-    </div>
-  </div>
-</div>
-
-<!-- COLUNAS DA CARTEIRA — o que aparece na tabela.
-     Fica guardado no navegador de cada pessoa, não no banco: esconder uma
-     coluna é jeito de trabalhar, não dado da empresa. Se fosse no banco, quem
-     escondesse a coluna a esconderia para todo mundo. -->
-<div class="overlay" id="col-ov">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-head">
-      <div class="modal-title">Colunas da carteira</div>
-      <button class="btn btn-outline btn-sm" onclick="fecharColunas()">Fechar</button>
-    </div>
-    <div class="modal-body">
-      <div class="aviso">Desmarque o que não quer ver agora. Vale só para o <strong>seu</strong> navegador — não muda a tela de ninguém, e nada é apagado.</div>
-      <div id="col-lista"></div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-outline btn-sm" style="margin-right:auto" onclick="mostrarTodasColunas()">Mostrar todas</button>
-      <button class="btn btn-teal" onclick="fecharColunas()">Pronto</button>
     </div>
   </div>
 </div>
@@ -1134,22 +1112,15 @@ function ordenar(lista){
 // A escolha fica no navegador de cada pessoa, não no banco: ordenar é jeito de
 // olhar, não dado da empresa.
 let ordemCarteira={col:'entrega', dir:1};
-// Colunas que a pessoa escondeu. Também por navegador, pelo mesmo motivo.
-let colunasEscondidas={};
 
 function lerPreferencias(){
   try{
     const o=JSON.parse(localStorage.getItem('dalum-obra-ordem')||'null');
     if(o && o.col) ordemCarteira={col:String(o.col), dir:(o.dir===-1?-1:1)};
   }catch(e){}
-  try{
-    const c=JSON.parse(localStorage.getItem('dalum-obra-colunas')||'null');
-    if(c && typeof c==='object') colunasEscondidas=c;
-  }catch(e){}
 }
 function gravarPreferencias(){
   try{ localStorage.setItem('dalum-obra-ordem',JSON.stringify(ordemCarteira)); }catch(e){}
-  try{ localStorage.setItem('dalum-obra-colunas',JSON.stringify(colunasEscondidas)); }catch(e){}
 }
 
 // O valor de uma coluna já pronto para comparar. O segundo item diz se está
@@ -1228,49 +1199,6 @@ function ordenarPor(key){
   render();
 }
 
-// ---- ESCOLHER AS COLUNAS ----
-function colunaVisivel(key){ return !colunasEscondidas[key]; }
-
-function abrirColunas(){
-  renderEscolhaColunas();
-  document.getElementById('col-ov').classList.add('open');
-}
-function fecharColunas(){ document.getElementById('col-ov').classList.remove('open'); }
-
-function renderEscolhaColunas(){
-  const el=document.getElementById('col-lista');
-  if(!el) return;
-  el.innerHTML='<div class="caixa">'+colunasDaCarteira().map(function(col){
-    const marcado=colunaVisivel(col.key)?' checked':'';
-    const arg=JSON.stringify(col.key).replace(/"/g,'&quot;');
-    return '<label class="caixa-linha" style="cursor:pointer;align-items:center">'+
-      '<span>'+esc(col.rotulo)+(col.extra?' <span class="pill pill-teal">campo extra</span>':'')+'</span>'+
-      '<input type="checkbox"'+marcado+' onchange="alternarColuna('+arg+')" style="width:18px;height:18px">'+
-      '</label>';
-  }).join('')+'</div>';
-}
-
-function alternarColuna(key){
-  const visiveis=colunasDaCarteira().filter(function(col){ return colunaVisivel(col.key); });
-  if(visiveis.length<=1 && colunaVisivel(key)){
-    aviso('Precisa de uma','Tem de sobrar pelo menos uma coluna na tabela.');
-    renderEscolhaColunas();
-    return;
-  }
-  if(colunasEscondidas[key]) delete colunasEscondidas[key];
-  else colunasEscondidas[key]=1;
-  gravarPreferencias();
-  renderEscolhaColunas();
-  render();
-}
-
-function mostrarTodasColunas(){
-  colunasEscondidas={};
-  gravarPreferencias();
-  renderEscolhaColunas();
-  render();
-}
-
 // ================= TELA =================
 function setView(v){
   view=v;
@@ -1281,10 +1209,6 @@ function setView(v){
   });
   const alvo=document.getElementById('vb-'+(v==='historico'?'hist':v));
   if(alvo) alvo.classList.add('active');
-  // O botão Colunas só serve na carteira: no Painel e no Histórico não há
-  // tabela para esconder coluna, e botão que não faz nada confunde.
-  const bc=document.getElementById('btn-colunas');
-  if(bc) bc.style.display=(v==='carteira')?'':'none';
   render();
 }
 
@@ -1314,11 +1238,8 @@ function selo(c){
 function htmlCarteira(){
   const lista=ordenarCarteira(filtrados());
   // As colunas vêm de colunasDaCarteira(): as fixas mais os campos extras que
-  // o gestor mandou mostrar, cada um atrás da coluna que ele escolheu. Depois
-  // saem as que a pessoa escondeu no botão Colunas.
-  const todas=colunasDaCarteira();
-  const colunas=todas.filter(function(col){ return colunaVisivel(col.key); });
-  const escondidas=todas.length-colunas.length;
+  // o gestor mandou mostrar, cada um atrás da coluna que ele escolheu.
+  const colunas=colunasDaCarteira();
   if(!lista.length){
     return '<div class="vazio"><div class="vazio-t">Nada para mostrar</div>'+
       (verExcluidos?'A lixeira está vazia.':'Nenhum contrato bate com a busca ou com os filtros.')+'</div>';
@@ -1336,8 +1257,7 @@ function htmlCarteira(){
     return '<th class="th-ordena'+(ativa?' ativa':'')+'" onclick="ordenarPor('+arg+')" '+
       'title="Ordenar por '+esc(col.rotulo)+'">'+esc(col.rotulo)+seta+'</th>';
   }).join('');
-  const rodape=lista.length+' contrato'+(lista.length===1?'':'s')+' na lista'+
-    (escondidas?' · '+escondidas+' coluna'+(escondidas===1?'':'s')+' escondida'+(escondidas===1?'':'s'):'')+'.';
+  const rodape=lista.length+' contrato'+(lista.length===1?'':'s')+' na lista.';
   return '<div class="tabela-cx"><table class="carteira"><thead><tr>'+cabeca+
     '</tr></thead><tbody>'+linhas+'</tbody></table></div>'+
     '<div style="font-size:11.5px;color:var(--gray-4);margin-top:8px">'+rodape+'</div>';
@@ -2507,11 +2427,9 @@ function abrirApp(nome,papelDoUsuario){
   document.getElementById('aviso-ov').addEventListener('click',function(e){ if(e.target===this) fecharAviso(); });
   document.getElementById('ficha-ov').addEventListener('click',function(e){ if(e.target===this) fecharFicha(); });
   document.getElementById('cad-ov').addEventListener('click',function(e){ if(e.target===this) fecharCadastros(); });
-  document.getElementById('col-ov').addEventListener('click',function(e){ if(e.target===this) fecharColunas(); });
   document.addEventListener('keydown',function(e){
     if(e.key!=='Escape') return;
     if(document.getElementById('aviso-ov').classList.contains('open')) fecharAviso();
-    else if(document.getElementById('col-ov').classList.contains('open')) fecharColunas();
     else if(document.getElementById('cad-ov').classList.contains('open')) fecharCadastros();
     else if(document.getElementById('ficha-ov').classList.contains('open')) fecharFicha();
   });
