@@ -1085,12 +1085,23 @@ function preencherListas(){
   enche('f-coord-filtro','Todos os coordenadores',valoresDe('coord'));
 }
 
-function filtrados(){
+// Obra FINALIZADA sai da carteira: o que esta finalizado nao e trabalho a
+// fazer, e eram 24 dos 74 contratos da planilha entupindo a lista. Continua
+// guardada e continua consultavel — pelo filtro de status, pelo cartao
+// FINALIZADA do Painel, ou pelo link no rodape da propria carteira.
+//
+// `esconderFinalizadas` e falso no Painel: la o assunto e o retrato geral, e
+// um contador que esconde parte do que conta mente.
+function filtrados(esconderFinalizadas){
   const busca=(document.getElementById('busca').value||'').toLowerCase().trim();
   const fs=document.getElementById('f-status-filtro').value;
   const fa=document.getElementById('f-ano-filtro').value;
   const fc=document.getElementById('f-coord-filtro').value;
   return (verExcluidos?excluidos():ativos()).filter(function(c){
+    // Escolher FINALIZADA no filtro manda mais que a regra: quem pediu para
+    // ver, ve. Na lixeira tambem aparecem todas.
+    if(esconderFinalizadas && !verExcluidos && fs!=='FINALIZADA'
+       && c.status==='FINALIZADA') return false;
     if(fs && c.status!==fs) return false;
     if(fa && c.ano!==fa) return false;
     if(fc && c.coord!==fc) return false;
@@ -1261,13 +1272,23 @@ function selo(c){
 }
 
 function htmlCarteira(){
-  const lista=ordenarCarteira(filtrados());
+  const lista=ordenarCarteira(filtrados(true));
   // As colunas vêm de colunasDaCarteira(): as fixas mais os campos extras que
   // o gestor mandou mostrar, cada um atrás da coluna que ele escolheu.
   const colunas=colunasDaCarteira();
   if(!lista.length){
-    return '<div class="vazio"><div class="vazio-t">Nada para mostrar</div>'+
-      (verExcluidos?'A lixeira está vazia.':'Nenhum contrato bate com a busca ou com os filtros.')+'</div>';
+    // Lista vazia SO porque as finalizadas sairam e um caso a parte: dizer
+    // "nada bate com os filtros" ali faria a pessoa procurar defeito onde
+    // nao ha nenhum.
+    const soFinalizadas=!verExcluidos &&
+      filtrados(false).length>0 &&
+      filtrados(false).every(function(c){ return c.status==='FINALIZADA'; });
+    let texto;
+    if(verExcluidos) texto='A lixeira está vazia.';
+    else if(soFinalizadas) texto='Aqui só há contrato finalizado, e finalizado fica fora da lista. '+
+      '<a href="#" onclick="verSoFinalizadas();return false" style="color:var(--teal-dark);font-weight:600">Ver os finalizados</a>.';
+    else texto='Nenhum contrato bate com a busca ou com os filtros.';
+    return '<div class="vazio"><div class="vazio-t">Nada para mostrar</div>'+texto+'</div>';
   }
   // Cada contrato é UMA linha, como na planilha.
   const linhas=lista.map(function(c){
@@ -1282,13 +1303,24 @@ function htmlCarteira(){
     return '<th class="th-ordena'+(ativa?' ativa':'')+'" onclick="ordenarPor('+arg+')" '+
       'title="Ordenar por '+esc(col.rotulo)+'">'+esc(col.rotulo)+seta+'</th>';
   }).join('');
-  const rodape=lista.length+' contrato'+(lista.length===1?'':'s')+' na lista.';
+  // Quantas ficaram de fora por estarem finalizadas. Dizer o numero evita a
+  // duvida de "por que a conta nao fecha", e o link resolve na hora.
+  const fsAtual=document.getElementById('f-status-filtro').value;
+  const escondidas=(verExcluidos||fsAtual==='FINALIZADA') ? 0
+    : filtrados(false).filter(function(c){ return c.status==='FINALIZADA'; }).length;
+  let rodape=lista.length+' contrato'+(lista.length===1?'':'s')+' na lista';
+  if(escondidas) rodape+=' · '+escondidas+' finalizada'+(escondidas===1?'':'s')+
+    ' fora da lista '+
+    '<a href="#" onclick="verSoFinalizadas();return false" style="color:var(--teal-dark);font-weight:600">ver só elas</a>';
+  if(fsAtual==='FINALIZADA') rodape+=' · mostrando só as finalizadas '+
+    '<a href="#" onclick="verTodasMenosFinalizadas();return false" style="color:var(--teal-dark);font-weight:600">voltar</a>';
+  rodape+='.';
   return '<div class="tabela-cx"><table class="carteira"><thead><tr>'+cabeca+
     '</tr></thead><tbody>'+linhas+'</tbody></table></div>'+
     '<div style="font-size:11.5px;color:var(--gray-4);margin-top:8px">'+rodape+'</div>';
 }
 function htmlPainel(){
-  const lista=filtrados();
+  const lista=filtrados(false);
   const porStatus={};
   STATUS_LISTA.forEach(function(s){ porStatus[s]=0; });
   let semStatus=0;
@@ -1344,6 +1376,9 @@ function htmlPainel(){
 
   return '<div class="cards">'+cards+'</div>'+blocos;
 }
+
+function verSoFinalizadas(){ filtrarStatus('FINALIZADA'); }
+function verTodasMenosFinalizadas(){ filtrarStatus(''); }
 
 function filtrarStatus(s){
   document.getElementById('f-status-filtro').value=s;
