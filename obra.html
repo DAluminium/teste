@@ -35,6 +35,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 /* CARTEIRA — a tabela no formato da planilha */
 .tabela-cx{background:white;border-radius:10px;box-shadow:var(--shadow);overflow-x:auto}
 table.carteira{border-collapse:collapse;width:100%;min-width:900px;font-size:12.5px}
+table.carteira th.th-ordena{cursor:pointer;user-select:none;white-space:nowrap}
+table.carteira th.th-ordena:hover{background:var(--teal-light);color:var(--teal-dark)}
+table.carteira th.ativa{color:var(--teal-dark)}
 table.carteira th{background:var(--gray-1);text-align:left;padding:9px 10px;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-5);font-weight:700;border-bottom:2px solid var(--gray-3);white-space:nowrap;position:sticky;top:0;z-index:1}
 table.carteira td{padding:9px 10px;border-bottom:1px solid var(--gray-2);vertical-align:top}
 table.carteira tbody tr{cursor:pointer}
@@ -218,6 +221,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <button class="view-btn" id="vb-carteira" onclick="setView('carteira')">Carteira</button>
         <button class="view-btn" id="vb-hist" onclick="setView('historico')" style="display:none">📋 Histórico</button>
       </div>
+      <button class="btn btn-outline btn-sm" id="btn-colunas" onclick="abrirColunas()" title="Escolher quais colunas aparecem na carteira">Colunas</button>
       <button class="btn btn-outline btn-sm" id="btn-lixeira" onclick="alternarLixeira()">Lixeira</button>
     </div>
     <div id="conteudo"></div>
@@ -233,7 +237,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     </div>
     <div class="modal-body">
       <div class="secao">Identificação</div>
-      <div class="form-grid">
+      <div class="form-grid" id="f-grid-ident">
         <div class="fg"><label>Contrato (CT) <span style="color:var(--red)">*</span></label><input id="f-ct" placeholder="Ex.: 0073"></div>
         <div class="fg"><label>Ano <span style="color:var(--red)">*</span></label><input id="f-ano" inputmode="numeric" placeholder="Ex.: 2026"></div>
         <div class="fg span2"><label>Cliente / Obra <span style="color:var(--red)">*</span></label><input id="f-cliente" placeholder="Ex.: CONDOMINIO RESIDENCIAL RIO DE JANEIRO II"></div>
@@ -244,13 +248,13 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </div>
 
       <div class="secao">Situação</div>
-      <div class="form-grid">
+      <div class="form-grid" id="f-grid-situacao">
         <div class="fg"><label>Status</label><select id="f-status"></select></div>
         <div class="fg"><label>Revisão do projeto</label><select id="f-revisao"></select></div>
       </div>
 
       <div class="secao">Prazos</div>
-      <div class="form-grid">
+      <div class="form-grid" id="f-grid-prazos">
         <div class="fg"><label>Fechamento</label><input type="date" id="f-fechamento" onchange="recalcular()"></div>
         <div class="fg"><label>Prazo de material (dias úteis)</label><input type="number" min="0" id="f-prazomat" oninput="recalcular()" placeholder="Ex.: 30">
           <span class="dica" id="d-limite"></span></div>
@@ -266,7 +270,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </div>
 
       <div class="secao">Esquadrias</div>
-      <div class="form-grid">
+      <div class="form-grid" id="f-grid-esquadrias">
         <div class="fg span2"><label>Linhas</label><input id="f-linhas" placeholder="Ex.: SUPREMA | GOLD | ATLANTA"><span class="dica">Separe com barra vertical, como na planilha.</span></div>
         <div class="fg"><label>Cores</label><input id="f-cores" placeholder="Ex.: PRETO FOSCO"></div>
         <div class="fg"><label>Vidros</label><input id="f-vidros" placeholder="Ex.: TEMP. INCOLOR 6 MM"></div>
@@ -342,7 +346,26 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
             <option value="data">Data</option>
           </select>
         </div>
-        <div class="fg span2"><button class="btn btn-teal btn-block" onclick="addCampoExtra()">Acrescentar campo</button></div>
+        <!-- ONDE O CAMPO FICA. São dois lugares diferentes e independentes:
+             a ficha do contrato (onde se digita) e a carteira (a tabela). -->
+        <div class="fg"><label>Na ficha, em qual parte</label>
+          <select id="ce-secao"></select>
+          <span class="dica">O campo entra no fim dessa parte. As setas da lista mudam a ordem.</span>
+        </div>
+        <div class="fg"><label>Na carteira (a tabela)</label>
+          <select id="ce-carteira" onchange="mostrarOndeNaCarteira()">
+            <option value="nao">Não mostrar</option>
+            <option value="sim">Mostrar como coluna</option>
+          </select>
+        </div>
+        <div class="fg span2" id="ce-depois-grupo" style="display:none">
+          <label>A coluna entra depois de</label>
+          <select id="ce-depois"></select>
+        </div>
+        <div class="fg span2" style="display:flex;flex-direction:row;gap:8px">
+          <button class="btn btn-teal" style="flex:1" id="ce-btn" onclick="addCampoExtra()">Acrescentar campo</button>
+          <button class="btn btn-outline" id="ce-btn-cancela" onclick="cancelarEdicaoCampo()" style="display:none">Cancelar</button>
+        </div>
         <div class="fg span2" id="ce-atalho"></div>
       </div>
       <div id="ce-lista"></div>
@@ -354,6 +377,27 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg span2"><button class="btn btn-teal btn-block" onclick="addTipoDoc()">Acrescentar rótulo</button></div>
       </div>
       <div id="td-lista"></div>
+    </div>
+  </div>
+</div>
+
+<!-- COLUNAS DA CARTEIRA — o que aparece na tabela.
+     Fica guardado no navegador de cada pessoa, não no banco: esconder uma
+     coluna é jeito de trabalhar, não dado da empresa. Se fosse no banco, quem
+     escondesse a coluna a esconderia para todo mundo. -->
+<div class="overlay" id="col-ov">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-head">
+      <div class="modal-title">Colunas da carteira</div>
+      <button class="btn btn-outline btn-sm" onclick="fecharColunas()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div class="aviso">Desmarque o que não quer ver agora. Vale só para o <strong>seu</strong> navegador — não muda a tela de ninguém, e nada é apagado.</div>
+      <div id="col-lista"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" style="margin-right:auto" onclick="mostrarTodasColunas()">Mostrar todas</button>
+      <button class="btn btn-teal" onclick="fecharColunas()">Pronto</button>
     </div>
   </div>
 </div>
@@ -1072,14 +1116,159 @@ function filtrados(){
   });
 }
 
-// Ordem da tela: quem tem entrega mais próxima primeiro; sem data vai para o
-// fim. É a mesma ordem que a planilha usava (classificada pela entrega).
+// Ordem por prazo: quem tem entrega mais próxima primeiro; sem data vai para o
+// fim. É a mesma ordem que a planilha usava (classificada pela entrega), e é a
+// que o Painel usa sempre — lá o assunto é prazo, não outra coluna.
 function ordenar(lista){
   return lista.slice().sort(function(a,b){
     const da=a.entrega||'9999-99-99', db=b.entrega||'9999-99-99';
     if(da!==db) return da<db?-1:1;
     return (a.cliente||'').localeCompare(b.cliente||'','pt-BR');
   });
+}
+
+// ---- ORDENAR A CARTEIRA POR QUALQUER COLUNA ----
+// Clicar no título da coluna ordena por ela; clicar de novo inverte. É o que a
+// planilha fazia com o filtro do Excel.
+//
+// A escolha fica no navegador de cada pessoa, não no banco: ordenar é jeito de
+// olhar, não dado da empresa.
+let ordemCarteira={col:'entrega', dir:1};
+// Colunas que a pessoa escondeu. Também por navegador, pelo mesmo motivo.
+let colunasEscondidas={};
+
+function lerPreferencias(){
+  try{
+    const o=JSON.parse(localStorage.getItem('dalum-obra-ordem')||'null');
+    if(o && o.col) ordemCarteira={col:String(o.col), dir:(o.dir===-1?-1:1)};
+  }catch(e){}
+  try{
+    const c=JSON.parse(localStorage.getItem('dalum-obra-colunas')||'null');
+    if(c && typeof c==='object') colunasEscondidas=c;
+  }catch(e){}
+}
+function gravarPreferencias(){
+  try{ localStorage.setItem('dalum-obra-ordem',JSON.stringify(ordemCarteira)); }catch(e){}
+  try{ localStorage.setItem('dalum-obra-colunas',JSON.stringify(colunasEscondidas)); }catch(e){}
+}
+
+// O valor de uma coluna já pronto para comparar. O segundo item diz se está
+// vazio: vazio vai sempre para o fim, nas duas direções — é o que se espera.
+function valorParaOrdenar(col, c){
+  if(col.extra){
+    const v=(c.extras||{})[col.extra.id];
+    const t=String(v==null?'':v).trim();
+    if(!t) return {vazio:true, v:''};
+    if(col.extra.tipo==='numero'||col.extra.tipo==='dinheiro'){
+      const n=Number(t.replace(',','.'));
+      return {vazio:false, v:isFinite(n)?n:0, numero:true};
+    }
+    return {vazio:false, v:t.toLowerCase()};
+  }
+  switch(col.key){
+    case 'ct': {
+      const t=String(c.ct||'').trim();
+      if(!t) return {vazio:true, v:''};
+      // CT é quase sempre número, mas há "116-113" e "0001-v2". Número puro
+      // compara como número, o resto como texto — senão 9 vem depois de 116.
+      const n=Number(t.replace(',','.'));
+      return /^[0-9]+([.,][0-9]+)?$/.test(t) ? {vazio:false, v:n, numero:true}
+                                             : {vazio:false, v:t.toLowerCase()};
+    }
+    case 'pecas': {
+      const t=String(c.pecas||'').trim();
+      if(!t) return {vazio:true, v:0};
+      const n=Number(t.replace(',','.'));
+      return {vazio:false, v:isFinite(n)?n:0, numero:true};
+    }
+    case 'entrega':
+    case 'prazo': {
+      // Prazo é o mesmo que entrega: o selo mostra quanto falta, e quanto
+      // falta é a data.
+      const t=c.entrega||'';
+      return t?{vazio:false, v:t}:{vazio:true, v:''};
+    }
+    case 'cliente':  return campoTexto(c.cliente);
+    case 'status':   return campoTexto(c.status);
+    case 'revisao':  return campoTexto(c.revisao);
+    case 'coord':    return campoTexto(c.coord);
+    case 'linhas':   return campoTexto(c.linhas);
+  }
+  return {vazio:true, v:''};
+}
+function campoTexto(v){
+  const t=String(v==null?'':v).trim();
+  return t?{vazio:false, v:t.toLowerCase()}:{vazio:true, v:''};
+}
+
+// A carteira ordenada pela coluna escolhida. Quem não escolheu nada fica na
+// ordem por prazo, que é a útil no dia a dia.
+function ordenarCarteira(lista){
+  const col=colunasDaCarteira().find(function(x){ return x.key===ordemCarteira.col; });
+  if(!col) return ordenar(lista);
+  const dir=ordemCarteira.dir;
+  return lista.slice().sort(function(a,b){
+    const va=valorParaOrdenar(col,a), vb=valorParaOrdenar(col,b);
+    if(va.vazio&&vb.vazio) return (a.cliente||'').localeCompare(b.cliente||'','pt-BR');
+    if(va.vazio) return 1;     // vazio para o fim, sempre
+    if(vb.vazio) return -1;
+    let r;
+    if(va.numero&&vb.numero) r=(va.v-vb.v);
+    else if(va.v===vb.v) r=0;
+    else r=(String(va.v).localeCompare(String(vb.v),'pt-BR'));
+    if(r!==0) return r*dir;
+    return (a.cliente||'').localeCompare(b.cliente||'','pt-BR');
+  });
+}
+
+function ordenarPor(key){
+  if(ordemCarteira.col===key) ordemCarteira.dir=(ordemCarteira.dir===1?-1:1);
+  else ordemCarteira={col:key, dir:1};
+  gravarPreferencias();
+  render();
+}
+
+// ---- ESCOLHER AS COLUNAS ----
+function colunaVisivel(key){ return !colunasEscondidas[key]; }
+
+function abrirColunas(){
+  renderEscolhaColunas();
+  document.getElementById('col-ov').classList.add('open');
+}
+function fecharColunas(){ document.getElementById('col-ov').classList.remove('open'); }
+
+function renderEscolhaColunas(){
+  const el=document.getElementById('col-lista');
+  if(!el) return;
+  el.innerHTML='<div class="caixa">'+colunasDaCarteira().map(function(col){
+    const marcado=colunaVisivel(col.key)?' checked':'';
+    const arg=JSON.stringify(col.key).replace(/"/g,'&quot;');
+    return '<label class="caixa-linha" style="cursor:pointer;align-items:center">'+
+      '<span>'+esc(col.rotulo)+(col.extra?' <span class="pill pill-teal">campo extra</span>':'')+'</span>'+
+      '<input type="checkbox"'+marcado+' onchange="alternarColuna('+arg+')" style="width:18px;height:18px">'+
+      '</label>';
+  }).join('')+'</div>';
+}
+
+function alternarColuna(key){
+  const visiveis=colunasDaCarteira().filter(function(col){ return colunaVisivel(col.key); });
+  if(visiveis.length<=1 && colunaVisivel(key)){
+    aviso('Precisa de uma','Tem de sobrar pelo menos uma coluna na tabela.');
+    renderEscolhaColunas();
+    return;
+  }
+  if(colunasEscondidas[key]) delete colunasEscondidas[key];
+  else colunasEscondidas[key]=1;
+  gravarPreferencias();
+  renderEscolhaColunas();
+  render();
+}
+
+function mostrarTodasColunas(){
+  colunasEscondidas={};
+  gravarPreferencias();
+  renderEscolhaColunas();
+  render();
 }
 
 // ================= TELA =================
@@ -1092,6 +1281,10 @@ function setView(v){
   });
   const alvo=document.getElementById('vb-'+(v==='historico'?'hist':v));
   if(alvo) alvo.classList.add('active');
+  // O botão Colunas só serve na carteira: no Painel e no Histórico não há
+  // tabela para esconder coluna, e botão que não faz nada confunde.
+  const bc=document.getElementById('btn-colunas');
+  if(bc) bc.style.display=(v==='carteira')?'':'none';
   render();
 }
 
@@ -1119,35 +1312,36 @@ function selo(c){
 }
 
 function htmlCarteira(){
-  const lista=ordenar(filtrados());
+  const lista=ordenarCarteira(filtrados());
+  // As colunas vêm de colunasDaCarteira(): as fixas mais os campos extras que
+  // o gestor mandou mostrar, cada um atrás da coluna que ele escolheu. Depois
+  // saem as que a pessoa escondeu no botão Colunas.
+  const todas=colunasDaCarteira();
+  const colunas=todas.filter(function(col){ return colunaVisivel(col.key); });
+  const escondidas=todas.length-colunas.length;
   if(!lista.length){
     return '<div class="vazio"><div class="vazio-t">Nada para mostrar</div>'+
       (verExcluidos?'A lixeira está vazia.':'Nenhum contrato bate com a busca ou com os filtros.')+'</div>';
   }
+  // Cada contrato é UMA linha, como na planilha.
   const linhas=lista.map(function(c){
     return '<tr onclick="abrirFicha(\''+c.id+'\')">'+
-      '<td class="td-ct">'+esc(c.ct||'—')+'<span class="td-ano">'+esc(c.ano||'')+'</span></td>'+
-      '<td class="td-cliente">'+esc(c.cliente||'—')+
-        (((c.docs)||[]).length?' <span class="pill pill-teal" title="'+((c.docs)||[]).length+
-          ' arquivo(s) anexado(s)">&#128206; '+((c.docs)||[]).length+'</span>':'')+
-        ((c.condominio||c.cidade)?'<span class="td-local">'+esc([c.condominio,c.cidade].filter(Boolean).join(' · '))+'</span>':'')+'</td>'+
-      '<td>'+pill(c.status||'—',STATUS_COR[c.status]||'pill-cinza')+'</td>'+
-      '<td class="td-nowrap">'+pill(c.revisao||'—',REVISAO_COR[c.revisao]||'pill-cinza')+'</td>'+
-      '<td class="td-nowrap">'+esc(c.coord||'')+'</td>'+
-      '<td class="td-nowrap">'+(c.entrega?fmtData(c.entrega):'<span class="td-fraco">—</span>')+'</td>'+
-      '<td class="td-nowrap">'+selo(c)+'</td>'+
-      '<td class="td-fraco">'+esc(c.linhas||'')+'</td>'+
-      '<td class="td-nowrap td-fraco">'+esc(c.pecas||'')+'</td>'+
+      colunas.map(function(col){ return celulaDaCarteira(col,c); }).join('')+
       '</tr>';
   }).join('');
-  return '<div class="tabela-cx"><table class="carteira"><thead><tr>'+
-    '<th>CT</th><th>Cliente / Obra</th><th>Status</th><th>Revisão</th><th>Coord.</th>'+
-    '<th>Entrega</th><th>Prazo</th><th>Linhas</th><th>Peças</th>'+
+  const cabeca=colunas.map(function(col){
+    const ativa=(ordemCarteira.col===col.key);
+    const seta=ativa?(ordemCarteira.dir===1?' &#9650;':' &#9660;'):'';
+    const arg=JSON.stringify(col.key).replace(/"/g,'&quot;');
+    return '<th class="th-ordena'+(ativa?' ativa':'')+'" onclick="ordenarPor('+arg+')" '+
+      'title="Ordenar por '+esc(col.rotulo)+'">'+esc(col.rotulo)+seta+'</th>';
+  }).join('');
+  const rodape=lista.length+' contrato'+(lista.length===1?'':'s')+' na lista'+
+    (escondidas?' · '+escondidas+' coluna'+(escondidas===1?'':'s')+' escondida'+(escondidas===1?'':'s'):'')+'.';
+  return '<div class="tabela-cx"><table class="carteira"><thead><tr>'+cabeca+
     '</tr></thead><tbody>'+linhas+'</tbody></table></div>'+
-    '<div style="font-size:11.5px;color:var(--gray-4);margin-top:8px">'+lista.length+
-    ' contrato'+(lista.length===1?'':'s')+' na lista.</div>';
+    '<div style="font-size:11.5px;color:var(--gray-4);margin-top:8px">'+rodape+'</div>';
 }
-
 function htmlPainel(){
   const lista=filtrados();
   const porStatus={};
@@ -1410,22 +1604,61 @@ async function restaurarContrato(){
 // Mesma regra das etapas da Fábrica: o `id` NUNCA muda depois de criado — os
 // contratos guardam o valor por id, e trocá-lo faria o valor apontar para o
 // nada. Renomear mexe só no rótulo.
+//
+// Cada campo guarda ONDE fica, e são dois lugares independentes:
+//   secao      — em que parte da FICHA o campo aparece (onde se digita)
+//   naCarteira — se ele também é coluna da TABELA
+//   depoisDe   — atrás de qual coluna da tabela ele entra
 const TIPOS_CAMPO={
   texto:   {rotulo:'Texto',        input:'text'},
   numero:  {rotulo:'Número',       input:'number'},
   dinheiro:{rotulo:'Dinheiro (R$)',input:'number'},
   data:    {rotulo:'Data',         input:'date'}
 };
+// As partes da ficha que aceitam campo novo. O `grid` é o id da caixa no HTML.
+// "Outros campos" é o único que tem título escondível: se não houver campo
+// nenhum lá, o título não aparece — título sozinho parece defeito.
+const SECOES_FICHA=[
+  {id:'ident',      rotulo:'Identificação', grid:'f-grid-ident'},
+  {id:'situacao',   rotulo:'Situação',      grid:'f-grid-situacao'},
+  {id:'prazos',     rotulo:'Prazos',        grid:'f-grid-prazos'},
+  {id:'esquadrias', rotulo:'Esquadrias',    grid:'f-grid-esquadrias'},
+  {id:'outros',     rotulo:'Outros campos', grid:'f-extras'}
+];
+const SECAO_PADRAO='outros';
+// As colunas fixas da carteira, na ordem em que aparecem. O campo extra se
+// encaixa depois da que for escolhida no cadastro.
+const COLUNAS_CARTEIRA=[
+  {key:'ct',      rotulo:'CT'},
+  {key:'cliente', rotulo:'Cliente / Obra'},
+  {key:'status',  rotulo:'Status'},
+  {key:'revisao', rotulo:'Revisão'},
+  {key:'coord',   rotulo:'Coord.'},
+  {key:'entrega', rotulo:'Entrega'},
+  {key:'prazo',   rotulo:'Prazo'},
+  {key:'linhas',  rotulo:'Linhas'},
+  {key:'pecas',   rotulo:'Peças'}
+];
 // Sugestões prontas: são as três colunas da planilha. Assim o Ander não precisa
 // lembrar do nome nem do tipo se um dia elas passarem a ter uso.
 const CAMPOS_DA_PLANILHA=[
-  {nome:'PF', tipo:'texto'},
-  {nome:'PR', tipo:'texto'},
-  {nome:'Custo do material', tipo:'dinheiro'}
+  {nome:'PF', tipo:'texto', secao:'esquadrias', naCarteira:false, depoisDe:'pecas'},
+  {nome:'PR', tipo:'texto', secao:'esquadrias', naCarteira:false, depoisDe:'pecas'},
+  {nome:'Custo do material', tipo:'dinheiro', secao:'prazos', naCarteira:true, depoisDe:'pecas'}
 ];
+
+// Qual campo está sendo editado na tela de Cadastros. Nulo = cadastro novo.
+let _editandoCampo=null;
 
 function camposExtras(){
   return Array.isArray(dados.camposExtras)?dados.camposExtras:[];
+}
+function secaoDeCampo(cp){
+  const s=SECOES_FICHA.find(function(x){ return x.id===(cp&&cp.secao); });
+  return s || SECOES_FICHA.find(function(x){ return x.id===SECAO_PADRAO; });
+}
+function camposDaSecao(idSecao){
+  return camposExtras().filter(function(cp){ return secaoDeCampo(cp).id===idSecao; });
 }
 
 // Identificador a partir do nome, sem acento e sem espaço, mais um sufixo
@@ -1448,47 +1681,164 @@ function usoCampoExtra(id){
   return n;
 }
 
-// Desenha os campos extras na ficha, com o valor do contrato aberto.
-function renderExtrasNaFicha(c){
-  const grid=document.getElementById('f-extras');
-  const titulo=document.getElementById('f-extras-titulo');
-  const lista=camposExtras();
-  if(!grid||!titulo) return;
-  if(!lista.length){ titulo.style.display='none'; grid.innerHTML=''; return; }
-  titulo.style.display='';
-  const vals=(c&&c.extras)||{};
-  grid.innerHTML=lista.map(function(cp){
-    const t=TIPOS_CAMPO[cp.tipo]||TIPOS_CAMPO.texto;
-    const passo=cp.tipo==='dinheiro'?' step="0.01" min="0"':(cp.tipo==='numero'?' min="0"':'');
-    const v=vals[cp.id]===undefined?'':vals[cp.id];
-    return '<div class="fg"><label>'+esc(cp.nome)+'</label>'+
-      '<input type="'+t.input+'"'+passo+' data-extra="'+esc(cp.id)+'" value="'+esc(v)+'"></div>';
-  }).join('');
+// Como o valor de um campo extra aparece na tabela. Na ficha o navegador cuida
+// disso pelo tipo do campo; aqui é texto, então a formatação é nossa.
+function valorExtraFormatado(cp, valor){
+  const v=(valor===undefined||valor===null)?'':String(valor).trim();
+  if(!v) return '';
+  if(cp.tipo==='dinheiro'){
+    const n=Number(String(v).replace(',','.'));
+    return isFinite(n)?n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):esc(v);
+  }
+  if(cp.tipo==='data') return fmtData(v)||esc(v);
+  return esc(v);
 }
 
-// Lê o que está digitado nos campos extras da ficha.
+// ---- O CAMPO NA FICHA ----
+// Desenha os campos extras dentro da parte escolhida de cada um. Antes de
+// desenhar, tira os que já estavam: sem isso, reabrir a ficha empilharia uma
+// cópia nova do campo a cada abertura.
+function renderExtrasNaFicha(c){
+  document.querySelectorAll('[data-extra-caixa]').forEach(function(el){ el.remove(); });
+  const titulo=document.getElementById('f-extras-titulo');
+  const vals=(c&&c.extras)||{};
+  SECOES_FICHA.forEach(function(sec){
+    const grid=document.getElementById(sec.grid);
+    if(!grid) return;
+    camposDaSecao(sec.id).forEach(function(cp){
+      const t=TIPOS_CAMPO[cp.tipo]||TIPOS_CAMPO.texto;
+      const passo=cp.tipo==='dinheiro'?' step="0.01" min="0"':(cp.tipo==='numero'?' min="0"':'');
+      const v=vals[cp.id]===undefined?'':vals[cp.id];
+      const caixa=document.createElement('div');
+      caixa.className='fg';
+      caixa.setAttribute('data-extra-caixa','1');
+      caixa.innerHTML='<label>'+esc(cp.nome)+'</label>'+
+        '<input type="'+t.input+'"'+passo+' data-extra="'+esc(cp.id)+'" value="'+esc(v)+'">';
+      grid.appendChild(caixa);
+    });
+  });
+  // O título de "Outros campos" só aparece se houver campo lá dentro.
+  if(titulo) titulo.style.display=camposDaSecao('outros').length?'':'none';
+}
+
+// Lê o que está digitado nos campos extras da ficha, em qualquer parte dela.
 function lerExtras(){
   const saida={};
-  document.querySelectorAll('#f-extras [data-extra]').forEach(function(el){
+  document.querySelectorAll('#ficha-ov [data-extra]').forEach(function(el){
     saida[el.getAttribute('data-extra')]=el.value.trim();
   });
   return saida;
 }
 
+// ---- O CAMPO NA CARTEIRA ----
+// A ordem das colunas: as fixas, com os campos extras encaixados depois da
+// coluna que o gestor escolheu. Campo apontando para coluna que não existe
+// mais vai para o fim, em vez de sumir da tela — mesma regra da Fábrica, onde
+// nenhuma obra pode desaparecer do quadro.
+function colunasDaCarteira(){
+  const extras=camposExtras().filter(function(cp){ return !!cp.naCarteira; });
+  const saida=[], usados={};
+  COLUNAS_CARTEIRA.forEach(function(col){
+    saida.push(col);
+    extras.forEach(function(cp){
+      if((cp.depoisDe||'pecas')!==col.key) return;
+      usados[cp.id]=1;
+      saida.push({key:'x:'+cp.id, rotulo:cp.nome, extra:cp});
+    });
+  });
+  extras.forEach(function(cp){
+    if(usados[cp.id]) return;
+    saida.push({key:'x:'+cp.id, rotulo:cp.nome, extra:cp});
+  });
+  return saida;
+}
+
+// O conteúdo de uma célula, por coluna. As fixas estavam escritas na mão
+// dentro do htmlCarteira; ficam aqui para que a coluna extra possa entrar no
+// meio delas sem duplicar o desenho da tabela.
+function celulaDaCarteira(col, c){
+  if(col.extra){
+    const v=valorExtraFormatado(col.extra, (c.extras||{})[col.extra.id]);
+    return '<td class="td-nowrap'+(v?'':' td-fraco')+'">'+(v||'—')+'</td>';
+  }
+  switch(col.key){
+    case 'ct':
+      return '<td class="td-ct">'+esc(c.ct||'—')+'<span class="td-ano">'+esc(c.ano||'')+'</span></td>';
+    case 'cliente':
+      return '<td class="td-cliente">'+esc(c.cliente||'—')+
+        (((c.docs)||[]).length?' <span class="pill pill-teal" title="'+((c.docs)||[]).length+
+          ' arquivo(s) anexado(s)">&#128206; '+((c.docs)||[]).length+'</span>':'')+
+        ((c.condominio||c.cidade)?'<span class="td-local">'+esc([c.condominio,c.cidade].filter(Boolean).join(' · '))+'</span>':'')+'</td>';
+    case 'status':
+      return '<td>'+pill(c.status||'—',STATUS_COR[c.status]||'pill-cinza')+'</td>';
+    case 'revisao':
+      return '<td class="td-nowrap">'+pill(c.revisao||'—',REVISAO_COR[c.revisao]||'pill-cinza')+'</td>';
+    case 'coord':
+      return '<td class="td-nowrap">'+esc(c.coord||'')+'</td>';
+    case 'entrega':
+      return '<td class="td-nowrap">'+(c.entrega?fmtData(c.entrega):'<span class="td-fraco">—</span>')+'</td>';
+    case 'prazo':
+      return '<td class="td-nowrap">'+selo(c)+'</td>';
+    case 'linhas':
+      return '<td class="td-fraco">'+esc(c.linhas||'')+'</td>';
+    case 'pecas':
+      return '<td class="td-nowrap td-fraco">'+esc(c.pecas||'')+'</td>';
+  }
+  return '<td></td>';
+}
+
+// ---- A TELA DE CADASTROS ----
+function preencherSelectsDeLugar(){
+  const sec=document.getElementById('ce-secao');
+  if(sec){
+    const antes=sec.value;
+    sec.innerHTML=SECOES_FICHA.map(function(s){
+      return '<option value="'+esc(s.id)+'">'+esc(s.rotulo)+'</option>';
+    }).join('');
+    sec.value=(SECOES_FICHA.some(function(s){ return s.id===antes; })?antes:SECAO_PADRAO);
+  }
+  const dep=document.getElementById('ce-depois');
+  if(dep){
+    const antes=dep.value;
+    dep.innerHTML=COLUNAS_CARTEIRA.map(function(col){
+      return '<option value="'+esc(col.key)+'">'+esc(col.rotulo)+'</option>';
+    }).join('');
+    dep.value=(COLUNAS_CARTEIRA.some(function(col){ return col.key===antes; })?antes:'pecas');
+  }
+}
+
+function mostrarOndeNaCarteira(){
+  const g=document.getElementById('ce-depois-grupo');
+  if(g) g.style.display=(document.getElementById('ce-carteira').value==='sim')?'':'none';
+}
+
+// Onde o campo está, em uma linha, para a lista de cadastros.
+function ondeFica(cp){
+  const partes=['ficha: '+secaoDeCampo(cp).rotulo];
+  if(cp.naCarteira){
+    const col=COLUNAS_CARTEIRA.find(function(x){ return x.key===(cp.depoisDe||'pecas'); });
+    partes.push('carteira: depois de '+(col?col.rotulo:'Peças'));
+  } else {
+    partes.push('fora da carteira');
+  }
+  return partes.join(' · ');
+}
+
 function renderCamposExtras(){
   const el=document.getElementById('ce-lista');
   const at=document.getElementById('ce-atalho');
+  preencherSelectsDeLugar();
+  mostrarOndeNaCarteira();
   if(at){
     // Só oferece a sugestão do que ainda não existe.
     const faltam=CAMPOS_DA_PLANILHA.filter(function(s){
       return !camposExtras().some(function(cp){ return cp.nome.toUpperCase()===s.nome.toUpperCase(); });
     });
-    at.innerHTML=faltam.length
+    at.innerHTML=(faltam.length && !_editandoCampo)
       ? '<span class="dica">Da planilha, ainda não criados: '+
         faltam.map(function(s){
           return '<button type="button" class="btn btn-outline btn-sm" style="margin:3px 4px 0 0" '+
-            'onclick="sugerirCampo('+JSON.stringify(s.nome).replace(/"/g,'&quot;')+','+
-            JSON.stringify(s.tipo).replace(/"/g,'&quot;')+')">+ '+esc(s.nome)+'</button>';
+            'onclick="sugerirCampo('+JSON.stringify(s.nome).replace(/"/g,'&quot;')+')">+ '+esc(s.nome)+'</button>';
         }).join('')+'</span>'
       : '';
   }
@@ -1498,45 +1848,128 @@ function renderCamposExtras(){
     el.innerHTML='<div style="font-size:12.5px;color:var(--gray-4)">Nenhum campo extra criado. A ficha mostra só os campos que vieram da planilha.</div>';
     return;
   }
-  el.innerHTML='<div class="caixa">'+lista.map(function(cp){
+  el.innerHTML='<div class="caixa">'+lista.map(function(cp,i){
     const uso=usoCampoExtra(cp.id);
     const t=TIPOS_CAMPO[cp.tipo]||TIPOS_CAMPO.texto;
-    return '<div class="caixa-linha"><span><strong>'+esc(cp.nome)+'</strong>'+
-      ' <span class="pill pill-cinza">'+esc(t.rotulo)+'</span></span>'+
-      '<span style="display:flex;gap:8px;align-items:center">'+
-      '<span style="font-size:11px;color:var(--gray-4)">'+(uso?uso+' preenchido(s)':'vazio')+'</span>'+
-      '<button class="btn btn-outline btn-sm" onclick="renomearCampoExtra('+
-        JSON.stringify(cp.id).replace(/"/g,'&quot;')+')">Renomear</button>'+
-      '<button class="btn btn-outline btn-sm" onclick="delCampoExtra('+
-        JSON.stringify(cp.id).replace(/"/g,'&quot;')+')">Tirar</button>'+
-      '</span></div>';
+    const arg=JSON.stringify(cp.id).replace(/"/g,'&quot;');
+    // As setas mudam a ordem DENTRO da parte da ficha e entre colunas extras
+    // vizinhas na carteira. Desligadas nas pontas, para não parecer que o
+    // clique não funcionou.
+    return '<div class="caixa-linha" style="flex-direction:column;align-items:stretch;gap:4px">'+
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">'+
+        '<span><strong>'+esc(cp.nome)+'</strong> <span class="pill pill-cinza">'+esc(t.rotulo)+'</span>'+
+          (cp.naCarteira?' <span class="pill pill-teal">na carteira</span>':'')+'</span>'+
+        '<span style="display:flex;gap:5px;align-items:center">'+
+          '<span style="font-size:11px;color:var(--gray-4)">'+(uso?uso+' preenchido(s)':'vazio')+'</span>'+
+          '<button class="btn btn-outline btn-sm" title="Subir" '+(i===0?'disabled style="opacity:.4"':'')+
+            ' onclick="moverCampoExtra('+arg+',-1)">&uarr;</button>'+
+          '<button class="btn btn-outline btn-sm" title="Descer" '+(i===lista.length-1?'disabled style="opacity:.4"':'')+
+            ' onclick="moverCampoExtra('+arg+',1)">&darr;</button>'+
+          '<button class="btn btn-outline btn-sm" onclick="editarCampoExtra('+arg+')">Editar</button>'+
+          '<button class="btn btn-outline btn-sm" onclick="delCampoExtra('+arg+')">Tirar</button>'+
+        '</span>'+
+      '</div>'+
+      '<span style="font-size:11px;color:var(--gray-4)">'+esc(ondeFica(cp))+'</span>'+
+      '</div>';
   }).join('')+'</div>';
 }
 
-function sugerirCampo(nome,tipo){
-  document.getElementById('ce-nome').value=nome;
-  document.getElementById('ce-tipo').value=tipo;
+// Preenche o formulário com uma das sugestões da planilha, lugar incluído.
+function sugerirCampo(nome){
+  const s=CAMPOS_DA_PLANILHA.find(function(x){ return x.nome===nome; });
+  if(!s) return;
+  document.getElementById('ce-nome').value=s.nome;
+  document.getElementById('ce-tipo').value=s.tipo;
+  document.getElementById('ce-secao').value=s.secao;
+  document.getElementById('ce-carteira').value=s.naCarteira?'sim':'nao';
+  document.getElementById('ce-depois').value=s.depoisDe||'pecas';
+  mostrarOndeNaCarteira();
   document.getElementById('ce-nome').focus();
 }
 
+// Carrega um campo já criado no formulário, para mudar nome, tipo ou lugar.
+function editarCampoExtra(id){
+  const cp=camposExtras().find(function(x){ return x.id===id; });
+  if(!cp) return;
+  _editandoCampo=id;
+  document.getElementById('ce-nome').value=cp.nome;
+  document.getElementById('ce-tipo').value=cp.tipo||'texto';
+  document.getElementById('ce-secao').value=secaoDeCampo(cp).id;
+  document.getElementById('ce-carteira').value=cp.naCarteira?'sim':'nao';
+  document.getElementById('ce-depois').value=cp.depoisDe||'pecas';
+  mostrarOndeNaCarteira();
+  document.getElementById('ce-btn').textContent='Salvar alterações';
+  document.getElementById('ce-btn-cancela').style.display='';
+  renderCamposExtras();
+  document.getElementById('ce-nome').focus();
+}
+
+function cancelarEdicaoCampo(){
+  _editandoCampo=null;
+  document.getElementById('ce-nome').value='';
+  document.getElementById('ce-btn').textContent='Acrescentar campo';
+  document.getElementById('ce-btn-cancela').style.display='none';
+  renderCamposExtras();
+}
+
+// Serve para os dois: criar campo novo e salvar alteração de um já criado.
+// Renomear e mudar de lugar NÃO tocam no `id`, então nenhum valor já
+// preenchido se perde.
 async function addCampoExtra(){
   const nome=document.getElementById('ce-nome').value.trim();
   const tipo=document.getElementById('ce-tipo').value;
+  const secao=document.getElementById('ce-secao').value;
+  const naCarteira=document.getElementById('ce-carteira').value==='sim';
+  const depoisDe=document.getElementById('ce-depois').value;
+  const editando=_editandoCampo;
+
   if(!nome){ aviso('Falta o nome','Escreva o nome do campo.'); document.getElementById('ce-nome').focus(); return; }
   if(!TIPOS_CAMPO[tipo]){ aviso('Tipo inválido','Escolha um tipo da lista.'); return; }
-  if(camposExtras().some(function(cp){ return cp.nome.toUpperCase()===nome.toUpperCase(); })){
+  if(!SECOES_FICHA.some(function(s){ return s.id===secao; })){ aviso('Lugar inválido','Escolha em qual parte da ficha o campo fica.'); return; }
+  if(camposExtras().some(function(cp){ return cp.id!==editando && cp.nome.toUpperCase()===nome.toUpperCase(); })){
     aviso('Já existe','Já existe um campo chamado "'+nome+'".'); return;
   }
+
+  if(editando){
+    const antigo=camposExtras().find(function(x){ return x.id===editando; });
+    if(!antigo){ cancelarEdicaoCampo(); return; }
+    const uso=usoCampoExtra(editando);
+    // Trocar o tipo de um campo já preenchido pode deixar valor que o campo
+    // novo não aceita — texto num campo de número, por exemplo. Não impedimos,
+    // mas avisamos antes, porque o valor fica lá e a tela mostra vazio.
+    if(uso && (antigo.tipo||'texto')!==tipo &&
+       !confirm('Este campo está preenchido em '+uso+' contrato(s), e você está mudando o tipo de '+
+                ((TIPOS_CAMPO[antigo.tipo]||{}).rotulo||antigo.tipo)+' para '+
+                ((TIPOS_CAMPO[tipo]||{}).rotulo||tipo)+'.\n\n'+
+                'O que já está gravado não se perde, mas pode deixar de aparecer se o formato não '+
+                'servir no tipo novo.\n\nMudar mesmo assim?')) return;
+    const ok=await alterar(function(base){
+      const alvo=(base.camposExtras||[]).find(function(x){ return x.id===editando; });
+      if(!alvo) return;
+      alvo.nome=nome; alvo.tipo=tipo; alvo.secao=secao;
+      alvo.naCarteira=naCarteira; alvo.depoisDe=depoisDe;
+    }, {acao:'alterou campo extra', alvo:antigo.nome,
+        detalhe:(antigo.nome!==nome?'passou a ser "'+nome+'"; ':'')+ondeFica({nome:nome,secao:secao,naCarteira:naCarteira,depoisDe:depoisDe})});
+    if(ok){
+      cancelarEdicaoCampo();
+      if(fichaId) renderExtrasNaFicha((dados.contratos||[]).find(function(x){ return x.id===fichaId; }));
+      else renderExtrasNaFicha(null);
+    }
+    return;
+  }
+
   // 12 é folga com sobra e evita que a ficha vire um formulário sem fim.
   if(camposExtras().length>=12){
     aviso('Muitos campos','A ficha já tem 12 campos extras, que é o limite.\n\n'+
       'Se precisar de outro, tire um que não esteja em uso.'); return;
   }
-  const novo={id:idDeCampo(nome), nome:nome, tipo:tipo, criadoEm:agoraISO(), criadoPor:usuario};
+  const novo={id:idDeCampo(nome), nome:nome, tipo:tipo, secao:secao,
+    naCarteira:naCarteira, depoisDe:depoisDe, criadoEm:agoraISO(), criadoPor:usuario};
   const ok=await alterar(function(base){
     if(!Array.isArray(base.camposExtras)) base.camposExtras=[];
     base.camposExtras.push(novo);
-  }, {acao:'criou campo extra', alvo:nome, detalhe:(TIPOS_CAMPO[tipo]||{}).rotulo||tipo});
+  }, {acao:'criou campo extra', alvo:nome,
+      detalhe:((TIPOS_CAMPO[tipo]||{}).rotulo||tipo)+' · '+ondeFica(novo)});
   if(ok){
     document.getElementById('ce-nome').value='';
     renderCamposExtras();
@@ -1546,26 +1979,24 @@ async function addCampoExtra(){
   }
 }
 
-// Renomear mexe SÓ no rótulo. O id fica, então nenhum valor já preenchido se
-// perde — é a mesma regra das etapas da Fábrica.
-async function renomearCampoExtra(id){
-  const cp=camposExtras().find(function(x){ return x.id===id; });
-  if(!cp) return;
-  const novo=prompt('Novo nome para o campo "'+cp.nome+'":', cp.nome);
-  if(novo===null) return;
-  const nome=novo.trim();
-  if(!nome){ aviso('Falta o nome','O nome não pode ficar vazio.'); return; }
-  if(nome===cp.nome) return;
-  if(camposExtras().some(function(x){ return x.id!==id && x.nome.toUpperCase()===nome.toUpperCase(); })){
-    aviso('Já existe','Já existe um campo chamado "'+nome+'".'); return;
-  }
+// Sobe ou desce o campo na lista. A lista é a ordem em que os campos aparecem
+// dentro da parte da ficha e entre as colunas extras da carteira.
+async function moverCampoExtra(id, passo){
+  const lista=camposExtras();
+  const i=lista.findIndex(function(x){ return x.id===id; });
+  const j=i+passo;
+  if(i<0||j<0||j>=lista.length) return;
   const ok=await alterar(function(base){
-    const alvo=(base.camposExtras||[]).find(function(x){ return x.id===id; });
-    if(alvo) alvo.nome=nome;
-  }, {acao:'renomeou campo extra', alvo:cp.nome, detalhe:'passou a ser "'+nome+'"'});
+    const l=base.camposExtras||[];
+    const a=l.findIndex(function(x){ return x.id===id; });
+    const b=a+passo;
+    if(a<0||b<0||b>=l.length) return;
+    const t=l[a]; l[a]=l[b]; l[b]=t;
+  }, {acao:'mudou a ordem dos campos extras', alvo:lista[i].nome});
   if(ok){
     renderCamposExtras();
     if(fichaId) renderExtrasNaFicha((dados.contratos||[]).find(function(x){ return x.id===fichaId; }));
+    else renderExtrasNaFicha(null);
   }
 }
 
@@ -1584,7 +2015,8 @@ async function delCampoExtra(id){
     base.camposExtras=(base.camposExtras||[]).filter(function(x){ return x.id!==id; });
   }, {acao:'tirou campo extra', alvo:cp.nome});
   if(ok){
-    renderCamposExtras();
+    if(_editandoCampo===id) cancelarEdicaoCampo();
+    else renderCamposExtras();
     if(fichaId) renderExtrasNaFicha((dados.contratos||[]).find(function(x){ return x.id===fichaId; }));
     else renderExtrasNaFicha(null);
   }
@@ -2062,6 +2494,7 @@ function abrirApp(nome,papelDoUsuario){
   document.getElementById('btn-sair').style.display='';
   preencherSelects();
   aplicarPermissoes();
+  lerPreferencias();
   lerLocal();
   try{ const v=localStorage.getItem('dalum-obra-view'); if(v) view=v; }catch(e){}
   setView(view);
@@ -2074,9 +2507,11 @@ function abrirApp(nome,papelDoUsuario){
   document.getElementById('aviso-ov').addEventListener('click',function(e){ if(e.target===this) fecharAviso(); });
   document.getElementById('ficha-ov').addEventListener('click',function(e){ if(e.target===this) fecharFicha(); });
   document.getElementById('cad-ov').addEventListener('click',function(e){ if(e.target===this) fecharCadastros(); });
+  document.getElementById('col-ov').addEventListener('click',function(e){ if(e.target===this) fecharColunas(); });
   document.addEventListener('keydown',function(e){
     if(e.key!=='Escape') return;
     if(document.getElementById('aviso-ov').classList.contains('open')) fecharAviso();
+    else if(document.getElementById('col-ov').classList.contains('open')) fecharColunas();
     else if(document.getElementById('cad-ov').classList.contains('open')) fecharCadastros();
     else if(document.getElementById('ficha-ov').classList.contains('open')) fecharFicha();
   });
