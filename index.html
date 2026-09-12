@@ -42,12 +42,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .btn-sair{background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.25);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;transition:background .15s}
 .btn-sair:hover{background:rgba(255,255,255,.25)}
 
-.portal-main{max-width:900px;margin:0 auto;padding:3rem 1rem}
+/* 1080px em vez de 900: com 900 cabiam tres cartoes de modulo e o quarto
+   caia sozinho numa linha, o que ficava torto. */
+.portal-main{max-width:1080px;margin:0 auto;padding:3rem 1rem}
 .portal-greeting{text-align:center;margin-bottom:3rem}
 .portal-greeting h1{font-size:26px;font-weight:700;color:var(--gray-6);margin-bottom:6px}
 .portal-greeting p{font-size:14px;color:var(--gray-4)}
 
-.modulos{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;justify-content:center}
+/* auto-fit continua quebrando sozinho em tela estreita — no celular vira uma
+   coluna. O 215px e o gap menor sao o que faz os quatro caberem lado a lado
+   no computador, sem encolher o cartao em relacao ao que era antes. */
+.modulos{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px;justify-content:center}
+/* No celular, um cartao por linha. Sem isto, o minmax de 215px punha dois
+   lado a lado numa tela de 480px e os dois ficavam apertados — antes, com
+   240px, ela ja caia para uma coluna sozinha. */
+@media(max-width:600px){ .modulos{grid-template-columns:1fr} }
 .modulo-card{background:white;border-radius:14px;padding:2rem;box-shadow:var(--shadow);cursor:pointer;transition:all .2s;text-decoration:none;color:inherit;display:flex;flex-direction:column;align-items:center;text-align:center;border:2px solid transparent;position:relative;overflow:hidden}
 .modulo-card:hover{transform:translateY(-4px);box-shadow:0 8px 24px rgba(0,0,0,0.12)}
 .modulo-card.compras{border-top:4px solid var(--teal-dark)}
@@ -931,7 +940,17 @@ function renderModulos(modulos){
     fabrica:{icon:'🏭',title:'Fábrica',desc:'Acompanhamento das obras da conferência técnica até a entrega ao cliente',url:'https://daluminium.github.io/teste/fabrica.html',cls:'fabrica',badge:'badge-fabrica',badgeText:'Fábrica'},
     obra:{icon:'📋',title:'Gerenciamento de Obra',desc:'A carteira de contratos: status, prazos, medição, entrega e anexos de cada obra',url:'https://daluminium.github.io/teste/obra.html',cls:'obra',badge:'badge-obra',badgeText:'Obra'}
   };
-  container.innerHTML=modulos.map(m=>{
+  // A ordem dos cartoes e a ordem do TRABALHO, nao a ordem em que os modulos
+  // aparecem no cadastro do usuario: tudo comeca no Gerenciamento de Obra,
+  // depois passa pelo Financeiro e pelo Compras, e termina na Fabrica.
+  //
+  // Modulo que nao esteja nesta lista vai para o FIM, em vez de sumir: um dia
+  // havera um modulo novo, e ele nao pode desaparecer da tela so por nao ter
+  // sido acrescentado aqui.
+  const ORDEM=['obra','financeiro','compras','fabrica'];
+  const pos=function(m){ const i=ORDEM.indexOf(m); return i<0?ORDEM.length:i; };
+  const naOrdem=modulos.slice().sort(function(a,b){ return pos(a)-pos(b); });
+  container.innerHTML=naOrdem.map(m=>{
     const mod=MODULOS[m];
     if(!mod) return '';
     return`<div class="modulo-card ${mod.cls}" onclick="abrirModulo('${mod.url}','${mod.title}')">
