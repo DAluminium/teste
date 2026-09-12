@@ -452,6 +452,9 @@ let usuario='';
 // Papel de quem entrou: admin, gerente, compras, financeiro ou consulta.
 let papel='';
 function podeGerenciar(){ return papel==='admin' || papel==='gerente'; }
+// O registro de historico e SO do admin. Gerente cadastra e altera, mas nao
+// ve quem fez o que — decisao do Ander em 11/09/2026.
+function soAdmin(){ return papel==='admin'; }
 let view='painel';
 let verExcluidos=false;
 let fichaId=null;
@@ -1201,6 +1204,12 @@ function ordenarPor(key){
 
 // ================= TELA =================
 function setView(v){
+  // Esconder o botao nao basta: sem esta conferencia, quem souber o nome abre
+  // o historico chamando setView pelo console. Igual a Fabrica e ao Financeiro.
+  if(v==='historico' && !soAdmin()){
+    aviso('Acesso restrito','O histórico é restrito ao administrador.');
+    v='painel';   // cai no Painel: sair sem desenhar deixaria a tela em branco
+  }
   view=v;
   try{ localStorage.setItem('dalum-obra-view',v); }catch(e){}
   ['painel','carteira','hist'].forEach(function(k){
@@ -1214,8 +1223,15 @@ function setView(v){
 
 function render(){
   preencherListas();
+  const bh=document.getElementById('vb-hist');
+  if(bh) bh.style.display=soAdmin()?'':'none';
   const el=document.getElementById('conteudo');
-  if(view==='historico'){ el.innerHTML=htmlHistorico(); return; }
+  if(view==='historico'){
+    // Nao basta esconder o botao: a view fica guardada no navegador, e um
+    // gerente que a tivesse aberto antes voltaria nela ao entrar de novo.
+    if(!soAdmin()){ setView('painel'); return; }
+    el.innerHTML=htmlHistorico(); return;
+  }
   if(view==='painel'){ el.innerHTML=htmlPainel(); return; }
   el.innerHTML=htmlCarteira();
 }
@@ -2359,7 +2375,7 @@ function aplicarPermissoes(){
     el.style.display=gestor?'':'none';
   });
   const h=document.getElementById('vb-hist');
-  if(h) h.style.display=gestor?'':'none';
+  if(h) h.style.display=soAdmin()?'':'none';
   const l=document.getElementById('btn-lixeira');
   if(l) l.style.display=gestor?'':'none';
 }
@@ -2417,6 +2433,9 @@ function abrirApp(nome,papelDoUsuario){
   lerPreferencias();
   lerLocal();
   try{ const v=localStorage.getItem('dalum-obra-view'); if(v) view=v; }catch(e){}
+  // Gerente que tinha parado no historico volta ao Painel sem aviso: ele nao
+  // clicou em nada agora, entao nao ha o que avisar.
+  if(view==='historico' && !soAdmin()) view='painel';
   setView(view);
   sincronizar();
   carregarFabrica();
