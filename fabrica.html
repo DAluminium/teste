@@ -3691,6 +3691,11 @@ function abrirApp(nome,papelDoUsuario){
   lerLocal();
   try{ const v=localStorage.getItem('dalum-fabrica-view'); if(v) view=v; }catch(e){}
   if(window.innerWidth<760 && !localStorage.getItem('dalum-fabrica-view')) view='lista';
+  // Gerente que tinha parado no historico volta ao quadro em silencio: ele nao
+  // clicou em nada agora, entao nao ha o que avisar. Sem isto, entrar dava um
+  // "Acesso restrito" na cara, sem motivo aparente — e a tela nao ficava em
+  // branco so porque o sincronizar() logo abaixo redesenha.
+  if(view==='historico' && !soAdminFab()) view='quadro';
   setView(view);
   sincronizar();
   // Clicar fora ou apertar Esc fecha o aviso. Os dois caminhos passam por
