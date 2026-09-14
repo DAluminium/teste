@@ -1278,7 +1278,20 @@ function sessaoExpirada(){
         'O acesso vale 8 horas e o seu venceu. Nada foi perdido — o que você ' +
         'já tinha salvo continua guardado.\n\n' +
         'Vamos voltar para a tela de entrada.',
-        function(){ location.reload(); });
+        function(){
+          // SESSAO_VENCIDA_SEM_LOOP — Dentro do portal, quem tem de sair e o PORTAL.
+          // Recarregar so este quadro deixava a marca de logado dele intacta,
+          // e ele reabria o modulo sem cracha, em loop (14/09/2026).
+          if(window.self!==window.top){
+            // Se o portal atender, ele troca este quadro por uma pagina em
+            // branco e o recarregar de reserva abaixo nem chega a rodar. Se
+            // nao atender, o recarregar garante a saida do mesmo jeito.
+            try{ window.parent.postMessage('logout','*'); }catch(e){}
+            setTimeout(function(){ location.reload(); }, 800);
+            return;
+          }
+          location.reload();
+        });
 }
 
 // ---- SISTEMA EM MANUTENÇÃO ----
