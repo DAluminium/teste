@@ -1469,7 +1469,13 @@ function abrirFicha(id){
   const quem=[];
   if(c.criadoPor) quem.push('Cadastrado por '+c.criadoPor+(c.criadoEm?' em '+fmtData(c.criadoEm.slice(0,10)):''));
   if(c.atualizadoPor) quem.push('Última alteração de '+c.atualizadoPor+(c.atualizadoEm?' em '+fmtData(c.atualizadoEm.slice(0,10)):''));
-  document.getElementById('f-quem').textContent=quem.join(' · ');
+  // Quem cadastrou e quem alterou por ultimo tambem e historico: so o admin ve
+  // (pedido do Ander em 14/09/2026, mesma regra do historico geral e do
+  // historico da ficha da Fabrica). Para os outros a linha nem vai para a tela,
+  // e o espaco some junto, porque a linha tem margem propria.
+  const fq=document.getElementById('f-quem');
+  fq.textContent=soAdmin()?quem.join(' · '):'';
+  fq.style.display=soAdmin()?'':'none';
   recalcular();
   mostrarFabrica(c);
   mostrarCompras(c);
