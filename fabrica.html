@@ -3255,6 +3255,9 @@ function abrirFicha(id){
   popularNotificarFab();  // começa sempre em "sem notificação"
   document.getElementById('ficha-linha').innerHTML=htmlLinhaEtapas(o);
   document.getElementById('ficha-hist').innerHTML=htmlHistorico(o);
+  // O espaco do historico tem borda e margem proprias: sem esconder, quem nao
+  // e admin via uma linha divisoria solta no fim da ficha.
+  document.getElementById('ficha-hist').style.display=soAdminFab()?'':'none';
   // Obra excluida abre em modo consulta: da para restaurar, nao para editar.
   const ex=!!o.excluida;
   document.getElementById('ficha-btn-excluir').style.display   = ex?'none':'inline-flex';
@@ -3311,6 +3314,10 @@ function fraseHistorico(x){
 }
 
 function htmlHistorico(o){
+  // O historico de alteracoes da obra e so do admin, como o historico geral
+  // e como nos outros modulos (pedido do Ander em 14/09/2026). A trava fica
+  // aqui dentro: qualquer lugar que chame esta funcao recebe vazio.
+  if(!soAdminFab()) return '';
   const h=(o.historico||[]).slice().reverse(); // mais recente primeiro
   if(!h.length) return '<div style="font-size:12px;color:var(--gray-4)">Sem alterações registradas.</div>';
   return '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-5);margin-bottom:7px">Histórico de alterações</div>'+
