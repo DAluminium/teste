@@ -893,6 +893,7 @@ async function doLogout(){
   // Sair nao recarrega a pagina: o que o admin deixou aberto ficaria para
   // quem entrar em seguida neste mesmo navegador.
   fecharPainelSessoes();
+  fecharTempoUso();
 }
 // Aqui existia telaEncerrada(), que trocava o conteúdo inteiro da página por
 // um aviso "Sessão encerrada com segurança". Ela apagava a tela de login junto
@@ -1088,7 +1089,7 @@ function ajustarCartoesDeAdmin(){
   // Sem isto, o admin abria o painel, saia, e o gerente que entrava na mesma
   // pagina encontrava a lista aberta, com o botao Deslogar funcionando.
   // Visto pelo Ander em 14/09/2026 ao entrar como Ander Reis.
-  if(!eh) fecharPainelSessoes();
+  if(!eh){ fecharPainelSessoes(); fecharTempoUso(); }
 }
 function fecharPainelSessoes(){
   const p=document.getElementById('sessoes-panel');
@@ -1096,6 +1097,18 @@ function fecharPainelSessoes(){
   // Tira da tela os nomes da sessao anterior, nao so esconde.
   const l=document.getElementById('sessoes-lista');
   if(l) l.innerHTML='';
+}
+function fecharTempoUso(){
+  // Mesmo defeito do painel de sessoes: painel solto que o doLogout nao
+  // fechava. Aqui fica o historico de uso de todo mundo, e o Exportar baixava
+  // a planilha com o que o admin tinha carregado.
+  const p=document.getElementById('tempo-panel');
+  if(p) p.style.display='none';
+  const l=document.getElementById('tempo-lista');
+  if(l) l.innerHTML='';
+  // try: _tempoUltimo e declarado mais abaixo no arquivo. Se algum dia esta
+  // funcao rodar antes dessa linha, o erro derrubaria a entrada inteira.
+  try{ _tempoUltimo=[]; }catch(e){}
 }
 function recusarSeNaoForAdmin(oque){
   if(soAdmin()) return false;
@@ -1931,6 +1944,7 @@ function openTempoUso(){
 }
 
 async function loadTempoUso(){
+  if(!soAdmin()){ fecharTempoUso(); return; }
   const alvo=document.getElementById('tempo-lista');
   alvo.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center">Carregando...</p>';
   try{
@@ -1999,6 +2013,7 @@ async function loadTempoUso(){
 }
 
 function exportTempoUso(){
+  if(recusarSeNaoForAdmin('Exportar o tempo de uso é só do administrador.')) return;
   if(!_tempoUltimo.length){ alert('Nada para exportar neste período.'); return; }
   const aspas=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
   const linhas=[['Usuário','Módulo','Início','Fim','Minutos','Situação'].map(aspas).join(';')];
