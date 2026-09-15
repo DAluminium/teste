@@ -1354,9 +1354,25 @@ async function loadSessoes(){
       lista.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center">Nenhum usuário ativo no momento.</p>';
       return;
     }
-    ativas.sort((a,b)=>b.ts-a.ts);
     const sistemaLabel={compras:'🛒 Gestão de Compras',financeiro:'💰 Financeiro',portal:'🏠 Portal',fabrica:'🏭 Fábrica',obra:'📋 Gerenciamento de Obra'};
-    lista.innerHTML=ativas.map(s=>{
+    // UMA linha por pessoa, com o lugar onde ela deu sinal por ULTIMO. Antes era
+    // uma linha por tela aberta, e a sessao de um modulo continuava na lista
+    // depois que a pessoa voltava ao portal (so caia com 1 hora sem sinal): o
+    // Ander aparecia tres vezes estando so no portal (15/09/2026).
+    // Teste e producao dividem a mesma lista, por isso o ambiente entra na chave.
+    const porPessoa={};
+    ativas.forEach(s=>{
+      const amb=s.ambiente||'producao';
+      const chave=(s.username||s.nome||'').toLowerCase().trim()+'|'+amb;
+      const g=porPessoa[chave]||(porPessoa[chave]={ultima:s,inicio:s.inicio||s.ts,ids:[],ambiente:amb});
+      if(s.ts>g.ultima.ts) g.ultima=s;
+      g.inicio=Math.min(g.inicio,s.inicio||s.ts);
+      if(g.ids.indexOf(s.sessionId)<0) g.ids.push(s.sessionId);
+    });
+    const pessoas=Object.values(porPessoa).sort((a,b)=>b.ultima.ts-a.ultima.ts);
+    lista.innerHTML=pessoas.map(g=>{
+      const s=g.ultima;
+      const deTeste=g.ambiente==='teste'?' · <span style="color:#B9770E">ambiente de teste</span>':'';
       const minutos=Math.floor((Date.now()-s.ts)/60000);
       // O sinal de vida chega a cada 5 minutos, entao ate 10 minutos e "agora".
       // Verde so quando e verdade — pintar tudo de verde nao dizia nada.
@@ -1366,10 +1382,10 @@ async function loadSessoes(){
         <div title="${recente?'Usando o sistema agora':'Sem atividade há mais de 10 minutos'}" style="width:8px;height:8px;border-radius:50%;background:${recente?'#1A7A45':'#B9770E'};flex-shrink:0"></div>
         <div style="flex:1">
           <div style="font-weight:600;font-size:13px">${s.nome}</div>
-          <div style="font-size:11px;color:var(--gray-4)">${sistemaLabel[s.sistema]||s.sistema} · Ativo ${tempo}</div>
-          <div style="font-size:11px;color:var(--gray-4)">⏱️ Operando há <strong>${duracaoTexto((Date.now()-(s.inicio||s.ts))/60000)}</strong> · entrou às ${new Date(s.inicio||s.ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
+          <div style="font-size:11px;color:var(--gray-4)">${sistemaLabel[s.sistema]||s.sistema} · Ativo ${tempo}${deTeste}</div>
+          <div style="font-size:11px;color:var(--gray-4)">⏱️ Operando há <strong>${duracaoTexto((Date.now()-g.inicio)/60000)}</strong> · entrou às ${new Date(g.inicio).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
         </div>
-        <button onclick="forceLogout('${s.sessionId}','${s.nome}')" style="background:var(--red);color:white;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600">Deslogar</button>
+        <button onclick="forceLogout('${g.ids.join(',')}','${s.nome}')" style="background:var(--red);color:white;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600">Deslogar</button>
       </div>`;
     }).join('');
   }catch(e){
@@ -1387,7 +1403,10 @@ async function forceLogout(sessionId, nome){
       headers:cabecalhos('sessions')
     });
     const d=await r.json();
-    d.forceLogout=[...(d.forceLogout||[]),sessionId];
+    // Pode vir mais de um id: o painel mostra uma linha por pessoa, e Deslogar
+    // derruba todas as telas dela.
+    const ids=String(sessionId||'').split(',').filter(Boolean);
+    d.forceLogout=[...(d.forceLogout||[]),...ids];
     await fetch('https://daluminium-api.daluminium2.workers.dev',{
       method:'PATCH',
       headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
