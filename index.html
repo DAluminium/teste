@@ -1363,7 +1363,10 @@ async function loadSessoes(){
     const porPessoa={};
     ativas.forEach(s=>{
       const amb=s.ambiente||'producao';
-      const chave=(s.username||s.nome||'').toLowerCase().trim()+'|'+amb;
+      // Pelo NOME, nao pelo usuario: Obra e Fabrica gravam o nome no campo
+      // username ("hyllary fernanda"), o portal grava o login. Pelo usuario a
+      // mesma pessoa virava duas linhas (15/09/2026).
+      const chave=(s.nome||s.username||'').toLowerCase().replace(/\s+/g,' ').trim()+'|'+amb;
       const g=porPessoa[chave]||(porPessoa[chave]={ultima:s,inicio:s.inicio||s.ts,ids:[],ambiente:amb});
       if(s.ts>g.ultima.ts) g.ultima=s;
       g.inicio=Math.min(g.inicio,s.inicio||s.ts);
