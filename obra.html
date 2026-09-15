@@ -2406,6 +2406,31 @@ function primeiraEtapa(fab){
   return ativa?ativa.id:(lista[0]?lista[0].id:null);
 }
 
+// Número de contrato comparável: "0046", "46", "CT 46" e "ct-046" viram "46".
+// Serve SÓ para reconhecer o que foi lançado À MÃO nos outros módulos — o
+// vínculo de verdade continua sendo o ctoId.
+function ctNormal(v){
+  return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/^CT/,'').replace(/^0+/,'');
+}
+// O que foi cadastrado à mão (sem ctoId) com o mesmo número de contrato.
+// Sem isto, salvar a ficha criava um SEGUNDO lançamento: em 15/09/2026 Iris
+// (0046) e Tiago (0063) estavam lançados à mão no Compras e teriam duplicado.
+function obraManualNaFabrica(obras, c){
+  const alvo=ctNormal(c.ct);
+  if(!alvo) return null;
+  return (obras||[]).find(function(o){ return !o.ctoId && ctNormal(o.obra)===alvo; })||null;
+}
+function lancamentoManualNoCompras(comp, c){
+  const alvo=ctNormal(c.ct);
+  if(!alvo) return null;
+  for(let i=0;i<ABAS_COMPRAS.length;i++){
+    const aba=ABAS_COMPRAS[i];
+    const achado=(comp[aba]||[]).find(function(r){ return !r.ctoId && ctNormal(r.contrato)===alvo; });
+    if(achado) return {aba:aba, reg:achado};
+  }
+  return null;
+}
+
 async function enviarParaFabrica(c, ehNovo){
   // Contrato finalizado, parado ou com pendência não entra no quadro de quem
   // produz — a planilha tem dezenas de contratos antigos e eles entupiriam a
@@ -2418,6 +2443,15 @@ async function enviarParaFabrica(c, ehNovo){
     if(!jaExiste && !deveEntrar){
       status('🟢 Salvo · '+agoraHora());
       return;
+    }
+    // Já cadastrada à mão na Fábrica com este contrato: não cria outra, e não
+    // mexe na que existe — ela é de quem produz.
+    if(!jaExiste){
+      const manual=obraManualNaFabrica(fab.obras, c);
+      if(manual){
+        status('🟢 Salvo · a Fábrica já tem o contrato '+(manual.obra||'')+' · '+agoraHora());
+        return;
+      }
     }
     const etapa=jaExiste?jaExiste.etapa:primeiraEtapa(fab);
     if(!etapa){
@@ -2483,7 +2517,7 @@ async function carregarFabrica(){
 function mostrarFabrica(c){
   const el=document.getElementById('f-fabrica');
   if(_fabricaObras===null){ el.innerHTML='<span class="td-fraco">Não consegui ler a Fábrica agora.</span>'; return; }
-  const o=_fabricaObras.find(function(x){ return x.ctoId===c.id; });
+  const o=_fabricaObras.find(function(x){ return x.ctoId===c.id; }) || obraManualNaFabrica(_fabricaObras, c);
   if(!o){
     el.innerHTML='<strong>Fábrica:</strong> esta obra ainda não está no quadro. '+
       (STATUS_VAO_PARA_FABRICA.indexOf(c.status)>=0
@@ -2558,6 +2592,15 @@ async function enviarParaCompras(c){
     const ja=acharLancamentoDaObra(comp, c.id);
     const deveEntrar=STATUS_VAO_PARA_FABRICA.indexOf(c.status)>=0;
     if(!ja && !deveEntrar){ status('🟢 Salvo · '+agoraHora()); return; }
+    // Já lançado à mão no Compras com este contrato: não cria outro, e não
+    // mexe no que existe — material, valor e pedido são de quem compra.
+    if(!ja){
+      const manual=lancamentoManualNoCompras(comp, c);
+      if(manual){
+        status('🟢 Salvo · o Compras já tem o contrato '+(manual.reg.contrato||'')+' · '+agoraHora());
+        return;
+      }
+    }
     if(!ja && !c.entrega){
       aviso('Contrato salvo, mas não foi para o Compras',
         'O contrato está guardado aqui. Só não deu para criar o lançamento no '+
@@ -2627,13 +2670,13 @@ async function enviarParaCompras(c){
 // pelo `ctoId`) e os que quem compra lançou à mão (achados pelo número do CT).
 function comprasDoContrato(c){
   if(!_comprasDados) return null;
-  const alvo=(c.ct||'').toUpperCase().trim();
+  const alvo=ctNormal(c.ct);
   const vistos={};
   const saida=[];
   ABAS_COMPRAS.forEach(function(aba){
     (_comprasDados[aba]||[]).forEach(function(r){
       const meu = (r.ctoId && r.ctoId===c.id);
-      const mesmoCT = alvo && (r.contrato||'').toUpperCase().trim()===alvo;
+      const mesmoCT = alvo && ctNormal(r.contrato)===alvo;
       if(!meu && !mesmoCT) return;
       const chave=r.id||(aba+'|'+(r.contrato||'')+'|'+(r.material||''));
       if(vistos[chave]) return;
