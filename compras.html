@@ -2598,9 +2598,19 @@ function marcarConfirmacoesVistas(){
 var _abaWhats=null;
 function guardarAbaWhats(w){ if(w) _abaWhats=w; }
 function _voltouParaOSistema(){
+  // A pessoa voltou para o sistema: ou o WhatsApp abriu, ou ela desistiu. Nos
+  // dois casos o aviso do meio nao tem mais o que fazer. Dentro do portal este
+  // arquivo roda numa moldura, e ali a deteccao de "o aplicativo atendeu" quase
+  // nunca funciona — entao o aviso aparecia mesmo com o WhatsApp aberto e
+  // ficava na tela ate alguem clicar (achado pelo Ander em 16/09/2026).
+  fecharAvisoWhats();
   if(!_abaWhats) return;
   var w=_abaWhats; _abaWhats=null;
   try{ if(!w.closed) w.close(); }catch(e){}
+}
+function fecharAvisoWhats(){
+  var cx=document.getElementById("whats-fallback");
+  if(cx) cx.remove();
 }
 // Dois avisos, porque um so nao cobre os dois jeitos de usar: dentro do
 // portal o modulo roda numa moldura, e ai o "foco" vai para a pagina de fora,
@@ -2701,13 +2711,22 @@ function mostrarBotaoWhats(){
   cx.innerHTML=
     '<div style="background:#fff;border-radius:12px;padding:20px 22px;max-width:380px;text-align:center">'+
     '<div style="font-size:14px;font-weight:700;margin-bottom:8px">Abrir o WhatsApp</div>'+
-    '<div style="font-size:12.5px;color:#555;line-height:1.5;margin-bottom:14px">A mensagem ja esta pronta. Clique para abrir a conversa.</div>'+
+    '<div style="font-size:12.5px;color:#555;line-height:1.5;margin-bottom:14px">A mensagem ja esta pronta. '+
+    '<strong>Se o WhatsApp ja abriu, pode fechar este aviso.</strong></div>'+
     '<button type="button" onclick="abrirWhatsAgora()" style="background:#25D366;color:#fff;border:none;'+
     'padding:10px 18px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Abrir a conversa</button>'+
     '<div style="margin-top:12px"><button type="button" style="background:none;border:none;color:#777;font-size:12px;cursor:pointer;font-family:inherit" '+
-    'onclick="var e=document.getElementById(&quot;whats-fallback&quot;); if(e) e.remove();">Agora nao</button></div>'+
+    'onclick="fecharAvisoWhats()">Fechar</button></div>'+
     '</div>';
   cx.style.display="flex";
+  // Clicar fora fecha, e Esc tambem: aviso que so sai num botao pequeno acaba
+  // preso na tela.
+  cx.onclick=function(e){ if(e.target===cx) fecharAvisoWhats(); };
+  document.addEventListener("keydown",function fechaEsc(e){
+    if(e.key!=="Escape") return;
+    document.removeEventListener("keydown",fechaEsc);
+    fecharAvisoWhats();
+  });
 }
 
 // Abre pelo navegador, no clique da pessoa, e guarda a aba para fecha-la
