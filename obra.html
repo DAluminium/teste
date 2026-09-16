@@ -309,6 +309,19 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </div>
       <div id="ficha-docs" style="display:flex;flex-direction:column;gap:6px;margin:8px 0 0"></div>
 
+      <!-- AVISAR E PEDIR — mesmo desenho do Compras. O bloco só aparece se
+           houver alguém com WhatsApp cadastrado. -->
+      <div class="secao">Avisar alguém</div>
+      <div id="notif-group" style="display:none;background:#FFF8E1;border:1px solid #FFE082;border-radius:10px;padding:10px 12px">
+        <label style="color:#8D6E00;font-weight:600;font-size:12px">📲 Notificar via WhatsApp</label>
+        <div id="f-notificar" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px"></div>
+        <div class="dica" style="color:#8D6E00;margin-top:4px">Marque quem deve ser avisado. Ao salvar, o WhatsApp abre com a mensagem pronta — você confere e aperta enviar.</div>
+        <div id="pedido-status" style="display:none;margin-top:8px"></div>
+        <label style="color:#8D6E00;font-weight:600;font-size:12px;margin-top:10px;display:block">📋 O que você está pedindo <span style="font-weight:400;font-size:11px">(opcional)</span></label>
+        <textarea id="f-pedido" rows="3" placeholder="Ex: medir os vãos da sacada" style="width:100%;margin-top:6px;box-sizing:border-box"></textarea>
+        <div class="dica" style="color:#8D6E00;margin-top:4px">Se escrever aqui, a obra fica <strong>aguardando confirmação</strong> de quem foi marcado. Na carteira aparece o botão de cobrar, e quem recebeu aperta "Já fiz".</div>
+      </div>
+
       <div class="secao">Nos outros módulos</div>
       <div id="f-fabrica" class="caixa" style="margin-bottom:10px">Carregando a Fábrica...</div>
       <div id="f-compras" class="caixa">Carregando as compras...</div>
@@ -1260,6 +1273,10 @@ function setView(v){
 
 function render(){
   preencherListas();
+  // Pedido que alguem confirmou e eu ainda nao vi. Fica aqui porque render()
+  // roda depois de toda gravacao e de toda sincronizacao — e assim o aviso
+  // chega sozinho, sem depender de ninguem apertar enviar no WhatsApp.
+  try{ mostrarConfirmacoesRecebidas(); }catch(e){}
   const bh=document.getElementById('vb-hist');
   if(bh) bh.style.display=soAdmin()?'':'none';
   const el=document.getElementById('conteudo');
@@ -1453,6 +1470,9 @@ function novoContrato(){
   document.getElementById('f-quem').textContent='';
   document.getElementById('f-fabrica').innerHTML='Ao salvar, esta obra entra no quadro da Fábrica.';
   document.getElementById('f-compras').innerHTML='Ao salvar, esta obra entra na lista do Compras com o contrato, o cliente e a data de entrega — para o Compras já poder cobrar a lista de material.';
+  popularNotificarSelect(); limparMarcados();
+  document.getElementById('f-pedido').value='';
+  mostrarStatusPedido(null);
   recalcular();
   document.getElementById('ficha-ov').classList.add('open');
   setTimeout(function(){ document.getElementById('f-ct').focus(); },80);
@@ -1496,6 +1516,9 @@ function abrirFicha(id){
   recalcular();
   mostrarFabrica(c);
   mostrarCompras(c);
+  popularNotificarSelect(); limparMarcados();
+  document.getElementById('f-pedido').value='';
+  mostrarStatusPedido(c.pedido);
   document.getElementById('ficha-ov').classList.add('open');
 }
 
@@ -1513,6 +1536,16 @@ async function salvarFicha(manterAberta){
   if(!c.ct){ aviso('Falta o contrato','Preencha o número do contrato (CT).'); document.getElementById('f-ct').focus(); return false; }
   if(!c.ano){ aviso('Falta o ano','Preencha o ano do contrato.'); document.getElementById('f-ano').focus(); return false; }
   if(!c.cliente){ aviso('Falta o cliente','Preencha o cliente ou o nome da obra.'); document.getElementById('f-cliente').focus(); return false; }
+
+  // Quem avisar e o que pedir. Pedido sem destinatario nao tem de quem cobrar.
+  const txtPedido=(document.getElementById('f-pedido').value||'').trim();
+  const marcados=manterAberta?[]:marcadosParaNotificar();
+  if(txtPedido && !manterAberta && !marcados.length){
+    aviso('Falta marcar quem vai receber',
+      'Você escreveu um pedido, mas não marcou ninguém em "Notificar via WhatsApp".\n\n'+
+      'Marque quem deve fazer — é dessa pessoa que o sistema vai cobrar.');
+    return false;
+  }
 
   const novo=!fichaId;
   // Mesmo CT e mesmo ano já cadastrados? Avisa e deixa decidir — a planilha
@@ -1535,6 +1568,7 @@ async function salvarFicha(manterAberta){
     // criou um campo novo e o preencheu enquanto esta ficha estava aberta, a
     // minha tela não tem aquele campo — e substituir apagaria o valor dele.
     const extrasJuntos=Object.assign({}, alvo.extras||{}, c.extras||{});
+    const pedidoDoAlvo=alvo.pedido||null;
     Object.assign(alvo, c);
     alvo.extras=extrasJuntos;
     // Anexos: junta o que está no servidor com o que foi anexado nesta tela e
@@ -1550,6 +1584,18 @@ async function salvarFicha(manterAberta){
       vistos[d.url]=1;
       return true;
     });
+    // O pedido mora DENTRO do contrato e nao vem do formulário: sem esta
+    // linha, o Object.assign acima o apagaria a cada gravação. Só existe um
+    // pedido em aberto por obra — escrever outro substitui, e o anterior fica
+    // no histórico.
+    const pedidoAntes=pedidoDoAlvo;
+    if(txtPedido && !manterAberta){
+      alvo.pedido={texto:txtPedido,
+        para:marcados.map(function(m){ return {name:m.name,whatsapp:m.whatsapp}; }),
+        por:(usuario||'—'), em:agoraISO(), cobrancas:[], feito:null};
+    } else {
+      alvo.pedido=pedidoAntes||null;
+    }
     alvo.atualizadoEm=agoraISO();
     alvo.atualizadoPor=usuario;
     // A tela passa a mostrar exatamente o que foi gravado.
@@ -1575,6 +1621,14 @@ async function salvarFicha(manterAberta){
     // segundo ainda tenta. Os dois avisam por conta propria, e o contrato JA
     // esta salvo aqui em qualquer caso.
     await enviarParaCompras(salvo);
+    // Por último o WhatsApp: ele troca de aplicativo e tira a pessoa da tela.
+    // O que vale já está gravado — a mensagem é o reforço.
+    if(marcados.length){
+      avisarVarios(marcados, txtPedido
+        ? montarMsgPedido(salvo, txtPedido, usuario||'—', false)
+        : montarMsgAviso(salvo, novo));
+      limparMarcados();
+    }
   }
   return true;
 }
@@ -1778,7 +1832,8 @@ function celulaDaCarteira(col, c){
       return '<td class="td-cliente">'+esc(c.cliente||'—')+
         (((c.docs)||[]).length?' <span class="pill pill-teal" title="'+((c.docs)||[]).length+
           ' arquivo(s) anexado(s)">&#128206; '+((c.docs)||[]).length+'</span>':'')+
-        ((c.condominio||c.cidade)?'<span class="td-local">'+esc([c.condominio,c.cidade].filter(Boolean).join(' · '))+'</span>':'')+'</td>';
+        ((c.condominio||c.cidade)?'<span class="td-local">'+esc([c.condominio,c.cidade].filter(Boolean).join(' · '))+'</span>':'')+
+        blocoPedido(c)+'</td>';
     case 'status':
       return '<td>'+pill(c.status||'—',STATUS_COR[c.status]||'pill-cinza')+'</td>';
     case 'revisao':
@@ -2543,6 +2598,370 @@ function mostrarFabrica(c){
     (o.just?'<div class="caixa-linha"><span>Justificativa da etapa</span><span>'+esc(o.just)+'</span></div>':'');
 }
 
+// ================= AVISAR E PEDIR =================
+// Mesmo desenho do Compras (08 a 11/09/2026). Duas coisas diferentes:
+//
+// 1. AVISO: manda pelo WhatsApp o contrato, o cliente, o status e a entrega.
+//    Quem aperta enviar e a pessoa, sempre.
+// 2. PEDIDO: alem do aviso, fica GRAVADO no contrato o que foi pedido, e a
+//    obra passa a esperar confirmacao. O aviso de volta nao depende do
+//    WhatsApp — aviso que depende de a outra pessoa apertar enviar nao e
+//    aviso (licao de 11/09/2026, quando o Weverton confirmou e o Ander nao
+//    ficou sabendo).
+
+// Quem pode receber: pessoa ativa com numero cadastrado. A lista vem do
+// registro do Compras de PRODUCAO, que e onde mora o cadastro de usuarios —
+// lendo do registro de teste ela vinha vazia e o campo sumia da tela.
+// Os numeros NUNCA ficam neste arquivo: ele esta num repositorio publico.
+let _avisaveis=[];
+async function carregarAvisaveis(){
+  try{
+    const r=await fetch(WORKER+'?t='+Date.now(),{cache:'no-store',
+      headers:Object.assign(cabecalhos({}),{'X-Sistema':SISTEMA_USUARIOS})});
+    if(!r.ok) return;
+    const d=await r.json();
+    const vistos={};
+    _avisaveis=[];
+    ((d&&d.usuarios)||[]).forEach(function(u){
+      if(u.active===false||!u.name||!u.whatsapp) return;
+      const k=String(u.name).toLowerCase().trim();
+      if(vistos[k]) return;
+      vistos[k]=1; _avisaveis.push({name:u.name,whatsapp:u.whatsapp,role:u.role||''});
+    });
+  }catch(e){ /* sem lista, o campo apenas nao aparece */ }
+}
+
+// Caixas para marcar, e nao escolher um so: a obra quase sempre interessa a
+// mais de uma pessoa.
+function popularNotificarSelect(){
+  const cx=document.getElementById('f-notificar');
+  if(!cx) return;
+  const lista=_avisaveis.filter(function(r){ return normNome(r.name)!==normNome(usuario); });
+  cx.innerHTML=lista.map(function(r,i){
+    return '<label style="display:inline-flex;align-items:center;gap:5px;background:#fff;'+
+      'border:1px solid var(--gray-3);border-radius:20px;padding:4px 11px;font-size:12.5px;cursor:pointer">'+
+      '<input type="checkbox" value="'+i+'" style="width:auto;margin:0;flex:none">'+esc(r.name)+'</label>';
+  }).join('');
+  cx.dataset.pessoas=JSON.stringify(lista);
+  const g=document.getElementById('notif-group');
+  if(g) g.style.display=lista.length?'block':'none';
+}
+function marcadosParaNotificar(){
+  const cx=document.getElementById('f-notificar');
+  if(!cx) return [];
+  let lista=[];
+  try{ lista=JSON.parse(cx.dataset.pessoas||'[]'); }catch(e){}
+  return [].slice.call(cx.querySelectorAll('input:checked'))
+    .map(function(i){ return lista[parseInt(i.value,10)]; }).filter(Boolean);
+}
+function limparMarcados(){
+  const cx=document.getElementById('f-notificar');
+  if(cx) cx.querySelectorAll('input:checked').forEach(function(i){ i.checked=false; });
+}
+
+// ---- WHATSAPP ----
+// Chama o APLICATIVO (whatsapp://), sem abrir pagina nenhuma. Se ele nao
+// atender em 1,4 s, mostra um botao para abrir pelo navegador. Nada e enviado
+// sozinho: quem aperta enviar e a pessoa.
+var _abaWhats=null, _urlWhats='', _filaWhats=[], _msgWhats='';
+function guardarAbaWhats(w){ if(w) _abaWhats=w; }
+function _voltouParaOSistema(){
+  if(!_abaWhats) return;
+  var w=_abaWhats; _abaWhats=null;
+  try{ if(!w.closed) w.close(); }catch(e){}
+}
+window.addEventListener('focus',_voltouParaOSistema);
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible') _voltouParaOSistema();
+});
+function numeroWhats(n){
+  const so=String(n||'').replace(/\D/g,'');
+  if(!so) return '';
+  // Celular do Brasil tem 10 ou 11 digitos com DDD. Menos que isso e engano de
+  // digitacao: melhor avisar do que abrir um endereco que nao leva a ninguem.
+  if(so.length===10||so.length===11) return '55'+so;
+  if(so.length<12) return '';
+  return so;
+}
+function abrirWhats(url){
+  _urlWhats=url;
+  var doApp=String(url).replace('https://api.whatsapp.com/send?','whatsapp://send?');
+  var atendeu=false;
+  var aoSumir=function(){ if(document.visibilityState==='hidden') atendeu=true; };
+  document.addEventListener('visibilitychange',aoSumir);
+  window.addEventListener('blur',aoSumir);
+  setTimeout(function(){
+    document.removeEventListener('visibilitychange',aoSumir);
+    window.removeEventListener('blur',aoSumir);
+    if(atendeu) return;
+    mostrarBotaoWhats();
+  },1400);
+  try{ location.href=doApp; }catch(e){ mostrarBotaoWhats(); }
+}
+function mostrarBotaoWhats(){
+  var cx=document.getElementById('whats-fallback');
+  if(!cx){ cx=document.createElement('div'); cx.id='whats-fallback';
+    cx.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;'+
+      'display:flex;align-items:center;justify-content:center;padding:16px';
+    document.body.appendChild(cx); }
+  cx.innerHTML='<div style="background:#fff;border-radius:12px;padding:20px 22px;max-width:380px;text-align:center">'+
+    '<div style="font-size:14px;font-weight:700;margin-bottom:8px">Abrir o WhatsApp</div>'+
+    '<div style="font-size:12.5px;color:#555;line-height:1.5;margin-bottom:14px">A mensagem já está pronta. Clique para abrir a conversa.</div>'+
+    '<button type="button" onclick="abrirWhatsAgora()" style="background:#25D366;color:#fff;border:none;'+
+    'padding:10px 18px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Abrir a conversa</button>'+
+    '<div style="margin-top:12px"><button type="button" style="background:none;border:none;color:#777;font-size:12px;cursor:pointer;font-family:inherit" '+
+    'onclick="var e=document.getElementById(&quot;whats-fallback&quot;); if(e) e.remove();">Agora não</button></div></div>';
+  cx.style.display='flex';
+}
+function abrirWhatsAgora(){
+  var cx=document.getElementById('whats-fallback'); if(cx) cx.remove();
+  var w=null;
+  try{ w=window.open(_urlWhats,'_blank'); }catch(e){}
+  if(w) guardarAbaWhats(w); else location.href=_urlWhats;
+}
+// O WhatsApp abre UMA conversa por vez: com mais de uma pessoa, o sistema abre
+// a primeira e mostra quem ainda falta, com um clique para cada.
+function avisarVarios(pessoas,msg){
+  _filaWhats=(pessoas||[]).filter(function(p){ return p && numeroWhats(p.whatsapp); });
+  _msgWhats=msg;
+  if(!_filaWhats.length) return;
+  proximoDaFila();
+}
+function proximoDaFila(){
+  var p=_filaWhats.shift();
+  if(!p){ fecharFilaWhats(); return; }
+  abrirWhats('https://api.whatsapp.com/send?phone='+numeroWhats(p.whatsapp)+
+             '&text='+encodeURIComponent(_msgWhats));
+  mostrarFilaWhats(p);
+}
+function fecharFilaWhats(){
+  var e=document.getElementById('fila-whats'); if(e) e.remove();
+  _filaWhats=[]; _msgWhats='';
+}
+function mostrarFilaWhats(atual){
+  var e=document.getElementById('fila-whats');
+  if(!_filaWhats.length){ if(e) e.remove(); return; }
+  if(!e){ e=document.createElement('div'); e.id='fila-whats';
+    e.style.cssText='position:fixed;right:16px;bottom:16px;z-index:9998;background:#fff;'+
+      'border:1px solid #d5d9dc;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.18);'+
+      'padding:14px 16px;max-width:300px;font-size:12.5px';
+    document.body.appendChild(e); }
+  e.innerHTML='<div style="font-weight:700;margin-bottom:4px">Falta avisar'+
+      (_filaWhats.length>1?' ('+_filaWhats.length+')':'')+'</div>'+
+    '<div style="color:#666;margin-bottom:10px;line-height:1.45">'+
+      (atual?('Abri a conversa com <strong>'+esc(atual.name)+'</strong>. Envie e volte aqui.'):'')+'</div>'+
+    _filaWhats.slice(0,1).map(function(p){
+      return '<button type="button" onclick="proximoDaFila()" style="display:block;width:100%;'+
+        'background:#25D366;color:#fff;border:none;border-radius:8px;padding:8px 12px;'+
+        'font-weight:600;font-size:12.5px;cursor:pointer;font-family:inherit;margin-bottom:6px">'+
+        'Avisar '+esc(p.name)+'</button>';
+    }).join('')+
+    (_filaWhats.length>1?'<div style="color:#888;font-size:11.5px;margin-bottom:8px">Depois: '+
+      esc(_filaWhats.slice(1).map(function(p){ return p.name; }).join(', '))+'</div>':'')+
+    '<button type="button" onclick="fecharFilaWhats()" style="background:none;border:none;color:#777;'+
+    'font-size:11.5px;cursor:pointer;font-family:inherit;padding:0">Parar de avisar</button>';
+}
+
+// ---- AS MENSAGENS ----
+// Sem emoji: eles chegam quebrados no aplicativo, entao as marcas sao texto.
+function normNome(s){ return String(s||'').toLowerCase().trim().replace(/\s+/g,' '); }
+function diasDesde(iso){
+  if(!iso) return 0;
+  return Math.max(0,Math.floor((Date.now()-new Date(iso).getTime())/86400000));
+}
+function textoDias(n){ return n<=0?'hoje':(n===1?'há 1 dia':'há '+n+' dias'); }
+function nomesDoPedido(p){
+  return (((p&&p.para)||[]).map(function(x){ return x.name; }).join(', '))||'—';
+}
+function souDestinatario(p){
+  const eu=normNome(usuario);
+  if(!eu) return false;
+  return (((p&&p.para)||[])).some(function(x){ return normNome(x.name)===eu; });
+}
+function linhasDaObra(c){
+  return '\nContrato: '+(ctFormatado(c.ct)||'—')+
+         '\nCliente: '+(c.cliente||'—')+
+         '\nStatus: '+(c.status||'sem status')+
+         '\nEntrega: '+(c.entrega?fmtData(c.entrega):'não definida');
+}
+function montarMsgAviso(c, ehNovo){
+  return (ehNovo?'OBRA NOVA - Daluminium':'OBRA ATUALIZADA - Daluminium')+'\n'+
+    linhasDaObra(c)+
+    '\n\nAcesse: '+PORTAL_URL;
+}
+function montarMsgPedido(c, texto, por, ehCobranca){
+  return (ehCobranca?'COBRANCA DE PEDIDO - Daluminium':'PEDIDO NA OBRA - Daluminium')+'\n'+
+    linhasDaObra(c)+
+    '\n\nO que precisa ser feito:\n'+texto+
+    '\n\nPedido por: '+por+
+    (ehCobranca?'\nEste pedido continua em aberto.':'')+
+    '\n\nQuando terminar, entre no sistema e aperte "Já fiz" na obra — ou responda por aqui.'+
+    '\n\nAcesse: '+PORTAL_URL;
+}
+
+// ---- O PEDIDO NA CARTEIRA ----
+// Fica embaixo do nome do cliente, e nao na coluna dos botoes: o texto do
+// pedido precisa de largura para ser lido.
+function blocoPedido(c){
+  const p=c&&c.pedido;
+  if(!p||!p.texto) return '';
+  const txt=esc(p.texto).replace(/\n/g,'<br>');
+  if(p.feito){
+    return '<span class="td-local" style="display:block;margin-top:4px;white-space:normal;'+
+      'background:#E8F5E9;border:1px solid #A5D6A7;border-radius:6px;padding:5px 7px;color:#2E7D32">'+
+      (p.feito.como==='manual'
+        ? '✅ Marcado como feito por <strong>'+esc(p.feito.marcadoPor||'—')+'</strong> em '
+        : '✅ Feito por <strong>'+esc(p.feito.por)+'</strong> em ')+
+      fmtData(String(p.feito.em||'').slice(0,10))+
+      '<span style="display:block;color:#558B2F;margin-top:2px">'+txt+'</span></span>';
+  }
+  const cob=((p.cobrancas||[]).length);
+  const estilo='border:none;border-radius:6px;padding:4px 10px;font-weight:600;'+
+    'font-size:11.5px;cursor:pointer;font-family:inherit';
+  const botoes=souDestinatario(p)
+    ? '<button type="button" onclick="event.stopPropagation();confirmarPedido(\''+c.id+'\',true)" '+
+      'style="background:#25D366;color:#fff;'+estilo+'">Já fiz</button>'
+    : '<button type="button" onclick="event.stopPropagation();cobrarPedido(\''+c.id+'\')" '+
+      'style="background:#FB8C00;color:#fff;'+estilo+'">Cobrar</button> '+
+      '<button type="button" onclick="event.stopPropagation();confirmarPedido(\''+c.id+'\',false)" '+
+      'style="background:#fff;border:1px solid #D6BC6E;color:#8D6E00;border-radius:6px;'+
+      'padding:4px 10px;font-weight:600;font-size:11.5px;cursor:pointer;font-family:inherit">Já foi feito</button>';
+  return '<span class="td-local" style="display:block;margin-top:4px;white-space:normal;'+
+    'background:#FFF8E1;border:1px solid #FFE082;border-radius:6px;padding:5px 7px;color:#8D6E00">'+
+    '⏳ Aguardando <strong>'+esc(nomesDoPedido(p))+'</strong> — pedido por '+esc(p.por||'—')+' '+textoDias(diasDesde(p.em))+
+    (cob?' · '+cob+' cobrança'+(cob>1?'s':''):'')+
+    '<span style="display:block;margin:3px 0 6px;color:#6D5600">'+txt+'</span>'+
+    botoes+'</span>';
+}
+
+// Na ficha: em que pe esta o pedido daquela obra. Sem isto, o campo vazio
+// pareceria dizer "nao ha pedido nenhum".
+function mostrarStatusPedido(p){
+  const cx=document.getElementById('pedido-status');
+  if(!cx) return;
+  if(!p||!p.texto){ cx.style.display='none'; cx.innerHTML=''; return; }
+  cx.style.display='block';
+  cx.innerHTML = p.feito
+    ? '<div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:6px;padding:6px 9px;font-size:12px;color:#2E7D32;line-height:1.45">'+
+      '✅ Pedido já atendido — '+(p.feito.como==='manual'
+        ? 'marcado como feito por <strong>'+esc(p.feito.marcadoPor||'—')+'</strong>'
+        : 'feito por <strong>'+esc(p.feito.por)+'</strong>')+'.</div>'
+    : '<div style="background:#FFF3E0;border:1px solid #FFCC80;border-radius:6px;padding:6px 9px;font-size:12px;color:#8D6E00;line-height:1.45">'+
+      '⏳ Já existe um pedido em aberto com <strong>'+esc(nomesDoPedido(p))+'</strong>, feito '+
+      textoDias(diasDesde(p.em))+'.<br>Escrever abaixo e salvar <strong>substitui</strong> esse pedido.</div>';
+}
+
+// Cobrar de novo: nao mexe no pedido, so registra a cobranca e reabre o
+// WhatsApp com o mesmo texto.
+async function cobrarPedido(id){
+  const c=(dados.contratos||[]).find(function(x){ return x.id===id; });
+  const p=c&&c.pedido;
+  if(!p||p.feito) return;
+  const eu=usuario||p.por||'—';
+  const ok=await alterar(function(base){
+    const alvo=(base.contratos||[]).find(function(x){ return x.id===id; });
+    if(!alvo||!alvo.pedido||alvo.pedido.feito) return;
+    if(!Array.isArray(alvo.pedido.cobrancas)) alvo.pedido.cobrancas=[];
+    alvo.pedido.cobrancas.push({por:eu,em:agoraISO()});
+  }, {acao:'cobrou o pedido', alvo:'CT '+ctFormatado(c.ct)+' · '+(c.cliente||''),
+      detalhe:'em aberto '+textoDias(diasDesde(p.em))});
+  if(!ok) return;
+  avisarVarios(p.para, montarMsgPedido(c, p.texto, p.por||eu, true));
+}
+
+// Confirmar que foi feito. Quem decide o que acontece e QUEM aperta, e nao
+// qual botao: quem pediu marcando a mao so grava; qualquer outra pessoa grava
+// com o nome dela e avisa quem pediu.
+async function confirmarPedido(id, peloDestinatario){
+  const c=(dados.contratos||[]).find(function(x){ return x.id===id; });
+  const p=c&&c.pedido;
+  if(!p||p.feito) return;
+  const eu=usuario||'';
+  const souQuemPediu=!!eu && normNome(eu)===normNome(p.por);
+  const pergunta=souQuemPediu
+    ? 'Marcar o pedido de "'+(c.cliente||'')+'" como já feito?\n\nUse quando a pessoa já respondeu pelo WhatsApp.'
+    : 'Confirmar que já foi feito em "'+(c.cliente||'')+'"?\n\n'+(p.por||'Quem pediu')+
+      ' vai receber o aviso no sistema. O WhatsApp também abre com a mensagem pronta — aperte enviar.';
+  if(!confirm(pergunta)) return;
+  const feito={
+    por: souQuemPediu ? nomesDoPedido(p) : (eu||nomesDoPedido(p)),
+    em: agoraISO(),
+    como: souQuemPediu ? 'manual' : (peloDestinatario ? 'sistema' : 'botao-feito'),
+    marcadoPor: eu||'—'
+  };
+  const ok=await alterar(function(base){
+    const alvo=(base.contratos||[]).find(function(x){ return x.id===id; });
+    if(!alvo||!alvo.pedido||alvo.pedido.feito) return;
+    alvo.pedido.feito=feito;
+  }, {acao:'confirmou o pedido', alvo:'CT '+ctFormatado(c.ct)+' · '+(c.cliente||''),
+      detalhe:souQuemPediu?'marcado como feito':'feito por '+(eu||'—')});
+  if(!ok) return;
+  // O WhatsApp e reforco: o aviso que vale ja esta gravado na obra.
+  if(!souQuemPediu){
+    const quemPediu=_avisaveis.filter(function(u){ return normNome(u.name)===normNome(p.por); });
+    if(quemPediu.length){
+      avisarVarios(quemPediu,'PEDIDO FEITO - Daluminium\n'+linhasDaObra(c)+
+        '\n\nO que foi pedido:\n'+p.texto+
+        '\n\nFeito por: '+(eu||'—')+'\n\nAcesse: '+PORTAL_URL);
+    }
+  }
+}
+
+// ---- O AVISO DE VOLTA, DENTRO DO SISTEMA ----
+// Para quem pediu: chega na proxima sincronizacao ou ao abrir o modulo, sem
+// depender de ninguem apertar enviar no WhatsApp.
+function confirmacoesParaMim(){
+  const eu=normNome(usuario);
+  if(!eu) return [];
+  return (dados.contratos||[]).filter(function(c){
+    const p=c&&c.pedido;
+    if(!p||!p.feito||p.feito.visto) return false;
+    if(normNome(p.por)!==eu) return false;
+    if(normNome(p.feito.marcadoPor)===eu) return false;   // eu mesmo marquei
+    return true;
+  });
+}
+function mostrarConfirmacoesRecebidas(){
+  const lista=confirmacoesParaMim();
+  const ja=document.getElementById('aviso-feito');
+  if(!lista.length){ if(ja) ja.remove(); return; }
+  if(ja) return;                     // ja esta na tela, nao redesenha por baixo
+  const ov=document.createElement('div');
+  ov.id='aviso-feito';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99998;'+
+    'display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML='<div style="background:#fff;border-radius:12px;padding:20px 22px;max-width:440px;width:100%;'+
+      'max-height:85vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.25)">'+
+    '<div style="font-size:16px;font-weight:700;color:#2E7D32;margin-bottom:12px">✅ Pedido atendido'+
+      (lista.length>1?' ('+lista.length+' obras)':'')+'</div>'+
+    lista.map(function(c){
+      const p=c.pedido;
+      return '<div style="border:1px solid #A5D6A7;background:#F1F8F1;border-radius:8px;padding:10px 12px;'+
+        'margin-bottom:10px;font-size:13px;line-height:1.5;color:#1B5E20">'+
+        '<strong>'+esc(p.feito.por)+'</strong> confirmou o pedido da obra <strong>'+esc(c.cliente||'')+'</strong>'+
+        ' (contrato '+esc(ctFormatado(c.ct)||'—')+').'+
+        '<div style="font-size:12px;color:#33691E;margin-top:6px;padding-top:6px;border-top:1px dashed #C5E1A5">'+
+          esc(p.texto).replace(/\n/g,'<br>')+'</div></div>';
+    }).join('')+
+    '<div style="text-align:right;margin-top:4px">'+
+      '<button type="button" onclick="marcarConfirmacoesVistas()" style="background:#2E7D32;color:#fff;border:none;'+
+      'border-radius:8px;padding:9px 20px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Ok, vi</button>'+
+    '</div></div>';
+  document.body.appendChild(ov);
+}
+async function marcarConfirmacoesVistas(){
+  const ids=confirmacoesParaMim().map(function(c){ return c.id; });
+  const ov=document.getElementById('aviso-feito'); if(ov) ov.remove();
+  if(!ids.length) return;
+  const eu=usuario||'—';
+  await alterar(function(base){
+    (base.contratos||[]).forEach(function(c){
+      if(ids.indexOf(c.id)<0) return;
+      if(c.pedido&&c.pedido.feito) c.pedido.feito.visto={por:eu,em:agoraISO()};
+    });
+  });
+}
+
 // ================= AS COMPRAS =================
 // Duas coisas diferentes acontecem aqui:
 //
@@ -2802,6 +3221,7 @@ function abrirApp(nome,papelDoUsuario){
   sincronizar();
   carregarFabrica();
   carregarCompras();
+  carregarAvisaveis();
 
   // Clicar fora ou apertar Esc fecha as janelas. Os dois caminhos passam por
   // fecharAviso(), então o que ficou pendente em `aoFechar` acontece igual.
