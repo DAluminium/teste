@@ -441,6 +441,48 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
   </div>
 </div>
 
+<!-- EDITAR USUÁRIO
+     Antes isto era uma fila de janelinhas de digitar: a pessoa escrevia a
+     função à mão e os módulos separados por vírgula, e errar uma letra
+     significava tirar o acesso de alguém. O Ander pediu caixas para marcar,
+     como no cadastro logo acima (16/09/2026). -->
+<div class="modal-overlay" id="edit-user-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">✏️ Editar usuário</div>
+      <button class="act" onclick="fecharEdicaoUsuario()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div id="eu-quem" style="font-size:12px;color:var(--gray-4);margin-bottom:12px"></div>
+      <div class="form-grid">
+        <div class="form-group"><label>Nome completo</label><input id="eu-name" type="text"></div>
+        <div class="form-group"><label>Função</label><select id="eu-role"></select></div>
+        <div class="form-group span2">
+          <label>WhatsApp (opcional)</label>
+          <input id="eu-whatsapp" type="text" placeholder="Ex: 69 99999-9999">
+        </div>
+        <div class="form-group span2">
+          <label>Acesso aos módulos</label>
+          <div class="modulo-check">
+            <label><input type="checkbox" id="eu-mod-compras"> 🛒 Gestão de Compras</label>
+            <label><input type="checkbox" id="eu-mod-financeiro"> 💰 Financeiro</label>
+            <label><input type="checkbox" id="eu-mod-fabrica"> 🏭 Fábrica</label>
+            <label><input type="checkbox" id="eu-mod-obra"> 📋 Gerenciamento de Obra</label>
+          </div>
+        </div>
+        <div class="form-group span2">
+          <label>Nova senha (em branco mantém a atual)</label>
+          <input id="eu-pass" type="text" placeholder="mínimo 6 caracteres">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="fecharEdicaoUsuario()">Cancelar</button>
+      <button class="btn btn-teal" onclick="salvarEdicaoUsuario()">Salvar alterações</button>
+    </div>
+  </div>
+</div>
+
 <!-- IFRAME -->
 <div class="frame-container" id="frame-container">
   <div class="frame-topbar">
@@ -1224,7 +1266,11 @@ async function addUsuario(){
   alert('Usuário cadastrado e salvo! ✅');
 }
 
-async function editUsuario(idx){
+// Qual usuário está aberto na janela de edição. Nulo = nenhuma.
+let _editandoUsuario=null;
+const MODULOS_DO_SISTEMA=['compras','financeiro','fabrica','obra'];
+
+function editUsuario(idx){
   const u=portalData.usuarios[idx];
   // Não dá para editar quem está no mesmo nível ou acima. Sem isto, um gerente
   // trocaria a senha de outro gerente e entraria no lugar dele.
@@ -1232,24 +1278,64 @@ async function editUsuario(idx){
     alert('Você não pode editar este usuário.\n\nSó dá para alterar quem fica abaixo de você.');
     return;
   }
-  const novoNome=prompt('Nome completo:',u.name); if(novoNome===null) return;
-  const opcoes=papeisQuePossoDar().join('/');
-  const novoRole=prompt('Função ('+opcoes+'):',u.role); if(novoRole===null) return;
-  // A função é digitada à mão, então precisa ser conferida: sem isto bastava
-  // escrever "admin" para se promover.
-  if(papeisQuePossoDar().indexOf(String(novoRole).trim().toLowerCase())<0){
-    alert('Função inválida: "'+novoRole+'".\n\nVocê pode usar: '+opcoes+'.');
+  _editandoUsuario=idx;
+  document.getElementById('eu-quem').textContent=
+    'Login: '+(u.username||'—')+(u.criadoPor?' · cadastrado por '+u.criadoPor:'');
+  document.getElementById('eu-name').value=u.name||'';
+  document.getElementById('eu-whatsapp').value=u.whatsapp||'';
+  document.getElementById('eu-pass').value='';
+  // A lista oferece só o que EU posso conceder. A função atual entra junto
+  // mesmo que eu não pudesse concedê-la, para ela não sumir da tela sem a
+  // pessoa perceber — quem barra de verdade é o salvar.
+  const rot={gerente:'Gerente',compras:'Compras',financeiro:'Financeiro',consulta:'Consulta'};
+  const podem=papeisQuePossoDar().slice();
+  if(u.role && podem.indexOf(u.role)<0) podem.unshift(u.role);
+  const sel=document.getElementById('eu-role');
+  sel.innerHTML=podem.map(function(r){ return '<option value="'+r+'">'+(rot[r]||r)+'</option>'; }).join('');
+  sel.value=u.role||podem[0]||'';
+  const mods=u.modulos||[];
+  MODULOS_DO_SISTEMA.forEach(function(m){
+    document.getElementById('eu-mod-'+m).checked=mods.indexOf(m)>=0;
+  });
+  document.getElementById('edit-user-overlay').classList.add('open');
+}
+
+function fecharEdicaoUsuario(){
+  document.getElementById('edit-user-overlay').classList.remove('open');
+  _editandoUsuario=null;
+}
+
+async function salvarEdicaoUsuario(){
+  const idx=_editandoUsuario;
+  if(idx===null) return;
+  const u=portalData.usuarios[idx];
+  // Confere de novo na hora de gravar: a janela pode ter ficado aberta enquanto
+  // a lista mudou, e esconder botão nunca foi trava.
+  if(!u||!podeMexerEm(u)){
+    alert('Você não pode editar este usuário.\n\nSó dá para alterar quem fica abaixo de você.');
+    fecharEdicaoUsuario();
     return;
   }
-  const novosMods=prompt('Módulos (compras,financeiro):' ,(u.modulos||['compras']).join(',')); if(novosMods===null) return;
-  const novoZap=prompt('WhatsApp (só números, em branco para não avisar):',u.whatsapp||''); if(novoZap===null) return;
-  const novaSenha=prompt('Nova senha (deixe em branco para manter):','');
-  portalData.usuarios[idx].name=novoNome.trim()||u.name;
-  portalData.usuarios[idx].whatsapp=String(novoZap).replace(/\D/g,'');
-  portalData.usuarios[idx].role=novoRole.trim();
-  portalData.usuarios[idx].modulos=novosMods.split(',').map(m=>m.trim()).filter(m=>['compras','financeiro','fabrica','obra'].includes(m));
-  if(novaSenha&&novaSenha.trim().length>=6){ portalData.usuarios[idx].password=await sha256(novaSenha.trim()); portalData.usuarios[idx].tempPass=false; }
+  const nome=document.getElementById('eu-name').value.trim();
+  if(!nome){ alert('Preencha o nome completo.'); return; }
+  const role=document.getElementById('eu-role').value;
+  if(papeisQuePossoDar().indexOf(role)<0){
+    alert('Você não pode dar a função "'+role+'".\n\nSó dá para escolher quem fica abaixo de você.');
+    return;
+  }
+  const modulos=MODULOS_DO_SISTEMA.filter(function(m){ return document.getElementById('eu-mod-'+m).checked; });
+  if(!modulos.length){ alert('Marque pelo menos um módulo.\n\nSem módulo, a pessoa entra no portal e não vê nada.'); return; }
+  const senha=document.getElementById('eu-pass').value.trim();
+  if(senha && senha.length<6){ alert('A senha precisa de pelo menos 6 caracteres.\n\nDeixe em branco para manter a atual.'); return; }
+  u.name=nome;
+  // Só os dígitos: o número é usado para montar o link do WhatsApp, e
+  // parêntese, traço e espaço atrapalham.
+  u.whatsapp=document.getElementById('eu-whatsapp').value.replace(/\D/g,'');
+  u.role=role;
+  u.modulos=modulos;
+  if(senha){ u.password=await sha256(senha); u.tempPass=false; }
   await savePortalData();
+  fecharEdicaoUsuario();
   renderUserList();
   alert('Usuário atualizado! ✅');
 }
