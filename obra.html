@@ -1000,7 +1000,9 @@ function contasDe(c){
 function lerFicha(){
   const v=id=>document.getElementById(id).value.trim();
   return {
-    ct:v('f-ct'), ano:v('f-ano'), cliente:v('f-cliente'),
+    // Grava com os 4 digitos do papel: digitar 6 guarda 0006. Contrato com mais
+    // de 4 digitos, ou com letra e traco (116-113), fica como foi digitado.
+    ct:ctFormatado(v('f-ct')), ano:v('f-ano'), cliente:v('f-cliente'),
     coord:v('f-coord'), respCom:v('f-respcom'),
     cidade:v('f-cidade'), condominio:v('f-condominio'),
     status:v('f-status'), revisao:v('f-revisao'),
@@ -1466,7 +1468,7 @@ function abrirFicha(id){
   preencherTiposDoc(); renderDocs();
   renderExtrasNaFicha(c);
   const p=(campo,v)=>{ document.getElementById(campo).value=v||''; };
-  p('f-ct',c.ct); p('f-ano',c.ano); p('f-cliente',c.cliente);
+  p('f-ct',ctFormatado(c.ct)); p('f-ano',c.ano); p('f-cliente',c.cliente);
   p('f-coord',c.coord); p('f-respcom',c.respCom);
   p('f-cidade',c.cidade); p('f-condominio',c.condominio);
   p('f-status',c.status); p('f-revisao',c.revisao);
