@@ -481,18 +481,22 @@ const SISTEMA_USUARIOS='compras';
 const LS_KEY='dalum-obra';
 
 // As duas listas fechadas que a planilha usava (validação de dados do Excel).
-const STATUS_LISTA=['A MEDIR','A FABRICAR','FABRICANDO','A INSTALAR','INSTALANDO','FINALIZADA','PARALISADA','PENDENCIA'];
+// A COMPRAR entrou em 16/09/2026, a pedido do Ander: e o momento em que o
+// material tem de ser comprado — "tenho que correr para comprar o material,
+// pois o lead time vai passando". Fica entre A MEDIR e A FABRICAR, que e a
+// ordem do trabalho. Nao veio da planilha: la esse momento nao tinha nome.
+const STATUS_LISTA=['A MEDIR','A COMPRAR','A FABRICAR','FABRICANDO','A INSTALAR','INSTALANDO','FINALIZADA','PARALISADA','PENDENCIA'];
 const REVISAO_LISTA=['OK','PARCIAL','PENDENTE'];
 // Cor de cada status na tela. O que está andando é azul/teal, o que travou é
 // vermelho, o que terminou é verde.
-const STATUS_COR={'A MEDIR':'pill-ambar','A FABRICAR':'pill-azul','FABRICANDO':'pill-azul',
+const STATUS_COR={'A MEDIR':'pill-ambar','A COMPRAR':'pill-teal','A FABRICAR':'pill-azul','FABRICANDO':'pill-azul',
   'A INSTALAR':'pill-roxo','INSTALANDO':'pill-roxo','FINALIZADA':'pill-verde',
   'PARALISADA':'pill-vermelho','PENDENCIA':'pill-vermelho','':'pill-cinza'};
 const REVISAO_COR={'OK':'pill-verde','PARCIAL':'pill-ambar','PENDENTE':'pill-vermelho','':'pill-cinza'};
 // Status em que a obra ainda vai passar pela fábrica. Contrato finalizado,
 // parado ou pendente NÃO é empurrado para o quadro da Fábrica: a planilha tem
 // dezenas de contratos antigos e eles entupiriam o quadro de quem produz.
-const STATUS_VAO_PARA_FABRICA=['A MEDIR','A FABRICAR','FABRICANDO','A INSTALAR','INSTALANDO'];
+const STATUS_VAO_PARA_FABRICA=['A MEDIR','A COMPRAR','A FABRICAR','FABRICANDO','A INSTALAR','INSTALANDO'];
 
 // Serviço de arquivos dos anexos — o mesmo que a Fábrica usa. Só o endereço
 // do arquivo fica guardado no banco; o arquivo em si vive lá.
@@ -1400,7 +1404,7 @@ function htmlPainel(){
     else semStatus++;
   });
   let cards=STATUS_LISTA.filter(function(s){ return porStatus[s]>0; }).map(function(s){
-    const cor={'A MEDIR':'var(--amber)','A FABRICAR':'var(--blue)','FABRICANDO':'var(--blue)',
+    const cor={'A MEDIR':'var(--amber)','A COMPRAR':'var(--teal)','A FABRICAR':'var(--blue)','FABRICANDO':'var(--blue)',
       'A INSTALAR':'var(--purple)','INSTALANDO':'var(--purple)','FINALIZADA':'var(--green)',
       'PARALISADA':'var(--red)','PENDENCIA':'var(--red)'}[s]||'var(--gray-3)';
     return '<div class="card" style="border-left-color:'+cor+'" onclick="filtrarStatus(\''+s+'\')">'+
