@@ -2495,11 +2495,19 @@ async function lerFabrica(){
 // então a lista NÃO é copiada para cá: é lida na hora. Se a leitura falhar,
 // a obra não é criada — melhor não criar do que criar numa etapa inventada,
 // que faria a obra sumir do quadro.
+// A Fabrica so GRAVA a lista de etapas no banco quando o administrador mexe
+// nela; enquanto ninguem mexeu, ela vive no codigo dela (ETAPAS_PADRAO). Entao
+// "sem lista gravada" NAO e erro: e o caso normal. Ate 16/09/2026 o Obra tratava
+// como erro, recusava mandar a obra e a pessoa lia "nao consegui ler as etapas
+// do fluxo dela" — com a obra salva aqui e ausente do quadro.
+// Este id e o mesmo da primeira coluna da Fabrica. Se um dia a Fabrica mudar a
+// primeira etapa do codigo dela, mudar aqui tambem.
+const PRIMEIRA_ETAPA_PADRAO='conferencia';
 function primeiraEtapa(fab){
   const lista=(Array.isArray(fab.etapas)&&fab.etapas.length)?fab.etapas:null;
-  if(!lista) return null;
+  if(!lista) return PRIMEIRA_ETAPA_PADRAO;
   const ativa=lista.find(function(e){ return e.ativo!==false; });
-  return ativa?ativa.id:(lista[0]?lista[0].id:null);
+  return ativa?ativa.id:(lista[0]?lista[0].id:PRIMEIRA_ETAPA_PADRAO);
 }
 
 // Número de contrato comparável: "0046", "46", "CT 46" e "ct-046" viram "46".
