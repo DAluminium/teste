@@ -206,7 +206,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="btn btn-ghost btn-sm" onclick="atualizarDoBanco(true)" title="Buscar alterações de outras pessoas agora">
         <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Atualizar
       </button>
-      <button class="btn btn-ghost btn-sm" data-so-gestor onclick="abrirCadastros()" title="Feriados do cálculo de dias úteis e rótulos dos anexos">
+      <button class="btn btn-ghost btn-sm" data-so-gestor onclick="abrirCadastros()" title="Status da obra, feriados do cálculo de dias úteis, campos extras e rótulos dos anexos">
         <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Cadastros
       </button>
       <button class="btn btn-ghost btn-sm" data-so-gestor onclick="novoContrato()">
@@ -374,7 +374,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
   </div>
 </div>
 
-<!-- CADASTROS — feriados (cálculo de dias úteis) e rótulos dos anexos -->
+<!-- CADASTROS — status da obra, feriados (cálculo de dias úteis), campos
+     extras e rótulos dos anexos -->
 <div class="overlay" id="cad-ov">
   <div class="modal" style="max-width:560px">
     <div class="modal-head">
@@ -397,6 +398,25 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg span2"><button class="btn btn-teal btn-block" onclick="addFeriado()">Acrescentar feriado</button></div>
       </div>
       <div id="fer-lista"></div>
+
+      <div class="secao">Status da obra</div>
+      <div class="aviso">É a lista que aparece no campo <strong>Status</strong> da ficha, nos cartões do painel e no filtro da carteira. As setas mandam na ordem. <strong>Entra na produção</strong> marcado quer dizer que a obra com esse status é levada para o quadro da Fábrica e para a lista do Compras — deixe desmarcado em status de obra que terminou ou parou. Status em uso não pode ser tirado, mas pode ser <strong>renomeado</strong>: o nome novo entra também nos contratos que o usam.</div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="fg"><label>Nome do status</label><input id="st-nome" placeholder="Ex.: A ORÇAR"></div>
+        <div class="fg"><label>Cor da etiqueta</label><select id="st-cor"></select></div>
+        <div class="fg span2">
+          <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;font-weight:400;cursor:pointer">
+            <input type="checkbox" id="st-fabrica" checked style="width:18px;height:18px">
+            Entra na produção: vai para a Fábrica e para o Compras
+          </label>
+          <span class="dica">Desmarcado, a obra fica só aqui — é o caso de FINALIZADA, PARALISADA e PENDENCIA.</span>
+        </div>
+        <div class="fg span2" style="display:flex;flex-direction:row;gap:8px">
+          <button class="btn btn-teal" style="flex:1" id="st-btn" onclick="addStatus()">Acrescentar status</button>
+          <button class="btn btn-outline" id="st-btn-cancela" onclick="cancelarEdicaoStatus()" style="display:none">Cancelar</button>
+        </div>
+      </div>
+      <div id="st-lista"></div>
 
       <div class="secao">Campos extras da ficha</div>
       <div class="aviso">Serve para acrescentar uma coluna que hoje não existe na ficha, <strong>sem precisar mexer no sistema</strong>. O campo passa a aparecer na ficha de todos os contratos e entra na busca. Um campo em uso não pode ser removido — primeiro esvazie o valor nos contratos que o usam.</div>
@@ -480,23 +500,74 @@ function mesmoAmbienteObra(s){ return (s.ambiente||'producao')===AMBIENTE_OBRA; 
 const SISTEMA_USUARIOS='compras';
 const LS_KEY='dalum-obra';
 
-// As duas listas fechadas que a planilha usava (validação de dados do Excel).
-// A COMPRAR entrou em 16/09/2026, a pedido do Ander: e o momento em que o
+// A lista de status vinha fechada no código (era a validação de dados do
+// Excel, na planilha antiga). Em 17/09/2026 o Ander pediu para poder
+// CADASTRAR status pela tela, como já faz com os rótulos de anexo e os campos
+// extras. Por isso a lista abaixo é só o PONTO DE PARTIDA: quem manda é
+// dados.statusObra, que a tela de Cadastros escreve.
+// A COMPRAR entrou em 16/09/2026, a pedido dele: e o momento em que o
 // material tem de ser comprado — "tenho que correr para comprar o material,
 // pois o lead time vai passando". Fica entre A MEDIR e A FABRICAR, que e a
 // ordem do trabalho. Nao veio da planilha: la esse momento nao tinha nome.
-const STATUS_LISTA=['A MEDIR','A COMPRAR','A FABRICAR','FABRICANDO','A INSTALAR','INSTALANDO','FINALIZADA','PARALISADA','PENDENCIA'];
+//
+// Cada status guarda tres coisas:
+//   nome    — o TEXTO que fica gravado no contrato (nao ha id; era assim na
+//             planilha). Por isso renomear tem de acertar os contratos que
+//             usam, na mesma gravacao; ver addStatus.
+//   cor     — so aparencia: a etiqueta na carteira e a borda do cartao.
+//   fabrica — se a obra com esse status e empurrada para o quadro da Fabrica
+//             e para a lista do Compras. Contrato finalizado, parado ou com
+//             pendencia NAO vai: a planilha tem dezenas de contratos antigos
+//             e eles entupiriam o quadro de quem produz.
+const CORES_STATUS=[
+  {id:'ambar',    rotulo:'Amarelo',    pill:'pill-ambar',    cor:'var(--amber)'},
+  {id:'teal',     rotulo:'Verde-água', pill:'pill-teal',     cor:'var(--teal)'},
+  {id:'azul',     rotulo:'Azul',       pill:'pill-azul',     cor:'var(--blue)'},
+  {id:'roxo',     rotulo:'Roxo',       pill:'pill-roxo',     cor:'var(--purple)'},
+  {id:'verde',    rotulo:'Verde',      pill:'pill-verde',    cor:'var(--green)'},
+  {id:'vermelho', rotulo:'Vermelho',   pill:'pill-vermelho', cor:'var(--red)'},
+  {id:'cinza',    rotulo:'Cinza',      pill:'pill-cinza',    cor:'var(--gray-3)'}
+];
+const STATUS_PADRAO=[
+  {nome:'A MEDIR',    cor:'ambar',    fabrica:true},
+  {nome:'A COMPRAR',  cor:'teal',     fabrica:true},
+  {nome:'A FABRICAR', cor:'azul',     fabrica:true},
+  {nome:'FABRICANDO', cor:'azul',     fabrica:true},
+  {nome:'A INSTALAR', cor:'roxo',     fabrica:true},
+  {nome:'INSTALANDO', cor:'roxo',     fabrica:true},
+  {nome:'FINALIZADA', cor:'verde',    fabrica:false},
+  {nome:'PARALISADA', cor:'vermelho', fabrica:false},
+  {nome:'PENDENCIA',  cor:'vermelho', fabrica:false}
+];
+function statusPadraoNovo(){
+  return STATUS_PADRAO.map(function(s){ return {nome:s.nome, cor:s.cor, fabrica:s.fabrica}; });
+}
+// A lista que vale agora: o cadastro, se existir; senao o padrao de cima.
+function statusLista(){
+  return (Array.isArray(dados.statusObra)&&dados.statusObra.length)?dados.statusObra:STATUS_PADRAO;
+}
+function statusNomes(){ return statusLista().map(function(s){ return s.nome; }); }
+function statusDe(nome){
+  return statusLista().find(function(s){ return s.nome===(nome||''); })||null;
+}
+function corDoStatus(nome){
+  const s=statusDe(nome);
+  const c=s?CORES_STATUS.find(function(x){ return x.id===s.cor; }):null;
+  return c?c.pill:'pill-cinza';
+}
+function corVarDoStatus(nome){
+  const s=statusDe(nome);
+  const c=s?CORES_STATUS.find(function(x){ return x.id===s.cor; }):null;
+  return c?c.cor:'var(--gray-3)';
+}
+// Contrato sem status — ou com um status que saiu do cadastro — nao vai para
+// a Fabrica nem para o Compras.
+function vaiParaProducao(nome){
+  const s=statusDe(nome);
+  return !!(s && s.fabrica!==false);
+}
 const REVISAO_LISTA=['OK','PARCIAL','PENDENTE'];
-// Cor de cada status na tela. O que está andando é azul/teal, o que travou é
-// vermelho, o que terminou é verde.
-const STATUS_COR={'A MEDIR':'pill-ambar','A COMPRAR':'pill-teal','A FABRICAR':'pill-azul','FABRICANDO':'pill-azul',
-  'A INSTALAR':'pill-roxo','INSTALANDO':'pill-roxo','FINALIZADA':'pill-verde',
-  'PARALISADA':'pill-vermelho','PENDENCIA':'pill-vermelho','':'pill-cinza'};
 const REVISAO_COR={'OK':'pill-verde','PARCIAL':'pill-ambar','PENDENTE':'pill-vermelho','':'pill-cinza'};
-// Status em que a obra ainda vai passar pela fábrica. Contrato finalizado,
-// parado ou pendente NÃO é empurrado para o quadro da Fábrica: a planilha tem
-// dezenas de contratos antigos e eles entupiriam o quadro de quem produz.
-const STATUS_VAO_PARA_FABRICA=['A MEDIR','A COMPRAR','A FABRICAR','FABRICANDO','A INSTALAR','INSTALANDO'];
 
 // Serviço de arquivos dos anexos — o mesmo que a Fábrica usa. Só o endereço
 // do arquivo fica guardado no banco; o arquivo em si vive lá.
@@ -713,6 +784,7 @@ function arrumar(d){
   if(!Array.isArray(d.feriados)) d.feriados=[];
   if(!Array.isArray(d.historico)) d.historico=[];
   if(!Array.isArray(d.tiposDoc)||!d.tiposDoc.length) d.tiposDoc=TIPOS_DOC_PADRAO.slice();
+  if(!Array.isArray(d.statusObra)||!d.statusObra.length) d.statusObra=statusPadraoNovo();
   if(!Array.isArray(d.camposExtras)) d.camposExtras=[];
   return d;
 }
@@ -1147,7 +1219,7 @@ function preencherListas(){
       valores.map(function(v){ return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join('');
     if(valores.indexOf(antes)>=0) el.value=antes;
   }
-  enche('f-status-filtro','Todos os status',STATUS_LISTA.filter(function(s){
+  enche('f-status-filtro','Todos os status',statusNomes().filter(function(s){
     return (dados.contratos||[]).some(function(c){ return c.status===s; });
   }));
   enche('f-ano-filtro','Todos os anos',valoresDe('ano').slice().sort().reverse());
@@ -1314,6 +1386,10 @@ function setView(v){
 
 function render(){
   preencherListas();
+  // O cadastro de status pode ter mudado no banco (outra pessoa, outra
+  // maquina). O select da ficha e montado no abrirApp, quando os dados ainda
+  // nao chegaram — sem isto, status novo so apareceria ao recarregar a tela.
+  atualizarSelectStatus();
   // Pedido que alguem confirmou e eu ainda nao vi. Fica aqui porque render()
   // roda depois de toda gravacao e de toda sincronizacao — e assim o aviso
   // chega sozinho, sem depender de ninguem apertar enviar no WhatsApp.
@@ -1397,16 +1473,14 @@ function htmlCarteira(){
 function htmlPainel(){
   const lista=filtrados(false);
   const porStatus={};
-  STATUS_LISTA.forEach(function(s){ porStatus[s]=0; });
+  statusNomes().forEach(function(s){ porStatus[s]=0; });
   let semStatus=0;
   lista.forEach(function(c){
     if(c.status && porStatus[c.status]!==undefined) porStatus[c.status]++;
     else semStatus++;
   });
-  let cards=STATUS_LISTA.filter(function(s){ return porStatus[s]>0; }).map(function(s){
-    const cor={'A MEDIR':'var(--amber)','A COMPRAR':'var(--teal)','A FABRICAR':'var(--blue)','FABRICANDO':'var(--blue)',
-      'A INSTALAR':'var(--purple)','INSTALANDO':'var(--purple)','FINALIZADA':'var(--green)',
-      'PARALISADA':'var(--red)','PENDENCIA':'var(--red)'}[s]||'var(--gray-3)';
+  let cards=statusNomes().filter(function(s){ return porStatus[s]>0; }).map(function(s){
+    const cor=corVarDoStatus(s);
     return '<div class="card" style="border-left-color:'+cor+'" onclick="filtrarStatus(\''+s+'\')">'+
       '<div class="card-n" style="color:'+cor+'">'+porStatus[s]+'</div>'+
       '<div class="card-t">'+esc(s)+'</div></div>';
@@ -1434,7 +1508,7 @@ function htmlPainel(){
         return '<div class="linha-alerta" onclick="abrirFicha(\''+c.id+'\')">'+
           '<strong style="min-width:52px">'+esc(ctFormatado(c.ct)||'—')+'</strong>'+
           '<span style="flex:1;min-width:150px">'+esc(c.cliente||'')+'</span>'+
-          pill(c.status||'—',STATUS_COR[c.status]||'pill-cinza')+
+          pill(c.status||'—',corDoStatus(c.status))+
           (c.entrega?'<span class="td-fraco">'+fmtData(c.entrega)+'</span>':'')+
           selo(c)+'</div>';
       }).join('')+'</div></div>';
@@ -1481,10 +1555,27 @@ function alternarLixeira(){
 }
 
 // ================= FICHA =================
-function preencherSelects(){
+// O select de status da ficha. Fica em funcao propria porque a tela de
+// Cadastros tambem o refaz quando o cadastro de status muda — e ai ele precisa
+// devolver o que estava escolhido.
+function atualizarSelectStatus(){
   const st=document.getElementById('f-status');
-  st.innerHTML='<option value="">— sem status —</option>'+
-    STATUS_LISTA.map(function(s){ return '<option value="'+esc(s)+'">'+esc(s)+'</option>'; }).join('');
+  if(!st) return;
+  const antes=st.value;
+  const nomes=statusNomes();
+  let html='<option value="">— sem status —</option>'+
+    nomes.map(function(s){ return '<option value="'+esc(s)+'">'+esc(s)+'</option>'; }).join('');
+  // Contrato com um status que nao esta (mais) no cadastro: o texto continua
+  // gravado nele. Sem uma opcao para esse texto, o select cairia para vazio e
+  // SALVAR apagaria o status sem ninguem ter pedido.
+  const aberto=fichaId?(dados.contratos||[]).find(function(x){ return x.id===fichaId; }):null;
+  const fora=(aberto && aberto.status && nomes.indexOf(aberto.status)<0)?aberto.status:'';
+  if(fora) html+='<option value="'+esc(fora)+'">'+esc(fora)+' (fora do cadastro)</option>';
+  st.innerHTML=html;
+  if(nomes.indexOf(antes)>=0 || (fora && antes===fora)) st.value=antes;
+}
+function preencherSelects(){
+  atualizarSelectStatus();
   const rv=document.getElementById('f-revisao');
   rv.innerHTML='<option value="">— sem revisão —</option>'+
     REVISAO_LISTA.map(function(s){ return '<option value="'+esc(s)+'">'+esc(s)+'</option>'; }).join('');
@@ -1527,6 +1618,9 @@ function abrirFicha(id){
   fichaDocs=Array.isArray(c.docs)?JSON.parse(JSON.stringify(c.docs)):[];
   docsApagados={};
   preencherTiposDoc(); renderDocs();
+  // Antes de escolher o valor: o select precisa ter a opcao do status deste
+  // contrato, inclusive se ele saiu do cadastro.
+  atualizarSelectStatus();
   renderExtrasNaFicha(c);
   const p=(campo,v)=>{ document.getElementById(campo).value=v||''; };
   p('f-ct',ctFormatado(c.ct)); p('f-ano',c.ano); p('f-cliente',c.cliente);
@@ -1657,11 +1751,14 @@ async function salvarFicha(manterAberta){
   // aqui — por isso o aviso diz o que deu errado em vez de sumir.
   const salvo=(dados.contratos||[]).find(function(x){ return x.id===id; });
   if(salvo){
+    zerarEnvio();
     await enviarParaFabrica(salvo, novo);
     // O Compras vem depois da Fabrica de proposito: se o primeiro falhar, o
     // segundo ainda tenta. Os dois avisam por conta propria, e o contrato JA
     // esta salvo aqui em qualquer caso.
     await enviarParaCompras(salvo);
+    // Os dois anotaram o que aconteceu; agora o topo diz tudo de uma vez.
+    mostrarEnvio();
     // Por último o WhatsApp: ele troca de aplicativo e tira a pessoa da tela.
     // O que vale já está gravado — a mensagem é o reforço.
     if(marcados.length){
@@ -1876,7 +1973,7 @@ function celulaDaCarteira(col, c){
         ((c.condominio||c.cidade)?'<span class="td-local">'+esc([c.condominio,c.cidade].filter(Boolean).join(' · '))+'</span>':'')+
         blocoPedido(c)+'</td>';
     case 'status':
-      return '<td>'+pill(c.status||'—',STATUS_COR[c.status]||'pill-cinza')+'</td>';
+      return '<td>'+pill(c.status||'—',corDoStatus(c.status))+'</td>';
     case 'revisao':
       return '<td class="td-nowrap">'+pill(c.revisao||'—',REVISAO_COR[c.revisao]||'pill-cinza')+'</td>';
     case 'coord':
@@ -2278,11 +2375,170 @@ async function removerDoc(id){
 function abrirCadastros(){
   if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente mexe nos cadastros.'); return; }
   renderFeriados();
+  preencherCoresStatus();
+  cancelarEdicaoStatus();
+  renderStatus();
   renderCamposExtras();
   renderTiposDoc();
   document.getElementById('cad-ov').classList.add('open');
 }
 function fecharCadastros(){ document.getElementById('cad-ov').classList.remove('open'); }
+
+// ---- STATUS DA OBRA ----
+// Pedido do Ander em 17/09/2026: poder criar status pela tela, sem alteracao
+// no codigo — foi o que A COMPRAR custou no dia anterior.
+//
+// A armadilha aqui: o contrato guarda o TEXTO do status, nao um id (era assim
+// na planilha e e assim no banco). Entao renomear um status tem de trocar o
+// texto em TODOS os contratos que usam, dentro da MESMA gravacao. Sem isso
+// esses contratos ficariam com um status que nao existe mais no cadastro e
+// cairiam em silencio para cinza e FORA da producao — ninguem entenderia por
+// que a obra parou de ir para a Fabrica.
+let _editandoStatus=null;
+
+function usoStatus(nome){
+  return (dados.contratos||[]).filter(function(c){ return (c.status||'')===nome; }).length;
+}
+
+function preencherCoresStatus(){
+  const el=document.getElementById('st-cor');
+  if(!el) return;
+  const antes=el.value;
+  el.innerHTML=CORES_STATUS.map(function(c){
+    return '<option value="'+c.id+'">'+esc(c.rotulo)+'</option>';
+  }).join('');
+  if(antes) el.value=antes;
+}
+
+function renderStatus(){
+  const el=document.getElementById('st-lista');
+  if(!el) return;
+  const lista=statusLista();
+  el.innerHTML='<div class="caixa">'+lista.map(function(s,i){
+    const uso=usoStatus(s.nome);
+    const arg=JSON.stringify(s.nome).replace(/"/g,'&quot;');
+    return '<div class="caixa-linha">'+
+      '<span>'+pill(s.nome,corDoStatus(s.nome))+
+        '<span style="font-size:11px;color:var(--gray-4);margin-left:6px">'+
+        (s.fabrica!==false?'vai para a produção':'fora da produção')+'</span></span>'+
+      '<span style="display:flex;gap:5px;align-items:center">'+
+        '<span style="font-size:11px;color:var(--gray-4)">'+(uso?uso+' obra(s)':'nenhuma obra')+'</span>'+
+        '<button class="btn btn-outline btn-sm" title="Subir" '+(i===0?'disabled style="opacity:.4"':'')+
+          ' onclick="moverStatus('+arg+',-1)">&uarr;</button>'+
+        '<button class="btn btn-outline btn-sm" title="Descer" '+(i===lista.length-1?'disabled style="opacity:.4"':'')+
+          ' onclick="moverStatus('+arg+',1)">&darr;</button>'+
+        '<button class="btn btn-outline btn-sm" onclick="editarStatus('+arg+')">Editar</button>'+
+        '<button class="btn btn-outline btn-sm" onclick="delStatus('+arg+')">Tirar</button>'+
+      '</span></div>';
+  }).join('')+'</div>';
+}
+
+function editarStatus(nome){
+  const s=statusDe(nome);
+  if(!s) return;
+  _editandoStatus=nome;
+  document.getElementById('st-nome').value=s.nome;
+  preencherCoresStatus();
+  document.getElementById('st-cor').value=s.cor||'cinza';
+  document.getElementById('st-fabrica').checked=s.fabrica!==false;
+  document.getElementById('st-btn').textContent='Salvar status';
+  document.getElementById('st-btn-cancela').style.display='';
+  document.getElementById('st-nome').focus();
+}
+
+function cancelarEdicaoStatus(){
+  _editandoStatus=null;
+  const n=document.getElementById('st-nome');
+  if(n) n.value='';
+  const f=document.getElementById('st-fabrica');
+  if(f) f.checked=true;
+  const b=document.getElementById('st-btn');
+  if(b) b.textContent='Acrescentar status';
+  const c=document.getElementById('st-btn-cancela');
+  if(c) c.style.display='none';
+}
+
+// Serve para cadastrar e para salvar a edicao: o que decide e _editandoStatus.
+async function addStatus(){
+  const nome=document.getElementById('st-nome').value.trim().toUpperCase();
+  const cor=document.getElementById('st-cor').value||'cinza';
+  const naProducao=document.getElementById('st-fabrica').checked;
+  if(!nome){ aviso('Falta o nome','Escreva o nome do status.'); return; }
+  const antigo=_editandoStatus;
+  const repetido=statusLista().some(function(s){
+    return s.nome.toUpperCase()===nome && s.nome!==antigo;
+  });
+  if(repetido){ aviso('Já existe','Esse status já está cadastrado.'); return; }
+  const uso=antigo?usoStatus(antigo):0;
+  const ok=await alterar(function(base){
+    if(!Array.isArray(base.statusObra)||!base.statusObra.length) base.statusObra=statusPadraoNovo();
+    if(antigo){
+      const s=base.statusObra.find(function(x){ return x.nome===antigo; });
+      if(!s) return;
+      s.nome=nome; s.cor=cor; s.fabrica=naProducao;
+      // O contrato guarda o texto: renomear aqui acerta lá também.
+      if(antigo!==nome){
+        (base.contratos||[]).forEach(function(c){ if((c.status||'')===antigo) c.status=nome; });
+      }
+    } else {
+      base.statusObra.push({nome:nome, cor:cor, fabrica:naProducao});
+    }
+  }, {acao: antigo?'alterou status':'cadastrou status',
+      alvo: (antigo && antigo!==nome) ? antigo+' → '+nome : nome,
+      detalhe: (antigo && antigo!==nome && uso) ? uso+' obra(s) com o nome novo'
+               : (naProducao?'vai para a produção':'fora da produção')});
+  if(ok){
+    cancelarEdicaoStatus();
+    renderStatus();
+    atualizarSelectStatus();
+    render();
+  }
+}
+
+async function delStatus(nome){
+  const uso=usoStatus(nome);
+  if(uso){
+    aviso('Status em uso','Existem '+uso+' obra(s) com o status "'+nome+'".\n\n'+
+      'Tirar o status deixaria essas obras sem status — e obra sem status não vai '+
+      'para a Fábrica nem para o Compras.\n\nTroque o status dessas obras primeiro, '+
+      'ou use o botão Editar para só renomear este.');
+    return;
+  }
+  if(statusLista().length<=1){ aviso('Precisa de um','Tem de sobrar pelo menos um status.'); return; }
+  if(!confirm('Tirar o status "'+nome+'"?')) return;
+  const ok=await alterar(function(base){
+    if(!Array.isArray(base.statusObra)||!base.statusObra.length) base.statusObra=statusPadraoNovo();
+    base.statusObra=base.statusObra.filter(function(s){ return s.nome!==nome; });
+  }, {acao:'tirou status', alvo:nome});
+  if(ok){
+    if(_editandoStatus===nome) cancelarEdicaoStatus();
+    renderStatus();
+    atualizarSelectStatus();
+    render();
+  }
+}
+
+// A ordem do cadastro e a ordem da tela: cartoes do painel, filtro e o select
+// da ficha. Por isso as setas, e nao ordem alfabetica.
+async function moverStatus(nome, passo){
+  const lista=statusLista();
+  const i=lista.findIndex(function(x){ return x.nome===nome; });
+  const j=i+passo;
+  if(i<0||j<0||j>=lista.length) return;
+  const ok=await alterar(function(base){
+    if(!Array.isArray(base.statusObra)||!base.statusObra.length) base.statusObra=statusPadraoNovo();
+    const l=base.statusObra;
+    const a=l.findIndex(function(x){ return x.nome===nome; });
+    const b=a+passo;
+    if(a<0||b<0||b>=l.length) return;
+    const t=l[a]; l[a]=l[b]; l[b]=t;
+  }, {acao:'mudou a ordem dos status', alvo:nome});
+  if(ok){
+    renderStatus();
+    atualizarSelectStatus();
+    render();
+  }
+}
 
 // Quantos contratos usam um rótulo. Serve para não deixar remover rótulo em
 // uso: os anexos guardam o texto, e tirá-lo deixaria o arquivo sem etiqueta.
@@ -2546,6 +2802,42 @@ function lancamentoManualNoCompras(comp, c){
   return null;
 }
 
+// O que aconteceu com a obra nos outros dois modulos no ultimo salvamento.
+// Antes cada um escrevia no topo e o ULTIMO apagava a mensagem do outro: o
+// gerente via so "Salvo" e nao ficava sabendo que a obra nao tinha chegado
+// lado nenhum (relato de 16/09/2026 — "salvei novamente o contrato 268 na
+// producao e nao mandou nem para o compras e nem fabrica"; o contrato estava
+// sem status, e a tela nao dizia isso). Agora os dois ANOTAM aqui e o topo diz
+// tudo de uma vez, inclusive o porque.
+let _envio={fab:null, comp:null};
+function zerarEnvio(){ _envio={fab:null, comp:null}; }
+// txt   — o pedaco que aparece no topo.
+// causa — vazio quando deu certo; preenchido quando a obra NAO foi (e ai o
+//         topo fica amarelo, para o "Salvo" nao passar como tudo certo).
+function anotarEnvio(qual, txt, causa, motivo){
+  _envio[qual]={txt:txt, causa:causa||'', motivo:motivo||''};
+}
+function porqueOStatusNaoVai(c){
+  return c.status ? 'o status '+c.status+' não vai para lá'
+                  : 'o contrato está sem status';
+}
+function mostrarEnvio(){
+  const f=_envio.fab, k=_envio.comp;
+  const partes=[];
+  let problema=false;
+  if(f && k && f.causa==='status' && k.causa==='status'){
+    // Mesmo motivo nos dois: uma frase so. Duas frases iguais em sequencia
+    // ninguem le.
+    partes.push('não foi para a Fábrica nem para o Compras porque '+f.motivo);
+    problema=true;
+  } else {
+    if(f){ partes.push(f.txt); if(f.causa) problema=true; }
+    if(k){ partes.push(k.txt); if(k.causa) problema=true; }
+  }
+  const meio=partes.length?partes.join(' · ')+' · ':'';
+  status((problema?'🟡 Salvo · ':'🟢 Salvo · ')+meio+agoraHora(), problema?'#ffe9b0':null);
+}
+
 async function enviarParaFabrica(c, ehNovo){
   // Contrato finalizado, parado ou com pendência não entra no quadro de quem
   // produz — a planilha tem dezenas de contratos antigos e eles entupiriam a
@@ -2554,9 +2846,10 @@ async function enviarParaFabrica(c, ehNovo){
   try{
     const fab=await lerFabrica();
     const jaExiste=(fab.obras||[]).find(function(o){ return o.ctoId===c.id; });
-    const deveEntrar=STATUS_VAO_PARA_FABRICA.indexOf(c.status)>=0;
+    const deveEntrar=vaiParaProducao(c.status);
     if(!jaExiste && !deveEntrar){
-      status('🟢 Salvo · '+agoraHora());
+      const m=porqueOStatusNaoVai(c);
+      anotarEnvio('fab','não foi para a Fábrica porque '+m,'status',m);
       return;
     }
     // Já cadastrada à mão na Fábrica com este contrato: não cria outra, e não
@@ -2564,7 +2857,7 @@ async function enviarParaFabrica(c, ehNovo){
     if(!jaExiste){
       const manual=obraManualNaFabrica(fab.obras, c);
       if(manual){
-        status('🟢 Salvo · a Fábrica já tem o contrato '+(manual.obra||'')+' · '+agoraHora());
+        anotarEnvio('fab','a Fábrica já tem o contrato '+(manual.obra||''),'');
         return;
       }
     }
@@ -2574,6 +2867,7 @@ async function enviarParaFabrica(c, ehNovo){
         'O contrato está guardado aqui. Só não deu para criar a obra no quadro da '+
         'Fábrica porque não consegui ler as etapas do fluxo dela.\n\n'+
         'Abra a Fábrica e cadastre a obra por lá, ou tente salvar de novo daqui a pouco.');
+      anotarEnvio('fab','não foi para a Fábrica: não consegui ler as etapas dela','etapas');
       return;
     }
     if(jaExiste){
@@ -2614,9 +2908,9 @@ async function enviarParaFabrica(c, ehNovo){
     const confere=await lerFabrica();
     if(confere.atualizadoEm!==carimbo) throw new Error('não gravou');
     _fabricaObras=confere.obras||[];
-    status('🟢 Salvo e na Fábrica · '+agoraHora());
+    anotarEnvio('fab','na Fábrica','');
   }catch(e){
-    status('🟡 Salvo aqui, não foi para a Fábrica','#ffe9b0');
+    anotarEnvio('fab','não foi para a Fábrica ('+(e.message||'erro')+')','erro');
     aviso('Contrato salvo, mas não foi para a Fábrica',
       'O contrato está guardado aqui — nada foi perdido.\n\n'+
       'O que falhou foi levar a obra para o quadro da Fábrica ('+(e.message||'erro')+').\n\n'+
@@ -2635,7 +2929,7 @@ function mostrarFabrica(c){
   const o=_fabricaObras.find(function(x){ return x.ctoId===c.id; }) || obraManualNaFabrica(_fabricaObras, c);
   if(!o){
     el.innerHTML='<strong>Fábrica:</strong> esta obra ainda não está no quadro. '+
-      (STATUS_VAO_PARA_FABRICA.indexOf(c.status)>=0
+      (vaiParaProducao(c.status)
         ? 'Ao salvar, ela entra.'
         : 'Contratos <em>'+esc(c.status||'sem status')+'</em> não entram no quadro de produção.');
     return;
@@ -3207,14 +3501,18 @@ async function enviarParaCompras(c){
   try{
     const comp=await lerCompras();
     const ja=acharLancamentoDaObra(comp, c.id);
-    const deveEntrar=STATUS_VAO_PARA_FABRICA.indexOf(c.status)>=0;
-    if(!ja && !deveEntrar){ status('🟢 Salvo · '+agoraHora()); return; }
+    const deveEntrar=vaiParaProducao(c.status);
+    if(!ja && !deveEntrar){
+      const m=porqueOStatusNaoVai(c);
+      anotarEnvio('comp','não foi para o Compras porque '+m,'status',m);
+      return;
+    }
     // Já lançado à mão no Compras com este contrato: não cria outro, e não
     // mexe no que existe — material, valor e pedido são de quem compra.
     if(!ja){
       const manual=lancamentoManualNoCompras(comp, c);
       if(manual){
-        status('🟢 Salvo · o Compras já tem o contrato '+(manual.reg.contrato||'')+' · '+agoraHora());
+        anotarEnvio('comp','o Compras já tem o contrato '+(manual.reg.contrato||''),'');
         return;
       }
     }
@@ -3224,6 +3522,7 @@ async function enviarParaCompras(c){
         'Compras porque ele exige a DATA DE ENTREGA DA OBRA — é dela que sai o '+
         'alerta de prazo de material.\n\n'+
         'Preencha a entrega e salve de novo: aí ele vai.');
+      anotarEnvio('comp','não foi para o Compras: falta a data de entrega da obra','entrega');
       return;
     }
 
@@ -3273,9 +3572,9 @@ async function enviarParaCompras(c){
     const confere=await lerCompras();
     if(confere.atualizadoEm!==carimbo) throw new Error('não gravou');
     _comprasDados=confere;
-    status((ja?'🟢 Salvo e atualizado no Compras · ':'🟢 Salvo e no Compras · ')+agoraHora());
+    anotarEnvio('comp',ja?'atualizado no Compras':'no Compras','');
   }catch(e){
-    status('🟡 Salvo aqui, não foi para o Compras','#ffe9b0');
+    anotarEnvio('comp','não foi para o Compras ('+(e.message||'erro')+')','erro');
     aviso('Contrato salvo, mas não foi para o Compras',
       'O contrato está guardado aqui — nada foi perdido.\n\n'+
       'O que falhou foi levar a obra para a lista do Compras ('+(e.message||'erro')+').\n\n'+
@@ -3312,7 +3611,7 @@ function mostrarCompras(c){
     // Por que pode estar vazio: ou a obra ainda nao foi levada (status que nao
     // vai, ou falta a data de entrega), ou foi e ninguem lancou material.
     let motivo;
-    if(STATUS_VAO_PARA_FABRICA.indexOf(c.status)<0)
+    if(!vaiParaProducao(c.status))
       motivo='Contrato <em>'+esc(c.status||'sem status')+'</em> não entra na lista do Compras.';
     else if(!c.entrega)
       motivo='Falta a <strong>data de entrega da obra</strong>: sem ela o Compras não entra, porque é dela que sai o alerta de prazo.';
