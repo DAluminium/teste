@@ -119,6 +119,43 @@ table.carteira tbody tr:hover{background:var(--teal-light)}
 .bloqueio-cx{background:white;border-radius:12px;padding:28px 24px;box-shadow:var(--shadow);max-width:380px}
 .sync{font-size:11.5px;opacity:.85;display:flex;align-items:center;gap:5px}
 
+/* ---- O PAPEL DO CONTRATO ----
+   Na tela tem cara de folha; na impressao some tudo o resto e sobra so ele.
+   Fonte com serifa e texto justificado porque e assim que os contratos do
+   Word saem hoje — o cliente nao deve notar diferenca. */
+#ctr-papel{background:#fff;color:#111;font:11.5pt/1.5 'Times New Roman',Georgia,serif;
+  max-width:780px;margin:0 auto;padding:26px 30px;border-radius:4px;
+  box-shadow:0 1px 6px rgba(0,0,0,.12)}
+#ctr-papel .ctr-logo{display:block;width:210px;max-width:60%;margin:0 auto 16px}
+#ctr-papel h1{font-size:12.5pt;text-align:center;line-height:1.35;margin:0 0 4px;text-transform:uppercase}
+#ctr-papel .ctr-num{text-align:center;font-weight:700;margin:0 0 16px}
+#ctr-papel h2{font-size:11.5pt;margin:14px 0 5px;page-break-after:avoid;break-after:avoid}
+#ctr-papel p{margin:0 0 7px;text-align:justify;orphans:2;widows:2}
+#ctr-papel p.ctr-linhas{text-align:left}
+#ctr-papel .ctr-pagina{page-break-before:always;break-before:page;height:0}
+#ctr-papel .ctr-assina{margin-top:26px;page-break-inside:avoid;break-inside:avoid}
+#ctr-papel .ctr-local{margin:0 0 26px}
+#ctr-papel .ctr-assina-um{margin:0 0 22px;text-align:center}
+#ctr-papel .ctr-linha{border-top:1px solid #111;width:78%;margin:0 auto 4px}
+#ctr-papel .ctr-nome{font-weight:700;font-size:11pt}
+#ctr-papel .ctr-sob{font-size:10.5pt}
+#ctr-ov .modal-body{background:var(--gray-1)}
+
+@media print{
+  /* Imprimir e salvar em PDF passam pelo mesmo caminho: some a barra, a tela
+     e as outras janelas, e fica so o papel. */
+  .topbar,.main,#app,#bloqueio,#faixa-teste{display:none !important}
+  .overlay{display:none !important}
+  #ctr-ov{display:block !important;position:static;inset:auto;background:none;padding:0;z-index:auto}
+  #ctr-ov .modal{width:auto;max-width:none;height:auto;max-height:none;display:block;
+    overflow:visible;box-shadow:none;border-radius:0}
+  #ctr-ov .modal-head,#ctr-ov .modal-foot,#ctr-qual,#ctr-faltando{display:none !important}
+  #ctr-ov .modal-body{padding:0;background:none;overflow:visible;max-height:none;flex:none}
+  #ctr-papel{box-shadow:none;border-radius:0;padding:0;max-width:none;font-size:11pt}
+  body{padding-top:0 !important;background:#fff}
+  @page{size:A4;margin:18mm 16mm 16mm}
+}
+
 @media(max-width:760px){
   .topbar{padding:6px .7rem;height:auto;flex-wrap:wrap;gap:6px}
   .topbar-actions{flex-wrap:wrap;justify-content:flex-end}
@@ -287,6 +324,39 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg"><label>Peças</label><input type="number" min="0" id="f-pecas" placeholder="Ex.: 21"></div>
       </div>
 
+      <!-- CONTRATO — o que os 4 modelos de contrato pedem e a carteira nao
+           tinha. Fica na ficha da obra porque o "Nº do Pedido" impresso E o
+           CT: 0073, 0006, 0023 nos contratos do Ander. -->
+      <div class="secao">Contrato</div>
+      <div class="form-grid" id="f-grid-contrato">
+        <div class="fg span2"><label>Modelo do contrato</label>
+          <select id="f-ctr-modelo" onchange="trocarModeloNaFicha()"></select>
+          <span class="dica" id="d-ctr-modelo"></span></div>
+        <div class="fg"><label>Nº do pedido no contrato</label><input id="f-ctr-numero" placeholder="Ex.: 0073 ou PORMADE/5">
+          <span class="dica">Em branco, sai o CT com 4 dígitos.</span></div>
+        <div class="fg"><label>CPF / CNPJ do cliente</label><input id="f-ctr-doc" placeholder="Ex.: 784.653.702-49"></div>
+        <div class="fg span2"><label>Endereço do cliente</label><input id="f-ctr-endereco" placeholder="Rua, número, bairro, CEP"></div>
+        <div class="fg"><label>Cidade/UF do cliente</label><input id="f-ctr-cidadeuf" placeholder="Ex.: Porto Velho/RO">
+          <span class="dica">Em branco, usa a Cidade da identificação.</span></div>
+        <div class="fg"><label>Contato do cliente</label><input id="f-ctr-contato" placeholder="Ex.: (69) 9 9306-2279"></div>
+        <div class="fg span2"><label>E-mail do cliente</label><input id="f-ctr-email" placeholder="Ex.: cliente@email.com"></div>
+        <div class="fg"><label>Valor total (R$)</label><input type="number" step="0.01" min="0" id="f-ctr-valor" oninput="mostrarValorPorExtenso()" placeholder="Ex.: 59000">
+          <span class="dica" id="d-ctr-valor"></span></div>
+        <div class="fg"><label>Data do contrato</label><input type="date" id="f-ctr-data"></div>
+        <div class="fg"><label>Prazo (dias)</label><input type="number" min="0" id="f-ctr-prazodias" placeholder="Ex.: 30"></div>
+        <div class="fg"><label>Os dias são</label>
+          <select id="f-ctr-prazotipo"><option value="úteis">úteis</option><option value="corridos">corridos</option></select></div>
+        <div class="fg span2"><label>Forma de pagamento</label>
+          <textarea id="f-ctr-pagamento" placeholder="Ex.: R$ 29.000,00 de entrada via pix em 25/08/2026 e R$ 30.000,00 em 5 vezes no boleto, 30/60/90/120/150 dias."></textarea>
+          <span class="dica">Vai para o contrato exatamente como estiver escrito aqui.</span></div>
+        <div class="fg"><label>Orçamentista responsável</label><input id="f-ctr-orcamentista" placeholder="Em branco: o do cadastro"></div>
+        <div class="fg"><label>Consultor(a) de vendas</label><input id="f-ctr-consultor" placeholder="Em branco: o responsável comercial"></div>
+        <div class="fg span2" id="f-ctr-objeto-grupo" style="display:none"><label>O que está sendo contratado</label>
+          <input id="f-ctr-objeto" placeholder="Ex.: corrimão em inox">
+          <span class="dica">Entra no texto da cláusula do objeto.</span></div>
+      </div>
+      <div class="form-grid" id="f-ctr-campos"></div>
+
       <div class="secao">Observações</div>
       <div class="form-grid">
         <div class="fg span2"><textarea id="f-obs" placeholder="Anotações do contrato"></textarea></div>
@@ -335,6 +405,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="btn btn-red btn-sm" id="ficha-btn-excluir" onclick="excluirContrato()" style="display:none">Excluir</button>
       <button class="btn btn-outline btn-sm" id="ficha-btn-restaurar" onclick="restaurarContrato()" style="display:none">Restaurar</button>
       <button class="btn btn-outline" onclick="fecharFicha()">Cancelar</button>
+      <button class="btn btn-outline" id="ficha-btn-contrato" onclick="abrirContrato()" style="display:none">Gerar contrato</button>
       <button class="btn btn-teal" id="ficha-btn-salvar" onclick="salvarFicha()">Salvar</button>
     </div>
   </div>
@@ -461,6 +532,65 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg span2"><button class="btn btn-teal btn-block" onclick="addTipoDoc()">Acrescentar rótulo</button></div>
       </div>
       <div id="td-lista"></div>
+
+      <div class="secao">Modelos de contrato</div>
+      <div class="aviso">É o texto que sai no contrato do cliente. Escolha o modelo e dá para <strong>editar qualquer cláusula</strong>, <strong>acrescentar cláusula nova</strong> e mudar a ordem pelas setas. O que for salvo aqui vale para os <strong>próximos</strong> contratos — contrato já impresso não muda. Se a edição sair errada, <strong>Voltar este modelo ao original</strong> devolve o texto como veio do Word.</div>
+      <div class="form-grid" style="margin-bottom:10px">
+        <div class="fg span2"><label>Modelo</label><select id="ctm-modelo" onchange="renderModeloContrato()"></select>
+          <span class="dica" id="ctm-dica"></span></div>
+        <div class="fg span2"><label>Título que sai no alto do contrato</label>
+          <textarea id="ctm-titulo" style="min-height:48px"></textarea>
+          <div style="display:flex;gap:8px;margin-top:5px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="salvarTituloModelo()">Salvar título</button>
+            <button class="btn btn-outline btn-sm" onclick="restaurarModelo()">Voltar este modelo ao original</button>
+          </div></div>
+      </div>
+      <div id="ctm-lista"></div>
+      <div class="form-grid" style="margin-top:12px;margin-bottom:12px">
+        <div class="fg span2"><label>Título da cláusula</label>
+          <input id="ctm-cl-titulo" placeholder="Ex.: CLÁUSULA DÉCIMA SÉTIMA – DO SEGURO"></div>
+        <div class="fg span2"><label>Texto da cláusula</label>
+          <textarea id="ctm-cl-texto" style="min-height:130px" placeholder="Escreva os parágrafos. Uma linha em branco separa um parágrafo do outro."></textarea></div>
+        <div class="fg span2" id="ctm-campos"></div>
+        <div class="fg span2" style="display:flex;flex-direction:row;gap:8px">
+          <button class="btn btn-teal" style="flex:1" id="ctm-cl-btn" onclick="salvarClausula()">Acrescentar cláusula</button>
+          <button class="btn btn-outline" id="ctm-cl-cancela" onclick="cancelarEdicaoClausula()" style="display:none">Cancelar</button>
+        </div>
+      </div>
+
+      <div class="secao">Dados de quem assina o contrato</div>
+      <div class="aviso">Saem em todos os modelos: no alto, nas cláusulas de contato e na assinatura. Mude aqui quando trocar a consultora, o orçamentista ou o e-mail — sem mexer no sistema.</div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="fg span2"><label>Razão social</label><input id="emp-nome"></div>
+        <div class="fg"><label>CNPJ</label><input id="emp-cnpj"></div>
+        <div class="fg"><label>Telefone</label><input id="emp-telefone"></div>
+        <div class="fg span2"><label>Endereço</label><input id="emp-endereco"></div>
+        <div class="fg span2"><label>E-mail de contato</label><input id="emp-email"></div>
+        <div class="fg"><label>Orçamentista responsável</label><input id="emp-orcamentista"></div>
+        <div class="fg"><label>Consultor(a) de vendas</label><input id="emp-consultor"></div>
+        <div class="fg span2"><label>Cidade da assinatura e do foro</label><input id="emp-cidadeForo"></div>
+        <div class="fg span2"><button class="btn btn-teal btn-block" onclick="salvarContratada()">Salvar dados de quem assina</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTRATO DO CLIENTE — o papel montado com os dados da ficha. Fica fora
+     da ficha de proposito: na impressao e a UNICA coisa que sobra na tela. -->
+<div class="overlay" id="ctr-ov">
+  <div class="modal" style="max-width:900px">
+    <div class="modal-head">
+      <div class="modal-title">Contrato do cliente</div>
+      <button class="btn btn-outline btn-sm" onclick="fecharContrato()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div id="ctr-qual" style="font-size:12.5px;margin-bottom:8px"></div>
+      <div id="ctr-faltando" style="margin-bottom:10px"></div>
+      <div id="ctr-papel"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="fecharContrato()">Fechar</button>
+      <button class="btn btn-teal" onclick="imprimirContrato()">Imprimir ou salvar em PDF</button>
     </div>
   </div>
 </div>
@@ -1138,6 +1268,7 @@ function lerFicha(){
     entrega:v('f-entrega'),
     linhas:v('f-linhas'), cores:v('f-cores'), vidros:v('f-vidros'),
     pecas:v('f-pecas'), obs:document.getElementById('f-obs').value.trim(),
+    contrato:lerFichaContrato(),
     extras:lerExtras()
   };
 }
@@ -1588,6 +1719,7 @@ function novoContrato(){
   fichaDocs=[]; docsApagados={};
   preencherTiposDoc(); renderDocs();
   renderExtrasNaFicha(null);
+  preencherFichaContrato(null);
   const p=(id,v)=>{ document.getElementById(id).value=v; };
   ['f-ct','f-cliente','f-coord','f-respcom','f-cidade','f-condominio','f-fechamento',
    'f-prazomat','f-medicao','f-diasprod','f-projentrada','f-diasinst','f-entrega',
@@ -1599,6 +1731,7 @@ function novoContrato(){
   document.getElementById('ficha-btn-excluir').style.display='none';
   document.getElementById('ficha-btn-restaurar').style.display='none';
   document.getElementById('ficha-btn-salvar').style.display='';
+  document.getElementById('ficha-btn-contrato').style.display='none';
   document.getElementById('f-quem').textContent='';
   document.getElementById('f-fabrica').innerHTML='Ao salvar, esta obra entra no quadro da Fábrica.';
   document.getElementById('f-compras').innerHTML='Ao salvar, esta obra entra na lista do Compras com o contrato, o cliente e a data de entrega — para o Compras já poder cobrar a lista de material.';
@@ -1622,6 +1755,7 @@ function abrirFicha(id){
   // contrato, inclusive se ele saiu do cadastro.
   atualizarSelectStatus();
   renderExtrasNaFicha(c);
+  preencherFichaContrato(c);
   const p=(campo,v)=>{ document.getElementById(campo).value=v||''; };
   p('f-ct',ctFormatado(c.ct)); p('f-ano',c.ano); p('f-cliente',c.cliente);
   p('f-coord',c.coord); p('f-respcom',c.respCom);
@@ -1638,6 +1772,7 @@ function abrirFicha(id){
   document.getElementById('ficha-btn-excluir').style.display=(gestor&&!c.excluido)?'':'none';
   document.getElementById('ficha-btn-restaurar').style.display=(gestor&&c.excluido)?'':'none';
   document.getElementById('ficha-btn-salvar').style.display=(gestor&&!c.excluido)?'':'none';
+  document.getElementById('ficha-btn-contrato').style.display=(gestor&&!c.excluido)?'':'none';
   const quem=[];
   if(c.criadoPor) quem.push('Cadastrado por '+c.criadoPor+(c.criadoEm?' em '+fmtData(c.criadoEm.slice(0,10)):''));
   if(c.atualizadoPor) quem.push('Última alteração de '+c.atualizadoPor+(c.atualizadoEm?' em '+fmtData(c.atualizadoEm.slice(0,10)):''));
@@ -1796,6 +1931,775 @@ async function restaurarContrato(){
   if(ok) fecharFicha();
 }
 
+// O logo que vai no alto do contrato impresso, o mesmo do papel timbrado do
+// Word (568x140). Fica embutido porque o modulo e um arquivo unico: endereco
+// de fora deixaria o contrato sem logo se a internet cair na hora de imprimir.
+const LOGO_DALUMINIUM='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/wAARCACMAjgDASIAAhEBAxEB/8QAHQABAAICAwEBAAAAAAAAAAAAAAcIBgkBBAUDAv/EAF8QAAEDAwIEAgMKBwcQBQ0AAAEAAgMEBREGBwgSITETQRQiUQkVMjc4YXF2s7QWFxgzQnSyIzVSYmWBkSQ0RlZjZHJ1hZOVobHB0tMZJShDgiYnRElTVFdzkpSjxdH/xAAbAQEAAgMBAQAAAAAAAAAAAAAABAUBAgMHBv/EAEARAAEDAgMEBgcFBwQDAAAAAAEAAhEDBAUhMRJBUWETFHGBkbEGIjJyocHRMzVCsvAVIyQ0Q1PhJTZS8WKCwv/aAAwDAQACEQMRAD8A2poiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIi4JwMnyREx864woVvPGFsHYLvXWK56vqYq23VMtJURi11LgyWNxa8ZDMHBB6joup+Wzw5/wButV/omr/5ahm/tQYNQeKmjDLxwkUneBU7YPtTB9qgn8tnhy/t0qf9E1f/AC1+4eNXhyleGHXM0efN9prMf6oinX7X+43xCz+zL3+07wKnIdPYixXR26G3uv2F2jdZ2m7ODeZ0dNVNdKwe10eedv8AOAsqJ9ikse14lpkKG9jqZ2XiDzX6REW61RERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERcO+CfoXK4d8E/QhQLT9u38a2s/rDcfvMixNZZu38a2s/rDcfvMixNeV1/tndp817TbfYM7B5Iin3hy4cqncOph1jrGnkg01A/MMJy19weD2HmIge7vPsPMiV+IjhlodU0L9W7dWyCkvNJEBPb4GCOOtjaMDkaOjZABgeTgMd8KwpYNcVbc12jsG8jiqutj9pRuhbE9p3A8CqY0dbWW6qirrfVzUtTA8SRTQyFj43Ds5rh1B+cK43DZxqXA19Lofea4smp53CKkv0uGvieT6rKnHQtPbxOhH6WQS5tNpYpYJXwTxPjkjcWPY9pDmuBwQQexBX4UW0vq1jU2mHtG49ql3+G2+JUtmoOw7x2Fbq2lr25HYhOVVo4Ht4KrX231Roq/VbprtpPw4Y5Hn1pqJwIiJ9pYWuYfmDM9SrML0a1uG3VJtVmhXlF5avs67qFTVp/RXXrK+jt8Bqa6rhpogQDJNIGNyewyei6H4X6W/tktf/3kf/8AVCvHP8n65/r9F9qFWjgw2Y293grtVwa+s0tey1xUbqUMq5YO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';
+
+// Os 4 modelos de contrato que o Ander usa, transcritos dos arquivos do Word
+// que ele mandou em 17/09/2026 — palavra por palavra, inclusive os erros de
+// digitacao deles (a lista foi passada a ele; corrigir so quando pedir).
+//
+// ESTA LISTA E SO O PONTO DE PARTIDA. Quem manda e `dados.modelosContrato`,
+// que a tela de Cadastros escreve: da para editar o texto de uma clausula,
+// acrescentar clausula nova e mudar a ordem, sem alteracao no codigo.
+// O `id` de cada clausula NUNCA muda depois de criado.
+//
+// Os pedacos entre {{ }} sao trocados na hora de gerar o contrato — a lista
+// completa esta em CAMPOS_DO_CONTRATO, e aparece na propria tela de Cadastros.
+// As linhas sao longas de proposito: o texto e dado, nao codigo.
+const MODELOS_CONTRATO_PADRAO=[
+  {
+    id:"esquadrias", nome:"Esquadrias de alumínio — industrialização com fornecimento",
+    dica:"O de sempre: esquadrias fabricadas sob medida, com material e instalação. Sai com o Manual de Uso e Conservação no fim.",
+    titulo:"CONTRATO PARTICULAR DE INDUSTRIALIZAÇÃO COM FORNECIMENTO DE MATERIAIS SOB ENCOMENDA DO CONSUMIDOR",
+    rotuloNumero:"Nº do Pedido", usaObjeto:false,
+    blocos:[
+      {tipo:"clausula", id:"c1", titulo:"DADOS DA CONTRATADA", texto:"Nome: {{contratadaNome}}\nCNPJ: {{contratadaCnpj}}\nEndereço: {{contratadaEndereco}}\nTelefone: {{contratadaTelefone}}\nOrçamentista responsável: {{orcamentista}}\nConsultor(a) de vendas responsável: {{consultor}}"},
+      {tipo:"clausula", id:"c2", titulo:"DADOS DO CONTRATANTE", texto:"Nome: {{clienteNome}}\nCPF/CNPJ: {{clienteDoc}}\nEndereço: {{clienteEndereco}}\nContato: {{clienteContato}}"},
+      {tipo:"clausula", id:"c3", titulo:"CLÁUSULA PRIMEIRA – DO OBJETO (OBRA)", texto:"O objeto da presente contratação é a industrialização sob encomenda do consumidor contratante das esquadrias constantes no escopo da proposta comercial anexa ao presente instrumento.\n\nParágrafo Primeiro – As esquadrias objeto deste contrato serão confeccionadas exclusivamente para atender às medidas, tipologias e especificações da obra personalíssima do CONTRATANTE.\n\nParágrafo Segundo – Após iniciada a fabricação das esquadrias nos termos aprovados pelo CONTRATANTE, não será admitida devolução dos materiais ou restituição das quantias pagas, salvo em caso de defeito de fabricação devidamente comprovado."},
+      {tipo:"clausula", id:"c4", titulo:"CLÁUSULA SEGUNDA – DO VALOR", texto:"O valor total deste contrato é de {{valor}} ({{valorExtenso}}), correspondentes aos materiais empregados e à mão de obra de fabricação e instalação."},
+      {tipo:"clausula", id:"c5", titulo:"CLÁUSULA TERCEIRA – DA FORMA DE PAGAMENTO", texto:"O valor discriminado na cláusula anterior será pago da seguinte forma: {{pagamento}}\n\nParágrafo Único – Finalizada a produção das esquadrias e materiais objeto deste contrato, o CONTRATANTE deverá honrar integralmente os pagamentos ajustados, independentemente de a instalação já ter ocorrido, sob pena de execução judicial do presente contrato."},
+      {tipo:"clausula", id:"c6", titulo:"CLÁUSULA QUARTA – DO PRAZO DE PRODUÇÃO, ENTREGA E INSTALAÇÃO", texto:"O prazo para fabricação, entrega e instalação das esquadrias objeto deste contrato será de {{prazoDias}} ({{prazoExtenso}}) dias {{prazoTipo}}, contados exclusivamente a partir da liberação total dos vãos da obra pelo CONTRATANTE e da confirmação formal da CONTRATADA acerca das condições técnicas adequadas para início da produção.\n\nData estimada de entrega: sujeita à liberação integral da obra, nos termos desta cláusula.\n\nParágrafo Primeiro – Considera-se “vão liberado” aquele que estiver integralmente apto para conferência final de medidas e posterior instalação das esquadrias, devendo obrigatoriamente apresentar:\n\na) vãos completamente finalizados;\nb) soleiras, peitoris e pedras devidamente instalados;\nc) paredes rebocadas, alinhadas e esquadrejadas;\nd) aplicação de massa corrida com lixamento concluído;\ne) ausência de umidade, infiltrações ou impedimentos técnicos;\nf) livre acesso para medição, transporte e instalação das esquadrias.\n\nParágrafo Segundo – A aplicação da primeira demão de tinta não constitui requisito obrigatório para liberação dos vãos, desde que as superfícies estejam devidamente emassadas e lixadas.\n\nParágrafo Terceiro – A CONTRATADA não realizará fabricação, entrega ou instalação parcial das esquadrias, considerando que o processo industrial depende da otimização técnica dos perfis de alumínio, vidros, ferragens e demais componentes, os quais são produzidos em conjunto conforme planejamento fabril e logístico da obra.\n\nParágrafo Quarto – A produção das esquadrias somente será iniciada após a liberação integral de todos os vãos contemplados neste contrato, salvo ajuste expresso e formalizado entre as partes mediante termo aditivo.\n\nParágrafo Quinto – Caso a obra não esteja apta para conferência de medidas, fabricação ou instalação, o prazo contratual ficará automaticamente suspenso, sem qualquer penalidade à CONTRATADA, reiniciando-se integralmente após a regularização e nova liberação formal da obra.\n\nParágrafo Sexto – Eventuais deslocamentos técnicos improdutivos realizados pela CONTRATADA em razão da não liberações adequadas da obra poderão ser cobradas do CONTRATANTE, mediante prévia comunicação.\n\nParágrafo Sétimo – A data estimada de entrega prevista neste contrato poderá ser readequada automaticamente caso ocorram atrasos na obra civil, indisponibilidade dos vãos ou quaisquer fatores externos que impeçam o regular andamento da produção ou instalação.\n\nParágrafo Oitavo – A insistência do CONTRATANTE em realizar instalação parcial, fora do planejamento técnico da CONTRATADA, poderá acarretar cobrança adicional de mobilização, transporte, armazenagem, remanejamento de equipe e reinstalação logística, sem prejuízo da readequação dos prazos inicialmente previstos."},
+      {tipo:"clausula", id:"c7", titulo:"CLÁUSULA QUINTA – DA RESPONSABILIDADE PELA LIBERAÇÃO DA OBRA", texto:"Nos termos dos artigos 421, 422 e 475 do Código Civil Brasileiro, bem como em observância à boa-fé objetiva e à natureza personalizada da industrialização sob encomenda, fica estabelecido que o cumprimento dos prazos pela CONTRATADA depende diretamente da liberação técnica da obra pelo CONTRATANTE.\n\nParágrafo Primeiro – A impossibilidade de fabricação, medição, entrega ou instalação decorrente de pendências da obra civil, acabamentos incompletos, desalinhamentos estruturais, ausência de pedras, massa corrida, lixamento ou quaisquer condições inadequadas do local não caracterizará atraso da CONTRATADA.\n\nParágrafo Segundo – Em razão da natureza personalizada e não seriada dos produtos objeto deste contrato, o CONTRATANTE declara ciência de que a fabricação das esquadrias ocorre de forma planejada, técnica e integrada, não sendo exigível produção fracionada ou instalação parcial sem concordância expressa da CONTRATADA.\n\nParágrafo Terceiro – O CONTRATANTE declara ciência de que alterações no cronograma da obra civil impactam diretamente o planejamento industrial, logístico e operacional da CONTRATADA, autorizando desde já a readequação proporcional dos prazos inicialmente previstos."},
+      {tipo:"clausula", id:"c8", titulo:"CLÁUSULA SEXTA – AUTORIZAÇÃO PARA VISTORIA DA OBRA", texto:"A CONTRATADA fica autorizada pelo CONTRATANTE, sempre que necessário, a visitar a obra para conferência técnica e confirmação das medidas dos vãos das esquadrias contratadas.\n\nParágrafo Único – As visitas serão comunicadas com antecedência mínima de 01 (um) dia útil."},
+      {tipo:"clausula", id:"c9", titulo:"CLÁUSULA SÉTIMA – DA RESCISÃO", texto:"Na hipótese de rescisão sem justo motivo, a parte que der causa pagará à outra multa equivalente a 20% vinte por cento) sobre o valor total do contrato.\n\nParágrafo Primeiro – Caso o pedido de rescisão ocorra em até 07 (sete) dias corridos após a assinatura deste contrato, haverá restituição dos valores pagos, descontando-se os custos já empregados em materiais, projetos e fabricação.\n\nParágrafo Segundo – Após o oitavo dia corrido da assinatura, a parte que solicitar a rescisão pagará multa equivalente a 25% (vinte e cinco por cento) sobre o valor total do contrato."},
+      {tipo:"clausula", id:"c10", titulo:"CLÁUSULA OITAVA – GARANTIA", texto:"A CONTRATADA oferece manutenção gratuita pelo prazo de 12 (doze) meses, observadas as condições do Termo de Garantia e Manual de Uso e Conservação anexos.\n\n1 – 90 dias para vícios aparentes;\n2 – 01 ano para motores, componentes elétricos, borrachas, escovas, fechos, articulações e roldanas;\n3 – 05 anos para perfis de alumínio, pintura, anodização, ACM e fixadores.\n\nParágrafo Primeiro – A garantia não cobre componentes ou serviços de terceiros agregados à esquadria, tais como automações externas, iluminação, fechaduras eletrônicas e similares."},
+      {tipo:"clausula", id:"c11", titulo:"CLÁUSULA NONA – MATERIAIS E SERVIÇOS INCLUSOS", texto:"Estão inclusos no presente contrato:\n\na) perfis de alumínio liga 6060-T5;\nb) pintura eletrostática ou anodização;\nc) acessórios e componentes;\nd) contramarcos e arremates, quando previstos;\ne) mão de obra de fabricação e instalação;\nf) fornecimento e instalação de vidros conforme escopo;\ng) transporte dos materiais até a obra.\n\nParágrafo Primeiro – Toda a infraestrutura necessária para a execução dos serviços de instalação das esquadrias, incluindo equipamentos operacionais como escadas, andaimes, plataformas, ferramentas, suportes, fixações, insumos complementares e demais itens indispensáveis à perfeita execução dos serviços, será fornecida pela CONTRATADA, não sendo de responsabilidade do CONTRATANTE, salvo nos casos expressamente previstos neste contrato."},
+      {tipo:"clausula", id:"c12", titulo:"CLÁUSULA DÉCIMA – ESTANQUEIDADE E DESEMPENHO ESTRUTURAL", texto:"Os produtos objeto deste contrato atendem às normas técnicas brasileiras aplicáveis, incluindo:\n\nNBR 10821;\nNBR 6123;\nNBR 7199;\nNBR 14697;\nNBR 14718;\ndemais normas correlatas aplicáveis ao sistema contratado."},
+      {tipo:"clausula", id:"c13", titulo:"CLÁUSULA DÉCIMA PRIMEIRA – PROJETO EXECUTIVO E FABRICAÇÃO", texto:"O projeto executivo, arquitetônico e quadro de esquadrias servirão como base técnica para fabricação das peças contratadas."},
+      {tipo:"clausula", id:"c14", titulo:"CLÁUSULA DÉCIMA SEGUNDA – CONTROLE DE QUALIDADE", texto:"O CONTRATANTE poderá realizar inspeções previamente agendadas durante o processo de fabricação."},
+      {tipo:"clausula", id:"c15", titulo:"CLÁUSULA DÉCIMA TERCEIRA – CONSIDERAÇÕES GERAIS", texto:"a) acessórios nacionais das marcas Udinese, FERMAX ou FISE;\nb) vedações em EPDM e fixadores galvanizados;\nc) impostos inclusos para materiais postos em Rondônia;\nd) execução em horário comercial;\ne) armazenamento e canteiro por conta da obra, preferencialmente em local coberto e seguro."},
+      {tipo:"clausula", id:"c16", titulo:"CLÁUSULA DÉCIMA QUARTA – IMPREVISTOS", texto:"Caso ocorram chuvas ou eventos climáticos que impeçam a instalação das esquadrias, os serviços serão temporariamente suspensos, sendo os dias paralisados acrescidos ao prazo estimado.\n\nParágrafo Único – Alterações quantitativas ou tipológicas nas esquadrias implicarão revisão do orçamento e dos prazos."},
+      {tipo:"clausula", id:"c17", titulo:"CLÁUSULA DÉCIMA QUINTA – CONTATO", texto:"E-mail: {{email}}\nTelefone: {{contratadaTelefone}}"},
+      {tipo:"clausula", id:"c18", titulo:"CLÁUSULA DÉCIMA SEXTA – FORO", texto:"Fica eleito o foro da Comarca de Porto Velho/RO para dirimir quaisquer controvérsias oriundas deste contrato."},
+      {tipo:"assinaturas"},
+      {tipo:"pagina"},
+      {tipo:"clausula", id:"c19", titulo:"MANUAL DE USO E CONSERVAÇÃO DE ESQUADRIAS DE ALUMÍNIO", texto:"Com o objetivo de permitir aos seus usuários a utilização continua de portas e janelas com o máximo de conforto, bem como indica a melhor maneira de limpar e conservá-las para que mantenham suas características de funcionalidade ao longo de sua vida útil.\n\nDeve ser lido com muita atenção por todos os ocupantes, usuários e responsáveis pela limpeza e conservação das esquadrias."},
+      {tipo:"clausula", id:"c20", titulo:"LIMPEZA", texto:"Para que as esquadrias de seu imóvel se mantenham como novas, em perfeito funcionamento por muitos anos e vigorem as garantias estabelecidas no termo de garantia, devem ser seguidas atentamente as seguintes recomendações:\n\nA limpeza de todas as suas partes e componentes, inclusive vidros, deverá ser feita com a utilização de uma solução de água e detergente neutro a 5% com o auxílio de esponja ou pano macio, observando os seguintes intervalos de tempo:\n\nNo mínimo a cada 12 (doze) meses em zona urbana ou rural;\nNo mínimo a cada 3 (três) meses em zona marin ha ou industrial.\n\nNão utilizar para limpeza das guarnições de vedação as seguintes materiais: vaselina, combustíveis em geral, solventes, ácidos diluídos, querosene, lubrificantes sintéticos, benzeno, óleo mineral, thinner, tolueno e toluol.\n\nNão usar em hipótese alguma, detergentes saponáceos, esponjas de aço ou material áspero, lixas, abrasivos, produtos ácidos ou alcalinos, produtos derivados de petróleo, objetos cortantes ou perfumantes para auxiliar a limpeza de locais de difícil acesso (neste caso, usar pincel de cerdas macias embebido em solução de uso permitido).\n\nAs portas e janelas exigem que seus trilhos inferiores, superiores e laterais sejam mantidos limpos, inclusive durante e após a instalação na obra até a sua conclusão, evitando o acúmulo de poeiras, restos de argamassa, massa PVA, tinta, gesso ou outros materiais, que rapidamente vão se compactando pela ação de abrir e fechar, sobretudo, entupindo os orifícios das caixas de dreno, exigindo sua substituição precoce. As caixas de dreno sevem ser limpas pelos usuários a casa 03 (três) meses, ou menos, em caso de chuvas, e afim de prevenir entupimentos decorrentes de poeira, pó, fuligem, etc., que impossibilitarão a adequada drenagem da água acumulada nos perfis inferiores das esquadrias.\n\nEm caso de dúvidas, antes de utilizar qualquer produto ou método de limpeza, consultar o fabricante."},
+      {tipo:"clausula", id:"c21", titulo:"LUBRIFICAÇÃO", texto:"Todos as articulações rodízios e roldanas possuem sistema de auto lubrificação, dispensando o uso de qualquer tipo de graxa ou óleo que podem causar danos aos componentes.\n\nRegulagem dos braços articulados dotados de freio.\n\nAs janelas do tipo maxim-ar são dotadas de braços articulados com freios reguláveis. Por ocasião de revisão final de entrega das esquadrias, o fabricante faz os ajustes adequados a um bom funcionamento.\n\nCaso necessário, uma nova regulagem só deverá ser feita por profissional especializado, para evitar que um ajuste inadequado venha a danificar os perfis de fixação e outras partes do moveis, pondo em r iscos a integridade da peça, e a segurança de terceiros.\n\nPrezados Senhores,\n\nA empresa DALUMINIO COMERCIO LTDA, no mercado mais de 30 anos, vem constantemente aprimorando seus processos e modernizando seus equipamentos, sempre em busca de novas soluções para aperfeiçoar os projetos de seus clientes, oferecendo segurança e qualidade nos seus serviços e produtos.\n\nVisite nossas redes sociais (Instagram): @daluminiumoficial\nTelefone: {{contratadaTelefone}}\nE-mail: {{email}}"}
+    ]
+  },
+  {
+    id:"pormade", nome:"Portas de madeira PORMADE — só mão de obra de instalação",
+    dica:"Quando as portas são compradas direto da PORMADE pelo cliente e a Daluminium só instala. Pede a quantidade de portas e de visores.",
+    titulo:"CONTRATO PARTICULAR DE PRESTAÇÃO DE SERVIÇOS DE INSTALAÇÃO DE PORTAS DE MADEIRA – PORMADE",
+    rotuloNumero:"Nº do Pedido", usaObjeto:false,
+    campos:[{id:"qtdPortas", rotulo:"Quantas portas", padrao:"15"}, {id:"qtdVisores", rotulo:"Quantas portas com visor", padrao:"6"}],
+    blocos:[
+      {tipo:"clausula", id:"c1", titulo:"DADOS DA CONTRATADA", texto:"Nome: {{contratadaNome}}\nCNPJ: {{contratadaCnpj}}\nEndereço: {{contratadaEndereco}}\nTelefone: {{contratadaTelefone}}\nOrçamentista responsável: {{orcamentista}}\nConsultor(a) de vendas responsável: {{consultor}}"},
+      {tipo:"clausula", id:"c2", titulo:"DADOS DO CONTRATANTE", texto:"Nome: {{clienteNome}}\nCPF/CNPJ: {{clienteDoc}}\nEndereço: {{clienteEndereco}}\nCidade/UF: {{clienteCidadeUF}}\nContato: {{clienteContato}}\nE-mail: {{clienteEmail}}"},
+      {tipo:"clausula", id:"c3", titulo:"CLÁUSULA PRIMEIRA – DO OBJETO (OBRA)", texto:"O objeto do presente contrato é a prestação de serviços de mão de obra para instalação de {{qtdPortas}} ({{qtdPortasExtenso}}) portas de madeira da marca PORMADE, conforme quantitativos, dimensões e características constantes do orçamento comercial apresentado ao CONTRATANTE.\n\nIntegra o objeto deste contrato a aplicação/instalação de visores de vidro em {{qtdVisores}} ({{qtdVisoresExtenso}}) portas, conforme previsto no orçamento comercial.\n\nAs portas e respectivos materiais fornecidos pela PORMADE serão adquiridos e faturados diretamente ao CONTRATANTE, não fazendo parte do valor da mão de obra ora contratada, salvo os itens expressamente indicados neste instrumento.\n\nParágrafo Primeiro\nAs portas objeto da instalação deverão estar disponíveis na obra, em condições adequadas para conferência, recebimento, movimentação e instalação pela CONTRATADA.\n\nParágrafo Segundo\nA CONTRATADA executará os serviços de instalação de acordo com as características, dimensões e condições técnicas dos produtos fornecidos pelo fabricante PORMADE e conforme as condições encontradas nos vãos da obra.\n\nParágrafo Terceiro\nEventuais alterações de quantidade, modelo, dimensão, acabamento, localização ou tipologia das portas e/ou visores após a contratação poderão implicar revisão dos valores e dos prazos, mediante aprovação das partes."},
+      {tipo:"clausula", id:"c4", titulo:"CLÁUSULA SEGUNDA – DO VALOR", texto:"O valor total deste contrato é de {{valor}} ({{valorExtenso}}), correspondentes aos materiais empregados e à mão de obra de fabricação e instalação."},
+      {tipo:"clausula", id:"c5", titulo:"CLÁUSULA TERCEIRA – DA FORMA DE PAGAMENTO", texto:"O valor discriminado na cláusula anterior será pago da seguinte forma: {{pagamento}}"},
+      {tipo:"clausula", id:"c6", titulo:"CLÁUSULA QUARTA – DO PRAZO DE PRODUÇÃO, ENTREGA E INSTALAÇÃO", texto:"O prazo de instalação do objeto deste contrato será exclusivamente a partir da liberação total dos vãos da obra pelo CONTRATANTE e da disponibilidade integral dos materiais necessários.\n\nParágrafo Primeiro\nO prazo poderá ser readequado caso ocorram atrasos na entrega das portas ou materiais, alterações no cronograma da obra, impossibilidade de acesso aos ambientes, serviços de terceiros pendentes ou qualquer outra situação que impeça a continuidade normal da instalação.\n\nParágrafo Segundo\nA instalação poderá ser realizada de forma programada conforme a disponibilidade dos ambientes e o cronograma da obra, desde que previamente ajustado entre as partes."},
+      {tipo:"clausula", id:"c7", titulo:"CLÁUSULA QUINTA – DA RESPONSABILIDADE PELA LIBERAÇÃO DA OBRA", texto:"Compete ao CONTRATANTE assegurar que os locais destinados à instalação estejam em condições adequadas para a execução dos serviços.\n\nConsidera-se ambiente liberado aquele que permita à equipe da CONTRATADA realizar a instalação com segurança e sem interferências de outros serviços.\n\nDeverão estar concluídos ou adequadamente preparados, conforme a necessidade de cada ambiente:\n\na) vãos e paredes em condições compatíveis com a instalação;\nb) pisos e revestimentos que interfiram na instalação devidamente executados ou demarcados;\nc) ausência de materiais ou equipamentos que impeçam o acesso;\nd) ambiente livre para movimentação das portas;\ne) condições adequadas de segurança e acesso à equipe.\n\nParágrafo Primeiro\nCaso a CONTRATADA compareça à obra e não seja possível realizar a instalação em razão de condições inadequadas do local, poderá ser necessária nova programação da equipe, ficando o prazo de execução automaticamente readequado.\n\nParágrafo Segundo\nEventuais custos adicionais decorrentes de deslocamentos improdutivos, remobilização de equipe, armazenamento, movimentação extraordinária ou necessidade de retorno à obra em razão de pendências do CONTRATANTE poderão ser cobrados mediante prévia comunicação."},
+      {tipo:"clausula", id:"c8", titulo:"CLÁUSULA SEXTA – DA RESCISÃO", texto:"Na hipótese de rescisão sem justo motivo, a parte que der causa pagará à outra multa equivalente a 20% vinte por cento) sobre o valor total do contrato.\n\nParágrafo Primeiro – Caso o pedido de rescisão ocorra em até 07 (sete) dias corridos após a assinatura deste contrato, haverá restituição dos valores pagos, descontando-se os custos já empregados em materiais, projetos e fabricação.\n\nParágrafo Segundo – Após o oitavo dia corrido da assinatura, a parte que solicitar a rescisão pagará multa equivalente a 25% (vinte e cinco por cento) sobre o valor total do contrato."},
+      {tipo:"clausula", id:"c9", titulo:"CLÁUSULA SÉTIMA – GARANTIA DOS SERVIÇOS", texto:"A CONTRATADA garante a qualidade da mão de obra de instalação pelo prazo de 90 (noventa) dias, contado da conclusão dos respectivos serviços, desde que eventual problema decorra comprovadamente de falha na execução da instalação.\n\nA garantia da CONTRATADA não se confunde com a garantia oferecida pelo fabricante PORMADE sobre as portas, componentes, acabamentos ou demais produtos por ela fornecidos.\n\nParágrafo Primeiro\nNão estarão abrangidos pela garantia da mão de obra danos decorrentes de:\n\na) mau uso;\nb) impactos;\nc) alterações realizadas por terceiros;\nd) movimentação ou desmontagem das portas por terceiros;\ne) umidade, infiltração ou problemas estruturais da obra;\nf) defeitos de fabricação dos produtos;\ng) armazenamento ou transporte inadequado;\nh) desgaste natural decorrente do uso."},
+      {tipo:"clausula", id:"c10", titulo:"CLÁUSULA OITAVA – MATERIAIS E SERVIÇOS INCLUSOS", texto:"Estão inclusos no valor contratado:\n\na) mão de obra para instalação das {{qtdPortas}} portas de madeira PORMADE;\nb) mão de obra para aplicação/instalação dos visores de vidro em {{qtdVisores}} portas;\nc) ferramentas e equipamentos usuais necessários à execução da instalação;\nd) ajustes de instalação compatíveis com as condições normais dos produtos e dos vãos;\ne) conferência básica das portas após a instalação."},
+      {tipo:"clausula", id:"c11", titulo:"CLÁUSULA NOVA – DOS IMPREVISTOS", texto:"Na ocorrência de situações que impeçam ou dificultem a execução dos serviços, tais como indisponibilidade dos ambientes, atraso na entrega das portas, obras civis incompletas, interferência de terceiros, falta de acesso ou condições inseguras de trabalho, os serviços poderão ser suspensos até que as condições adequadas sejam restabelecidas.\n\nOs dias de paralisação decorrentes dessas situações não serão considerados como atraso da CONTRATADA."},
+      {tipo:"clausula", id:"c12", titulo:"CLÁUSULA DÉCIMA – CONTATO", texto:"E-mail: {{email}}\nTelefone: {{contratadaTelefone}}"},
+      {tipo:"clausula", id:"c13", titulo:"CLÁUSULA DÉCIMA PRIMEIRA – FORO", texto:"Fica eleito o foro da Comarca de Porto Velho/RO para dirimir quaisquer controvérsias oriundas deste contrato."},
+      {tipo:"assinaturas"}
+    ]
+  },
+  {
+    id:"servico", nome:"Serviço com material — instalação sob encomenda (inox, corrimão)",
+    dica:"O do corrimão em inox: prestação de serviço com fornecimento do material. Multa de rescisão de 10% e prazo em dias corridos. Pede o que está sendo instalado.",
+    titulo:"CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE INSTALAÇÃO DE MATERIAIS SOB ENCOMENDA DO CONSUMIDOR",
+    rotuloNumero:"Nº do Pedido", usaObjeto:true, objetoPadrao:"corrimão em inox",
+    blocos:[
+      {tipo:"clausula", id:"c1", titulo:"DADOS DA CONTRATADA", texto:"Nome: {{contratadaNome}}\nCNPJ: {{contratadaCnpj}}\nEndereço: {{contratadaEndereco}}\nTelefone: {{contratadaTelefone}}\nOrçamentista responsável: {{orcamentista}}\nConsultor(a) de vendas responsável: {{consultor}}"},
+      {tipo:"clausula", id:"c2", titulo:"DADOS DO CONTRATANTE", texto:"Nome: {{clienteNome}}\nCPF/CNPJ: {{clienteDoc}}\nEndereço: {{clienteEndereco}}\nCidade/UF: {{clienteCidadeUF}}\nContato: {{clienteContato}}\nE-mail: {{clienteEmail}}"},
+      {tipo:"clausula", id:"c3", titulo:"Cláusula Primeira – Do Objeto (Obra):", texto:"O objeto da presente contratação é a prestação de serviço de mão de obra especializada, bem como o fornecimento dos materiais necessários para a instalação de {{objeto}}, conforme as especificações previamente acordadas com o consumidor contratante, e descritas no escopo da proposta anexa.\n\nParágrafo Primeiro – A instalação do objeto do presente contrato será realizada de forma personalizada, obedecendo rigorosamente às medidas, formatos e demais exigências específicas da obra indicada pelo consumidor contratante, tratando-se, portanto, de um serviço personalíssimo.\n\nParágrafo Segundo – Após a instalação do {{objeto}} nos termos do parágrafo anterior, não será admitida a devolução do material nem a restituição dos valores pagos, salvo em caso de vício comprovado por laudo técnico do fabricante. Ressalva-se, no entanto, o direito do consumidor à produção de contraprova, nos termos da legislação vigente."},
+      {tipo:"clausula", id:"c4", titulo:"Cláusula Segunda – Do Valor:", texto:"O valor total deste Contrato é de {{valor}} ({{valorExtenso}}), correspondendo ao fornecimento do produto e mão de obra."},
+      {tipo:"clausula", id:"c5", titulo:"Clausula Terceira – Da Forma de pagamento:", texto:"O valor discriminado na cláusula anterior será pago da seguinte forma: {{pagamento}}\n\nParágrafo Único – Finalizada a instalação e materiais objeto deste contrato o Consumidor Contratante deverá honrar com todos os pagamentos na forma e prazos estipulados no caput desta cláusula sob pena de execução judicial do presente contrato."},
+      {tipo:"clausula", id:"c6", titulo:"Cláusula Quarta – Do prazo de entrega:", texto:"O prazo da presente instalação sob encomenda do Consumidor Contratante é de {{prazoDias}} ({{prazoExtenso}}) dias {{prazoTipo}}, contados da assinatura deste contrato e a confirmação de pagamento, sendo este confirmado pelo banco, e sob a apresentação de comprovante pelo CONTRATANTE.\n\nParágrafo Primeiro – Ocorrendo qualquer evento caracterizado como “caso fortuito” ou “força maior”, dentre eles qualquer evento decorrente de pandemia, lockdown ou qualquer outro imprevisto que implique suspensão ou redução de atividades da Contratada, os prazos estipulados no caput serão também suspensos, sendo devolvidos à Contratada, em dias úteis integrais qualquer redução ou interrupção de atividades determinados pelas autoridades públicas federais, estaduais ou municipais;\n\nParágrafo Segundo – A hipótese do parágrafo anterior exclui qualquer responsabilidade pelo atraso decorrente dos eventos ali descritos.\n\nParágrafo Terceiro – Qualquer atraso decorrente de defeitos ou inexatidões de medidas constatados nas instalações do Consumidor Contratante isentam a Contratada de qualquer responsabilidade pelo atraso decorrente dos ajustes necessários à adequação do local de instalação;\n\nParágrafo Quarto – Os atrasos especificados na presente cláusula deverão ser comunicados por escrito ao Consumidor Contratante por qualquer meio, sendo admitidos e-mail, mensagem de texto por qualquer aplicativo eletrônico ou sms para o celular indicado pelo consumidor no preâmbulo deste contrato.\n\nParágrafo Quinto – Os custos adicionais para adequar as instalações e ou materiais objeto deste contrato devido a defeito da obra do Consumidor Contratante deverá ser por ele suportado mediante acréscimo no valor deste contrato.\n\nParágrafo Sexto – Ocorrendo qualquer alteração no cronograma da obra do Contratante Consumidor, todos os prazos aqui contratados deverão ser readequados em comum acordo entre as partes e mediante termo aditivo contratual.\n\nParágrafo Sétimo - O prazo de entrega será interrompido e paralisado sempre que a contratada não conseguir retirar/confirmar as medidas em obra, por decorrência de atraso ou qualquer outro impedimento. Neste caso, a contratada notificará a contratante acerca do ocorrido, assim reajustando uma nova data para a verificação de medidas in loco, devolvendo os dias de interrupção ou paralisação nos termos do parágrafo primeiro desta cláusula.\n\nFica estabelecido que, uma vez o local que serão feitas as instalações estejam devidamente prontos, com todas as alvenarias e acabamentos necessários finalizados, a contratada terá o prazo fixo de até {{prazoDias}} ({{prazoExtenso}}) dias úteis para realizar a entrega das instalações contratadas, salvo impedimentos devidamente justificados nos termos desta cláusula."},
+      {tipo:"clausula", id:"c7", titulo:"Cláusula Quinta – Autorização para Vistoria no Local:", texto:"A contratada fica autorizada pela contratante, sempre que se fizer necessário, visitar o local para confirmação de medidas das instalações contratadas. Neste caso, a contratada comunicará a visita com um dia de antecedência para a contratante por qualquer meio de comunicação."},
+      {tipo:"clausula", id:"c8", titulo:"Cláusula Sexta – Da Rescisão:", texto:"Na hipótese de pedido de rescisão sem justo motivo, a parte que solicitar deverá pagar à outra 10% (dez) por cento sobre o valor total do contrato a título de multa contratual, devendo comunicar por escrito por qualquer meio.\n\nParágrafo Primeiro – Caso o pedido de rescisão for feito até o sétimo dia corrido, após a assinatura deste contrato, haverá ressarcimento do valor pago, deduzidos os valores relativos às instalações já confeccionadas e os materiais adquiridos para atender às especificações do pedido objeto deste contrato.\n\nParágrafo Segundo – Caso o pedido de rescisão for feito a partir do oitavo dia corrido a parte que solicitar pagará à parte contrária, 25% (vinte e cinco por cento) sobre o valor total do presente contrato."},
+      {tipo:"clausula", id:"c9", titulo:"Cláusula Sétima - Disposições Gerais:", texto:"Fica eleito o foro da comarca de Porto Velho – RO para discussão acerca do presente contrato."},
+      {tipo:"clausula", id:"c10", titulo:"Cláusula Oitava – Garantia:", texto:"Oferecemos manutenção gratuita de 12 meses."},
+      {tipo:"clausula", id:"c11", titulo:"Cláusula Nona – Controle de Qualidade:", texto:"Todos os envolvidos no projeto (proprietário, incorporador, construtor, etc.) poderão, a qualquer momento, realizar inspeções nas nossas unidades durante o processo de instalação e embarque.\n\nAs inspeções na obra devem ser autorizadas pelos responsáveis pela mesma."},
+      {tipo:"clausula", id:"c12", titulo:"Cláusula Decima Terceira – Considerações Gerais Sobre a Proposta:", texto:"Acessórios nacionais das marcas Udinese, FERMAX ou FISE.\nVedações e guarnições de EPDM, parafusos de aço inox, chumbadores de aço galvanizado, etc.\nConsideramos a execução dos trabalhos em horário comercial;\nArmazenamento e canteiro por conta da obra; de preferência coberto e fechado."},
+      {tipo:"clausula", id:"c13", titulo:"Cláusula Decima Quarta – Imprevistos:", texto:"Caso ocorra chuva no período de instalação, os serviços serão paralisados e retomados com tempo seco, os dias não trabalhados em virtude do tempo, serão acrescentados no tempo estimado para a entrega.\n\nCaso haja alteração na quantidade e/ou tipologias das instalações, o orçamento deverá ser recalculado."},
+      {tipo:"clausula", id:"c14", titulo:"Cláusula Decima Quinta - Contato:", texto:"Email: {{email}}"},
+      {tipo:"assinaturas"}
+    ]
+  },
+  {
+    id:"enxuto", nome:"Esquadrias — versão enxuta, numerada (1, 2, 3...)",
+    dica:"O modelo mais novo e mais curto, com as partes em um parágrafo só e itens numerados. Foi o usado no L.N.R / Jequitibá.",
+    titulo:"CONTRATO PARTICULAR DE INDUSTRIALIZAÇÃO E FORNECIMENTO DE MATERIAIS SOB ENCOMENDA",
+    rotuloNumero:"Pedido Nº", usaObjeto:false, assinaturaEstilo:"rotulo",
+    blocos:[
+      {tipo:"clausula", id:"c1", titulo:"1. AS PARTES", texto:"CONTRATADA: {{contratadaNome}}, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº {{contratadaCnpj}}, sediada na Av. José Vieira Caúla, nº 4651, Barracão Galpões, Bairro Flodoaldo Pontes Pinto, Porto Velho/RO.\n\nCONTRATANTE: {{clienteNome}}, inscrito(a) no CPF/CNPJ sob o nº {{clienteDoc}}, com endereço em {{clienteEndereco}}."},
+      {tipo:"clausula", id:"c2", titulo:"2. OBJETO", texto:"O objeto deste contrato é a fabricação e instalação, sob encomenda, das esquadrias personalizadas detalhadas na proposta comercial anexa a este instrumento.\n\nParágrafo Primeiro – Por se tratar de produtos sob medida desenvolvidos exclusivamente para a obra do CONTRATANTE, não será admitida a devolução de materiais ou restituição de valores após o início da fabricação, salvo em caso de defeito de fabricação devidamente comprovado."},
+      {tipo:"clausula", id:"c3", titulo:"3. VALOR E FORMA DE PAGAMENTO", texto:"O valor total deste contrato é de {{valor}} ({{valorExtenso}}), correspondente à totalidade dos materiais empregados, mão de obra de fabricação e instalação técnica.\n\nParágrafo Primeiro – {{pagamento}}\n\nParágrafo Segundo – Finalizada a produção das esquadrias e materiais, o CONTRATANTE obriga-se a honrar o pagamento integral ajustado, independentemente de a instalação já ter ocorrido ou de a obra civil estar atrasada."},
+      {tipo:"clausula", id:"c4", titulo:"4. CLÁUSULA QUARTA – DO PRAZO DE EXECUÇÃO E ENTREGA", texto:"4.1. O prazo global para a execução do objeto deste instrumento varia de acordo com a tipologia e o acabamento das esquadrias contratadas, dividindo-se em duas etapas consecutivas (aquisição de insumos e posterior produção/instalação), conforme os critérios abaixo:\n\nI. Esquadrias na cor branca:\n\na) Até 30 (trinta) dias corridos para a aquisição e recebimento dos insumos, contados a partir da confirmação do pagamento inicial e da assinatura deste contrato;\n\nb) Até 40 (quarenta) dias úteis, contados a partir da realização da medição técnica definitiva dos vãos in loco, para a programação e fabricação das esquadrias, bem como para o envio e disponibilização dos produtos na obra, com o início dos serviços de instalação previsto dentro deste mesmo prazo.\n\nII. Esquadrias com acabamento amadeirado:\n\na) Até 70 (setenta) dias corridos para a aquisição e recebimento dos insumos, contados a partir da confirmação do pagamento inicial e da assinatura deste contrato;\n\nb) Até 25 (vinte e cinco) dias úteis, contados a partir da realização da medição técnica definitiva dos vãos in loco, para a programação e fabricação das esquadrias, bem como para o envio e disponibilização dos produtos na obra, com o início dos serviços de instalação previsto dentro deste mesmo prazo.\n\nParágrafo Único – O prazo de produção e instalação estabelecido na alínea “b” de cada inciso começará a fluir exclusivamente após o término do respectivo prazo de recebimento dos materiais (alínea “a”), mesmo que a medição técnica definitiva ocorra antecipadamente, respeitando-se a sequência operacional deste instrumento.\n\n4.2. O prazo global de execução será automaticamente suspenso ou readequado nas seguintes hipóteses:\n\nOcorrência de caso fortuito ou força maior;\nAtraso no pagamento ou inadimplemento pelo CONTRATANTE;\nFalta de acesso à obra para medição ou instalação;\nSolicitação de alterações no projeto sem prévia comunicação formal."},
+      {tipo:"clausula", id:"c5", titulo:"5. VISTORIA, PROJETO E CONTROLE DE QUALIDADE", texto:"A CONTRATADA fica autorizada a realizar vistorias e conferência de medidas na obra mediante aviso prévio mínimo de 1 (um) dia útil.\n\nA fabricação seguirá rigorosamente o projeto executivo e o quadro de esquadrias acordado, sendo permitido ao CONTRATANTE inspecionar o processo de fabricação na indústria mediante agendamento prévio."},
+      {tipo:"clausula", id:"c6", titulo:"6. MATERIAIS, INFRAESTRUTURA E NORMAS TÉCNICAS", texto:"Estão inclusos neste contrato: perfis de alumínio (liga 6060-T5), pintura eletrostática ou anodização, vidros conforme escopo, acessórios nacionais renomados (marcas Udinese, Fermax ou Fise), vedações em EPDM, fixadores adequados, frete e impostos para o estado de Rondônia.\n\nParágrafo Primeiro – Toda a infraestrutura e equipamentos necessários para a instalação (como escadas, andaimes, plataformas e ferramentas) serão fornecidos exclusivamente pela CONTRATADA.\n\nParágrafo Segundo – Os produtos atendem rigorosamente às normas técnicas brasileiras aplicáveis (NBR 10821, NBR 6123, NBR 7199, NBR 14697 e NBR 14718). Eventos climáticos como chuvas fortes suspenderão temporariamente os serviços de instalação, somando-se os dias paralisados ao prazo final."},
+      {tipo:"clausula", id:"c7", titulo:"7. RESCISÃO E MULTAS", texto:"A rescisão imotivada ou o descumprimento das obrigações contratuais ensejará aplicação de penalidades calculadas sobre o valor total do contrato:\n\nRescisão até o 7º dia corrido da assinatura: Haverá a restituição dos valores pagos, deduzindo-se integralmente os custos já despendidos com projetos, materiais e início de fabricação.\n\nRescisão após o 8º dia corrido da assinatura: Aplicação de multa rescisória compensatória equivalente a 25% (vinte e cinco por cento).\n\nRescisão por infração contratual geral: Multa penal de 20% (vinte por cento) devida pela parte infratora à parte inocente."},
+      {tipo:"clausula", id:"c8", titulo:"8. SISTEMA DE GARANTIA", texto:"A CONTRATADA oferece assistência e manutenção gratuita pelo prazo de 12 (doze) meses a contar da entrega, condicionado ao cumprimento das regras do Manual de Uso e Conservação, observando-se os seguintes prazos específicos:\n\n90 (noventa) dias: Para vícios aparentes ou de fácil constatação.\n01 (um) ano: Para motores, componentes elétricos, borrachas de vedação, escovas, fechos, articulações e roldanas.\n05 (cinco) anos: Para a integridade estrutural dos perfis de alumínio, qualidade da pintura, anodização, painéis ACM e fixadores.\n\nParágrafo Único – A garantia exclui expressamente componentes ou serviços de automações externas, fechaduras eletrônicas ou quaisquer itens agregados por terceiros."},
+      {tipo:"clausula", id:"c9", titulo:"9. FORO ELEITO", texto:"As partes elegem o foro da Comarca de Porto Velho/RO para dirimir quaisquer dúvidas ou controvérsias decorrentes da aplicação deste instrumento jurídico, renunciando a qualquer outro por mais privilegiado que seja."},
+      {tipo:"assinaturas"}
+    ]
+  }
+];
+
+// ================= CONTRATO =================
+// O contrato do cliente sai daqui, do proprio registro da obra. Pedido do
+// Ander em 17/09/2026: ele perguntou se era melhor um modulo novo e a resposta
+// foi ficar aqui, por um motivo que estava nos contratos dele — o "No do
+// Pedido" impresso E o CT (0073, 0006, 0023). Contrato e obra sao a mesma
+// coisa em dois momentos; separar obrigaria a digitar cliente, CT e prazo duas
+// vezes, e uma correcao num lado nao chegaria no outro.
+//
+// O texto dos 4 modelos veio dos arquivos do Word dele, palavra por palavra,
+// e mora em MODELOS_CONTRATO_PADRAO / `dados.modelosContrato` (editavel pela
+// tela de Cadastros).
+
+// Dados da empresa que assina. Ficam cadastraveis porque mudam sem aviso —
+// consultora de vendas, orcamentista e e-mail ja mudaram nos contratos que ele
+// mandou.
+const CONTRATADA_PADRAO={
+  nome:'SOLUTION SOLUÇÕES EM ESQUADRIAS DE ALUMINIO LTDA',
+  cnpj:'22.714.305/0001-06',
+  endereco:'Av. José Vieira Caúla, nº 4651 – Barracão Galpões – Flodoaldo Pontes Pinto – Porto Velho/RO',
+  telefone:'(69) 9 8419-2880',
+  email:'financeirodaluminio@gmail.com',
+  orcamentista:'Arq. Giovana Virgolino',
+  consultor:'Aretusa Sendeski',
+  cidadeForo:'Porto Velho/RO'
+};
+function contratada(){
+  return Object.assign({}, CONTRATADA_PADRAO, dados.contratada||{});
+}
+
+// O que pode ser escrito entre {{ }} no texto de uma clausula. Esta lista
+// aparece na tela de Cadastros: sem ela ninguem sabe o que da para usar.
+const CAMPOS_DO_CONTRATO=[
+  {chave:'numero',            o:'o número do pedido (o CT, se não for digitado outro)'},
+  {chave:'clienteNome',       o:'nome do cliente (vem do campo Cliente / Obra)'},
+  {chave:'clienteDoc',        o:'CPF ou CNPJ do cliente'},
+  {chave:'clienteEndereco',   o:'endereço do cliente'},
+  {chave:'clienteCidadeUF',   o:'cidade/UF do cliente'},
+  {chave:'clienteContato',    o:'telefone do cliente'},
+  {chave:'clienteEmail',      o:'e-mail do cliente'},
+  {chave:'valor',             o:'valor total já escrito como R$ 59.000,00'},
+  {chave:'valorExtenso',      o:'o valor por extenso, sem R$'},
+  {chave:'pagamento',         o:'a forma de pagamento, como estiver escrita na ficha'},
+  {chave:'prazoDias',         o:'o prazo em número (30)'},
+  {chave:'prazoExtenso',      o:'o prazo por extenso (trinta)'},
+  {chave:'prazoTipo',         o:'úteis ou corridos'},
+  {chave:'objeto',            o:'o que está sendo contratado (corrimão em inox)'},
+  {chave:'orcamentista',      o:'orçamentista responsável'},
+  {chave:'consultor',         o:'consultor(a) de vendas'},
+  {chave:'dataTexto',         o:'a data escrita (17 de Setembro de 2026)'},
+  {chave:'contratadaNome',    o:'nome da empresa que assina'},
+  {chave:'contratadaCnpj',    o:'CNPJ da empresa'},
+  {chave:'contratadaEndereco',o:'endereço da empresa'},
+  {chave:'contratadaTelefone',o:'telefone da empresa'},
+  {chave:'email',             o:'e-mail de contato da empresa'}
+];
+
+// ---- NUMERO POR EXTENSO ----
+// Precisa sair igual ao que os contratos dele escrevem. A regra do "e" antes
+// do ultimo grupo: entra quando o ultimo grupo e menor que 100 OU e centena
+// redonda ("vinte e quatro mil E quinhentos"); nao entra quando passa de 100 e
+// nao e redondo ("sete mil setecentos e oitenta"). Conferido contra os 10
+// valores dos 4 contratos que ele mandou.
+const EXT_UM=['','um','dois','três','quatro','cinco','seis','sete','oito','nove','dez',
+  'onze','doze','treze','quatorze','quinze','dezesseis','dezessete','dezoito','dezenove'];
+const EXT_DEZ=['','','vinte','trinta','quarenta','cinquenta','sessenta','setenta','oitenta','noventa'];
+const EXT_CEM=['','cento','duzentos','trezentos','quatrocentos','quinhentos','seiscentos',
+  'setecentos','oitocentos','novecentos'];
+
+function grupoPorExtenso(n){
+  if(n===100) return 'cem';
+  const c=Math.floor(n/100), r=n%100;
+  const partes=[];
+  if(c) partes.push(EXT_CEM[c]);
+  if(r<20){ if(r) partes.push(EXT_UM[r]); }
+  else{
+    const d=Math.floor(r/10), u=r%10;
+    partes.push(EXT_DEZ[d]+(u?' e '+EXT_UM[u]:''));
+  }
+  return partes.join(' e ');
+}
+
+function inteiroPorExtenso(n){
+  n=Math.floor(Math.abs(Number(n)||0));
+  if(n===0) return 'zero';
+  const grupos=[];
+  let resto=n;
+  while(resto>0){ grupos.unshift(resto%1000); resto=Math.floor(resto/1000); }
+  const nomes=[['',''],['mil','mil'],['milhão','milhões'],['bilhão','bilhões']];
+  const total=grupos.length;
+  const ditos=[], valores=[];
+  grupos.forEach(function(g,i){
+    // Grupo zerado nao e dito: 1.500.000 diz "um milhao e quinhentos mil",
+    // sem nada no lugar das unidades.
+    if(!g) return;
+    const ordem=total-1-i;
+    const nome=nomes[ordem]?(g===1?nomes[ordem][0]:nomes[ordem][1]):'';
+    if(ordem===1 && g===1) ditos.push('mil');
+    else ditos.push(grupoPorExtenso(g)+(nome?' '+nome:''));
+    valores.push(g);
+  });
+  if(!ditos.length) return 'zero';
+  if(ditos.length===1) return ditos[0];
+  const ultimo=valores[valores.length-1];
+  const inicio=ditos.slice(0,-1).join(' ');
+  const fim=ditos[ditos.length-1];
+  const ligaComE = ultimo<100 || (ultimo%100===0);
+  return inicio+(ligaComE?' e ':' ')+fim;
+}
+
+function valorPorExtenso(v){
+  const n=Math.round(Math.abs(Number(v)||0)*100);
+  const reais=Math.floor(n/100), centavos=n%100;
+  const partes=[];
+  if(reais){
+    const txt=inteiroPorExtenso(reais);
+    // Valor que termina em milhao/bilhao redondo: "um milhao DE reais".
+    const redondo=/(milhão|milhões|bilhão|bilhões)$/.test(txt);
+    partes.push(txt+(redondo?' de reais':(reais===1?' real':' reais')));
+  }
+  if(centavos) partes.push(inteiroPorExtenso(centavos)+(centavos===1?' centavo':' centavos'));
+  if(!partes.length) return 'zero real';
+  return partes.join(' e ');
+}
+
+function primeiraMaiuscula(s){
+  const t=String(s||'');
+  return t?t.charAt(0).toUpperCase()+t.slice(1):t;
+}
+
+function emReais(v){
+  const n=Number(v);
+  return isFinite(n)?n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'';
+}
+
+const MESES_EXTENSO=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',
+  'Agosto','Setembro','Outubro','Novembro','Dezembro'];
+function dataPorExtenso(iso){
+  if(!iso||iso.length<10) return '';
+  const a=iso.slice(0,4), m=+iso.slice(5,7), d=iso.slice(8,10);
+  if(!m||m>12) return '';
+  return d+' de '+MESES_EXTENSO[m-1]+' de '+a;
+}
+
+// ---- OS MODELOS ----
+function modelosContrato(){
+  return (Array.isArray(dados.modelosContrato)&&dados.modelosContrato.length)
+    ? dados.modelosContrato : MODELOS_CONTRATO_PADRAO;
+}
+function modelosPadraoNovo(){
+  return JSON.parse(JSON.stringify(MODELOS_CONTRATO_PADRAO));
+}
+function modeloContratoDe(id){
+  const l=modelosContrato();
+  return l.find(function(m){ return m.id===id; }) || l[0] || null;
+}
+
+// ---- O QUE ENTRA NO LUGAR DE CADA {{campo}} ----
+function dadosDoContrato(c, modelo){
+  const ctr=(c&&c.contrato)||{};
+  const emp=contratada();
+  const valorNum=Number(ctr.valor||0);
+  const dias=parseInt(ctr.prazoDias,10);
+  const d={
+    numero: (ctr.numero||'').trim() || ctFormatado(c.ct),
+    clienteNome: c.cliente||'',
+    clienteDoc: ctr.doc||'',
+    clienteEndereco: ctr.endereco||'',
+    clienteCidadeUF: ctr.cidadeUF||c.cidade||'',
+    clienteContato: ctr.contato||'',
+    clienteEmail: ctr.email||'',
+    valor: valorNum?emReais(valorNum):'',
+    // Nos contratos dele o extenso comeca com maiuscula: "(Cinquenta e nove
+    // mil reais)". So a primeira letra — o resto continua como esta.
+    valorExtenso: valorNum?primeiraMaiuscula(valorPorExtenso(valorNum)):'',
+    pagamento: ctr.pagamento||'',
+    prazoDias: isFinite(dias)&&dias>0?String(dias):'',
+    prazoExtenso: isFinite(dias)&&dias>0?inteiroPorExtenso(dias):'',
+    prazoTipo: ctr.prazoTipo||'úteis',
+    objeto: ctr.objeto||(modelo&&modelo.objetoPadrao)||'',
+    orcamentista: ctr.orcamentista||emp.orcamentista,
+    consultor: ctr.consultor||c.respCom||emp.consultor,
+    dataTexto: dataPorExtenso(ctr.data||hojeISO()),
+    contratadaNome: emp.nome,
+    contratadaCnpj: emp.cnpj,
+    contratadaEndereco: emp.endereco,
+    contratadaTelefone: emp.telefone,
+    email: emp.email
+  };
+  // Os campos proprios do modelo (quantas portas, quantos visores...) e o
+  // extenso de cada um, para o texto poder escrever "15 (quinze) portas".
+  (modelo&&modelo.campos||[]).forEach(function(cp){
+    const v=((ctr.campos||{})[cp.id]!==undefined && (ctr.campos||{})[cp.id]!=='')
+      ? (ctr.campos||{})[cp.id] : (cp.padrao||'');
+    d[cp.id]=String(v);
+    const n=parseInt(v,10);
+    d[cp.id+'Extenso']=isFinite(n)?inteiroPorExtenso(n):'';
+  });
+  return d;
+}
+
+// Campo sem valor fica visivel no papel, nao sai em branco: contrato com
+// espaco vazio passa despercebido e vai para o cliente assim.
+function trocarCampos(txt, d){
+  return String(txt||'').replace(/\{\{([a-zA-Z]+)\}\}/g, function(tudo, chave){
+    const v=d[chave];
+    return (v===undefined||v==='') ? '__________' : v;
+  });
+}
+
+// ---- MONTAR O PAPEL ----
+function paragrafosHtml(texto, d){
+  return String(texto||'').split(/\n{2,}/).map(function(p){
+    const t=p.trim();
+    if(!t) return '';
+    // Paragrafo com quebra de linha dentro e lista ou bloco de dados
+    // ("Nome: ...", "a) ...", "NBR 10821;"). Justificar isso abre buracos
+    // entre as palavras — no Word esses blocos sao alinhados a esquerda.
+    const varias=t.indexOf('\n')>=0;
+    return '<p'+(varias?' class="ctr-linhas"':'')+'>'+
+      esc(trocarCampos(t,d)).replace(/\n/g,'<br>')+'</p>';
+  }).join('');
+}
+
+function assinaturasHtml(modelo, d){
+  const porRotulo=(modelo.assinaturaEstilo==='rotulo');
+  function bloco(nome, linha2){
+    return '<div class="ctr-assina-um">'+
+      '<div class="ctr-linha"></div>'+
+      '<div class="ctr-nome">'+esc(nome||'__________')+'</div>'+
+      (linha2?'<div class="ctr-sob">'+esc(linha2)+'</div>':'')+
+      '</div>';
+  }
+  return '<div class="ctr-assina">'+
+    '<p class="ctr-local">'+esc(contratada().cidadeForo)+', '+esc(d.dataTexto||'__________')+'.</p>'+
+    bloco(d.clienteNome, porRotulo?'CONTRATANTE':(d.clienteDoc?'CPF/CNPJ: '+d.clienteDoc:''))+
+    bloco(d.contratadaNome, porRotulo?'CONTRATADA':('CNPJ: '+d.contratadaCnpj))+
+    '</div>';
+}
+
+function htmlDoContrato(c, modelo){
+  if(!modelo) return '<p>Nenhum modelo de contrato cadastrado.</p>';
+  const d=dadosDoContrato(c, modelo);
+  let html='<img class="ctr-logo" src="'+LOGO_DALUMINIUM+'" alt="Daluminium">'+
+    '<h1>'+esc(trocarCampos(modelo.titulo,d))+'</h1>'+
+    '<p class="ctr-num">'+esc(modelo.rotuloNumero||'Nº do Pedido')+': '+esc(d.numero)+'</p>';
+  (modelo.blocos||[]).forEach(function(b){
+    if(b.tipo==='assinaturas'){ html+=assinaturasHtml(modelo,d); return; }
+    if(b.tipo==='pagina'){ html+='<div class="ctr-pagina"></div>'; return; }
+    html+='<div class="ctr-clausula"><h2>'+esc(trocarCampos(b.titulo,d))+'</h2>'+
+      paragrafosHtml(b.texto,d)+'</div>';
+  });
+  return html;
+}
+
+// ---- A JANELA ----
+let _contratoId=null;
+
+// Grava a ficha ANTES de montar o papel (sem fechar, como o anexo faz). Sem
+// isso o contrato sairia com o valor ou a data que ainda estao so na tela, e o
+// que foi impresso nao seria o que ficou gravado.
+async function abrirContrato(){
+  if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente gera contrato.'); return; }
+  const gravou=await salvarFicha(true);
+  if(!gravou) return;
+  const c=(dados.contratos||[]).find(function(x){ return x.id===fichaId; });
+  if(!c){ aviso('Contrato não encontrado','Recarregue a tela e tente de novo.'); return; }
+  _contratoId=c.id;
+  montarContrato();
+  document.getElementById('ctr-ov').classList.add('open');
+}
+function fecharContrato(){
+  document.getElementById('ctr-ov').classList.remove('open');
+  _contratoId=null;
+}
+
+// O que ainda esta em branco. Sai ANTES de imprimir, porque contrato com
+// lacuna vai para o cliente do mesmo jeito se ninguem avisar.
+function faltandoNoContrato(c, modelo){
+  const d=dadosDoContrato(c, modelo);
+  const usados={};
+  (modelo.blocos||[]).forEach(function(b){
+    if(b.tipo!=='clausula') return;
+    ((b.titulo||'')+' '+(b.texto||'')).replace(/\{\{([a-zA-Z]+)\}\}/g,function(t,k){ usados[k]=1; return t; });
+  });
+  usados.dataTexto=1; usados.clienteNome=1;   // as assinaturas usam os dois
+  const rotulos={numero:'número do pedido', clienteDoc:'CPF/CNPJ do cliente',
+    clienteEndereco:'endereço do cliente', clienteCidadeUF:'cidade/UF do cliente',
+    clienteContato:'contato do cliente', clienteEmail:'e-mail do cliente',
+    valor:'valor total', valorExtenso:'valor total', pagamento:'forma de pagamento',
+    prazoDias:'prazo em dias', prazoExtenso:'prazo em dias', objeto:'o que está sendo contratado',
+    dataTexto:'data do contrato', clienteNome:'cliente'};
+  const faltam={};
+  Object.keys(usados).forEach(function(k){
+    if(d[k]===''||d[k]===undefined) faltam[rotulos[k]||k]=1;
+  });
+  return Object.keys(faltam);
+}
+
+function montarContrato(){
+  const c=(dados.contratos||[]).find(function(x){ return x.id===_contratoId; });
+  if(!c) return;
+  const modelo=modeloContratoDe((c.contrato||{}).modelo||'');
+  document.getElementById('ctr-papel').innerHTML=htmlDoContrato(c, modelo);
+  const qual=document.getElementById('ctr-qual');
+  if(qual) qual.innerHTML='<strong>Modelo:</strong> '+esc(modelo?modelo.nome:'—')+
+    ' <span style="color:var(--gray-4)">— para trocar, feche e mude na parte Contrato da ficha.</span>';
+  const av=document.getElementById('ctr-faltando');
+  if(av){
+    const faltam=faltandoNoContrato(c, modelo);
+    av.innerHTML=faltam.length
+      ? '<div class="aviso" style="margin:0">Falta preencher, e no papel isso sai como uma linha em branco: <strong>'+
+        esc(faltam.join(', '))+'</strong>. Feche, preencha na parte <em>Contrato</em> da ficha, salve e gere de novo.</div>'
+      : '';
+  }
+}
+
+function imprimirContrato(){
+  // A impressao depende do CSS: na hora de imprimir some tudo menos o papel.
+  window.print();
+}
+
+// ---- A PARTE "CONTRATO" DA FICHA ----
+// Os dados que o contrato pede e a carteira nao tinha. Ficam dentro do
+// contrato, em `c.contrato`, e nao soltos no registro: sao um assunto so.
+//
+// Os campos proprios de cada modelo (quantas portas, quantos visores) ficam
+// neste saco por id. Guardar aqui, e nao ler do formulario na hora de trocar
+// de modelo, e o que impede o valor digitado de sumir quando a pessoa olha
+// outro modelo e volta.
+let _camposCtr={};
+
+function guardarCampoDoModelo(el){
+  if(el&&el.dataset&&el.dataset.campo) _camposCtr[el.dataset.campo]=el.value;
+}
+
+function preencherSelectModeloFicha(){
+  const sel=document.getElementById('f-ctr-modelo');
+  if(!sel) return;
+  const antes=sel.value;
+  const lista=modelosContrato();
+  sel.innerHTML=lista.map(function(m){
+    return '<option value="'+esc(m.id)+'">'+esc(m.nome)+'</option>';
+  }).join('');
+  if(antes && lista.some(function(m){ return m.id===antes; })) sel.value=antes;
+}
+
+function renderCamposDoModelo(){
+  const el=document.getElementById('f-ctr-campos');
+  if(!el) return;
+  const sel=document.getElementById('f-ctr-modelo');
+  const m=modeloContratoDe(sel?sel.value:'');
+  const campos=(m&&m.campos)||[];
+  el.innerHTML=campos.map(function(cp){
+    const v=(_camposCtr[cp.id]!==undefined&&_camposCtr[cp.id]!=='')?_camposCtr[cp.id]:(cp.padrao||'');
+    return '<div class="fg"><label>'+esc(cp.rotulo)+'</label>'+
+      '<input data-campo="'+esc(cp.id)+'" value="'+esc(String(v))+'" '+
+      'oninput="guardarCampoDoModelo(this)"></div>';
+  }).join('');
+  // O campo "o que está sendo contratado" só faz sentido nos modelos de
+  // serviço; nos de esquadria o objeto vem da proposta anexa.
+  const grupo=document.getElementById('f-ctr-objeto-grupo');
+  if(grupo) grupo.style.display=(m&&m.usaObjeto)?'':'none';
+  const dica=document.getElementById('d-ctr-modelo');
+  if(dica) dica.textContent=(m&&m.dica)||'';
+}
+
+function trocarModeloNaFicha(){ renderCamposDoModelo(); }
+
+function mostrarValorPorExtenso(){
+  const el=document.getElementById('d-ctr-valor');
+  if(!el) return;
+  const campo=document.getElementById('f-ctr-valor');
+  const v=Number(campo?campo.value:0);
+  el.textContent=(isFinite(v)&&v>0)?valorPorExtenso(v)+'.':'';
+}
+
+function lerFichaContrato(){
+  const v=function(id){ const el=document.getElementById(id); return el?String(el.value||'').trim():''; };
+  return {
+    modelo:   v('f-ctr-modelo'),
+    numero:   v('f-ctr-numero'),
+    doc:      v('f-ctr-doc'),
+    endereco: v('f-ctr-endereco'),
+    cidadeUF: v('f-ctr-cidadeuf'),
+    contato:  v('f-ctr-contato'),
+    email:    v('f-ctr-email'),
+    valor:    v('f-ctr-valor'),
+    pagamento:v('f-ctr-pagamento'),
+    prazoDias:v('f-ctr-prazodias'),
+    prazoTipo:v('f-ctr-prazotipo'),
+    data:     v('f-ctr-data'),
+    orcamentista:v('f-ctr-orcamentista'),
+    consultor:v('f-ctr-consultor'),
+    objeto:   v('f-ctr-objeto'),
+    campos:   Object.assign({}, _camposCtr)
+  };
+}
+
+function preencherFichaContrato(c){
+  const ctr=(c&&c.contrato)||{};
+  _camposCtr=Object.assign({}, ctr.campos||{});
+  const p=function(id,val){ const el=document.getElementById(id); if(el) el.value=(val==null?'':val); };
+  preencherSelectModeloFicha();
+  const sel=document.getElementById('f-ctr-modelo');
+  if(sel && ctr.modelo && modelosContrato().some(function(m){ return m.id===ctr.modelo; })) sel.value=ctr.modelo;
+  p('f-ctr-numero',   ctr.numero);
+  p('f-ctr-doc',      ctr.doc);
+  p('f-ctr-endereco', ctr.endereco);
+  p('f-ctr-cidadeuf', ctr.cidadeUF);
+  p('f-ctr-contato',  ctr.contato);
+  p('f-ctr-email',    ctr.email);
+  p('f-ctr-valor',    ctr.valor);
+  p('f-ctr-pagamento',ctr.pagamento);
+  p('f-ctr-prazodias',ctr.prazoDias);
+  p('f-ctr-prazotipo',ctr.prazoTipo||'úteis');
+  p('f-ctr-data',     ctr.data);
+  p('f-ctr-orcamentista', ctr.orcamentista);
+  p('f-ctr-consultor',    ctr.consultor);
+  p('f-ctr-objeto',   ctr.objeto);
+  renderCamposDoModelo();
+  mostrarValorPorExtenso();
+}
+
+// ---- CADASTRO DOS MODELOS DE CONTRATO ----
+// Pedido do Ander em 17/09/2026, junto com o modulo de contrato: "verificar
+// tambem onde podemos colocar para fazer um cadastro de uma nova Clausula e
+// editar as outras". Mesma ideia do cadastro de status: o texto sai do codigo
+// e vai para o banco, e o codigo fica so com o ponto de partida.
+//
+// O `id` da clausula NUNCA muda depois de criado — e por ele que o Editar
+// encontra a clausula. Clausula nova ganha id novo, nunca reaproveitado.
+let _modeloAberto=null;      // qual modelo esta sendo editado na tela
+let _clausulaEditando=null;  // id da clausula em edicao; nulo = clausula nova
+
+function modeloDaTela(){
+  const sel=document.getElementById('ctm-modelo');
+  const id=sel?sel.value:'';
+  return modeloContratoDe(id||_modeloAberto);
+}
+
+function preencherModelosCadastro(){
+  const sel=document.getElementById('ctm-modelo');
+  if(!sel) return;
+  const antes=sel.value;
+  const lista=modelosContrato();
+  sel.innerHTML=lista.map(function(m){
+    return '<option value="'+esc(m.id)+'">'+esc(m.nome)+'</option>';
+  }).join('');
+  if(antes && lista.some(function(m){ return m.id===antes; })) sel.value=antes;
+  _modeloAberto=sel.value;
+}
+
+function renderModeloContrato(){
+  const sel=document.getElementById('ctm-modelo');
+  if(!sel) return;
+  _modeloAberto=sel.value;
+  const m=modeloDaTela();
+  const el=document.getElementById('ctm-lista');
+  const tit=document.getElementById('ctm-titulo');
+  if(tit && document.activeElement!==tit) tit.value=m?m.titulo:'';
+  const dica=document.getElementById('ctm-dica');
+  if(dica) dica.textContent=m&&m.dica?m.dica:'';
+  if(!el) return;
+  if(!m){ el.innerHTML=''; return; }
+  const blocos=m.blocos||[];
+  el.innerHTML='<div class="caixa">'+blocos.map(function(b,i){
+    const arg=JSON.stringify(b.id||('#'+i)).replace(/"/g,'&quot;');
+    const setas='<button class="btn btn-outline btn-sm" title="Subir" '+(i===0?'disabled style="opacity:.4"':'')+
+        ' onclick="moverClausula('+i+',-1)">&uarr;</button>'+
+      '<button class="btn btn-outline btn-sm" title="Descer" '+(i===blocos.length-1?'disabled style="opacity:.4"':'')+
+        ' onclick="moverClausula('+i+',1)">&darr;</button>';
+    if(b.tipo!=='clausula'){
+      const nome=(b.tipo==='assinaturas')?'— as assinaturas entram aqui —':'— daqui em diante, página nova —';
+      return '<div class="caixa-linha"><span style="font-size:12px;color:var(--gray-4)">'+nome+'</span>'+
+        '<span style="display:flex;gap:5px;align-items:center">'+setas+'</span></div>';
+    }
+    const primeiras=String(b.texto||'').replace(/\s+/g,' ').slice(0,90);
+    return '<div class="caixa-linha" style="flex-direction:column;align-items:stretch;gap:4px">'+
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">'+
+        '<strong style="font-size:12.5px">'+esc(b.titulo)+'</strong>'+
+        '<span style="display:flex;gap:5px;align-items:center">'+setas+
+          '<button class="btn btn-outline btn-sm" onclick="editarClausula('+arg+')">Editar</button>'+
+          '<button class="btn btn-outline btn-sm" onclick="delClausula('+arg+')">Tirar</button>'+
+        '</span>'+
+      '</div>'+
+      '<span style="font-size:11px;color:var(--gray-4)">'+esc(primeiras)+(primeiras.length>=90?'...':'')+'</span>'+
+      '</div>';
+  }).join('')+'</div>';
+}
+
+function renderCamposDoContrato(){
+  const el=document.getElementById('ctm-campos');
+  if(!el) return;
+  el.innerHTML='<span class="dica">Dentro do texto, escreva entre duas chaves para o sistema trocar pelo dado da ficha:<br>'+
+    CAMPOS_DO_CONTRATO.map(function(c){
+      return '<b>{{'+c.chave+'}}</b> '+esc(c.o);
+    }).join('<br>')+'</span>';
+}
+
+// Grava uma alteracao na lista de modelos. Se o banco ainda nao tem a lista,
+// comeca da lista do codigo — do contrario a primeira edicao apagaria os
+// outros tres modelos.
+async function mexerNosModelos(fn, registro){
+  return await alterar(function(base){
+    if(!Array.isArray(base.modelosContrato)||!base.modelosContrato.length){
+      base.modelosContrato=modelosPadraoNovo();
+    }
+    const m=base.modelosContrato.find(function(x){ return x.id===_modeloAberto; });
+    if(!m) return;
+    if(!Array.isArray(m.blocos)) m.blocos=[];
+    fn(m, base);
+  }, registro);
+}
+
+function editarClausula(id){
+  const m=modeloDaTela();
+  if(!m) return;
+  const b=(m.blocos||[]).find(function(x){ return x.id===id; });
+  if(!b) return;
+  _clausulaEditando=id;
+  document.getElementById('ctm-cl-titulo').value=b.titulo||'';
+  document.getElementById('ctm-cl-texto').value=b.texto||'';
+  document.getElementById('ctm-cl-btn').textContent='Salvar cláusula';
+  document.getElementById('ctm-cl-cancela').style.display='';
+  document.getElementById('ctm-cl-titulo').focus();
+}
+
+function cancelarEdicaoClausula(){
+  _clausulaEditando=null;
+  const t=document.getElementById('ctm-cl-titulo');
+  const x=document.getElementById('ctm-cl-texto');
+  if(t) t.value='';
+  if(x) x.value='';
+  const b=document.getElementById('ctm-cl-btn');
+  if(b) b.textContent='Acrescentar cláusula';
+  const c=document.getElementById('ctm-cl-cancela');
+  if(c) c.style.display='none';
+}
+
+// Serve para acrescentar e para salvar a edicao.
+async function salvarClausula(){
+  const titulo=document.getElementById('ctm-cl-titulo').value.trim();
+  const texto=document.getElementById('ctm-cl-texto').value.trim();
+  if(!titulo){ aviso('Falta o título','Escreva o título da cláusula, como "CLÁUSULA DÉCIMA SÉTIMA – DO SEGURO".'); return; }
+  if(!texto){ aviso('Falta o texto','Escreva o texto da cláusula.'); return; }
+  const editando=_clausulaEditando;
+  const ok=await mexerNosModelos(function(m){
+    if(editando){
+      const b=m.blocos.find(function(x){ return x.id===editando; });
+      if(!b) return;
+      b.titulo=titulo; b.texto=texto;
+    } else {
+      // Id novo, nunca reaproveitado: o maior numero ja usado + 1.
+      let maior=0;
+      m.blocos.forEach(function(x){
+        const n=parseInt(String(x.id||'').replace(/[^0-9]/g,''),10);
+        if(isFinite(n)&&n>maior) maior=n;
+      });
+      const nova={tipo:'clausula', id:'c'+(maior+1), titulo:titulo, texto:texto};
+      // Entra ANTES das assinaturas — clausula depois da assinatura ninguem le.
+      const iAssina=m.blocos.findIndex(function(x){ return x.tipo==='assinaturas'; });
+      if(iAssina>=0) m.blocos.splice(iAssina,0,nova); else m.blocos.push(nova);
+    }
+  }, {acao: editando?'alterou cláusula do contrato':'cadastrou cláusula do contrato',
+      alvo: titulo, detalhe:'modelo '+((modeloDaTela()||{}).nome||'')});
+  if(ok){ cancelarEdicaoClausula(); renderModeloContrato(); }
+}
+
+async function delClausula(id){
+  const m=modeloDaTela();
+  if(!m) return;
+  const b=(m.blocos||[]).find(function(x){ return x.id===id; });
+  if(!b) return;
+  if(!confirm('Tirar a cláusula "'+b.titulo+'" do modelo "'+m.nome+'"?\n\nEla sai só deste modelo, e os contratos já impressos não mudam.')) return;
+  const ok=await mexerNosModelos(function(mm){
+    mm.blocos=mm.blocos.filter(function(x){ return x.id!==id; });
+  }, {acao:'tirou cláusula do contrato', alvo:b.titulo, detalhe:'modelo '+m.nome});
+  if(ok){ if(_clausulaEditando===id) cancelarEdicaoClausula(); renderModeloContrato(); }
+}
+
+async function moverClausula(i, passo){
+  const m=modeloDaTela();
+  if(!m) return;
+  const j=i+passo;
+  const blocos=m.blocos||[];
+  if(i<0||j<0||j>=blocos.length) return;
+  const nome=blocos[i].titulo||blocos[i].tipo;
+  const ok=await mexerNosModelos(function(mm){
+    if(i>=mm.blocos.length||j>=mm.blocos.length) return;
+    const t=mm.blocos[i]; mm.blocos[i]=mm.blocos[j]; mm.blocos[j]=t;
+  }, {acao:'mudou a ordem das cláusulas', alvo:nome, detalhe:'modelo '+m.nome});
+  if(ok) renderModeloContrato();
+}
+
+async function salvarTituloModelo(){
+  const titulo=document.getElementById('ctm-titulo').value.trim();
+  if(!titulo){ aviso('Falta o título','Escreva o título que sai no alto do contrato.'); return; }
+  const m=modeloDaTela();
+  const ok=await mexerNosModelos(function(mm){ mm.titulo=titulo; },
+    {acao:'alterou o título do contrato', alvo:(m||{}).nome||'', detalhe:titulo});
+  if(ok){ renderModeloContrato(); aviso('Pronto','O título novo já sai nos próximos contratos deste modelo.'); }
+}
+
+async function restaurarModelo(){
+  const m=modeloDaTela();
+  if(!m) return;
+  const padrao=MODELOS_CONTRATO_PADRAO.find(function(x){ return x.id===m.id; });
+  if(!padrao){ aviso('Sem original','Este modelo foi criado aqui, não tem texto original para voltar.'); return; }
+  if(!confirm('Voltar o modelo "'+m.nome+'" ao texto original?\n\nTudo que foi editado nele se perde.')) return;
+  const ok=await alterar(function(base){
+    if(!Array.isArray(base.modelosContrato)||!base.modelosContrato.length){
+      base.modelosContrato=modelosPadraoNovo();
+    }
+    const i=base.modelosContrato.findIndex(function(x){ return x.id===m.id; });
+    const limpo=JSON.parse(JSON.stringify(padrao));
+    if(i>=0) base.modelosContrato[i]=limpo; else base.modelosContrato.push(limpo);
+  }, {acao:'voltou o modelo de contrato ao original', alvo:m.nome});
+  if(ok){ cancelarEdicaoClausula(); renderModeloContrato(); }
+}
+
+// ---- DADOS DA CONTRATADA ----
+const CAMPOS_CONTRATADA=[
+  {id:'nome',      rotulo:'Razão social'},
+  {id:'cnpj',      rotulo:'CNPJ'},
+  {id:'endereco',  rotulo:'Endereço'},
+  {id:'telefone',  rotulo:'Telefone'},
+  {id:'email',     rotulo:'E-mail de contato'},
+  {id:'orcamentista', rotulo:'Orçamentista responsável'},
+  {id:'consultor', rotulo:'Consultor(a) de vendas'},
+  {id:'cidadeForo',rotulo:'Cidade da assinatura e do foro'}
+];
+
+function renderContratada(){
+  const emp=contratada();
+  CAMPOS_CONTRATADA.forEach(function(c){
+    const el=document.getElementById('emp-'+c.id);
+    if(el && document.activeElement!==el) el.value=emp[c.id]||'';
+  });
+}
+
+async function salvarContratada(){
+  const novo={};
+  CAMPOS_CONTRATADA.forEach(function(c){
+    const el=document.getElementById('emp-'+c.id);
+    novo[c.id]=el?el.value.trim():'';
+  });
+  if(!novo.nome||!novo.cnpj){ aviso('Falta o essencial','Razão social e CNPJ são obrigatórios: eles assinam o contrato.'); return; }
+  const ok=await alterar(function(base){
+    base.contratada=novo;
+  }, {acao:'alterou os dados da contratada', alvo:novo.nome});
+  if(ok){ renderContratada(); aviso('Pronto','Os próximos contratos já saem com estes dados.'); }
+}
+
+
 // ================= CAMPOS EXTRAS =================
 // Colunas que o gestor cria pela tela de Cadastros, sem alteração no código.
 // Nasceram das três colunas da planilha que estavam vazias (PF, PR e CUSTO
@@ -1824,6 +2728,7 @@ const SECOES_FICHA=[
   {id:'situacao',   rotulo:'Situação',      grid:'f-grid-situacao'},
   {id:'prazos',     rotulo:'Prazos',        grid:'f-grid-prazos'},
   {id:'esquadrias', rotulo:'Esquadrias',    grid:'f-grid-esquadrias'},
+  {id:'contrato',   rotulo:'Contrato',      grid:'f-grid-contrato'},
   {id:'outros',     rotulo:'Outros campos', grid:'f-extras'}
 ];
 const SECAO_PADRAO='outros';
@@ -2380,6 +3285,11 @@ function abrirCadastros(){
   renderStatus();
   renderCamposExtras();
   renderTiposDoc();
+  preencherModelosCadastro();
+  renderModeloContrato();
+  renderCamposDoContrato();
+  cancelarEdicaoClausula();
+  renderContratada();
   document.getElementById('cad-ov').classList.add('open');
 }
 function fecharCadastros(){ document.getElementById('cad-ov').classList.remove('open'); }
@@ -3714,9 +4624,11 @@ function abrirApp(nome,papelDoUsuario){
   document.getElementById('aviso-ov').addEventListener('click',function(e){ if(e.target===this) fecharAviso(); });
   document.getElementById('ficha-ov').addEventListener('click',function(e){ if(e.target===this) fecharFicha(); });
   document.getElementById('cad-ov').addEventListener('click',function(e){ if(e.target===this) fecharCadastros(); });
+  document.getElementById('ctr-ov').addEventListener('click',function(e){ if(e.target===this) fecharContrato(); });
   document.addEventListener('keydown',function(e){
     if(e.key!=='Escape') return;
     if(document.getElementById('aviso-ov').classList.contains('open')) fecharAviso();
+    else if(document.getElementById('ctr-ov').classList.contains('open')) fecharContrato();
     else if(document.getElementById('cad-ov').classList.contains('open')) fecharCadastros();
     else if(document.getElementById('ficha-ov').classList.contains('open')) fecharFicha();
   });
