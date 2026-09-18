@@ -537,8 +537,11 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div class="secao">Rótulos dos anexos</div>
       <div class="aviso">São as etiquetas que aparecem na frente de cada arquivo anexado na ficha — o rótulo diz o que é o documento sem precisar abrir. Um rótulo em uso não pode ser removido.</div>
       <div class="form-grid" style="margin-bottom:12px">
-        <div class="fg span2"><label>Novo rótulo</label><input id="td-nome" placeholder="Ex.: Aditivo de contrato"></div>
-        <div class="fg span2"><button class="btn btn-teal btn-block" onclick="addTipoDoc()">Acrescentar rótulo</button></div>
+        <div class="fg span2"><label id="td-rotulo">Novo rótulo</label><input id="td-nome" placeholder="Ex.: Aditivo de contrato"></div>
+        <div class="fg span2" style="display:flex;flex-direction:row;gap:8px">
+          <button class="btn btn-teal" style="flex:1" id="td-btn" onclick="addTipoDoc()">Acrescentar rótulo</button>
+          <button class="btn btn-outline" id="td-btn-cancela" onclick="cancelarEdicaoTipoDoc()" style="display:none">Cancelar</button>
+        </div>
       </div>
       <div id="td-lista"></div>
     </div>
@@ -2485,7 +2488,9 @@ function montarContrato(){
 function mostrarAnexosDoContrato(c){
   const el=document.getElementById('ctr-anexos');
   if(!el) return;
-  const propostas=(c.docs||[]).filter(function(d){ return (d.tipo||'')==='Proposta' && d.url; });
+  // Qualquer rotulo com "proposta" no nome: os rotulos agora podem ser
+  // renomeados, e "Proposta comercial" tem de continuar sendo achado.
+  const propostas=(c.docs||[]).filter(function(d){ return /proposta/i.test(d.tipo||'') && d.url; });
   if(!propostas.length){
     el.innerHTML='<div class="aviso" style="margin:0"><strong>Nenhuma proposta anexada nesta obra.</strong> '+
       'O contrato cita a proposta comercial anexa — anexe o PDF na ficha, em <em>Anexos</em>, com o rótulo <strong>Proposta</strong>.</div>';
@@ -3528,6 +3533,7 @@ function abrirCadastros(){
   renderStatus();
   renderCamposExtras();
   renderTiposDoc();
+  cancelarEdicaoTipoDoc();
   document.getElementById('cad-ov').classList.add('open');
 }
 
@@ -3719,25 +3725,68 @@ function renderTiposDoc(){
     return '<div class="caixa-linha"><span>'+esc(t)+'</span>'+
       '<span style="display:flex;gap:8px;align-items:center">'+
       '<span style="font-size:11px;color:var(--gray-4)">'+(uso?uso+' em uso':'não usado')+'</span>'+
+      '<button class="btn btn-outline btn-sm" onclick="editarTipoDoc('+JSON.stringify(t).replace(/"/g,'&quot;')+')">Editar</button>'+
       '<button class="btn btn-outline btn-sm" onclick="delTipoDoc('+JSON.stringify(t).replace(/"/g,'&quot;')+')">Tirar</button>'+
       '</span></div>';
   }).join('')+'</div>';
 }
 
+// Rotulo em edicao; nulo = rotulo novo. Renomear existe porque rotulo em uso
+// nao pode ser tirado — o Ander quis trocar "Contrato" por "Contrato
+// assinado" (18/09/2026) e ficou preso: o Tirar recusava e nao havia outro
+// caminho. O anexo guarda o TEXTO do rotulo, entao renomear troca tambem nos
+// anexos de todos os contratos, na mesma gravacao — mesma regra do status.
+let _tipoDocEditando=null;
+
+function editarTipoDoc(rotulo){
+  _tipoDocEditando=rotulo;
+  document.getElementById('td-nome').value=rotulo;
+  document.getElementById('td-rotulo').textContent='Renomear o rótulo "'+rotulo+'"';
+  document.getElementById('td-btn').textContent='Salvar rótulo';
+  document.getElementById('td-btn-cancela').style.display='';
+  document.getElementById('td-nome').focus();
+}
+
+function cancelarEdicaoTipoDoc(){
+  _tipoDocEditando=null;
+  const n=document.getElementById('td-nome'); if(n) n.value='';
+  const r=document.getElementById('td-rotulo'); if(r) r.textContent='Novo rótulo';
+  const b=document.getElementById('td-btn'); if(b) b.textContent='Acrescentar rótulo';
+  const c=document.getElementById('td-btn-cancela'); if(c) c.style.display='none';
+}
+
 async function addTipoDoc(){
   const nome=document.getElementById('td-nome').value.trim();
   if(!nome){ aviso('Falta o nome','Escreva o rótulo.'); return; }
-  if(tiposDoc().some(function(t){ return t.toUpperCase()===nome.toUpperCase(); })){
+  const antigo=_tipoDocEditando;
+  if(tiposDoc().some(function(t){ return t.toUpperCase()===nome.toUpperCase() && t!==antigo; })){
     aviso('Já existe','Esse rótulo já está cadastrado.'); return;
   }
+  if(antigo && antigo===nome){ cancelarEdicaoTipoDoc(); return; }
+  const uso=antigo?usoTipoDoc(antigo):0;
   const ok=await alterar(function(base){
     if(!Array.isArray(base.tiposDoc)||!base.tiposDoc.length) base.tiposDoc=TIPOS_DOC_PADRAO.slice();
-    base.tiposDoc.push(nome);
-  }, {acao:'cadastrou rótulo de anexo', alvo:nome});
+    if(antigo){
+      const i=base.tiposDoc.indexOf(antigo);
+      if(i<0) return;
+      base.tiposDoc[i]=nome;
+      // O anexo guarda o texto: renomear aqui acerta nos contratos tambem.
+      (base.contratos||[]).forEach(function(c){
+        (c.docs||[]).forEach(function(d){ if((d.tipo||'')===antigo) d.tipo=nome; });
+      });
+    } else {
+      base.tiposDoc.push(nome);
+    }
+  }, {acao: antigo?'renomeou rótulo de anexo':'cadastrou rótulo de anexo',
+      alvo: antigo?antigo+' → '+nome:nome,
+      detalhe: (antigo&&uso)?uso+' arquivo(s) com o nome novo':''});
   if(ok){
-    document.getElementById('td-nome').value='';
+    // Ficha aberta por baixo: os anexos da tela tambem mudam de nome.
+    if(antigo) (fichaDocs||[]).forEach(function(d){ if((d.tipo||'')===antigo) d.tipo=nome; });
+    cancelarEdicaoTipoDoc();
     renderTiposDoc();
     preencherTiposDoc();
+    if(antigo) renderDocs();
   }
 }
 
@@ -3745,7 +3794,7 @@ async function delTipoDoc(rotulo){
   const uso=usoTipoDoc(rotulo);
   if(uso){
     aviso('Rótulo em uso','Existem '+uso+' arquivo(s) com o rótulo "'+rotulo+'".\n\n'+
-      'Tirar o rótulo deixaria esses arquivos sem etiqueta. Troque a etiqueta deles primeiro.');
+      'Tirar o rótulo deixaria esses arquivos sem etiqueta. Para só trocar o nome, use o botão Editar: o nome novo passa também para esses arquivos.');
     return;
   }
   if(tiposDoc().length<=1){ aviso('Precisa de um','Tem de sobrar pelo menos um rótulo.'); return; }
