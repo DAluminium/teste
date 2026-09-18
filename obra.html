@@ -332,6 +332,9 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg span2"><label>Modelo do contrato</label>
           <select id="f-ctr-modelo" onchange="trocarModeloNaFicha()"></select>
           <span class="dica" id="d-ctr-modelo"></span></div>
+        <div class="fg span2"><label>Empresa que assina</label>
+          <select id="f-ctr-empresa"></select>
+          <span class="dica">Sai no alto, no Manual de Uso e na assinatura. A lista vem de Cadastros.</span></div>
         <div class="fg"><label>Nº do pedido no contrato</label><input id="f-ctr-numero" placeholder="Ex.: 0073 ou PORMADE/5">
           <span class="dica">Em branco, sai o CT com 4 dígitos.</span></div>
         <div class="fg"><label>CPF / CNPJ do cliente</label><input id="f-ctr-doc" placeholder="Ex.: 000.000.000-00"></div>
@@ -558,9 +561,14 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         </div>
       </div>
 
-      <div class="secao">Dados de quem assina o contrato</div>
-      <div class="aviso">Saem em todos os modelos: no alto, nas cláusulas de contato e na assinatura. Mude aqui quando trocar a consultora, o orçamentista ou o e-mail — sem mexer no sistema.</div>
+      <div class="secao">Empresas que assinam o contrato</div>
+      <div class="aviso">Em cada contrato, a ficha escolhe qual destas empresas assina — e o documento inteiro fala só dela: no alto, no Manual de Uso, nas cláusulas de contato e na assinatura. Mude aqui quando trocar a consultora, o orçamentista ou o e-mail, sem mexer no sistema.</div>
       <div class="form-grid" style="margin-bottom:12px">
+        <div class="fg span2"><label>Empresa</label>
+          <div style="display:flex;gap:8px">
+            <select id="emp-qual" onchange="_empresaNova=false;renderContratada()" style="flex:1"></select>
+            <button class="btn btn-outline btn-sm" type="button" onclick="novaEmpresa()">+ Nova empresa</button>
+          </div></div>
         <div class="fg span2"><label>Razão social</label><input id="emp-nome"></div>
         <div class="fg"><label>CNPJ</label><input id="emp-cnpj"></div>
         <div class="fg"><label>Telefone</label><input id="emp-telefone"></div>
@@ -569,7 +577,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg"><label>Orçamentista responsável</label><input id="emp-orcamentista"></div>
         <div class="fg"><label>Consultor(a) de vendas</label><input id="emp-consultor"></div>
         <div class="fg span2"><label>Cidade da assinatura e do foro</label><input id="emp-cidadeForo"></div>
-        <div class="fg span2"><button class="btn btn-teal btn-block" onclick="salvarContratada()">Salvar dados de quem assina</button></div>
+        <div class="fg span2"><button class="btn btn-teal btn-block" id="emp-btn" onclick="salvarContratada()">Salvar esta empresa</button></div>
       </div>
     </div>
   </div>
@@ -1979,7 +1987,7 @@ const MODELOS_CONTRATO_PADRAO=[
       {tipo:"pagina"},
       {tipo:"clausula", id:"c19", titulo:"MANUAL DE USO E CONSERVAÇÃO DE ESQUADRIAS DE ALUMÍNIO", texto:"Com o objetivo de permitir aos seus usuários a utilização contínua de portas e janelas com o máximo de conforto, bem como indica a melhor maneira de limpar e conservá-las para que mantenham suas características de funcionalidade ao longo de sua vida útil.\n\nDeve ser lido com muita atenção por todos os ocupantes, usuários e responsáveis pela limpeza e conservação das esquadrias."},
       {tipo:"clausula", id:"c20", titulo:"LIMPEZA", texto:"Para que as esquadrias de seu imóvel se mantenham como novas, em perfeito funcionamento por muitos anos e vigorem as garantias estabelecidas no termo de garantia, devem ser seguidas atentamente as seguintes recomendações:\n\nA limpeza de todas as suas partes e componentes, inclusive vidros, deverá ser feita com a utilização de uma solução de água e detergente neutro a 5% com o auxílio de esponja ou pano macio, observando os seguintes intervalos de tempo:\n\nNo mínimo a cada 12 (doze) meses em zona urbana ou rural;\nNo mínimo a cada 3 (três) meses em zona marinha ou industrial.\n\nNão utilizar para limpeza das guarnições de vedação os seguintes materiais: vaselina, combustíveis em geral, solventes, ácidos diluídos, querosene, lubrificantes sintéticos, benzeno, óleo mineral, thinner, tolueno e toluol.\n\nNão usar em hipótese alguma, detergentes saponáceos, esponjas de aço ou material áspero, lixas, abrasivos, produtos ácidos ou alcalinos, produtos derivados de petróleo, objetos cortantes ou perfurantes para auxiliar a limpeza de locais de difícil acesso (neste caso, usar pincel de cerdas macias embebido em solução de uso permitido).\n\nAs portas e janelas exigem que seus trilhos inferiores, superiores e laterais sejam mantidos limpos, inclusive durante e após a instalação na obra até a sua conclusão, evitando o acúmulo de poeiras, restos de argamassa, massa PVA, tinta, gesso ou outros materiais, que rapidamente vão se compactando pela ação de abrir e fechar, sobretudo, entupindo os orifícios das caixas de dreno, exigindo sua substituição precoce. As caixas de dreno devem ser limpas pelos usuários a cada 03 (três) meses, ou menos, em caso de chuvas, e a fim de prevenir entupimentos decorrentes de poeira, pó, fuligem, etc., que impossibilitarão a adequada drenagem da água acumulada nos perfis inferiores das esquadrias.\n\nEm caso de dúvidas, antes de utilizar qualquer produto ou método de limpeza, consultar o fabricante."},
-      {tipo:"clausula", id:"c21", titulo:"LUBRIFICAÇÃO", texto:"Todas as articulações, rodízios e roldanas possuem sistema de auto lubrificação, dispensando o uso de qualquer tipo de graxa ou óleo que podem causar danos aos componentes.\n\nRegulagem dos braços articulados dotados de freio.\n\nAs janelas do tipo maxim-ar são dotadas de braços articulados com freios reguláveis. Por ocasião de revisão final de entrega das esquadrias, o fabricante faz os ajustes adequados a um bom funcionamento.\n\nCaso necessário, uma nova regulagem só deverá ser feita por profissional especializado, para evitar que um ajuste inadequado venha a danificar os perfis de fixação e outras partes dos móveis, pondo em risco a integridade da peça, e a segurança de terceiros.\n\nPrezados Senhores,\n\nA empresa DALUMINIO COMERCIO LTDA, no mercado há mais de 30 anos, vem constantemente aprimorando seus processos e modernizando seus equipamentos, sempre em busca de novas soluções para aperfeiçoar os projetos de seus clientes, oferecendo segurança e qualidade nos seus serviços e produtos.\n\nVisite nossas redes sociais (Instagram): @daluminiumoficial\nTelefone: {{contratadaTelefone}}\nE-mail: {{email}}"}
+      {tipo:"clausula", id:"c21", titulo:"LUBRIFICAÇÃO", texto:"Todas as articulações, rodízios e roldanas possuem sistema de auto lubrificação, dispensando o uso de qualquer tipo de graxa ou óleo que podem causar danos aos componentes.\n\nRegulagem dos braços articulados dotados de freio.\n\nAs janelas do tipo maxim-ar são dotadas de braços articulados com freios reguláveis. Por ocasião de revisão final de entrega das esquadrias, o fabricante faz os ajustes adequados a um bom funcionamento.\n\nCaso necessário, uma nova regulagem só deverá ser feita por profissional especializado, para evitar que um ajuste inadequado venha a danificar os perfis de fixação e outras partes dos móveis, pondo em risco a integridade da peça, e a segurança de terceiros.\n\nPrezados Senhores,\n\nA empresa {{contratadaNome}}, no mercado há mais de 30 anos, vem constantemente aprimorando seus processos e modernizando seus equipamentos, sempre em busca de novas soluções para aperfeiçoar os projetos de seus clientes, oferecendo segurança e qualidade nos seus serviços e produtos.\n\nVisite nossas redes sociais (Instagram): @daluminiumoficial\nTelefone: {{contratadaTelefone}}\nE-mail: {{email}}"}
     ]
   },
   {
@@ -1992,7 +2000,7 @@ const MODELOS_CONTRATO_PADRAO=[
       {tipo:"clausula", id:"c1", titulo:"DADOS DA CONTRATADA", texto:"Nome: {{contratadaNome}}\nCNPJ: {{contratadaCnpj}}\nEndereço: {{contratadaEndereco}}\nTelefone: {{contratadaTelefone}}\nOrçamentista responsável: {{orcamentista}}\nConsultor(a) de vendas responsável: {{consultor}}"},
       {tipo:"clausula", id:"c2", titulo:"DADOS DO CONTRATANTE", texto:"Nome: {{clienteNome}}\nCPF/CNPJ: {{clienteDoc}}\nEndereço: {{clienteEndereco}}\nCidade/UF: {{clienteCidadeUF}}\nContato: {{clienteContato}}\nE-mail: {{clienteEmail}}"},
       {tipo:"clausula", id:"c3", titulo:"CLÁUSULA PRIMEIRA – DO OBJETO (OBRA)", texto:"O objeto do presente contrato é a prestação de serviços de mão de obra para instalação de {{qtdPortas}} ({{qtdPortasExtenso}}) portas de madeira da marca PORMADE, conforme quantitativos, dimensões e características constantes do orçamento comercial apresentado ao CONTRATANTE.\n\nIntegra o objeto deste contrato a aplicação/instalação de visores de vidro em {{qtdVisores}} ({{qtdVisoresExtenso}}) portas, conforme previsto no orçamento comercial.\n\nAs portas e respectivos materiais fornecidos pela PORMADE serão adquiridos e faturados diretamente ao CONTRATANTE, não fazendo parte do valor da mão de obra ora contratada, salvo os itens expressamente indicados neste instrumento.\n\nParágrafo Primeiro\nAs portas objeto da instalação deverão estar disponíveis na obra, em condições adequadas para conferência, recebimento, movimentação e instalação pela CONTRATADA.\n\nParágrafo Segundo\nA CONTRATADA executará os serviços de instalação de acordo com as características, dimensões e condições técnicas dos produtos fornecidos pelo fabricante PORMADE e conforme as condições encontradas nos vãos da obra.\n\nParágrafo Terceiro\nEventuais alterações de quantidade, modelo, dimensão, acabamento, localização ou tipologia das portas e/ou visores após a contratação poderão implicar revisão dos valores e dos prazos, mediante aprovação das partes."},
-      {tipo:"clausula", id:"c4", titulo:"CLÁUSULA SEGUNDA – DO VALOR", texto:"O valor total deste contrato é de {{valor}} ({{valorExtenso}}), correspondentes aos materiais empregados e à mão de obra de fabricação e instalação."},
+      {tipo:"clausula", id:"c4", titulo:"CLÁUSULA SEGUNDA – DO VALOR", texto:"O valor total deste contrato é de {{valor}} ({{valorExtenso}}), correspondentes à mão de obra de instalação."},
       {tipo:"clausula", id:"c5", titulo:"CLÁUSULA TERCEIRA – DA FORMA DE PAGAMENTO", texto:"O valor discriminado na cláusula anterior será pago da seguinte forma: {{pagamento}}"},
       {tipo:"clausula", id:"c6", titulo:"CLÁUSULA QUARTA – DO PRAZO DE PRODUÇÃO, ENTREGA E INSTALAÇÃO", texto:"O prazo de instalação do objeto deste contrato será exclusivamente a partir da liberação total dos vãos da obra pelo CONTRATANTE e da disponibilidade integral dos materiais necessários.\n\nParágrafo Primeiro\nO prazo poderá ser readequado caso ocorram atrasos na entrega das portas ou materiais, alterações no cronograma da obra, impossibilidade de acesso aos ambientes, serviços de terceiros pendentes ou qualquer outra situação que impeça a continuidade normal da instalação.\n\nParágrafo Segundo\nA instalação poderá ser realizada de forma programada conforme a disponibilidade dos ambientes e o cronograma da obra, desde que previamente ajustado entre as partes."},
       {tipo:"clausula", id:"c7", titulo:"CLÁUSULA QUINTA – DA RESPONSABILIDADE PELA LIBERAÇÃO DA OBRA", texto:"Compete ao CONTRATANTE assegurar que os locais destinados à instalação estejam em condições adequadas para a execução dos serviços.\n\nConsidera-se ambiente liberado aquele que permita à equipe da CONTRATADA realizar a instalação com segurança e sem interferências de outros serviços.\n\nDeverão estar concluídos ou adequadamente preparados, conforme a necessidade de cada ambiente:\n\na) vãos e paredes em condições compatíveis com a instalação;\nb) pisos e revestimentos que interfiram na instalação devidamente executados ou demarcados;\nc) ausência de materiais ou equipamentos que impeçam o acesso;\nd) ambiente livre para movimentação das portas;\ne) condições adequadas de segurança e acesso à equipe.\n\nParágrafo Primeiro\nCaso a CONTRATADA compareça à obra e não seja possível realizar a instalação em razão de condições inadequadas do local, poderá ser necessária nova programação da equipe, ficando o prazo de execução automaticamente readequado.\n\nParágrafo Segundo\nEventuais custos adicionais decorrentes de deslocamentos improdutivos, remobilização de equipe, armazenamento, movimentação extraordinária ou necessidade de retorno à obra em razão de pendências do CONTRATANTE poderão ser cobrados mediante prévia comunicação."},
@@ -2034,7 +2042,7 @@ const MODELOS_CONTRATO_PADRAO=[
     titulo:"CONTRATO PARTICULAR DE INDUSTRIALIZAÇÃO E FORNECIMENTO DE MATERIAIS SOB ENCOMENDA",
     rotuloNumero:"Pedido Nº", usaObjeto:false, assinaturaEstilo:"rotulo",
     blocos:[
-      {tipo:"clausula", id:"c1", titulo:"1. AS PARTES", texto:"CONTRATADA: {{contratadaNome}}, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº {{contratadaCnpj}}, sediada na Av. José Vieira Caúla, nº 4651, Barracão Galpões, Bairro Flodoaldo Pontes Pinto, Porto Velho/RO.\n\nCONTRATANTE: {{clienteNome}}, inscrito(a) no CPF/CNPJ sob o nº {{clienteDoc}}, com endereço em {{clienteEndereco}}."},
+      {tipo:"clausula", id:"c1", titulo:"1. AS PARTES", texto:"CONTRATADA: {{contratadaNome}}, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº {{contratadaCnpj}}, sediada na {{contratadaEndereco}}.\n\nCONTRATANTE: {{clienteNome}}, inscrito(a) no CPF/CNPJ sob o nº {{clienteDoc}}, com endereço em {{clienteEndereco}}."},
       {tipo:"clausula", id:"c2", titulo:"2. OBJETO", texto:"O objeto deste contrato é a fabricação e instalação, sob encomenda, das esquadrias personalizadas detalhadas na proposta comercial anexa a este instrumento.\n\nParágrafo Primeiro – Por se tratar de produtos sob medida desenvolvidos exclusivamente para a obra do CONTRATANTE, não será admitida a devolução de materiais ou restituição de valores após o início da fabricação, salvo em caso de defeito de fabricação devidamente comprovado."},
       {tipo:"clausula", id:"c3", titulo:"3. VALOR E FORMA DE PAGAMENTO", texto:"O valor total deste contrato é de {{valor}} ({{valorExtenso}}), correspondente à totalidade dos materiais empregados, mão de obra de fabricação e instalação técnica.\n\nParágrafo Primeiro – {{pagamento}}\n\nParágrafo Segundo – Finalizada a produção das esquadrias e materiais, o CONTRATANTE obriga-se a honrar o pagamento integral ajustado, independentemente de a instalação já ter ocorrido ou de a obra civil estar atrasada."},
       {tipo:"clausula", id:"c4", titulo:"4. PRAZO DE EXECUÇÃO E ENTREGA", texto:"4.1. O prazo global para a execução do objeto deste instrumento varia de acordo com a tipologia e o acabamento das esquadrias contratadas, dividindo-se em duas etapas consecutivas (aquisição de insumos e posterior produção/instalação), conforme os critérios abaixo:\n\nI. Esquadrias na cor branca:\n\na) Até 30 (trinta) dias corridos para a aquisição e recebimento dos insumos, contados a partir da confirmação do pagamento inicial e da assinatura deste contrato;\n\nb) Até 40 (quarenta) dias úteis, contados a partir da realização da medição técnica definitiva dos vãos in loco, para a programação e fabricação das esquadrias, bem como para o envio e disponibilização dos produtos na obra, com o início dos serviços de instalação previsto dentro deste mesmo prazo.\n\nII. Esquadrias com acabamento amadeirado:\n\na) Até 70 (setenta) dias corridos para a aquisição e recebimento dos insumos, contados a partir da confirmação do pagamento inicial e da assinatura deste contrato;\n\nb) Até 25 (vinte e cinco) dias úteis, contados a partir da realização da medição técnica definitiva dos vãos in loco, para a programação e fabricação das esquadrias, bem como para o envio e disponibilização dos produtos na obra, com o início dos serviços de instalação previsto dentro deste mesmo prazo.\n\nParágrafo Único – O prazo de produção e instalação estabelecido na alínea “b” de cada inciso começará a fluir exclusivamente após o término do respectivo prazo de recebimento dos materiais (alínea “a”), mesmo que a medição técnica definitiva ocorra antecipadamente, respeitando-se a sequência operacional deste instrumento.\n\n4.2. O prazo global de execução será automaticamente suspenso ou readequado nas seguintes hipóteses:\n\nOcorrência de caso fortuito ou força maior;\nAtraso no pagamento ou inadimplemento pelo CONTRATANTE;\nFalta de acesso à obra para medição ou instalação;\nSolicitação de alterações no projeto sem prévia comunicação formal."},
@@ -2060,21 +2068,53 @@ const MODELOS_CONTRATO_PADRAO=[
 // e mora em MODELOS_CONTRATO_PADRAO / `dados.modelosContrato` (editavel pela
 // tela de Cadastros).
 
-// Dados da empresa que assina. Ficam cadastraveis porque mudam sem aviso —
-// consultora de vendas, orcamentista e e-mail ja mudaram nos contratos que ele
-// mandou.
-const CONTRATADA_PADRAO={
-  nome:'SOLUTION SOLUÇÕES EM ESQUADRIAS DE ALUMINIO LTDA',
-  cnpj:'22.714.305/0001-06',
-  endereco:'Av. José Vieira Caúla, nº 4651 – Barracão Galpões – Flodoaldo Pontes Pinto – Porto Velho/RO',
-  telefone:'(69) 9 8419-2880',
-  email:'financeirodaluminio@gmail.com',
-  orcamentista:'Arq. Giovana Virgolino',
-  consultor:'Aretusa Sendeski',
-  cidadeForo:'Porto Velho/RO'
-};
-function contratada(){
-  return Object.assign({}, CONTRATADA_PADRAO, dados.contratada||{});
+// As empresas que podem assinar o contrato. Ficam cadastraveis porque mudam
+// sem aviso — consultora, orcamentista e e-mail ja mudaram nos contratos que
+// ele mandou.
+//
+// Sao duas no grupo. A SOLUTION assina os 4 contratos que ele mandou; a
+// DALUMINIO COMERCIO aparecia so no Manual de Uso, no mesmo documento — o
+// cliente recebia um papel com duas empresas. Pedido do Ander em 18/09/2026:
+// escolher na ficha qual assina, e o documento inteiro (cabecalho, Manual,
+// assinatura, endereco) passa a falar so dela.
+// A DALUMINIO entra sem CNPJ e sem endereco: nao estavam em nenhum contrato.
+// Em branco, saem como linha no papel e a janela avisa antes de imprimir.
+const EMPRESAS_PADRAO=[
+  {id:'solution',
+   nome:'SOLUTION SOLUÇÕES EM ESQUADRIAS DE ALUMINIO LTDA',
+   cnpj:'22.714.305/0001-06',
+   endereco:'Av. José Vieira Caúla, nº 4651 – Barracão Galpões – Flodoaldo Pontes Pinto – Porto Velho/RO',
+   telefone:'(69) 9 8419-2880',
+   email:'financeirodaluminio@gmail.com',
+   orcamentista:'Arq. Giovana Virgolino',
+   consultor:'Aretusa Sendeski',
+   cidadeForo:'Porto Velho/RO'},
+  {id:'daluminio',
+   nome:'DALUMINIO COMERCIO LTDA',
+   cnpj:'',
+   endereco:'',
+   telefone:'(69) 9 8419-2880',
+   email:'financeirodaluminio@gmail.com',
+   orcamentista:'Arq. Giovana Virgolino',
+   consultor:'Aretusa Sendeski',
+   cidadeForo:'Porto Velho/RO'}
+];
+function empresasPadraoNovo(){
+  return JSON.parse(JSON.stringify(EMPRESAS_PADRAO));
+}
+// Ate 17/09/2026 havia uma empresa so, gravada em dados.contratada — era a
+// SOLUTION. Quem gravou naquele formato continua valendo.
+function empresasDaBase(base){
+  if(Array.isArray(base.empresas)&&base.empresas.length) return base.empresas;
+  const l=empresasPadraoNovo();
+  if(base.contratada) Object.assign(l[0], base.contratada, {id:'solution'});
+  return l;
+}
+function empresas(){ return empresasDaBase(dados); }
+// A empresa de um contrato: a escolhida na ficha; sem escolha, a primeira.
+function contratada(id){
+  const l=empresas();
+  return Object.assign({}, l.find(function(e){ return e.id===id; })||l[0]||{});
 }
 
 // O que pode ser escrito entre {{ }} no texto de uma clausula. Esta lista
@@ -2207,7 +2247,7 @@ function modeloContratoDe(id){
 // ---- O QUE ENTRA NO LUGAR DE CADA {{campo}} ----
 function dadosDoContrato(c, modelo){
   const ctr=(c&&c.contrato)||{};
-  const emp=contratada();
+  const emp=contratada(ctr.empresa);
   const valorNum=Number(ctr.valor||0);
   const dias=parseInt(ctr.prazoDias,10);
   const d={
@@ -2234,7 +2274,8 @@ function dadosDoContrato(c, modelo){
     contratadaCnpj: emp.cnpj,
     contratadaEndereco: emp.endereco,
     contratadaTelefone: emp.telefone,
-    email: emp.email
+    email: emp.email,
+    cidadeForo: emp.cidadeForo||''
   };
   // Os campos proprios do modelo (quantas portas, quantos visores...) e o
   // extenso de cada um, para o texto poder escrever "15 (quinze) portas".
@@ -2281,9 +2322,9 @@ function assinaturasHtml(modelo, d){
       '</div>';
   }
   return '<div class="ctr-assina">'+
-    '<p class="ctr-local">'+esc(contratada().cidadeForo)+', '+esc(d.dataTexto||'__________')+'.</p>'+
+    '<p class="ctr-local">'+esc(d.cidadeForo||'__________')+', '+esc(d.dataTexto||'__________')+'.</p>'+
     bloco(d.clienteNome, porRotulo?'CONTRATANTE':(d.clienteDoc?'CPF/CNPJ: '+d.clienteDoc:''))+
-    bloco(d.contratadaNome, porRotulo?'CONTRATADA':('CNPJ: '+d.contratadaCnpj))+
+    bloco(d.contratadaNome, porRotulo?'CONTRATADA':('CNPJ: '+(d.contratadaCnpj||'__________')))+
     '</div>';
 }
 
@@ -2332,13 +2373,21 @@ function faltandoNoContrato(c, modelo){
     if(b.tipo!=='clausula') return;
     ((b.titulo||'')+' '+(b.texto||'')).replace(/\{\{([a-zA-Z]+)\}\}/g,function(t,k){ usados[k]=1; return t; });
   });
-  usados.dataTexto=1; usados.clienteNome=1;   // as assinaturas usam os dois
+  // As assinaturas usam estes, mesmo que nenhuma clausula os escreva.
+  usados.dataTexto=1; usados.clienteNome=1; usados.contratadaNome=1; usados.cidadeForo=1;
+  if(modelo.assinaturaEstilo!=='rotulo') usados.contratadaCnpj=1;
   const rotulos={numero:'número do pedido', clienteDoc:'CPF/CNPJ do cliente',
     clienteEndereco:'endereço do cliente', clienteCidadeUF:'cidade/UF do cliente',
     clienteContato:'contato do cliente', clienteEmail:'e-mail do cliente',
     valor:'valor total', valorExtenso:'valor total', pagamento:'forma de pagamento',
     prazoDias:'prazo em dias', prazoExtenso:'prazo em dias', objeto:'o que está sendo contratado',
-    dataTexto:'data do contrato', clienteNome:'cliente'};
+    dataTexto:'data do contrato', clienteNome:'cliente',
+    contratadaNome:'nome da empresa que assina (Cadastros)',
+    contratadaCnpj:'CNPJ da empresa que assina (Cadastros)',
+    contratadaEndereco:'endereço da empresa que assina (Cadastros)',
+    contratadaTelefone:'telefone da empresa que assina (Cadastros)',
+    email:'e-mail da empresa que assina (Cadastros)',
+    cidadeForo:'cidade da assinatura (Cadastros)'};
   const faltam={};
   Object.keys(usados).forEach(function(k){
     if(d[k]===''||d[k]===undefined) faltam[rotulos[k]||k]=1;
@@ -2428,6 +2477,7 @@ function lerFichaContrato(){
   const v=function(id){ const el=document.getElementById(id); return el?String(el.value||'').trim():''; };
   return {
     modelo:   v('f-ctr-modelo'),
+    empresa:  v('f-ctr-empresa'),
     numero:   v('f-ctr-numero'),
     doc:      v('f-ctr-doc'),
     endereco: v('f-ctr-endereco'),
@@ -2451,6 +2501,15 @@ function preencherFichaContrato(c){
   _camposCtr=Object.assign({}, ctr.campos||{});
   const p=function(id,val){ const el=document.getElementById(id); if(el) el.value=(val==null?'':val); };
   preencherSelectModeloFicha();
+  const selEmp=document.getElementById('f-ctr-empresa');
+  if(selEmp){
+    const lista=empresas();
+    selEmp.innerHTML=lista.map(function(e){
+      return '<option value="'+esc(e.id)+'">'+esc(e.nome)+'</option>';
+    }).join('');
+    selEmp.value=(ctr.empresa && lista.some(function(e){ return e.id===ctr.empresa; }))
+      ? ctr.empresa : (lista[0]?lista[0].id:'');
+  }
   const sel=document.getElementById('f-ctr-modelo');
   if(sel && ctr.modelo && modelosContrato().some(function(m){ return m.id===ctr.modelo; })) sel.value=ctr.modelo;
   p('f-ctr-numero',   ctr.numero);
@@ -2680,12 +2739,44 @@ const CAMPOS_CONTRATADA=[
   {id:'cidadeForo',rotulo:'Cidade da assinatura e do foro'}
 ];
 
+// true enquanto o formulario e de uma empresa que ainda nao existe.
+let _empresaNova=false;
+
+function preencherEmpresasCadastro(){
+  const sel=document.getElementById('emp-qual');
+  if(!sel) return;
+  const antes=sel.value;
+  const lista=empresas();
+  sel.innerHTML=lista.map(function(e){
+    return '<option value="'+esc(e.id)+'">'+esc(e.nome)+'</option>';
+  }).join('');
+  if(antes && lista.some(function(e){ return e.id===antes; })) sel.value=antes;
+}
+
 function renderContratada(){
-  const emp=contratada();
+  preencherEmpresasCadastro();
+  const sel=document.getElementById('emp-qual');
+  const emp=_empresaNova?{}:contratada(sel?sel.value:'');
   CAMPOS_CONTRATADA.forEach(function(c){
     const el=document.getElementById('emp-'+c.id);
     if(el && document.activeElement!==el) el.value=emp[c.id]||'';
   });
+  if(sel) sel.disabled=_empresaNova;
+  const b=document.getElementById('emp-btn');
+  if(b) b.textContent=_empresaNova?'Cadastrar esta empresa':'Salvar esta empresa';
+}
+
+function novaEmpresa(){
+  _empresaNova=true;
+  renderContratada();
+  // Empresa nova herda os contatos da atual: telefone, e-mail, orcamentista
+  // e consultora costumam ser os mesmos no grupo.
+  const base=contratada();
+  ['telefone','email','orcamentista','consultor','cidadeForo'].forEach(function(k){
+    const el=document.getElementById('emp-'+k);
+    if(el) el.value=base[k]||'';
+  });
+  document.getElementById('emp-nome').focus();
 }
 
 async function salvarContratada(){
@@ -2694,11 +2785,29 @@ async function salvarContratada(){
     const el=document.getElementById('emp-'+c.id);
     novo[c.id]=el?el.value.trim():'';
   });
-  if(!novo.nome||!novo.cnpj){ aviso('Falta o essencial','Razão social e CNPJ são obrigatórios: eles assinam o contrato.'); return; }
+  // So o nome e obrigatorio: da DALUMINIO nao temos CNPJ nem endereco ainda,
+  // e o contrato avisa e mostra a linha em branco no lugar.
+  if(!novo.nome){ aviso('Falta o nome','Escreva a razão social da empresa.'); return; }
+  const sel=document.getElementById('emp-qual');
+  const nova=_empresaNova;
+  const id=nova?('e'+Date.now().toString(36)):(sel?sel.value:'');
+  const repetida=empresas().some(function(e){
+    return e.id!==id && e.nome.toUpperCase()===novo.nome.toUpperCase();
+  });
+  if(repetida){ aviso('Já existe','Já há uma empresa cadastrada com esse nome.'); return; }
+  novo.id=id;
   const ok=await alterar(function(base){
-    base.contratada=novo;
-  }, {acao:'alterou os dados da contratada', alvo:novo.nome});
-  if(ok){ renderContratada(); aviso('Pronto','Os próximos contratos já saem com estes dados.'); }
+    base.empresas=empresasDaBase(base);
+    const i=base.empresas.findIndex(function(e){ return e.id===id; });
+    if(i>=0) base.empresas[i]=novo; else base.empresas.push(novo);
+  }, {acao:nova?'cadastrou empresa que assina':'alterou empresa que assina', alvo:novo.nome});
+  if(ok){
+    _empresaNova=false;
+    preencherEmpresasCadastro();
+    if(sel) sel.value=id;
+    renderContratada();
+    aviso('Pronto','Os próximos contratos que usarem esta empresa já saem com estes dados.');
+  }
 }
 
 
@@ -3291,6 +3400,7 @@ function abrirCadastros(){
   renderModeloContrato();
   renderCamposDoContrato();
   cancelarEdicaoClausula();
+  _empresaNova=false;
   renderContratada();
   document.getElementById('cad-ov').classList.add('open');
 }
