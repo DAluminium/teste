@@ -149,7 +149,7 @@ table.carteira tbody tr:hover{background:var(--teal-light)}
   #ctr-ov{display:block !important;position:static;inset:auto;background:none;padding:0;z-index:auto}
   #ctr-ov .modal{width:auto;max-width:none;height:auto;max-height:none;display:block;
     overflow:visible;box-shadow:none;border-radius:0}
-  #ctr-ov .modal-head,#ctr-ov .modal-foot,#ctr-qual,#ctr-faltando{display:none !important}
+  #ctr-ov .modal-head,#ctr-ov .modal-foot,#ctr-qual,#ctr-faltando,#ctr-anexos{display:none !important}
   #ctr-ov .modal-body{padding:0;background:none;overflow:visible;max-height:none;flex:none}
   #ctr-papel{box-shadow:none;border-radius:0;padding:0;max-width:none;font-size:11pt}
   body{padding-top:0 !important;background:#fff}
@@ -340,6 +340,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <span class="dica">Sai no alto, no Manual de Uso e na assinatura. A lista vem do botão Contrato, no topo.</span></div>
         <div class="fg"><label>Nº do pedido no contrato</label><input id="f-ctr-numero" placeholder="Ex.: 0073 ou PORMADE/5">
           <span class="dica">Em branco, sai o CT com 4 dígitos.</span></div>
+        <div class="fg"><label>Nº da proposta comercial</label><input id="f-ctr-proposta" placeholder="Ex.: ORC-26-03-0023_RV8">
+          <span class="dica">Como está no alto da proposta. O contrato cita este número.</span></div>
         <div class="fg"><label>CPF / CNPJ do cliente</label><input id="f-ctr-doc" placeholder="Ex.: 784.653.702-49"></div>
         <div class="fg span2"><label>Endereço do cliente</label><input id="f-ctr-endereco" placeholder="Rua, número, bairro, CEP"></div>
         <div class="fg"><label>Cidade/UF do cliente</label><input id="f-ctr-cidadeuf" placeholder="Ex.: Porto Velho/RO">
@@ -612,6 +614,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <div class="modal-body">
       <div id="ctr-qual" style="font-size:12.5px;margin-bottom:8px"></div>
       <div id="ctr-faltando" style="margin-bottom:10px"></div>
+      <div id="ctr-anexos" style="margin-bottom:10px"></div>
       <div id="ctr-papel"></div>
     </div>
     <div class="modal-foot">
@@ -1985,7 +1988,7 @@ const MODELOS_CONTRATO_PADRAO=[
     blocos:[
       {tipo:"dados", id:"c1", titulo:"DADOS DA CONTRATADA", parte:"contratada", campos:["nome","cnpj","endereco","telefone","orcamentista","consultor"]},
       {tipo:"dados", id:"c2", titulo:"DADOS DO CONTRATANTE", parte:"contratante", campos:["nome","doc","endereco","contato"]},
-      {tipo:"clausula", id:"c3", titulo:"CLÁUSULA PRIMEIRA – DO OBJETO (OBRA)", texto:"O objeto da presente contratação é a industrialização sob encomenda do consumidor contratante das esquadrias constantes no escopo da proposta comercial anexa ao presente instrumento.\n\nParágrafo Primeiro – As esquadrias objeto deste contrato serão confeccionadas exclusivamente para atender às medidas, tipologias e especificações da obra personalíssima do CONTRATANTE.\n\nParágrafo Segundo – Após iniciada a fabricação das esquadrias nos termos aprovados pelo CONTRATANTE, não será admitida devolução dos materiais ou restituição das quantias pagas, salvo em caso de defeito de fabricação devidamente comprovado."},
+      {tipo:"clausula", id:"c3", titulo:"CLÁUSULA PRIMEIRA – DO OBJETO (OBRA)", texto:"O objeto da presente contratação é a industrialização sob encomenda do consumidor contratante das esquadrias constantes no escopo da proposta comercial nº {{proposta}}, anexa ao presente instrumento.\n\nParágrafo Primeiro – As esquadrias objeto deste contrato serão confeccionadas exclusivamente para atender às medidas, tipologias e especificações da obra personalíssima do CONTRATANTE.\n\nParágrafo Segundo – Após iniciada a fabricação das esquadrias nos termos aprovados pelo CONTRATANTE, não será admitida devolução dos materiais ou restituição das quantias pagas, salvo em caso de defeito de fabricação devidamente comprovado."},
       {tipo:"clausula", id:"c4", titulo:"CLÁUSULA SEGUNDA – DO VALOR", texto:"O valor total deste contrato é de {{valor}} ({{valorExtenso}}), correspondentes aos materiais empregados e à mão de obra de fabricação e instalação."},
       {tipo:"clausula", id:"c5", titulo:"CLÁUSULA TERCEIRA – DA FORMA DE PAGAMENTO", texto:"O valor discriminado na cláusula anterior será pago da seguinte forma: {{pagamento}}\n\nParágrafo Único – Finalizada a produção das esquadrias e materiais objeto deste contrato, o CONTRATANTE deverá honrar integralmente os pagamentos ajustados, independentemente de a instalação já ter ocorrido, sob pena de execução judicial do presente contrato."},
       {tipo:"clausula", id:"c6", titulo:"CLÁUSULA QUARTA – DO PRAZO DE PRODUÇÃO, ENTREGA E INSTALAÇÃO", texto:"O prazo para fabricação, entrega e instalação das esquadrias objeto deste contrato será de {{prazoDias}} ({{prazoExtenso}}) dias {{prazoTipo}}, contados exclusivamente a partir da liberação total dos vãos da obra pelo CONTRATANTE e da confirmação formal da CONTRATADA acerca das condições técnicas adequadas para início da produção.\n\nData estimada de entrega: sujeita à liberação integral da obra, nos termos desta cláusula.\n\nParágrafo Primeiro – Considera-se “vão liberado” aquele que estiver integralmente apto para conferência final de medidas e posterior instalação das esquadrias, devendo obrigatoriamente apresentar:\n\na) vãos completamente finalizados;\nb) soleiras, peitoris e pedras devidamente instalados;\nc) paredes rebocadas, alinhadas e esquadrejadas;\nd) aplicação de massa corrida com lixamento concluído;\ne) ausência de umidade, infiltrações ou impedimentos técnicos;\nf) livre acesso para medição, transporte e instalação das esquadrias.\n\nParágrafo Segundo – A aplicação da primeira demão de tinta não constitui requisito obrigatório para liberação dos vãos, desde que as superfícies estejam devidamente emassadas e lixadas.\n\nParágrafo Terceiro – A CONTRATADA não realizará fabricação, entrega ou instalação parcial das esquadrias, considerando que o processo industrial depende da otimização técnica dos perfis de alumínio, vidros, ferragens e demais componentes, os quais são produzidos em conjunto conforme planejamento fabril e logístico da obra.\n\nParágrafo Quarto – A produção das esquadrias somente será iniciada após a liberação integral de todos os vãos contemplados neste contrato, salvo ajuste expresso e formalizado entre as partes mediante termo aditivo.\n\nParágrafo Quinto – Caso a obra não esteja apta para conferência de medidas, fabricação ou instalação, o prazo contratual ficará automaticamente suspenso, sem qualquer penalidade à CONTRATADA, reiniciando-se integralmente após a regularização e nova liberação formal da obra.\n\nParágrafo Sexto – Eventuais deslocamentos técnicos improdutivos realizados pela CONTRATADA em razão da não liberação adequada da obra poderão ser cobrados do CONTRATANTE, mediante prévia comunicação.\n\nParágrafo Sétimo – A data estimada de entrega prevista neste contrato poderá ser readequada automaticamente caso ocorram atrasos na obra civil, indisponibilidade dos vãos ou quaisquer fatores externos que impeçam o regular andamento da produção ou instalação.\n\nParágrafo Oitavo – A insistência do CONTRATANTE em realizar instalação parcial, fora do planejamento técnico da CONTRATADA, poderá acarretar cobrança adicional de mobilização, transporte, armazenagem, remanejamento de equipe e reinstalação logística, sem prejuízo da readequação dos prazos inicialmente previstos."},
@@ -2017,7 +2020,7 @@ const MODELOS_CONTRATO_PADRAO=[
     blocos:[
       {tipo:"dados", id:"c1", titulo:"DADOS DA CONTRATADA", parte:"contratada", campos:["nome","cnpj","endereco","telefone","orcamentista","consultor"]},
       {tipo:"dados", id:"c2", titulo:"DADOS DO CONTRATANTE", parte:"contratante", campos:["nome","doc","endereco","cidade","contato","email"]},
-      {tipo:"clausula", id:"c3", titulo:"CLÁUSULA PRIMEIRA – DO OBJETO (OBRA)", texto:"O objeto do presente contrato é a prestação de serviços de mão de obra para instalação de {{qtdPortas}} ({{qtdPortasExtenso}}) portas de madeira da marca PORMADE, conforme quantitativos, dimensões e características constantes do orçamento comercial apresentado ao CONTRATANTE.\n\nIntegra o objeto deste contrato a aplicação/instalação de visores de vidro em {{qtdVisores}} ({{qtdVisoresExtenso}}) portas, conforme previsto no orçamento comercial.\n\nAs portas e respectivos materiais fornecidos pela PORMADE serão adquiridos e faturados diretamente ao CONTRATANTE, não fazendo parte do valor da mão de obra ora contratada, salvo os itens expressamente indicados neste instrumento.\n\nParágrafo Primeiro\nAs portas objeto da instalação deverão estar disponíveis na obra, em condições adequadas para conferência, recebimento, movimentação e instalação pela CONTRATADA.\n\nParágrafo Segundo\nA CONTRATADA executará os serviços de instalação de acordo com as características, dimensões e condições técnicas dos produtos fornecidos pelo fabricante PORMADE e conforme as condições encontradas nos vãos da obra.\n\nParágrafo Terceiro\nEventuais alterações de quantidade, modelo, dimensão, acabamento, localização ou tipologia das portas e/ou visores após a contratação poderão implicar revisão dos valores e dos prazos, mediante aprovação das partes."},
+      {tipo:"clausula", id:"c3", titulo:"CLÁUSULA PRIMEIRA – DO OBJETO (OBRA)", texto:"O objeto do presente contrato é a prestação de serviços de mão de obra para instalação de {{qtdPortas}} ({{qtdPortasExtenso}}) portas de madeira da marca PORMADE, conforme quantitativos, dimensões e características constantes do orçamento comercial nº {{proposta}}, apresentado ao CONTRATANTE.\n\nIntegra o objeto deste contrato a aplicação/instalação de visores de vidro em {{qtdVisores}} ({{qtdVisoresExtenso}}) portas, conforme previsto no orçamento comercial.\n\nAs portas e respectivos materiais fornecidos pela PORMADE serão adquiridos e faturados diretamente ao CONTRATANTE, não fazendo parte do valor da mão de obra ora contratada, salvo os itens expressamente indicados neste instrumento.\n\nParágrafo Primeiro\nAs portas objeto da instalação deverão estar disponíveis na obra, em condições adequadas para conferência, recebimento, movimentação e instalação pela CONTRATADA.\n\nParágrafo Segundo\nA CONTRATADA executará os serviços de instalação de acordo com as características, dimensões e condições técnicas dos produtos fornecidos pelo fabricante PORMADE e conforme as condições encontradas nos vãos da obra.\n\nParágrafo Terceiro\nEventuais alterações de quantidade, modelo, dimensão, acabamento, localização ou tipologia das portas e/ou visores após a contratação poderão implicar revisão dos valores e dos prazos, mediante aprovação das partes."},
       {tipo:"clausula", id:"c4", titulo:"CLÁUSULA SEGUNDA – DO VALOR", texto:"O valor total deste contrato é de {{valor}} ({{valorExtenso}}), correspondentes à mão de obra de instalação."},
       {tipo:"clausula", id:"c5", titulo:"CLÁUSULA TERCEIRA – DA FORMA DE PAGAMENTO", texto:"O valor discriminado na cláusula anterior será pago da seguinte forma: {{pagamento}}"},
       {tipo:"clausula", id:"c6", titulo:"CLÁUSULA QUARTA – DO PRAZO DE PRODUÇÃO, ENTREGA E INSTALAÇÃO", texto:"O prazo de instalação do objeto deste contrato será exclusivamente a partir da liberação total dos vãos da obra pelo CONTRATANTE e da disponibilidade integral dos materiais necessários.\n\nParágrafo Primeiro\nO prazo poderá ser readequado caso ocorram atrasos na entrega das portas ou materiais, alterações no cronograma da obra, impossibilidade de acesso aos ambientes, serviços de terceiros pendentes ou qualquer outra situação que impeça a continuidade normal da instalação.\n\nParágrafo Segundo\nA instalação poderá ser realizada de forma programada conforme a disponibilidade dos ambientes e o cronograma da obra, desde que previamente ajustado entre as partes."},
@@ -2039,7 +2042,7 @@ const MODELOS_CONTRATO_PADRAO=[
     blocos:[
       {tipo:"dados", id:"c1", titulo:"DADOS DA CONTRATADA", parte:"contratada", campos:["nome","cnpj","endereco","telefone","orcamentista","consultor"]},
       {tipo:"dados", id:"c2", titulo:"DADOS DO CONTRATANTE", parte:"contratante", campos:["nome","doc","endereco","cidade","contato","email"]},
-      {tipo:"clausula", id:"c3", titulo:"Cláusula Primeira – Do Objeto (Obra):", texto:"O objeto da presente contratação é a prestação de serviço de mão de obra especializada, bem como o fornecimento dos materiais necessários para a instalação de {{objeto}}, conforme as especificações previamente acordadas com o consumidor contratante, e descritas no escopo da proposta anexa.\n\nParágrafo Primeiro – A instalação do objeto do presente contrato será realizada de forma personalizada, obedecendo rigorosamente às medidas, formatos e demais exigências específicas da obra indicada pelo consumidor contratante, tratando-se, portanto, de um serviço personalíssimo.\n\nParágrafo Segundo – Após a instalação do {{objeto}} nos termos do parágrafo anterior, não será admitida a devolução do material nem a restituição dos valores pagos, salvo em caso de vício comprovado por laudo técnico do fabricante. Ressalva-se, no entanto, o direito do consumidor à produção de contraprova, nos termos da legislação vigente."},
+      {tipo:"clausula", id:"c3", titulo:"Cláusula Primeira – Do Objeto (Obra):", texto:"O objeto da presente contratação é a prestação de serviço de mão de obra especializada, bem como o fornecimento dos materiais necessários para a instalação de {{objeto}}, conforme as especificações previamente acordadas com o consumidor contratante, e descritas no escopo da proposta comercial nº {{proposta}}, anexa.\n\nParágrafo Primeiro – A instalação do objeto do presente contrato será realizada de forma personalizada, obedecendo rigorosamente às medidas, formatos e demais exigências específicas da obra indicada pelo consumidor contratante, tratando-se, portanto, de um serviço personalíssimo.\n\nParágrafo Segundo – Após a instalação do {{objeto}} nos termos do parágrafo anterior, não será admitida a devolução do material nem a restituição dos valores pagos, salvo em caso de vício comprovado por laudo técnico do fabricante. Ressalva-se, no entanto, o direito do consumidor à produção de contraprova, nos termos da legislação vigente."},
       {tipo:"clausula", id:"c4", titulo:"Cláusula Segunda – Do Valor:", texto:"O valor total deste Contrato é de {{valor}} ({{valorExtenso}}), correspondendo ao fornecimento do produto e mão de obra."},
       {tipo:"clausula", id:"c5", titulo:"Cláusula Terceira – Da Forma de Pagamento:", texto:"O valor discriminado na cláusula anterior será pago da seguinte forma: {{pagamento}}\n\nParágrafo Único – Finalizada a instalação e materiais objeto deste contrato o Consumidor Contratante deverá honrar com todos os pagamentos na forma e prazos estipulados no caput desta cláusula sob pena de execução judicial do presente contrato."},
       {tipo:"clausula", id:"c6", titulo:"Cláusula Quarta – Do prazo de entrega:", texto:"O prazo da presente instalação sob encomenda do Consumidor Contratante é de {{prazoDias}} ({{prazoExtenso}}) dias {{prazoTipo}}, contados da assinatura deste contrato e a confirmação de pagamento, sendo este confirmado pelo banco, e sob a apresentação de comprovante pelo CONTRATANTE.\n\nParágrafo Primeiro – Ocorrendo qualquer evento caracterizado como “caso fortuito” ou “força maior”, dentre eles qualquer evento decorrente de pandemia, lockdown ou qualquer outro imprevisto que implique suspensão ou redução de atividades da Contratada, os prazos estipulados no caput serão também suspensos, sendo devolvidos à Contratada, em dias úteis integrais qualquer redução ou interrupção de atividades determinados pelas autoridades públicas federais, estaduais ou municipais;\n\nParágrafo Segundo – A hipótese do parágrafo anterior exclui qualquer responsabilidade pelo atraso decorrente dos eventos ali descritos.\n\nParágrafo Terceiro – Qualquer atraso decorrente de defeitos ou inexatidões de medidas constatados nas instalações do Consumidor Contratante isentam a Contratada de qualquer responsabilidade pelo atraso decorrente dos ajustes necessários à adequação do local de instalação;\n\nParágrafo Quarto – Os atrasos especificados na presente cláusula deverão ser comunicados por escrito ao Consumidor Contratante por qualquer meio, sendo admitidos e-mail, mensagem de texto por qualquer aplicativo eletrônico ou sms para o celular indicado pelo consumidor no preâmbulo deste contrato.\n\nParágrafo Quinto – Os custos adicionais para adequar as instalações e ou materiais objeto deste contrato devido a defeito da obra do Consumidor Contratante deverá ser por ele suportado mediante acréscimo no valor deste contrato.\n\nParágrafo Sexto – Ocorrendo qualquer alteração no cronograma da obra do Contratante Consumidor, todos os prazos aqui contratados deverão ser readequados em comum acordo entre as partes e mediante termo aditivo contratual.\n\nParágrafo Sétimo – O prazo de entrega será interrompido e paralisado sempre que a contratada não conseguir retirar/confirmar as medidas em obra, por decorrência de atraso ou qualquer outro impedimento. Neste caso, a contratada notificará a contratante acerca do ocorrido, assim reajustando uma nova data para a verificação de medidas in loco, devolvendo os dias de interrupção ou paralisação nos termos do parágrafo primeiro desta cláusula.\n\nFica estabelecido que, uma vez o local que serão feitas as instalações estejam devidamente prontos, com todas as alvenarias e acabamentos necessários finalizados, a contratada terá o prazo fixo de até {{prazoDias}} ({{prazoExtenso}}) dias úteis para realizar a entrega das instalações contratadas, salvo impedimentos devidamente justificados nos termos desta cláusula."},
@@ -2061,7 +2064,7 @@ const MODELOS_CONTRATO_PADRAO=[
     rotuloNumero:"Pedido Nº", usaObjeto:false, assinaturaEstilo:"rotulo",
     blocos:[
       {tipo:"clausula", id:"c1", titulo:"1. AS PARTES", texto:"CONTRATADA: {{contratadaNome}}, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº {{contratadaCnpj}}, sediada na {{contratadaEndereco}}.\n\nCONTRATANTE: {{clienteNome}}, inscrito(a) no CPF/CNPJ sob o nº {{clienteDoc}}, com endereço em {{clienteEndereco}}."},
-      {tipo:"clausula", id:"c2", titulo:"2. OBJETO", texto:"O objeto deste contrato é a fabricação e instalação, sob encomenda, das esquadrias personalizadas detalhadas na proposta comercial anexa a este instrumento.\n\nParágrafo Primeiro – Por se tratar de produtos sob medida desenvolvidos exclusivamente para a obra do CONTRATANTE, não será admitida a devolução de materiais ou restituição de valores após o início da fabricação, salvo em caso de defeito de fabricação devidamente comprovado."},
+      {tipo:"clausula", id:"c2", titulo:"2. OBJETO", texto:"O objeto deste contrato é a fabricação e instalação, sob encomenda, das esquadrias personalizadas detalhadas na proposta comercial nº {{proposta}}, anexa a este instrumento.\n\nParágrafo Primeiro – Por se tratar de produtos sob medida desenvolvidos exclusivamente para a obra do CONTRATANTE, não será admitida a devolução de materiais ou restituição de valores após o início da fabricação, salvo em caso de defeito de fabricação devidamente comprovado."},
       {tipo:"clausula", id:"c3", titulo:"3. VALOR E FORMA DE PAGAMENTO", texto:"O valor total deste contrato é de {{valor}} ({{valorExtenso}}), correspondente à totalidade dos materiais empregados, mão de obra de fabricação e instalação técnica.\n\nParágrafo Primeiro – {{pagamento}}\n\nParágrafo Segundo – Finalizada a produção das esquadrias e materiais, o CONTRATANTE obriga-se a honrar o pagamento integral ajustado, independentemente de a instalação já ter ocorrido ou de a obra civil estar atrasada."},
       {tipo:"clausula", id:"c4", titulo:"4. PRAZO DE EXECUÇÃO E ENTREGA", texto:"4.1. O prazo global para a execução do objeto deste instrumento varia de acordo com a tipologia e o acabamento das esquadrias contratadas, dividindo-se em duas etapas consecutivas (aquisição de insumos e posterior produção/instalação), conforme os critérios abaixo:\n\nI. Esquadrias na cor branca:\n\na) Até 30 (trinta) dias corridos para a aquisição e recebimento dos insumos, contados a partir da confirmação do pagamento inicial e da assinatura deste contrato;\n\nb) Até 40 (quarenta) dias úteis, contados a partir da realização da medição técnica definitiva dos vãos in loco, para a programação e fabricação das esquadrias, bem como para o envio e disponibilização dos produtos na obra, com o início dos serviços de instalação previsto dentro deste mesmo prazo.\n\nII. Esquadrias com acabamento amadeirado:\n\na) Até 70 (setenta) dias corridos para a aquisição e recebimento dos insumos, contados a partir da confirmação do pagamento inicial e da assinatura deste contrato;\n\nb) Até 25 (vinte e cinco) dias úteis, contados a partir da realização da medição técnica definitiva dos vãos in loco, para a programação e fabricação das esquadrias, bem como para o envio e disponibilização dos produtos na obra, com o início dos serviços de instalação previsto dentro deste mesmo prazo.\n\nParágrafo Único – O prazo de produção e instalação estabelecido na alínea “b” de cada inciso começará a fluir exclusivamente após o término do respectivo prazo de recebimento dos materiais (alínea “a”), mesmo que a medição técnica definitiva ocorra antecipadamente, respeitando-se a sequência operacional deste instrumento.\n\n4.2. O prazo global de execução será automaticamente suspenso ou readequado nas seguintes hipóteses:\n\nOcorrência de caso fortuito ou força maior;\nAtraso no pagamento ou inadimplemento pelo CONTRATANTE;\nFalta de acesso à obra para medição ou instalação;\nSolicitação de alterações no projeto sem prévia comunicação formal."},
       {tipo:"clausula", id:"c5", titulo:"5. VISTORIA, PROJETO E CONTROLE DE QUALIDADE", texto:"A CONTRATADA fica autorizada a realizar vistorias e conferência de medidas na obra mediante aviso prévio mínimo de 1 (um) dia útil.\n\nA fabricação seguirá rigorosamente o projeto executivo e o quadro de esquadrias acordado, sendo permitido ao CONTRATANTE inspecionar o processo de fabricação na indústria mediante agendamento prévio."},
@@ -2139,6 +2142,7 @@ function contratada(id){
 // aparece na tela de Cadastros: sem ela ninguem sabe o que da para usar.
 const CAMPOS_DO_CONTRATO=[
   {chave:'numero',            o:'o número do pedido (o CT, se não for digitado outro)'},
+  {chave:'proposta',          o:'o número da proposta comercial anexa (ORC-26-03-0023_RV8)'},
   {chave:'clienteNome',       o:'nome do cliente (vem do campo Cliente / Obra)'},
   {chave:'clienteDoc',        o:'CPF ou CNPJ do cliente'},
   {chave:'clienteEndereco',   o:'endereço do cliente'},
@@ -2307,6 +2311,9 @@ function dadosDoContrato(c, modelo){
   const dias=parseInt(ctr.prazoDias,10);
   const d={
     numero: (ctr.numero||'').trim() || ctFormatado(c.ct),
+    // A proposta tem revisoes (RV8 = 8a). Sem o numero no contrato, nao fica
+    // escrito qual delas o cliente aprovou.
+    proposta: (ctr.proposta||'').trim(),
     clienteNome: c.cliente||'',
     clienteDoc: ctr.doc||'',
     clienteEndereco: ctr.endereco||'',
@@ -2434,7 +2441,7 @@ function faltandoNoContrato(c, modelo){
   const rotulos={numero:'número do pedido', clienteDoc:'CPF/CNPJ do cliente',
     clienteEndereco:'endereço do cliente', clienteCidadeUF:'cidade/UF do cliente',
     clienteContato:'contato do cliente', clienteEmail:'e-mail do cliente',
-    valor:'valor total', valorExtenso:'valor total', pagamento:'forma de pagamento',
+    valor:'valor total', valorExtenso:'valor total', pagamento:'forma de pagamento', proposta:'nº da proposta comercial',
     prazoDias:'prazo em dias', prazoExtenso:'prazo em dias', objeto:'o que está sendo contratado',
     dataTexto:'data do contrato', clienteNome:'cliente',
     contratadaNome:'nome da empresa que assina (botão Contrato)',
@@ -2458,6 +2465,7 @@ function montarContrato(){
   const qual=document.getElementById('ctr-qual');
   if(qual) qual.innerHTML='<strong>Modelo:</strong> '+esc(modelo?modelo.nome:'—')+
     ' <span style="color:var(--gray-4)">— para trocar, feche e mude na parte Contrato da ficha.</span>';
+  mostrarAnexosDoContrato(c);
   const av=document.getElementById('ctr-faltando');
   if(av){
     const faltam=faltandoNoContrato(c, modelo);
@@ -2466,6 +2474,29 @@ function montarContrato(){
         esc(faltam.join(', '))+'</strong>. Feche, preencha na parte <em>Contrato</em> da ficha, salve e gere de novo.</div>'
       : '';
   }
+}
+
+// O que vai JUNTO com o contrato. A proposta comercial nao entra dentro do
+// PDF do contrato (decisao de 18/09/2026: sao 17 paginas montadas, com as
+// vistas do CEM; como imagem perderiam nitidez e o arquivo passaria de 10 MB,
+// e os anexos ja sobem como PDF inteiro). Entao vao dois arquivos, e a janela
+// lembra qual — e avisa se a obra nao tem proposta anexada, porque o
+// contrato cita "a proposta comercial anexa".
+function mostrarAnexosDoContrato(c){
+  const el=document.getElementById('ctr-anexos');
+  if(!el) return;
+  const propostas=(c.docs||[]).filter(function(d){ return (d.tipo||'')==='Proposta' && d.url; });
+  if(!propostas.length){
+    el.innerHTML='<div class="aviso" style="margin:0"><strong>Nenhuma proposta anexada nesta obra.</strong> '+
+      'O contrato cita a proposta comercial anexa — anexe o PDF na ficha, em <em>Anexos</em>, com o rótulo <strong>Proposta</strong>.</div>';
+    return;
+  }
+  el.innerHTML='<div class="caixa"><div class="caixa-linha" style="font-size:12.5px"><strong>Mandar junto com o contrato:</strong></div>'+
+    propostas.map(function(d){
+      return '<div class="caixa-linha" style="font-size:12.5px">'+
+        '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Proposta · '+esc(d.nome||'arquivo')+'</span>'+
+        '<a class="btn btn-outline btn-sm" href="'+esc(d.url)+'" target="_blank" rel="noopener">Abrir</a></div>';
+    }).join('')+'</div>';
 }
 
 function imprimirContrato(){
@@ -2534,6 +2565,7 @@ function lerFichaContrato(){
     modelo:   v('f-ctr-modelo'),
     empresa:  v('f-ctr-empresa'),
     numero:   v('f-ctr-numero'),
+    proposta: v('f-ctr-proposta'),
     doc:      v('f-ctr-doc'),
     endereco: v('f-ctr-endereco'),
     cidadeUF: v('f-ctr-cidadeuf'),
@@ -2568,6 +2600,7 @@ function preencherFichaContrato(c){
   const sel=document.getElementById('f-ctr-modelo');
   if(sel && ctr.modelo && modelosContrato().some(function(m){ return m.id===ctr.modelo; })) sel.value=ctr.modelo;
   p('f-ctr-numero',   ctr.numero);
+  p('f-ctr-proposta', ctr.proposta);
   p('f-ctr-doc',      ctr.doc);
   p('f-ctr-endereco', ctr.endereco);
   p('f-ctr-cidadeuf', ctr.cidadeUF);
