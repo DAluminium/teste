@@ -1983,8 +1983,8 @@ const MODELOS_CONTRATO_PADRAO=[
     titulo:"CONTRATO PARTICULAR DE INDUSTRIALIZAÇÃO COM FORNECIMENTO DE MATERIAIS SOB ENCOMENDA DO CONSUMIDOR",
     rotuloNumero:"Nº do Pedido", usaObjeto:false,
     blocos:[
-      {tipo:"clausula", id:"c1", titulo:"DADOS DA CONTRATADA", texto:"Nome: {{contratadaNome}}\nCNPJ: {{contratadaCnpj}}\nEndereço: {{contratadaEndereco}}\nTelefone: {{contratadaTelefone}}\nOrçamentista responsável: {{orcamentista}}\nConsultor(a) de vendas responsável: {{consultor}}"},
-      {tipo:"clausula", id:"c2", titulo:"DADOS DO CONTRATANTE", texto:"Nome: {{clienteNome}}\nCPF/CNPJ: {{clienteDoc}}\nEndereço: {{clienteEndereco}}\nContato: {{clienteContato}}"},
+      {tipo:"dados", id:"c1", titulo:"DADOS DA CONTRATADA", parte:"contratada", campos:["nome","cnpj","endereco","telefone","orcamentista","consultor"]},
+      {tipo:"dados", id:"c2", titulo:"DADOS DO CONTRATANTE", parte:"contratante", campos:["nome","doc","endereco","contato"]},
       {tipo:"clausula", id:"c3", titulo:"CLÁUSULA PRIMEIRA – DO OBJETO (OBRA)", texto:"O objeto da presente contratação é a industrialização sob encomenda do consumidor contratante das esquadrias constantes no escopo da proposta comercial anexa ao presente instrumento.\n\nParágrafo Primeiro – As esquadrias objeto deste contrato serão confeccionadas exclusivamente para atender às medidas, tipologias e especificações da obra personalíssima do CONTRATANTE.\n\nParágrafo Segundo – Após iniciada a fabricação das esquadrias nos termos aprovados pelo CONTRATANTE, não será admitida devolução dos materiais ou restituição das quantias pagas, salvo em caso de defeito de fabricação devidamente comprovado."},
       {tipo:"clausula", id:"c4", titulo:"CLÁUSULA SEGUNDA – DO VALOR", texto:"O valor total deste contrato é de {{valor}} ({{valorExtenso}}), correspondentes aos materiais empregados e à mão de obra de fabricação e instalação."},
       {tipo:"clausula", id:"c5", titulo:"CLÁUSULA TERCEIRA – DA FORMA DE PAGAMENTO", texto:"O valor discriminado na cláusula anterior será pago da seguinte forma: {{pagamento}}\n\nParágrafo Único – Finalizada a produção das esquadrias e materiais objeto deste contrato, o CONTRATANTE deverá honrar integralmente os pagamentos ajustados, independentemente de a instalação já ter ocorrido, sob pena de execução judicial do presente contrato."},
@@ -2015,8 +2015,8 @@ const MODELOS_CONTRATO_PADRAO=[
     rotuloNumero:"Nº do Pedido", usaObjeto:false,
     campos:[{id:"qtdPortas", rotulo:"Quantas portas", padrao:"15"}, {id:"qtdVisores", rotulo:"Quantas portas com visor", padrao:"6"}],
     blocos:[
-      {tipo:"clausula", id:"c1", titulo:"DADOS DA CONTRATADA", texto:"Nome: {{contratadaNome}}\nCNPJ: {{contratadaCnpj}}\nEndereço: {{contratadaEndereco}}\nTelefone: {{contratadaTelefone}}\nOrçamentista responsável: {{orcamentista}}\nConsultor(a) de vendas responsável: {{consultor}}"},
-      {tipo:"clausula", id:"c2", titulo:"DADOS DO CONTRATANTE", texto:"Nome: {{clienteNome}}\nCPF/CNPJ: {{clienteDoc}}\nEndereço: {{clienteEndereco}}\nCidade/UF: {{clienteCidadeUF}}\nContato: {{clienteContato}}\nE-mail: {{clienteEmail}}"},
+      {tipo:"dados", id:"c1", titulo:"DADOS DA CONTRATADA", parte:"contratada", campos:["nome","cnpj","endereco","telefone","orcamentista","consultor"]},
+      {tipo:"dados", id:"c2", titulo:"DADOS DO CONTRATANTE", parte:"contratante", campos:["nome","doc","endereco","cidade","contato","email"]},
       {tipo:"clausula", id:"c3", titulo:"CLÁUSULA PRIMEIRA – DO OBJETO (OBRA)", texto:"O objeto do presente contrato é a prestação de serviços de mão de obra para instalação de {{qtdPortas}} ({{qtdPortasExtenso}}) portas de madeira da marca PORMADE, conforme quantitativos, dimensões e características constantes do orçamento comercial apresentado ao CONTRATANTE.\n\nIntegra o objeto deste contrato a aplicação/instalação de visores de vidro em {{qtdVisores}} ({{qtdVisoresExtenso}}) portas, conforme previsto no orçamento comercial.\n\nAs portas e respectivos materiais fornecidos pela PORMADE serão adquiridos e faturados diretamente ao CONTRATANTE, não fazendo parte do valor da mão de obra ora contratada, salvo os itens expressamente indicados neste instrumento.\n\nParágrafo Primeiro\nAs portas objeto da instalação deverão estar disponíveis na obra, em condições adequadas para conferência, recebimento, movimentação e instalação pela CONTRATADA.\n\nParágrafo Segundo\nA CONTRATADA executará os serviços de instalação de acordo com as características, dimensões e condições técnicas dos produtos fornecidos pelo fabricante PORMADE e conforme as condições encontradas nos vãos da obra.\n\nParágrafo Terceiro\nEventuais alterações de quantidade, modelo, dimensão, acabamento, localização ou tipologia das portas e/ou visores após a contratação poderão implicar revisão dos valores e dos prazos, mediante aprovação das partes."},
       {tipo:"clausula", id:"c4", titulo:"CLÁUSULA SEGUNDA – DO VALOR", texto:"O valor total deste contrato é de {{valor}} ({{valorExtenso}}), correspondentes à mão de obra de instalação."},
       {tipo:"clausula", id:"c5", titulo:"CLÁUSULA TERCEIRA – DA FORMA DE PAGAMENTO", texto:"O valor discriminado na cláusula anterior será pago da seguinte forma: {{pagamento}}"},
@@ -2037,8 +2037,8 @@ const MODELOS_CONTRATO_PADRAO=[
     titulo:"CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE INSTALAÇÃO DE MATERIAIS SOB ENCOMENDA DO CONSUMIDOR",
     rotuloNumero:"Nº do Pedido", usaObjeto:true, objetoPadrao:"corrimão em inox",
     blocos:[
-      {tipo:"clausula", id:"c1", titulo:"DADOS DA CONTRATADA", texto:"Nome: {{contratadaNome}}\nCNPJ: {{contratadaCnpj}}\nEndereço: {{contratadaEndereco}}\nTelefone: {{contratadaTelefone}}\nOrçamentista responsável: {{orcamentista}}\nConsultor(a) de vendas responsável: {{consultor}}"},
-      {tipo:"clausula", id:"c2", titulo:"DADOS DO CONTRATANTE", texto:"Nome: {{clienteNome}}\nCPF/CNPJ: {{clienteDoc}}\nEndereço: {{clienteEndereco}}\nCidade/UF: {{clienteCidadeUF}}\nContato: {{clienteContato}}\nE-mail: {{clienteEmail}}"},
+      {tipo:"dados", id:"c1", titulo:"DADOS DA CONTRATADA", parte:"contratada", campos:["nome","cnpj","endereco","telefone","orcamentista","consultor"]},
+      {tipo:"dados", id:"c2", titulo:"DADOS DO CONTRATANTE", parte:"contratante", campos:["nome","doc","endereco","cidade","contato","email"]},
       {tipo:"clausula", id:"c3", titulo:"Cláusula Primeira – Do Objeto (Obra):", texto:"O objeto da presente contratação é a prestação de serviço de mão de obra especializada, bem como o fornecimento dos materiais necessários para a instalação de {{objeto}}, conforme as especificações previamente acordadas com o consumidor contratante, e descritas no escopo da proposta anexa.\n\nParágrafo Primeiro – A instalação do objeto do presente contrato será realizada de forma personalizada, obedecendo rigorosamente às medidas, formatos e demais exigências específicas da obra indicada pelo consumidor contratante, tratando-se, portanto, de um serviço personalíssimo.\n\nParágrafo Segundo – Após a instalação do {{objeto}} nos termos do parágrafo anterior, não será admitida a devolução do material nem a restituição dos valores pagos, salvo em caso de vício comprovado por laudo técnico do fabricante. Ressalva-se, no entanto, o direito do consumidor à produção de contraprova, nos termos da legislação vigente."},
       {tipo:"clausula", id:"c4", titulo:"Cláusula Segunda – Do Valor:", texto:"O valor total deste Contrato é de {{valor}} ({{valorExtenso}}), correspondendo ao fornecimento do produto e mão de obra."},
       {tipo:"clausula", id:"c5", titulo:"Cláusula Terceira – Da Forma de Pagamento:", texto:"O valor discriminado na cláusula anterior será pago da seguinte forma: {{pagamento}}\n\nParágrafo Único – Finalizada a instalação e materiais objeto deste contrato o Consumidor Contratante deverá honrar com todos os pagamentos na forma e prazos estipulados no caput desta cláusula sob pena de execução judicial do presente contrato."},
@@ -2250,6 +2250,43 @@ function dataPorExtenso(iso){
 }
 
 // ---- OS MODELOS ----
+// ---- OS DADOS DAS PARTES ----
+// Os blocos "Dados da Contratada" e "Dados do Contratante" nao sao texto
+// livre: sao um formulario de marcar quais dados aparecem (pedido do Ander em
+// 18/09/2026 — o texto cheio de {{contratadaNome}} na tela de edicao nao dizia
+// nada para quem nao e programador). O papel sai igual ao do Word.
+// A ordem do papel e a desta lista. ESTE CATALOGO TEM DE SER IGUAL AO DO
+// gerador dos modelos (gera-modelos.js), que converteu o texto do Word.
+const CAMPOS_DAS_PARTES={
+  contratada:[
+    {id:'nome',         rotulo:'Nome',                       linha:'Nome: {{contratadaNome}}'},
+    {id:'cnpj',         rotulo:'CNPJ',                       linha:'CNPJ: {{contratadaCnpj}}'},
+    {id:'endereco',     rotulo:'Endereço',                   linha:'Endereço: {{contratadaEndereco}}'},
+    {id:'telefone',     rotulo:'Telefone',                   linha:'Telefone: {{contratadaTelefone}}'},
+    {id:'email',        rotulo:'E-mail',                     linha:'E-mail: {{email}}'},
+    {id:'orcamentista', rotulo:'Orçamentista responsável',   linha:'Orçamentista responsável: {{orcamentista}}'},
+    {id:'consultor',    rotulo:'Consultor(a) de vendas',     linha:'Consultor(a) de vendas responsável: {{consultor}}'}
+  ],
+  contratante:[
+    {id:'nome',     rotulo:'Nome',       linha:'Nome: {{clienteNome}}'},
+    {id:'doc',      rotulo:'CPF/CNPJ',   linha:'CPF/CNPJ: {{clienteDoc}}'},
+    {id:'endereco', rotulo:'Endereço',   linha:'Endereço: {{clienteEndereco}}'},
+    {id:'cidade',   rotulo:'Cidade/UF',  linha:'Cidade/UF: {{clienteCidadeUF}}'},
+    {id:'contato',  rotulo:'Contato',    linha:'Contato: {{clienteContato}}'},
+    {id:'email',    rotulo:'E-mail',     linha:'E-mail: {{clienteEmail}}'}
+  ]
+};
+// O texto que um bloco poe no papel. Formulario vira as linhas marcadas;
+// clausula e o texto dela.
+function textoDoBloco(b){
+  if(b.tipo!=='dados') return b.texto||'';
+  const marcados=b.campos||[];
+  return (CAMPOS_DAS_PARTES[b.parte]||[])
+    .filter(function(c){ return marcados.indexOf(c.id)>=0; })
+    .map(function(c){ return c.linha; })
+    .join('\n');
+}
+
 function modelosContrato(){
   return (Array.isArray(dados.modelosContrato)&&dados.modelosContrato.length)
     ? dados.modelosContrato : MODELOS_CONTRATO_PADRAO;
@@ -2356,7 +2393,7 @@ function htmlDoContrato(c, modelo){
     if(b.tipo==='assinaturas'){ html+=assinaturasHtml(modelo,d); return; }
     if(b.tipo==='pagina'){ html+='<div class="ctr-pagina"></div>'; return; }
     html+='<div class="ctr-clausula"><h2>'+esc(trocarCampos(b.titulo,d))+'</h2>'+
-      paragrafosHtml(b.texto,d)+'</div>';
+      paragrafosHtml(textoDoBloco(b),d)+'</div>';
   });
   return html;
 }
@@ -2388,8 +2425,8 @@ function faltandoNoContrato(c, modelo){
   const d=dadosDoContrato(c, modelo);
   const usados={};
   (modelo.blocos||[]).forEach(function(b){
-    if(b.tipo!=='clausula') return;
-    ((b.titulo||'')+' '+(b.texto||'')).replace(/\{\{([a-zA-Z]+)\}\}/g,function(t,k){ usados[k]=1; return t; });
+    if(b.tipo!=='clausula' && b.tipo!=='dados') return;
+    ((b.titulo||'')+' '+textoDoBloco(b)).replace(/\{\{([a-zA-Z]+)\}\}/g,function(t,k){ usados[k]=1; return t; });
   });
   // As assinaturas usam estes, mesmo que nenhuma clausula os escreva.
   usados.dataTexto=1; usados.clienteNome=1; usados.contratadaNome=1; usados.cidadeForo=1;
@@ -2596,6 +2633,22 @@ function renderModeloContrato(){
         ' onclick="moverClausula('+i+',-1)">&uarr;</button>'+
       '<button class="btn btn-outline btn-sm" title="Descer" '+(i===blocos.length-1?'disabled style="opacity:.4"':'')+
         ' onclick="moverClausula('+i+',1)">&darr;</button>';
+    if(b.tipo==='dados'){
+      const marcados=b.campos||[];
+      const caixas=(CAMPOS_DAS_PARTES[b.parte]||[]).map(function(c){
+        const idArg=JSON.stringify(c.id).replace(/"/g,'&quot;');
+        return '<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer;padding:2px 0">'+
+          '<input type="checkbox" style="width:16px;height:16px" '+(marcados.indexOf(c.id)>=0?'checked':'')+
+          ' onchange="marcarDadoDaParte('+arg+','+idArg+',this.checked,this)">'+esc(c.rotulo)+'</label>';
+      }).join('');
+      return '<div class="caixa-linha" style="flex-direction:column;align-items:stretch;gap:4px">'+
+        '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">'+
+          '<strong style="font-size:12.5px">'+esc(b.titulo)+'</strong>'+
+          '<span style="display:flex;gap:5px;align-items:center">'+setas+'</span>'+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px;padding-left:2px">'+caixas+'</div>'+
+        '</div>';
+    }
     if(b.tipo!=='clausula'){
       const nome=(b.tipo==='assinaturas')?'— as assinaturas entram aqui —':'— daqui em diante, página nova —';
       return '<div class="caixa-linha"><span style="font-size:12px;color:var(--gray-4)">'+nome+'</span>'+
@@ -2703,6 +2756,34 @@ async function delClausula(id){
     mm.blocos=mm.blocos.filter(function(x){ return x.id!==id; });
   }, {acao:'tirou cláusula do contrato', alvo:b.titulo, detalhe:'modelo '+m.nome});
   if(ok){ if(_clausulaEditando===id) cancelarEdicaoClausula(); renderModeloContrato(); }
+}
+
+// Marca ou desmarca um dado no formulario de uma das partes. Grava na hora,
+// como as setas. Tem de sobrar pelo menos um: bloco so com o titulo parece
+// defeito no papel.
+async function marcarDadoDaParte(idBloco, idCampo, marcado, caixa){
+  const m=modeloDaTela();
+  const b=m&&(m.blocos||[]).find(function(x){ return x.id===idBloco; });
+  if(!b) return;
+  const atuais=(b.campos||[]).slice();
+  if(!marcado && atuais.length<=1 && atuais.indexOf(idCampo)>=0){
+    if(caixa) caixa.checked=true;
+    aviso('Precisa de um','Deixe pelo menos um dado marcado em "'+b.titulo+'".');
+    return;
+  }
+  const rotulo=((CAMPOS_DAS_PARTES[b.parte]||[]).find(function(c){ return c.id===idCampo; })||{}).rotulo||idCampo;
+  const ok=await mexerNosModelos(function(mm){
+    const bb=mm.blocos.find(function(x){ return x.id===idBloco; });
+    if(!bb||bb.tipo!=='dados') return;
+    const l=(bb.campos||[]).filter(function(x){ return x!==idCampo; });
+    if(marcado) l.push(idCampo);
+    // Guarda na ordem do catalogo, que e a ordem do papel.
+    bb.campos=(CAMPOS_DAS_PARTES[bb.parte]||[]).map(function(c){ return c.id; })
+      .filter(function(id){ return l.indexOf(id)>=0; });
+  }, {acao:(marcado?'marcou':'desmarcou')+' dado no contrato', alvo:b.titulo+' · '+rotulo,
+      detalhe:'modelo '+m.nome});
+  if(ok) renderModeloContrato();
+  else if(caixa) caixa.checked=!marcado;
 }
 
 async function moverClausula(i, passo){
