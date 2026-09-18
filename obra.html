@@ -246,6 +246,9 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="btn btn-ghost btn-sm" data-so-gestor onclick="abrirCadastros()" title="Status da obra, feriados do cálculo de dias úteis, campos extras e rótulos dos anexos">
         <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Cadastros
       </button>
+      <button class="btn btn-ghost btn-sm" data-so-gestor onclick="abrirContratosCadastro()" title="Modelos de contrato, cláusulas e empresas que assinam">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>Contrato
+      </button>
       <button class="btn btn-ghost btn-sm" data-so-gestor onclick="novoContrato()">
         <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Novo
       </button>
@@ -334,7 +337,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <span class="dica" id="d-ctr-modelo"></span></div>
         <div class="fg span2"><label>Empresa que assina</label>
           <select id="f-ctr-empresa"></select>
-          <span class="dica">Sai no alto, no Manual de Uso e na assinatura. A lista vem de Cadastros.</span></div>
+          <span class="dica">Sai no alto, no Manual de Uso e na assinatura. A lista vem do botão Contrato, no topo.</span></div>
         <div class="fg"><label>Nº do pedido no contrato</label><input id="f-ctr-numero" placeholder="Ex.: 0073 ou PORMADE/5">
           <span class="dica">Em branco, sai o CT com 4 dígitos.</span></div>
         <div class="fg"><label>CPF / CNPJ do cliente</label><input id="f-ctr-doc" placeholder="Ex.: 784.653.702-49"></div>
@@ -449,7 +452,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
 </div>
 
 <!-- CADASTROS — status da obra, feriados (cálculo de dias úteis), campos
-     extras e rótulos dos anexos -->
+     extras e rótulos dos anexos. O que e do contrato fica na janela do botao
+     Contrato (ctrcad-ov). -->
 <div class="overlay" id="cad-ov">
   <div class="modal" style="max-width:560px">
     <div class="modal-head">
@@ -535,7 +539,20 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg span2"><button class="btn btn-teal btn-block" onclick="addTipoDoc()">Acrescentar rótulo</button></div>
       </div>
       <div id="td-lista"></div>
+    </div>
+  </div>
+</div>
 
+<!-- CONTRATO — os modelos de contrato e as empresas que assinam. Janela
+     propria, com botao no topo, a pedido do Ander (18/09/2026): em Cadastros
+     fica so o que e do modulo Obra. -->
+<div class="overlay" id="ctrcad-ov">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-head">
+      <div class="modal-title">Contrato — modelos e empresas</div>
+      <button class="btn btn-outline btn-sm" onclick="fecharContratosCadastro()">Fechar</button>
+    </div>
+    <div class="modal-body">
       <div class="secao">Modelos de contrato</div>
       <div class="aviso">É o texto que sai no contrato do cliente. Escolha o modelo e dá para <strong>editar qualquer cláusula</strong>, <strong>acrescentar cláusula nova</strong> e mudar a ordem pelas setas. O que for salvo aqui vale para os <strong>próximos</strong> contratos — contrato já impresso não muda. Se a edição sair errada, <strong>Voltar este modelo ao original</strong> devolve o texto como veio do Word.</div>
       <div class="form-grid" style="margin-bottom:10px">
@@ -579,6 +596,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg span2"><label>Cidade da assinatura e do foro</label><input id="emp-cidadeForo"></div>
         <div class="fg span2"><button class="btn btn-teal btn-block" id="emp-btn" onclick="salvarContratada()">Salvar esta empresa</button></div>
       </div>
+
     </div>
   </div>
 </div>
@@ -2382,12 +2400,12 @@ function faltandoNoContrato(c, modelo){
     valor:'valor total', valorExtenso:'valor total', pagamento:'forma de pagamento',
     prazoDias:'prazo em dias', prazoExtenso:'prazo em dias', objeto:'o que está sendo contratado',
     dataTexto:'data do contrato', clienteNome:'cliente',
-    contratadaNome:'nome da empresa que assina (Cadastros)',
-    contratadaCnpj:'CNPJ da empresa que assina (Cadastros)',
-    contratadaEndereco:'endereço da empresa que assina (Cadastros)',
-    contratadaTelefone:'telefone da empresa que assina (Cadastros)',
-    email:'e-mail da empresa que assina (Cadastros)',
-    cidadeForo:'cidade da assinatura (Cadastros)'};
+    contratadaNome:'nome da empresa que assina (botão Contrato)',
+    contratadaCnpj:'CNPJ da empresa que assina (botão Contrato)',
+    contratadaEndereco:'endereço da empresa que assina (botão Contrato)',
+    contratadaTelefone:'telefone da empresa que assina (botão Contrato)',
+    email:'e-mail da empresa que assina (botão Contrato)',
+    cidadeForo:'cidade da assinatura (botão Contrato)'};
   const faltam={};
   Object.keys(usados).forEach(function(k){
     if(d[k]===''||d[k]===undefined) faltam[rotulos[k]||k]=1;
@@ -3396,14 +3414,21 @@ function abrirCadastros(){
   renderStatus();
   renderCamposExtras();
   renderTiposDoc();
+  document.getElementById('cad-ov').classList.add('open');
+}
+
+// A janela do botao Contrato: modelos, clausulas e empresas que assinam.
+function abrirContratosCadastro(){
+  if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente mexe nos modelos de contrato.'); return; }
   preencherModelosCadastro();
   renderModeloContrato();
   renderCamposDoContrato();
   cancelarEdicaoClausula();
   _empresaNova=false;
   renderContratada();
-  document.getElementById('cad-ov').classList.add('open');
+  document.getElementById('ctrcad-ov').classList.add('open');
 }
+function fecharContratosCadastro(){ document.getElementById('ctrcad-ov').classList.remove('open'); }
 function fecharCadastros(){ document.getElementById('cad-ov').classList.remove('open'); }
 
 // ---- STATUS DA OBRA ----
@@ -4737,10 +4762,12 @@ function abrirApp(nome,papelDoUsuario){
   document.getElementById('ficha-ov').addEventListener('click',function(e){ if(e.target===this) fecharFicha(); });
   document.getElementById('cad-ov').addEventListener('click',function(e){ if(e.target===this) fecharCadastros(); });
   document.getElementById('ctr-ov').addEventListener('click',function(e){ if(e.target===this) fecharContrato(); });
+  document.getElementById('ctrcad-ov').addEventListener('click',function(e){ if(e.target===this) fecharContratosCadastro(); });
   document.addEventListener('keydown',function(e){
     if(e.key!=='Escape') return;
     if(document.getElementById('aviso-ov').classList.contains('open')) fecharAviso();
     else if(document.getElementById('ctr-ov').classList.contains('open')) fecharContrato();
+    else if(document.getElementById('ctrcad-ov').classList.contains('open')) fecharContratosCadastro();
     else if(document.getElementById('cad-ov').classList.contains('open')) fecharCadastros();
     else if(document.getElementById('ficha-ov').classList.contains('open')) fecharFicha();
   });
