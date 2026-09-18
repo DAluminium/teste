@@ -792,6 +792,20 @@ function lerSSO(){
 
 const TOKEN_KEY='dalum-token';
 
+// LGPD (auditoria de 18/09/2026): ao sair, apaga a copia dos dados guardada no
+// navegador. Antes o Sair tirava so o cracha — os contratos (com CPF), as
+// contas e a lista de usuarios (com o resumo das senhas) continuavam no
+// computador para quem sentasse depois.
+// Todos os modulos ficam no mesmo endereco (daluminium.github.io) e dividem o
+// mesmo armazenamento: qualquer saida limpa a copia de TODOS eles.
+// Preferencias de tela (aba escolhida, ordem da carteira, ultima empresa do
+// comprovante) ficam: nao sao dado de ninguem.
+const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra',
+  'portal-admin-passes','dalum-admin-passes','fin-admin-passes'];
+function apagarDadosLocais(){
+  DADOS_LOCAIS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+}
+
 function b64urlParaTexto(s){
   const b64=s.replace(/-/g,'+').replace(/_/g,'/');
   const bin=atob(b64+'==='.slice((b64.length+3)%4));
@@ -919,7 +933,7 @@ async function checkForceLogoutObra(){
           ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
           :'Sua sessão foi encerrada pelo administrador.',
         function(){
-          try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){}
+          try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){} apagarDadosLocais();
           location.reload();
         });
       return;
@@ -947,6 +961,7 @@ async function sairDaObra(){
   await removerSessaoObra();
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem('dalum-sso');
+  apagarDadosLocais();
   if(window.self!==window.top) window.parent.postMessage('logout','*');
   location.reload();
 }
@@ -992,7 +1007,7 @@ function fecharAviso(){
 function sessaoExpirada(){
   if(window.__sessaoExpirada) return;
   window.__sessaoExpirada = true;
-  try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){}
+  try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){} apagarDadosLocais();
   aviso('Sessão expirada',
         'O acesso vale 8 horas e o seu venceu. Nada foi perdido — o que você ' +
         'já tinha salvo continua guardado.\n\nVamos voltar para a tela de entrada.',

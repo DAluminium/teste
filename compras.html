@@ -3401,6 +3401,20 @@ function saveCfg(cfg){}
 const WORKER_URL='https://daluminium-api.daluminium2.workers.dev';
 const TOKEN_KEY='dalum-token';
 
+// LGPD (auditoria de 18/09/2026): ao sair, apaga a copia dos dados guardada no
+// navegador. Antes o Sair tirava so o cracha — os contratos (com CPF), as
+// contas e a lista de usuarios (com o resumo das senhas) continuavam no
+// computador para quem sentasse depois.
+// Todos os modulos ficam no mesmo endereco (daluminium.github.io) e dividem o
+// mesmo armazenamento: qualquer saida limpa a copia de TODOS eles.
+// Preferencias de tela (aba escolhida, ordem da carteira, ultima empresa do
+// comprovante) ficam: nao sao dado de ninguem.
+const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra',
+  'portal-admin-passes','dalum-admin-passes','fin-admin-passes'];
+function apagarDadosLocais(){
+  DADOS_LOCAIS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+}
+
 function b64urlParaTexto(s){
   const b64=s.replace(/-/g,'+').replace(/_/g,'/');
   const bin=atob(b64+'==='.slice((b64.length+3)%4));
@@ -3469,7 +3483,7 @@ function setStatus(msg, color='rgba(255,255,255,0.8)'){
 function sessaoExpirada(){
   if(window.__sessaoExpirada) return;   // um aviso só, mesmo com várias chamadas
   window.__sessaoExpirada = true;
-  try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){}
+  try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){} apagarDadosLocais();
   // A marca de "está logado" mora na ABA, não no crachá. Sem apagar também
   // aqui, ao recarregar o módulo achava que a pessoa continuava dentro, ia
   // buscar dados sem crachá, levava 401 e mostrava esta mesma mensagem de
@@ -4433,6 +4447,7 @@ async function doLogout(){
   sessionStorage.removeItem('dalum-user-role');
   localStorage.removeItem('dalum-sso');
   localStorage.removeItem(TOKEN_KEY);
+  apagarDadosLocais();
   // Volta para a tela de login DESTE módulo, igual à Fábrica. Antes ia para o
   // portal, o que só fazia sentido quando o portal era a única porta de entrada.
   // Dentro do portal, avisa a moldura para ela também encerrar a sessão de lá.

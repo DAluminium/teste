@@ -633,6 +633,20 @@ const MAX_TENT=5, BLOQ_MS=5*60*1000;
 // pronto e o mandam ao Worker sem pedir senha de novo.
 const TOKEN_KEY='dalum-token';
 
+// LGPD (auditoria de 18/09/2026): ao sair, apaga a copia dos dados guardada no
+// navegador. Antes o Sair tirava so o cracha — os contratos (com CPF), as
+// contas e a lista de usuarios (com o resumo das senhas) continuavam no
+// computador para quem sentasse depois.
+// Todos os modulos ficam no mesmo endereco (daluminium.github.io) e dividem o
+// mesmo armazenamento: qualquer saida limpa a copia de TODOS eles.
+// Preferencias de tela (aba escolhida, ordem da carteira, ultima empresa do
+// comprovante) ficam: nao sao dado de ninguem.
+const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra',
+  'portal-admin-passes','dalum-admin-passes','fin-admin-passes'];
+function apagarDadosLocais(){
+  DADOS_LOCAIS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+}
+
 function b64urlParaTexto(s){
   const b64=s.replace(/-/g,'+').replace(/_/g,'/');
   const bin=atob(b64+'==='.slice((b64.length+3)%4));
@@ -926,7 +940,7 @@ async function doLogin(){
 async function doLogout(){
   if(!confirm('Deseja sair?')) return;
   await removerSessaoPortal();
-  localStorage.removeItem('dalum-sso'); localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('dalum-sso'); localStorage.removeItem(TOKEN_KEY); apagarDadosLocais();
   ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key'].forEach(k=>sessionStorage.removeItem(k));
   document.getElementById('login-screen').classList.add('active');
   document.getElementById('portal').classList.remove('active');
@@ -2177,7 +2191,7 @@ function startSessionCheckPortal(){
   _sessCheck=setInterval(checkForceLogoutPortal,5000);
 }
 function forcarSaida(){
-  localStorage.removeItem('dalum-sso'); localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('dalum-sso'); localStorage.removeItem(TOKEN_KEY); apagarDadosLocais();
   ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key'].forEach(k=>sessionStorage.removeItem(k));
   location.reload();
 }
@@ -2221,7 +2235,7 @@ window.addEventListener('message',function(e){
   if(e.data==='voltarPortal') voltarPortal();
   if(e.data==='logout'){
     removerSessaoPortal();
-    localStorage.removeItem('dalum-sso'); localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem('dalum-sso'); localStorage.removeItem(TOKEN_KEY); apagarDadosLocais();
     ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key'].forEach(k=>sessionStorage.removeItem(k));
     document.getElementById('frame-container').classList.remove('active');
     document.getElementById('frame-iframe').src='about:blank';
