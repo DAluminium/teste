@@ -327,44 +327,6 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg"><label>Peças</label><input type="number" min="0" id="f-pecas" placeholder="Ex.: 21"></div>
       </div>
 
-      <!-- CONTRATO — o que os 4 modelos de contrato pedem e a carteira nao
-           tinha. Fica na ficha da obra porque o "Nº do Pedido" impresso E o
-           CT: 0073, 0006, 0023 nos contratos do Ander. -->
-      <div class="secao">Contrato</div>
-      <div class="form-grid" id="f-grid-contrato">
-        <div class="fg span2"><label>Modelo do contrato</label>
-          <select id="f-ctr-modelo" onchange="trocarModeloNaFicha()"></select>
-          <span class="dica" id="d-ctr-modelo"></span></div>
-        <div class="fg span2"><label>Empresa que assina</label>
-          <select id="f-ctr-empresa"></select>
-          <span class="dica">Sai no alto, no Manual de Uso e na assinatura. A lista vem do botão Contrato, no topo.</span></div>
-        <div class="fg"><label>Nº do pedido no contrato</label><input id="f-ctr-numero" placeholder="Ex.: 0073 ou PORMADE/5">
-          <span class="dica">Em branco, sai o CT com 4 dígitos.</span></div>
-        <div class="fg"><label>Nº da proposta comercial</label><input id="f-ctr-proposta" placeholder="Ex.: ORC-26-03-0023_RV8">
-          <span class="dica">Como está no alto da proposta. O contrato cita este número.</span></div>
-        <div class="fg"><label>CPF / CNPJ do cliente</label><input id="f-ctr-doc" placeholder="Ex.: 000.000.000-00"></div>
-        <div class="fg span2"><label>Endereço do cliente</label><input id="f-ctr-endereco" placeholder="Rua, número, bairro, CEP"></div>
-        <div class="fg"><label>Cidade/UF do cliente</label><input id="f-ctr-cidadeuf" placeholder="Ex.: Porto Velho/RO">
-          <span class="dica">Em branco, usa a Cidade da identificação.</span></div>
-        <div class="fg"><label>Contato do cliente</label><input id="f-ctr-contato" placeholder="Ex.: (69) 9 0000-0000"></div>
-        <div class="fg span2"><label>E-mail do cliente</label><input id="f-ctr-email" placeholder="Ex.: cliente@email.com"></div>
-        <div class="fg"><label>Valor total (R$)</label><input type="number" step="0.01" min="0" id="f-ctr-valor" oninput="mostrarValorPorExtenso()" placeholder="Ex.: 59000">
-          <span class="dica" id="d-ctr-valor"></span></div>
-        <div class="fg"><label>Data do contrato</label><input type="date" id="f-ctr-data"></div>
-        <div class="fg"><label>Prazo (dias)</label><input type="number" min="0" id="f-ctr-prazodias" placeholder="Ex.: 30"></div>
-        <div class="fg"><label>Os dias são</label>
-          <select id="f-ctr-prazotipo"><option value="úteis">úteis</option><option value="corridos">corridos</option></select></div>
-        <div class="fg span2"><label>Forma de pagamento</label>
-          <textarea id="f-ctr-pagamento" placeholder="Ex.: R$ 29.000,00 de entrada via pix em 25/08/2026 e R$ 30.000,00 em 5 vezes no boleto, 30/60/90/120/150 dias."></textarea>
-          <span class="dica">Vai para o contrato exatamente como estiver escrito aqui.</span></div>
-        <div class="fg"><label>Orçamentista responsável</label><input id="f-ctr-orcamentista" placeholder="Em branco: o do cadastro"></div>
-        <div class="fg"><label>Consultor(a) de vendas</label><input id="f-ctr-consultor" placeholder="Em branco: o responsável comercial"></div>
-        <div class="fg span2" id="f-ctr-objeto-grupo" style="display:none"><label>O que está sendo contratado</label>
-          <input id="f-ctr-objeto" placeholder="Ex.: corrimão em inox">
-          <span class="dica">Entra no texto da cláusula do objeto.</span></div>
-      </div>
-      <div class="form-grid" id="f-ctr-campos"></div>
-
       <div class="secao">Observações</div>
       <div class="form-grid">
         <div class="fg span2"><textarea id="f-obs" placeholder="Anotações do contrato"></textarea></div>
@@ -413,7 +375,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="btn btn-red btn-sm" id="ficha-btn-excluir" onclick="excluirContrato()" style="display:none">Excluir</button>
       <button class="btn btn-outline btn-sm" id="ficha-btn-restaurar" onclick="restaurarContrato()" style="display:none">Restaurar</button>
       <button class="btn btn-outline" onclick="fecharFicha()">Cancelar</button>
-      <button class="btn btn-outline" id="ficha-btn-contrato" onclick="abrirContrato()" style="display:none">Gerar contrato</button>
+      <button class="btn btn-outline" id="ficha-btn-contrato" onclick="abrirContrato()" style="display:none">Contrato</button>
       <button class="btn btn-teal" id="ficha-btn-salvar" onclick="salvarFicha()">Salvar</button>
     </div>
   </div>
@@ -558,10 +520,18 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="btn btn-outline btn-sm" onclick="fecharContratosCadastro()">Fechar</button>
     </div>
     <div class="modal-body">
+      <div class="secao">Contrato de qual obra</div>
+      <div class="form-grid" style="margin-bottom:10px">
+        <div class="fg span2"><label>Obra</label><select id="ctj-obra" onchange="trocarObraDoContrato()"></select>
+          <span class="dica">Escolha a obra para preencher o contrato dela: os campos aparecem dentro das cláusulas que usam cada dado. Sem obra, esta janela só edita o texto dos modelos.</span></div>
+        <div class="fg" data-ctj><label>Nº do pedido</label><input id="ctj-numero" oninput="numeroDoContratoMudou(this)"></div>
+        <div class="fg" data-ctj><label>Empresa que assina</label><select id="ctj-empresa" onchange="trocarEmpresaDoContrato()"></select></div>
+      </div>
+
       <div class="secao">Modelos de contrato</div>
       <div class="aviso">É o texto que sai no contrato do cliente. Escolha o modelo e dá para <strong>editar qualquer cláusula</strong>, <strong>acrescentar cláusula nova</strong> e mudar a ordem pelas setas. O que for salvo aqui vale para os <strong>próximos</strong> contratos — contrato já impresso não muda. Se a edição sair errada, <strong>Voltar este modelo ao original</strong> devolve o texto como veio do Word.</div>
       <div class="form-grid" style="margin-bottom:10px">
-        <div class="fg span2"><label>Modelo</label><select id="ctm-modelo" onchange="renderModeloContrato()"></select>
+        <div class="fg span2"><label>Modelo</label><select id="ctm-modelo" onchange="trocarModeloDaJanela()"></select>
           <span class="dica" id="ctm-dica"></span></div>
         <div class="fg span2"><label>Título que sai no alto do contrato</label>
           <textarea id="ctm-titulo" style="min-height:48px"></textarea>
@@ -601,7 +571,10 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg span2"><label>Cidade da assinatura e do foro</label><input id="emp-cidadeForo"></div>
         <div class="fg span2"><button class="btn btn-teal btn-block" id="emp-btn" onclick="salvarContratada()">Salvar esta empresa</button></div>
       </div>
-
+    </div>
+    <div class="modal-foot" id="ctj-pe" style="display:none">
+      <button class="btn btn-outline" onclick="salvarContratoDaJanela()">Salvar contrato</button>
+      <button class="btn btn-teal" onclick="gerarContratoDaJanela()">Gerar contrato</button>
     </div>
   </div>
 </div>
@@ -1161,7 +1134,7 @@ async function sincronizar(){
 // Alguma tela de edição aberta? Enquanto houver, não redesenhamos: trocar
 // valores por baixo de quem está digitando faria a pessoa perder o que escreveu.
 function telaAbertaParaEdicao(){
-  return ['ficha-ov','cad-ov'].some(function(id){
+  return ['ficha-ov','cad-ov','ctrcad-ov'].some(function(id){
     const el=document.getElementById(id);
     return el && el.classList.contains('open');
   });
@@ -1300,7 +1273,6 @@ function lerFicha(){
     entrega:v('f-entrega'),
     linhas:v('f-linhas'), cores:v('f-cores'), vidros:v('f-vidros'),
     pecas:v('f-pecas'), obs:document.getElementById('f-obs').value.trim(),
-    contrato:lerFichaContrato(),
     extras:lerExtras()
   };
 }
@@ -1751,7 +1723,6 @@ function novoContrato(){
   fichaDocs=[]; docsApagados={};
   preencherTiposDoc(); renderDocs();
   renderExtrasNaFicha(null);
-  preencherFichaContrato(null);
   const p=(id,v)=>{ document.getElementById(id).value=v; };
   ['f-ct','f-cliente','f-coord','f-respcom','f-cidade','f-condominio','f-fechamento',
    'f-prazomat','f-medicao','f-diasprod','f-projentrada','f-diasinst','f-entrega',
@@ -1787,7 +1758,6 @@ function abrirFicha(id){
   // contrato, inclusive se ele saiu do cadastro.
   atualizarSelectStatus();
   renderExtrasNaFicha(c);
-  preencherFichaContrato(c);
   const p=(campo,v)=>{ document.getElementById(campo).value=v||''; };
   p('f-ct',ctFormatado(c.ct)); p('f-ano',c.ano); p('f-cliente',c.cliente);
   p('f-coord',c.coord); p('f-respcom',c.respCom);
@@ -2146,7 +2116,7 @@ function contratada(id){
 const CAMPOS_DO_CONTRATO=[
   {chave:'numero',            o:'o número do pedido (o CT, se não for digitado outro)'},
   {chave:'proposta',          o:'o número da proposta comercial anexa (ORC-26-03-0023_RV8)'},
-  {chave:'clienteNome',       o:'nome do cliente (vem do campo Cliente / Obra)'},
+  {chave:'clienteNome',       o:'nome do contratante (em branco, o Cliente / Obra da ficha)'},
   {chave:'clienteDoc',        o:'CPF ou CNPJ do cliente'},
   {chave:'clienteEndereco',   o:'endereço do cliente'},
   {chave:'clienteCidadeUF',   o:'cidade/UF do cliente'},
@@ -2317,7 +2287,9 @@ function dadosDoContrato(c, modelo){
     // A proposta tem revisoes (RV8 = 8a). Sem o numero no contrato, nao fica
     // escrito qual delas o cliente aprovou.
     proposta: (ctr.proposta||'').trim(),
-    clienteNome: c.cliente||'',
+    // Quem assina nem sempre e o nome da obra: no contrato do Jequitiba o
+    // contratante foi a L.N.R HOLDING, e a obra "Condominio Jequitiba".
+    clienteNome: (ctr.nome||'').trim()||c.cliente||'',
     clienteDoc: ctr.doc||'',
     clienteEndereco: ctr.endereco||'',
     clienteCidadeUF: ctr.cidadeUF||c.cidade||'',
@@ -2414,15 +2386,13 @@ let _contratoId=null;
 // Grava a ficha ANTES de montar o papel (sem fechar, como o anexo faz). Sem
 // isso o contrato sairia com o valor ou a data que ainda estao so na tela, e o
 // que foi impresso nao seria o que ficou gravado.
+// Botao Contrato da ficha: grava a ficha (sem fechar, como o anexo faz) e abre
+// a janela Contrato ja nesta obra.
 async function abrirContrato(){
   if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente gera contrato.'); return; }
   const gravou=await salvarFicha(true);
   if(!gravou) return;
-  const c=(dados.contratos||[]).find(function(x){ return x.id===fichaId; });
-  if(!c){ aviso('Contrato não encontrado','Recarregue a tela e tente de novo.'); return; }
-  _contratoId=c.id;
-  montarContrato();
-  document.getElementById('ctr-ov').classList.add('open');
+  abrirContratosCadastro(fichaId);
 }
 function fecharContrato(){
   document.getElementById('ctr-ov').classList.remove('open');
@@ -2467,14 +2437,14 @@ function montarContrato(){
   document.getElementById('ctr-papel').innerHTML=htmlDoContrato(c, modelo);
   const qual=document.getElementById('ctr-qual');
   if(qual) qual.innerHTML='<strong>Modelo:</strong> '+esc(modelo?modelo.nome:'—')+
-    ' <span style="color:var(--gray-4)">— para trocar, feche e mude na parte Contrato da ficha.</span>';
+    ' <span style="color:var(--gray-4)">— para trocar, feche esta folha e mude no alto da janela Contrato.</span>';
   mostrarAnexosDoContrato(c);
   const av=document.getElementById('ctr-faltando');
   if(av){
     const faltam=faltandoNoContrato(c, modelo);
     av.innerHTML=faltam.length
       ? '<div class="aviso" style="margin:0">Falta preencher, e no papel isso sai como uma linha em branco: <strong>'+
-        esc(faltam.join(', '))+'</strong>. Feche, preencha na parte <em>Contrato</em> da ficha, salve e gere de novo.</div>'
+        esc(faltam.join(', '))+'</strong>. Feche esta folha, preencha na janela <em>Contrato</em> e clique em Gerar contrato de novo.</div>'
       : '';
   }
 }
@@ -2509,118 +2479,239 @@ function imprimirContrato(){
   window.print();
 }
 
-// ---- A PARTE "CONTRATO" DA FICHA ----
-// Os dados que o contrato pede e a carteira nao tinha. Ficam dentro do
-// contrato, em `c.contrato`, e nao soltos no registro: sao um assunto so.
+// ---- MONTAR O CONTRATO NA JANELA "CONTRATO" ----
+// Pedido do Ander em 18/09/2026: o contrato de cada cliente e preenchido na
+// propria janela Contrato, com o campo DENTRO da clausula que usa o dado (o
+// valor na Clausula Segunda, o pagamento na Terceira, o prazo na Quarta...).
+// Mudar o TEXTO da clausula continua sendo pelo Editar. A parte Contrato saiu
+// da ficha da obra ("para nao misturar com cadastro do modulo obra").
 //
-// Os campos proprios de cada modelo (quantas portas, quantos visores) ficam
-// neste saco por id. Guardar aqui, e nao ler do formulario na hora de trocar
-// de modelo, e o que impede o valor digitado de sumir quando a pessoa olha
-// outro modelo e volta.
-let _camposCtr={};
+// O que se digita fica num rascunho e so vai para o banco no Salvar (ou no
+// Gerar contrato, que salva antes). A ficha nao le nem grava c.contrato — por
+// isso salvar a ficha nao apaga o contrato.
 
-function guardarCampoDoModelo(el){
-  if(el&&el.dataset&&el.dataset.campo) _camposCtr[el.dataset.campo]=el.value;
+// Os dados que cada contrato preenche. `k` e onde o valor mora em c.contrato;
+// `de` sao os {{campos}} do texto que pedem este dado. A ordem daqui e a
+// ordem em que os campos aparecem dentro de uma clausula.
+const CAMPOS_DO_CLIENTE=[
+  {k:'nome',     rotulo:'Nome do contratante', de:['clienteNome'], largo:true,
+   dica:'Em branco, sai o Cliente / Obra da ficha.'},
+  {k:'doc',      rotulo:'CPF / CNPJ',          de:['clienteDoc']},
+  {k:'contato',  rotulo:'Contato',             de:['clienteContato']},
+  {k:'endereco', rotulo:'Endereço',            de:['clienteEndereco'], largo:true},
+  {k:'cidadeUF', rotulo:'Cidade/UF',           de:['clienteCidadeUF'], dica:'Em branco, sai a Cidade da ficha.'},
+  {k:'email',    rotulo:'E-mail',              de:['clienteEmail']},
+  {k:'proposta', rotulo:'Nº da proposta comercial', de:['proposta'], dica:'Como está no alto da proposta.'},
+  {k:'objeto',   rotulo:'O que está sendo contratado', de:['objeto'], largo:true},
+  {k:'valor',    rotulo:'Valor total (R$)',    de:['valor','valorExtenso'], tipo:'valor'},
+  {k:'pagamento',rotulo:'Forma de pagamento',  de:['pagamento'], tipo:'longo', largo:true,
+   dica:'Vai para o contrato exatamente como estiver escrito aqui.'},
+  {k:'prazoDias',rotulo:'Prazo (dias)',        de:['prazoDias','prazoExtenso'], tipo:'numero'},
+  {k:'prazoTipo',rotulo:'Os dias são',         de:['prazoDias','prazoExtenso','prazoTipo'], tipo:'escolha',
+   opcoes:['úteis','corridos']},
+  {k:'orcamentista', rotulo:'Orçamentista responsável', de:['orcamentista'], dica:'Em branco, sai o da empresa.'},
+  {k:'consultor',rotulo:'Consultor(a) de vendas', de:['consultor'], dica:'Em branco, sai o responsável comercial da obra.'},
+  {k:'data',     rotulo:'Data do contrato',    de:['dataTexto'], tipo:'data'}
+];
+
+let _obraContrato=null;    // id da obra aberta na janela; nulo = so editar modelos
+let _rascunho=null;        // copia de c.contrato sendo preenchida
+let _rascunhoSujo=false;   // ha alteracao nao salva
+let _dadosAbertos={};      // blocos de dados com as caixinhas abertas (Editar)
+
+function obraDoContrato(){
+  return _obraContrato?(dados.contratos||[]).find(function(x){ return x.id===_obraContrato; }):null;
 }
 
-function preencherSelectModeloFicha(){
-  const sel=document.getElementById('f-ctr-modelo');
-  if(!sel) return;
-  const antes=sel.value;
-  const lista=modelosContrato();
-  sel.innerHTML=lista.map(function(m){
-    return '<option value="'+esc(m.id)+'">'+esc(m.nome)+'</option>';
-  }).join('');
-  if(antes && lista.some(function(m){ return m.id===antes; })) sel.value=antes;
+// Quais {{campos}} um texto usa.
+function camposNoTexto(t){
+  const s={};
+  String(t||'').replace(/\{\{([a-zA-Z]+)\}\}/g,function(x,k){ s[k]=1; return x; });
+  return s;
 }
 
-function renderCamposDoModelo(){
-  const el=document.getElementById('f-ctr-campos');
-  if(!el) return;
-  const sel=document.getElementById('f-ctr-modelo');
-  const m=modeloContratoDe(sel?sel.value:'');
-  const campos=(m&&m.campos)||[];
-  el.innerHTML=campos.map(function(cp){
-    const v=(_camposCtr[cp.id]!==undefined&&_camposCtr[cp.id]!=='')?_camposCtr[cp.id]:(cp.padrao||'');
-    return '<div class="fg"><label>'+esc(cp.rotulo)+'</label>'+
-      '<input data-campo="'+esc(cp.id)+'" value="'+esc(String(v))+'" '+
-      'oninput="guardarCampoDoModelo(this)"></div>';
-  }).join('');
-  // O campo "o que está sendo contratado" só faz sentido nos modelos de
-  // serviço; nos de esquadria o objeto vem da proposta anexa.
-  const grupo=document.getElementById('f-ctr-objeto-grupo');
-  if(grupo) grupo.style.display=(m&&m.usaObjeto)?'':'none';
-  const dica=document.getElementById('d-ctr-modelo');
-  if(dica) dica.textContent=(m&&m.dica)||'';
+// Os campos de preencher de um bloco: os do cliente que o texto pede, mais os
+// proprios do modelo (quantas portas...). Cada um aparece uma vez so.
+function camposDoBloco(b, modelo){
+  const usa=camposNoTexto((b.titulo||'')+' '+textoDoBloco(b));
+  if(b.tipo==='assinaturas'){ usa.dataTexto=1; }
+  const lista=CAMPOS_DO_CLIENTE.filter(function(c){ return c.de.some(function(p){ return usa[p]; }); });
+  ((modelo&&modelo.campos)||[]).forEach(function(cp){
+    if(usa[cp.id]||usa[cp.id+'Extenso']) lista.push({k:'campo:'+cp.id, rotulo:cp.rotulo, padrao:cp.padrao});   // texto: aceita "06", como no contrato
+  });
+  return lista;
 }
 
-function trocarModeloNaFicha(){ renderCamposDoModelo(); }
-
-function mostrarValorPorExtenso(){
-  const el=document.getElementById('d-ctr-valor');
-  if(!el) return;
-  const campo=document.getElementById('f-ctr-valor');
-  const v=Number(campo?campo.value:0);
-  el.textContent=(isFinite(v)&&v>0)?valorPorExtenso(v)+'.':'';
-}
-
-function lerFichaContrato(){
-  const v=function(id){ const el=document.getElementById(id); return el?String(el.value||'').trim():''; };
-  return {
-    modelo:   v('f-ctr-modelo'),
-    empresa:  v('f-ctr-empresa'),
-    numero:   v('f-ctr-numero'),
-    proposta: v('f-ctr-proposta'),
-    doc:      v('f-ctr-doc'),
-    endereco: v('f-ctr-endereco'),
-    cidadeUF: v('f-ctr-cidadeuf'),
-    contato:  v('f-ctr-contato'),
-    email:    v('f-ctr-email'),
-    valor:    v('f-ctr-valor'),
-    pagamento:v('f-ctr-pagamento'),
-    prazoDias:v('f-ctr-prazodias'),
-    prazoTipo:v('f-ctr-prazotipo'),
-    data:     v('f-ctr-data'),
-    orcamentista:v('f-ctr-orcamentista'),
-    consultor:v('f-ctr-consultor'),
-    objeto:   v('f-ctr-objeto'),
-    campos:   Object.assign({}, _camposCtr)
-  };
-}
-
-function preencherFichaContrato(c){
-  const ctr=(c&&c.contrato)||{};
-  _camposCtr=Object.assign({}, ctr.campos||{});
-  const p=function(id,val){ const el=document.getElementById(id); if(el) el.value=(val==null?'':val); };
-  preencherSelectModeloFicha();
-  const selEmp=document.getElementById('f-ctr-empresa');
-  if(selEmp){
-    const lista=empresas();
-    selEmp.innerHTML=lista.map(function(e){
-      return '<option value="'+esc(e.id)+'">'+esc(e.nome)+'</option>';
-    }).join('');
-    selEmp.value=(ctr.empresa && lista.some(function(e){ return e.id===ctr.empresa; }))
-      ? ctr.empresa : (lista[0]?lista[0].id:'');
+function valorDoRascunho(k){
+  if(!_rascunho) return '';
+  if(k.indexOf('campo:')===0){
+    const id=k.slice(6);
+    return ((_rascunho.campos||{})[id])||'';
   }
-  const sel=document.getElementById('f-ctr-modelo');
-  if(sel && ctr.modelo && modelosContrato().some(function(m){ return m.id===ctr.modelo; })) sel.value=ctr.modelo;
-  p('f-ctr-numero',   ctr.numero);
-  p('f-ctr-proposta', ctr.proposta);
-  p('f-ctr-doc',      ctr.doc);
-  p('f-ctr-endereco', ctr.endereco);
-  p('f-ctr-cidadeuf', ctr.cidadeUF);
-  p('f-ctr-contato',  ctr.contato);
-  p('f-ctr-email',    ctr.email);
-  p('f-ctr-valor',    ctr.valor);
-  p('f-ctr-pagamento',ctr.pagamento);
-  p('f-ctr-prazodias',ctr.prazoDias);
-  p('f-ctr-prazotipo',ctr.prazoTipo||'úteis');
-  p('f-ctr-data',     ctr.data);
-  p('f-ctr-orcamentista', ctr.orcamentista);
-  p('f-ctr-consultor',    ctr.consultor);
-  p('f-ctr-objeto',   ctr.objeto);
-  renderCamposDoModelo();
-  mostrarValorPorExtenso();
+  return _rascunho[k]==null?'':_rascunho[k];
+}
+
+function campoDoClienteHtml(def){
+  const v=valorDoRascunho(def.k);
+  const k=esc(def.k);
+  let entrada;
+  if(def.tipo==='longo'){
+    entrada='<textarea data-ck="'+k+'" oninput="rascunhoMudou(this)" style="min-height:52px">'+esc(v)+'</textarea>';
+  } else if(def.tipo==='escolha'){
+    entrada='<select data-ck="'+k+'" onchange="rascunhoMudou(this)">'+def.opcoes.map(function(o){
+      return '<option value="'+esc(o)+'"'+((v||def.opcoes[0])===o?' selected':'')+'>'+esc(o)+'</option>';
+    }).join('')+'</select>';
+  } else {
+    const tipo=def.tipo==='data'?'date':((def.tipo==='valor'||def.tipo==='numero')?'number':'text');
+    const passo=def.tipo==='valor'?' step="0.01" min="0"':(def.tipo==='numero'?' min="0"':'');
+    entrada='<input type="'+tipo+'"'+passo+' data-ck="'+k+'" value="'+esc(v)+'" '+
+      (def.padrao?'placeholder="'+esc(def.padrao)+'" ':'')+'oninput="rascunhoMudou(this)">';
+  }
+  const extenso=def.tipo==='valor'
+    ? '<span class="dica" data-extenso="1">'+esc(Number(v)>0?primeiraMaiuscula(valorPorExtenso(Number(v)))+'.':'O valor por extenso é escrito sozinho.')+'</span>'
+    : (def.dica?'<span class="dica">'+esc(def.dica)+'</span>':'');
+  return '<div class="fg'+(def.largo?' span2':'')+'"><label>'+esc(def.rotulo)+'</label>'+entrada+extenso+'</div>';
+}
+
+function camposDoBlocoHtml(b, modelo){
+  if(!_rascunho) return '';
+  const lista=camposDoBloco(b, modelo);
+  if(!lista.length) return '';
+  return '<div class="form-grid" style="margin-top:6px">'+lista.map(campoDoClienteHtml).join('')+'</div>';
+}
+
+// Digitou num campo: guarda no rascunho e repete o valor nos outros campos
+// iguais da janela (o mesmo dado pode aparecer em duas clausulas).
+function rascunhoMudou(el){
+  if(!_rascunho) return;
+  const k=el.getAttribute('data-ck');
+  const v=el.value;
+  if(k.indexOf('campo:')===0){
+    if(!_rascunho.campos) _rascunho.campos={};
+    _rascunho.campos[k.slice(6)]=v;
+  } else {
+    _rascunho[k]=v;
+  }
+  _rascunhoSujo=true;
+  document.querySelectorAll('#ctrcad-ov [data-ck]').forEach(function(o){
+    if(o!==el && o.getAttribute('data-ck')===k) o.value=v;
+  });
+  if(k==='valor'){
+    const n=Number(v);
+    document.querySelectorAll('#ctrcad-ov [data-extenso]').forEach(function(s){
+      s.textContent=n>0?primeiraMaiuscula(valorPorExtenso(n))+'.':'O valor por extenso é escrito sozinho.';
+    });
+  }
+}
+
+function preencherObrasContrato(){
+  const sel=document.getElementById('ctj-obra');
+  if(!sel) return;
+  const lista=ativos().slice().sort(function(a,b){
+    return String(ctFormatado(b.ct)).localeCompare(String(ctFormatado(a.ct)));
+  });
+  sel.innerHTML='<option value="">— só editar o texto dos modelos —</option>'+lista.map(function(c){
+    return '<option value="'+esc(c.id)+'">CT '+esc(ctFormatado(c.ct)||'—')+' · '+esc(c.cliente||'')+'</option>';
+  }).join('');
+  sel.value=_obraContrato||'';
+}
+
+function preencherEmpresaDoContrato(){
+  const sel=document.getElementById('ctj-empresa');
+  if(!sel) return;
+  const lista=empresas();
+  sel.innerHTML=lista.map(function(e){ return '<option value="'+esc(e.id)+'">'+esc(e.nome)+'</option>'; }).join('');
+  const quer=_rascunho&&_rascunho.empresa;
+  sel.value=(quer&&lista.some(function(e){ return e.id===quer; }))?quer:(lista[0]?lista[0].id:'');
+}
+
+// Liga e desliga o que so existe com uma obra escolhida.
+function mostrarModoDoContrato(){
+  const comObra=!!_rascunho;
+  document.querySelectorAll('#ctrcad-ov [data-ctj]').forEach(function(el){ el.style.display=comObra?'':'none'; });
+  const pe=document.getElementById('ctj-pe');
+  if(pe) pe.style.display=comObra?'':'none';
+  const num=document.getElementById('ctj-numero');
+  if(num && comObra) num.value=_rascunho.numero||'';
+  const c=obraDoContrato();
+  if(num) num.placeholder=c?('Em branco: '+(ctFormatado(c.ct)||'o CT')):'';
+}
+
+async function trocarObraDoContrato(){
+  const sel=document.getElementById('ctj-obra');
+  const novo=sel.value||null;
+  if(_rascunhoSujo && novo!==_obraContrato && !confirm('O contrato desta obra tem alterações não salvas. Trocar de obra e perder essas alterações?')){
+    sel.value=_obraContrato||''; return;
+  }
+  abrirObraNoContrato(novo);
+}
+
+function abrirObraNoContrato(id){
+  _obraContrato=id||null;
+  _rascunhoSujo=false;
+  const c=obraDoContrato();
+  _rascunho=c?JSON.parse(JSON.stringify(c.contrato||{})):null;
+  if(_rascunho && !_rascunho.campos) _rascunho.campos={};
+  const selObra=document.getElementById('ctj-obra');
+  if(selObra) selObra.value=_obraContrato||'';
+  // O modelo da janela passa a ser o do contrato desta obra.
+  const selMod=document.getElementById('ctm-modelo');
+  if(selMod && _rascunho){
+    const quer=_rascunho.modelo;
+    if(quer && modelosContrato().some(function(m){ return m.id===quer; })) selMod.value=quer;
+    else _rascunho.modelo=selMod.value;
+  }
+  preencherEmpresaDoContrato();
+  mostrarModoDoContrato();
+  renderModeloContrato();
+}
+
+// O select de modelo serve para as duas coisas: com obra escolhida, e o
+// modelo do contrato dela; sem obra, e so o modelo que esta sendo editado.
+function trocarModeloDaJanela(){
+  if(_rascunho){ _rascunho.modelo=document.getElementById('ctm-modelo').value; _rascunhoSujo=true; }
+  renderModeloContrato();
+}
+
+function trocarEmpresaDoContrato(){
+  if(!_rascunho) return;
+  _rascunho.empresa=document.getElementById('ctj-empresa').value;
+  _rascunhoSujo=true;
+  renderModeloContrato();
+}
+
+function numeroDoContratoMudou(el){
+  if(!_rascunho) return;
+  _rascunho.numero=el.value; _rascunhoSujo=true;
+}
+
+function abrirCaixinhasDoBloco(id){
+  _dadosAbertos[id]=!_dadosAbertos[id];
+  renderModeloContrato();
+}
+
+async function salvarContratoDaJanela(){
+  const c=obraDoContrato();
+  if(!c||!_rascunho){ aviso('Escolha a obra','Escolha no alto a obra deste contrato.'); return false; }
+  const copia=JSON.parse(JSON.stringify(_rascunho));
+  const ok=await alterar(function(base){
+    const alvo=(base.contratos||[]).find(function(x){ return x.id===c.id; });
+    if(!alvo) return;
+    alvo.contrato=copia;
+    alvo.atualizadoEm=agoraISO();
+    alvo.atualizadoPor=usuario;
+  }, {acao:'preencheu o contrato', alvo:'CT '+(ctFormatado(c.ct)||'')+' · '+(c.cliente||''),
+      detalhe:(modeloContratoDe(copia.modelo)||{}).nome||''});
+  if(ok) _rascunhoSujo=false;
+  return ok;
+}
+
+async function gerarContratoDaJanela(){
+  const ok=await salvarContratoDaJanela();
+  if(!ok) return;
+  _contratoId=_obraContrato;
+  montarContrato();
+  document.getElementById('ctr-ov').classList.add('open');
 }
 
 // ---- CADASTRO DOS MODELOS DE CONTRATO ----
@@ -2679,16 +2770,36 @@ function renderModeloContrato(){
           '<input type="checkbox" style="width:16px;height:16px" '+(marcados.indexOf(c.id)>=0?'checked':'')+
           ' onchange="marcarDadoDaParte('+arg+','+idArg+',this.checked,this)">'+esc(c.rotulo)+'</label>';
       }).join('');
+      // Com obra escolhida, o bloco mostra o formulario para preencher; as
+      // caixinhas (quais dados saem no papel) ficam atras do Editar — o Ander
+      // pediu formulario, nao lista de marcar.
+      const abertas=!_rascunho || _dadosAbertos[b.id];
+      const daEmpresa=(b.parte==='contratada' && _rascunho)
+        ? '<div style="font-size:12px;color:var(--gray-5);margin-top:4px">Empresa: <strong>'+esc(contratada(_rascunho.empresa).nome||'—')+
+          '</strong> — troque em <em>Empresa que assina</em>, no alto; os dados dela ficam em <em>Empresas que assinam</em>, no fim desta janela.</div>'
+        : '';
       return '<div class="caixa-linha" style="flex-direction:column;align-items:stretch;gap:4px">'+
         '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">'+
           '<strong style="font-size:12.5px">'+esc(b.titulo)+'</strong>'+
-          '<span style="display:flex;gap:5px;align-items:center">'+setas+'</span>'+
+          '<span style="display:flex;gap:5px;align-items:center">'+setas+
+            (_rascunho?'<button class="btn btn-outline btn-sm" onclick="abrirCaixinhasDoBloco('+arg+')">'+(abertas?'Fechar':'Editar')+'</button>':'')+
+          '</span>'+
         '</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px;padding-left:2px">'+caixas+'</div>'+
+        (abertas?'<div style="font-size:11px;color:var(--gray-4);margin-top:2px">Marque os dados que saem no papel deste modelo:</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px;padding-left:2px">'+caixas+'</div>':'')+
+        daEmpresa+
+        camposDoBlocoHtml(b, m)+
         '</div>';
     }
     if(b.tipo!=='clausula'){
       const nome=(b.tipo==='assinaturas')?'— as assinaturas entram aqui —':'— daqui em diante, página nova —';
+      if(b.tipo==='assinaturas' && _rascunho){
+        return '<div class="caixa-linha" style="flex-direction:column;align-items:stretch;gap:4px">'+
+          '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center">'+
+            '<span style="font-size:12px;color:var(--gray-4)">'+nome+'</span>'+
+            '<span style="display:flex;gap:5px;align-items:center">'+setas+'</span></div>'+
+          camposDoBlocoHtml(b, m)+'</div>';
+      }
       return '<div class="caixa-linha"><span style="font-size:12px;color:var(--gray-4)">'+nome+'</span>'+
         '<span style="display:flex;gap:5px;align-items:center">'+setas+'</span></div>';
     }
@@ -2702,6 +2813,7 @@ function renderModeloContrato(){
         '</span>'+
       '</div>'+
       '<span style="font-size:11px;color:var(--gray-4)">'+esc(primeiras)+(primeiras.length>=90?'...':'')+'</span>'+
+      camposDoBlocoHtml(b, m)+
       '</div>';
   }).join('')+'</div>';
 }
@@ -2976,7 +3088,6 @@ const SECOES_FICHA=[
   {id:'situacao',   rotulo:'Situação',      grid:'f-grid-situacao'},
   {id:'prazos',     rotulo:'Prazos',        grid:'f-grid-prazos'},
   {id:'esquadrias', rotulo:'Esquadrias',    grid:'f-grid-esquadrias'},
-  {id:'contrato',   rotulo:'Contrato',      grid:'f-grid-contrato'},
   {id:'outros',     rotulo:'Outros campos', grid:'f-extras'}
 ];
 const SECAO_PADRAO='outros';
@@ -3538,17 +3649,24 @@ function abrirCadastros(){
 }
 
 // A janela do botao Contrato: modelos, clausulas e empresas que assinam.
-function abrirContratosCadastro(){
+function abrirContratosCadastro(idObra){
   if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente mexe nos modelos de contrato.'); return; }
+  _dadosAbertos={};
   preencherModelosCadastro();
-  renderModeloContrato();
+  _obraContrato=(typeof idObra==='string')?idObra:null;
+  preencherObrasContrato();
+  abrirObraNoContrato(_obraContrato);
   renderCamposDoContrato();
   cancelarEdicaoClausula();
   _empresaNova=false;
   renderContratada();
   document.getElementById('ctrcad-ov').classList.add('open');
 }
-function fecharContratosCadastro(){ document.getElementById('ctrcad-ov').classList.remove('open'); }
+function fecharContratosCadastro(){
+  if(_rascunhoSujo && !confirm('O contrato tem alterações não salvas. Fechar e perder essas alterações?')) return;
+  _rascunhoSujo=false; _rascunho=null; _obraContrato=null;
+  document.getElementById('ctrcad-ov').classList.remove('open');
+}
 function fecharCadastros(){ document.getElementById('cad-ov').classList.remove('open'); }
 
 // ---- STATUS DA OBRA ----
