@@ -132,6 +132,10 @@ table.carteira tbody tr:hover{background:var(--teal-light)}
 #ctr-papel h2{font-size:11.5pt;margin:14px 0 5px;page-break-after:avoid;break-after:avoid}
 #ctr-papel p{margin:0 0 7px;text-align:justify;orphans:2;widows:2}
 #ctr-papel p.ctr-linhas{text-align:left}
+/* Etiqueta do dado que vem da ficha, no lugar do {{codigo}} na lista de
+   clausulas: o codigo cru dava a impressao de que se preenchia ali. */
+.chip-campo{display:inline-block;background:var(--teal-light);color:var(--teal-dark);border-radius:5px;
+  padding:0 5px;font-size:10.5px;font-weight:600;line-height:1.5}
 #ctr-papel .ctr-pagina{page-break-before:always;break-before:page;height:0}
 #ctr-papel .ctr-assina{margin-top:26px;page-break-inside:avoid;break-inside:avoid}
 #ctr-papel .ctr-local{margin:0 0 26px}
@@ -331,6 +335,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
            tinha. Fica na ficha da obra porque o "Nº do Pedido" impresso E o
            CT: 0073, 0006, 0023 nos contratos do Ander. -->
       <div class="secao">Contrato</div>
+      <div class="aviso" style="margin-bottom:10px">Preencha aqui os dados <strong>deste cliente</strong> e clique em <strong>Gerar contrato</strong>, no rodapé. O texto das cláusulas é o mesmo para todos e fica no botão <strong>Contrato</strong>, no topo da tela.</div>
       <div class="form-grid" id="f-grid-contrato">
         <div class="fg span2"><label>Modelo do contrato</label>
           <select id="f-ctr-modelo" onchange="trocarModeloNaFicha()"></select>
@@ -342,6 +347,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <span class="dica">Em branco, sai o CT com 4 dígitos.</span></div>
         <div class="fg"><label>Nº da proposta comercial</label><input id="f-ctr-proposta" placeholder="Ex.: ORC-26-03-0023_RV8">
           <span class="dica">Como está no alto da proposta. O contrato cita este número.</span></div>
+        <div class="fg span2"><label>Nome do contratante (quem assina)</label><input id="f-ctr-nome" placeholder="Em branco: o Cliente / Obra da identificação">
+          <span class="dica">Só preencha se quem assina for diferente do nome da obra — ex.: obra "Condomínio Jequitibá", contratante "L.N.R HOLDING LTDA".</span></div>
         <div class="fg"><label>CPF / CNPJ do cliente</label><input id="f-ctr-doc" placeholder="Ex.: 784.653.702-49"></div>
         <div class="fg span2"><label>Endereço do cliente</label><input id="f-ctr-endereco" placeholder="Rua, número, bairro, CEP"></div>
         <div class="fg"><label>Cidade/UF do cliente</label><input id="f-ctr-cidadeuf" placeholder="Ex.: Porto Velho/RO">
@@ -558,6 +565,11 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="btn btn-outline btn-sm" onclick="fecharContratosCadastro()">Fechar</button>
     </div>
     <div class="modal-body">
+      <div class="aviso" style="margin-bottom:12px"><strong>Como funciona o contrato</strong><br>
+        1. <strong>Aqui</strong> fica o que é igual para todos os clientes: o texto das cláusulas de cada modelo e os dados das empresas que assinam.<br>
+        2. Os dados de <strong>cada cliente</strong> — CPF/CNPJ, endereço, valor, pagamento, prazo — são preenchidos na <strong>ficha da obra</strong>, na parte <em>Contrato</em>.<br>
+        3. O contrato sai pelo botão <strong>Gerar contrato</strong>, no rodapé da ficha da obra.<br>
+        Nas cláusulas, o que aparece assim <span class="chip-campo">valor</span> é trocado pelo dado da ficha na hora de gerar.</div>
       <div class="secao">Modelos de contrato</div>
       <div class="aviso">É o texto que sai no contrato do cliente. Escolha o modelo e dá para <strong>editar qualquer cláusula</strong>, <strong>acrescentar cláusula nova</strong> e mudar a ordem pelas setas. O que for salvo aqui vale para os <strong>próximos</strong> contratos — contrato já impresso não muda. Se a edição sair errada, <strong>Voltar este modelo ao original</strong> devolve o texto como veio do Word.</div>
       <div class="form-grid" style="margin-bottom:10px">
@@ -2146,7 +2158,7 @@ function contratada(id){
 const CAMPOS_DO_CONTRATO=[
   {chave:'numero',            o:'o número do pedido (o CT, se não for digitado outro)'},
   {chave:'proposta',          o:'o número da proposta comercial anexa (ORC-26-03-0023_RV8)'},
-  {chave:'clienteNome',       o:'nome do cliente (vem do campo Cliente / Obra)'},
+  {chave:'clienteNome',       o:'nome do contratante (em branco, o Cliente / Obra da ficha)'},
   {chave:'clienteDoc',        o:'CPF ou CNPJ do cliente'},
   {chave:'clienteEndereco',   o:'endereço do cliente'},
   {chave:'clienteCidadeUF',   o:'cidade/UF do cliente'},
@@ -2317,7 +2329,9 @@ function dadosDoContrato(c, modelo){
     // A proposta tem revisoes (RV8 = 8a). Sem o numero no contrato, nao fica
     // escrito qual delas o cliente aprovou.
     proposta: (ctr.proposta||'').trim(),
-    clienteNome: c.cliente||'',
+    // Quem assina nem sempre e o nome da obra: no contrato do Jequitiba o
+    // contratante foi a L.N.R HOLDING, e a obra "Condominio Jequitiba".
+    clienteNome: (ctr.nome||'').trim()||c.cliente||'',
     clienteDoc: ctr.doc||'',
     clienteEndereco: ctr.endereco||'',
     clienteCidadeUF: ctr.cidadeUF||c.cidade||'',
@@ -2571,6 +2585,7 @@ function lerFichaContrato(){
     empresa:  v('f-ctr-empresa'),
     numero:   v('f-ctr-numero'),
     proposta: v('f-ctr-proposta'),
+    nome:     v('f-ctr-nome'),
     doc:      v('f-ctr-doc'),
     endereco: v('f-ctr-endereco'),
     cidadeUF: v('f-ctr-cidadeuf'),
@@ -2606,6 +2621,7 @@ function preencherFichaContrato(c){
   if(sel && ctr.modelo && modelosContrato().some(function(m){ return m.id===ctr.modelo; })) sel.value=ctr.modelo;
   p('f-ctr-numero',   ctr.numero);
   p('f-ctr-proposta', ctr.proposta);
+  p('f-ctr-nome',     ctr.nome);
   p('f-ctr-doc',      ctr.doc);
   p('f-ctr-endereco', ctr.endereco);
   p('f-ctr-cidadeuf', ctr.cidadeUF);
@@ -2633,6 +2649,26 @@ function preencherFichaContrato(c){
 // encontra a clausula. Clausula nova ganha id novo, nunca reaproveitado.
 let _modeloAberto=null;      // qual modelo esta sendo editado na tela
 let _clausulaEditando=null;  // id da clausula em edicao; nulo = clausula nova
+
+// O nome que aparece na etiqueta, no lugar de cada {{codigo}}.
+const NOME_DO_CAMPO={
+  numero:'nº do pedido', proposta:'nº da proposta', clienteNome:'nome do cliente',
+  clienteDoc:'CPF/CNPJ do cliente', clienteEndereco:'endereço do cliente', clienteCidadeUF:'cidade do cliente',
+  clienteContato:'contato do cliente', clienteEmail:'e-mail do cliente', valor:'valor',
+  valorExtenso:'valor por extenso', pagamento:'forma de pagamento', prazoDias:'prazo',
+  prazoExtenso:'prazo por extenso', prazoTipo:'úteis ou corridos', objeto:'o que foi contratado',
+  orcamentista:'orçamentista', consultor:'consultor(a)', dataTexto:'data do contrato',
+  contratadaNome:'empresa', contratadaCnpj:'CNPJ da empresa', contratadaEndereco:'endereço da empresa',
+  contratadaTelefone:'telefone da empresa', email:'e-mail da empresa',
+  qtdPortas:'quantas portas', qtdPortasExtenso:'quantas portas por extenso',
+  qtdVisores:'portas com visor', qtdVisoresExtenso:'portas com visor por extenso'
+};
+// Texto ja escapado, com cada {{codigo}} virando etiqueta.
+function comEtiquetas(textoEscapado){
+  return textoEscapado.replace(/\{\{([a-zA-Z]+)\}\}/g,function(t,k){
+    return '<span class="chip-campo">'+esc(NOME_DO_CAMPO[k]||k)+'</span>';
+  });
+}
 
 function modeloDaTela(){
   const sel=document.getElementById('ctm-modelo');
@@ -2692,7 +2728,14 @@ function renderModeloContrato(){
       return '<div class="caixa-linha"><span style="font-size:12px;color:var(--gray-4)">'+nome+'</span>'+
         '<span style="display:flex;gap:5px;align-items:center">'+setas+'</span></div>';
     }
-    const primeiras=String(b.texto||'').replace(/\s+/g,' ').slice(0,90);
+    // Corta sem partir um {{codigo}} ao meio, senao a etiqueta nao se forma.
+    let primeiras=String(b.texto||'').replace(/\s+/g,' ');
+    if(primeiras.length>110){
+      primeiras=primeiras.slice(0,110);
+      const aberto=primeiras.lastIndexOf('{{');
+      if(aberto>primeiras.lastIndexOf('}}')) primeiras=primeiras.slice(0,aberto);
+      primeiras+='...';
+    }
     return '<div class="caixa-linha" style="flex-direction:column;align-items:stretch;gap:4px">'+
       '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">'+
         '<strong style="font-size:12.5px">'+esc(b.titulo)+'</strong>'+
@@ -2701,7 +2744,7 @@ function renderModeloContrato(){
           '<button class="btn btn-outline btn-sm" onclick="delClausula('+arg+')">Tirar</button>'+
         '</span>'+
       '</div>'+
-      '<span style="font-size:11px;color:var(--gray-4)">'+esc(primeiras)+(primeiras.length>=90?'...':'')+'</span>'+
+      '<span style="font-size:11px;color:var(--gray-4)">'+comEtiquetas(esc(primeiras))+'</span>'+
       '</div>';
   }).join('')+'</div>';
 }
