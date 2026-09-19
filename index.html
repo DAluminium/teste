@@ -896,7 +896,11 @@ async function doLogin(){
     cracha=await fazerLoginWorker(user,pass);
   }catch(e){
     btn.textContent='Entrar'; btn.disabled=false;
-    if(e.status===401){
+    // Bloqueado pelo Worker por excesso de senhas erradas (auditoria de LGPD,
+    // 18/09/2026). A mensagem dele ja diz quantos minutos faltam.
+    if(e.status===429){
+      err.textContent=e.message;
+    }else if(e.status===401){
       const r=addFalha();
       err.textContent=r>0?`Usuário ou senha incorretos. ${r} tentativa${r>1?'s':''} restante${r>1?'s':''}.`:'Acesso bloqueado por 5 minutos.';
     }else{
