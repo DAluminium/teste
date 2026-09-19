@@ -3713,7 +3713,10 @@ function mostrarLogin(){
     }catch(e){
       // 401 é senha errada; qualquer outro número é problema de conexão ou de
       // configuração do Worker — separar os dois evita caça ao erro errado.
-      if(e.status===401) avisar('Usuário ou senha inválidos.');
+      // Bloqueado pelo Worker por excesso de senhas erradas (auditoria de LGPD,
+      // 18/09/2026). A mensagem dele ja diz quantos minutos faltam.
+      if(e.status===429) avisar(e.message);
+      else if(e.status===401) avisar('Usuário ou senha inválidos.');
       else avisar('Não consegui falar com o servidor ('+(e.message||'erro')+'). Tente de novo.');
       btn.disabled=false; btn.textContent='Entrar';
     }
