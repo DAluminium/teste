@@ -729,7 +729,12 @@ function addFalha(){
   t.t=now; setTent(t);
   return MAX_TENT-t.c;
 }
-function getAdminPass(u){ return(JSON.parse(localStorage.getItem('portal-admin-passes')||'{}')||{})[u]||null; }
+// Aqui existia getAdminPass: lia o resumo da senha do admin guardado neste
+// navegador. Nada a chamava mais — o login passou para o Worker. Saiu na
+// auditoria de LGPD de 18/09/2026, junto com trocarSenhaAdmin, a unica que
+// gravava esse resumo. O que tiver ficado guardado em algum computador e
+// apagado logo abaixo, ao abrir o portal.
+try{ localStorage.removeItem('portal-admin-passes'); }catch(e){}
 
 // ---- DADOS PORTAL (usuários unificados) ----
 let portalData={usuarios:[]};
@@ -1394,13 +1399,6 @@ function changeMyPass(){
   });
 }
 
-function trocarSenhaAdmin(admin){
-  const nova=prompt(`Bem-vinda(o), ${admin.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
-  if(!nova||nova.trim().length<6){ alert('Senha não alterada. Será solicitada no próximo login.'); return; }
-  if(prompt('Confirme:','')!==nova.trim()){ alert('Senhas não coincidem.'); return; }
-  const saved=JSON.parse(localStorage.getItem('portal-admin-passes')||'{}');
-  sha256(nova.trim()).then(h=>{ saved[admin.user]=h; localStorage.setItem('portal-admin-passes',JSON.stringify(saved)); alert('Senha alterada! ✅'); });
-}
 
 function trocarSenhaUser(found){
   const nova=prompt(`Bem-vindo(a), ${found.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
