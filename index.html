@@ -621,7 +621,11 @@ FROM app_backups ORDER BY created_at DESC LIMIT 20;</code>
 // ---- CONFIG ----
 const WORKER_URL = 'https://daluminium-api.daluminium2.workers.dev';
 const ADMINS = []; // admins agora vivem na lista de usuarios do banco
-const MAX_TENT=5, BLOQ_MS=5*60*1000;
+// 15 minutos, o MESMO tempo da trava do Worker (auditoria de LGPD,
+// 18/09/2026). Esta aqui fica no navegador e se contorna trocando de
+// navegador; serve para avisar "X tentativas restantes". A que protege e a do
+// Worker, que conta no servidor.
+const MAX_TENT=5, BLOQ_MS=15*60*1000;
 
 // ---- CRACHÁ (login pelo Worker) ----
 // O crachá tem duas partes separadas por ponto: os dados (quem é, até quando
@@ -902,7 +906,7 @@ async function doLogin(){
       err.textContent=e.message;
     }else if(e.status===401){
       const r=addFalha();
-      err.textContent=r>0?`Usuário ou senha incorretos. ${r} tentativa${r>1?'s':''} restante${r>1?'s':''}.`:'Acesso bloqueado por 5 minutos.';
+      err.textContent=r>0?`Usuário ou senha incorretos. ${r} tentativa${r>1?'s':''} restante${r>1?'s':''}.`:'Acesso bloqueado por 15 minutos.';
     }else{
       // Erro de conexão não é senha errada — não pode gastar tentativa, senão
       // uma queda de internet acaba bloqueando quem digitou tudo certo.
