@@ -563,7 +563,7 @@ FROM app_backups ORDER BY created_at DESC LIMIT 20;</code>
 <div class="man-box">
   <div class="man-h">4. Alguém não consegue entrar</div>
   <ul>
-    <li><strong>Senha errada 5 vezes</strong> — o sistema bloqueia por alguns minutos. É só esperar.</li>
+    <li><strong>Senha errada 5 vezes</strong> — o sistema bloqueia aquele usuário por <strong>15 minutos</strong>. É só esperar. Vale em qualquer computador: trocar de navegador não adianta.</li>
     <li><strong>Esqueceu a senha</strong> — em <em>Gerenciar usuários</em>, defina uma senha nova para a pessoa e marque como temporária. Ela troca no primeiro acesso.</li>
     <li><strong>Login não abre nada / tela travada</strong> — peça um <strong>Ctrl+Shift+R</strong>. Se persistir, veja o item 6.</li>
   </ul>
@@ -607,6 +607,24 @@ FROM app_backups ORDER BY created_at DESC LIMIT 20;</code>
     <li><strong>Backups</strong> — automáticos 2x ao dia, 90 dias de histórico</li>
     <li><strong>Trava de segurança</strong> — o banco recusa gravar dados vazios por cima dos existentes</li>
   </ul>
+</div>
+
+<div class="man-box">
+  <div class="man-h">9. Chaves secretas do Cloudflare</div>
+  <p>Ficam em <em>Cloudflare → Workers &amp; Pages → daluminium-api → Settings → Variables and Secrets</em>. Nenhuma delas aparece no código nem pode ser lida depois de salva. Cada linha tem um lápis (trocar) e uma lixeira (apagar):</p>
+  <ul>
+    <li><strong>SENHA_PIMENTA</strong> — protege as senhas de <strong>todos</strong> os usuários. <strong>Nunca apague nem troque.</strong> Ela é como a chave de um cofre: sem a chave certa, nenhuma senha guardada confere mais.</li>
+    <li><strong>TOKEN_SECRET</strong> — assina os crachás de quem está logado. Trocar derruba todo mundo (cada um entra de novo com a própria senha); não perde nada.</li>
+    <li><strong>ADMIN_ANDER</strong> e <strong>ADMIN_ARETUSA</strong> — senhas de reserva dos administradores. Funcionam mesmo se todo o resto falhar.</li>
+    <li><strong>SUPA_SECRET</strong> — a chave do banco. Apagar para o sistema inteiro. Só se troca junto com a chave no Supabase.</li>
+  </ul>
+  <p><strong>Se a SENHA_PIMENTA foi apagada ou trocada</strong> (ninguém consegue entrar com a própria senha):</p>
+  <ol>
+    <li>Não há como recuperar o valor antigo — não existe cópia em lugar nenhum, de propósito. Se ela foi <strong>apagada</strong>, crie uma nova com o mesmo nome (<em>Add → Secret</em>), com um valor aleatório longo.</li>
+    <li>Entre como <strong>admin</strong> com a senha de reserva (ADMIN_ANDER) — ela não depende da SENHA_PIMENTA.</li>
+    <li>Em <em>Gerenciar usuários</em>, clique em <strong>Editar</strong> em cada pessoa e defina uma senha nova. Passe a senha para ela, que troca no próximo acesso pelo <em>Alterar minha senha</em>.</li>
+  </ol>
+  <p><strong>Trocar de propósito</strong> só faz sentido se houver suspeita de que a SENHA_PIMENTA vazou — e aí o procedimento é o mesmo: trocar e redefinir a senha de todos.</p>
 </div>
 
 <div class="man-box man-nota">
