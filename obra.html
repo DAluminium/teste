@@ -862,7 +862,7 @@ let _checkObra=null;
 // confere o cracha e devolve um link que vale 1 minuto. Para mandar um anexo
 // a alguem, mande o ARQUIVO, nao o link.
 async function linkDoAnexo(url){
-  const r=await fetch(WORKER_URL,{method:'POST',cache:'no-store',
+  const r=await fetch(WORKER,{method:'POST',cache:'no-store',
     headers:cabecalhos({'Content-Type':'application/json','X-Action':'abrir-anexo'}),
     body:JSON.stringify({url:url})});
   let j=null; try{ j=await r.json(); }catch(e){}
@@ -884,7 +884,7 @@ async function abrirAnexo(url){
 // Envio assinado pelo Worker: o arquivo sobe como privado. Devolve a mesma
 // resposta do servico de arquivos (secure_url, public_id...) de antes.
 async function enviarArquivoPrivado(arquivo,pasta,tipoRecurso){
-  const r=await fetch(WORKER_URL,{method:'POST',cache:'no-store',
+  const r=await fetch(WORKER,{method:'POST',cache:'no-store',
     headers:cabecalhos({'Content-Type':'application/json','X-Action':'assinar-envio'}),
     body:JSON.stringify({pasta:pasta})});
   let a=null; try{ a=await r.json(); }catch(e){}
