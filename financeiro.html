@@ -1035,6 +1035,26 @@ function cabecalhos(sistema,extra){
   return h;
 }
 
+// Cadastra ou troca uma senha pelo Worker (auditoria de LGPD, item 2,
+// 21/09/2026). A senha nao vai mais para a lista de usuarios, que todo
+// navegador baixa: o Worker guarda num registro que nenhum modulo le. No
+// teste ela vai para 'senhas_teste', que o login nao usa — como antes, o
+// teste nao mexe em senha de verdade.
+async function definirSenha(usuario,senha){
+  try{
+    const r=await fetch(WORKER_URL,{method:'POST',cache:'no-store',
+      headers:cabecalhos(SUPA_SISTEMA.replace('financeiro','compras'),{'Content-Type':'application/json','X-Action':'definir-senha'}),
+      body:JSON.stringify({usuario:usuario,senha:senha})});
+    if(r.ok) return true;
+    let m=''; try{ m=(await r.json()).erro||''; }catch(e){}
+    alert('A senha NÃO foi salva.\n\n'+(m||('Erro '+r.status+' no servidor.')));
+    return false;
+  }catch(e){
+    alert('A senha NÃO foi salva: não consegui falar com o servidor.\n\nConfira a internet e tente de novo.');
+    return false;
+  }
+}
+
 async function fazerLoginWorker(user,senha){
   const r=await fetch(WORKER_URL,{
     method:'POST',
@@ -1442,17 +1462,18 @@ async function doLogout(){
   location.reload();
 }
 
-function changeMyPass(){
+async function changeMyPass(){
   if(isAdmin()){ openChangePassAdmin(null); return; }
   const nova=prompt('Digite sua nova senha (mínimo 6 caracteres):','');
   if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
   if(prompt('Confirme a nova senha:','')!==nova.trim()){ alert('As senhas não coincidem.'); return; }
-  {
-    const name=sessionStorage.getItem('fin-user')||'';
-    const users=getFinUsers();
-    const idx=users.findIndex(u=>u.name===name);
-    if(idx>=0){ hashSenha(nova.trim()).then(h=>{ users[idx].password=h; users[idx].tempPass=false; saveFinUsers(users); persistUsers(); }); }
-  }
+  // Quem troca e quem esta logado: o usuario vem do cracha, nao do nome.
+  const tk=lerToken(); const eu=tk&&tk.dados?String(tk.dados.u||'').toLowerCase():'';
+  if(!eu){ alert('Sessão sem usuário. Saia e entre de novo.'); return; }
+  if(!await definirSenha(eu,nova.trim())) return;
+  const users=getFinUsers();
+  const idx=users.findIndex(u=>String(u.username||'').toLowerCase()===eu);
+  if(idx>=0){ users[idx].tempPass=false; saveFinUsers(users); await persistUsers(); }
   alert('Senha alterada com sucesso! ✅');
 }
 
@@ -1467,13 +1488,14 @@ function openChangePassAdmin(admin){
         'daluminium-api > Settings > Variables and Secrets.');
 }
 
-function openChangePassUser(found){
+async function openChangePassUser(found){
   const nova=prompt(`Bem-vindo(a), ${found.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
   if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
   if(prompt('Confirme:','')!==nova.trim()){ alert('As senhas não coincidem.'); return; }
   const users=getFinUsers();
   const idx=users.findIndex(u=>u.username===found.username);
-  if(idx>=0){ users[idx].password=nova.trim(); users[idx].tempPass=false; saveFinUsers(users); persist(); }
+  if(!await definirSenha(found.username,nova.trim())) return;
+  if(idx>=0){ users[idx].tempPass=false; saveFinUsers(users); persist(); }
   alert('Senha alterada com sucesso! ✅');
 }
 
@@ -1510,7 +1532,10 @@ async function editFinUser(idx){
   const users=getFinUsers();
   users[idx].name=novoNome.trim()||u.name;
   users[idx].role=novoRole.toLowerCase().trim();
-  if(novaSenha&&novaSenha.trim().length>=6){ users[idx].password=await hashSenha(novaSenha.trim()); users[idx].tempPass=false; }
+  if(novaSenha&&novaSenha.trim().length>=6){
+    if(!await definirSenha(users[idx].username,novaSenha.trim())) return;
+    users[idx].tempPass=false;
+  }
   saveFinUsers(users);
   persistUsers();
   renderUserListFin();
@@ -1523,13 +1548,15 @@ async function addUserFin(){
   const pass=document.getElementById('nu-pass').value.trim();
   const role=document.getElementById('nu-role').value;
   if(!name||!username||!pass){ alert('Preencha nome, usuário e senha.'); return; }
+  if(pass.length<6){ alert('A senha precisa de pelo menos 6 caracteres.'); return; }
   if(ADMINS_FIN.find(a=>a.user===username)){ alert('Usuário reservado para administradores.'); return; }
   const users=getFinUsers();
   if(users.find(u=>u.username===username)){ alert('Usuário já cadastrado.'); return; }
-  const passHash=await hashSenha(pass);
-  users.push({name,username,password:passHash,role,active:true,tempPass:true});
+  users.push({name,username,role,active:true,tempPass:true});
   saveFinUsers(users);
   await persistUsers();
+  // A senha vai DEPOIS da lista: o Worker confere se o usuario existe.
+  if(!await definirSenha(username,pass)) alert('O usuário "'+username+'" foi cadastrado, mas ficou SEM senha. Defina a senha pelo portal.');
   ['nu-name','nu-username','nu-pass'].forEach(id=>document.getElementById(id).value='');
   renderUserListFin();
   alert('Usuário cadastrado e salvo na nuvem! ✅');

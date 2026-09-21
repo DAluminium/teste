@@ -679,6 +679,26 @@ function cabecalhos(sistema,extra){
   return h;
 }
 
+// Cadastra ou troca uma senha pelo Worker (auditoria de LGPD, item 2,
+// 21/09/2026). A senha nao vai mais para a lista de usuarios, que todo
+// navegador baixa: o Worker guarda num registro que nenhum modulo le. No
+// teste ela vai para 'senhas_teste', que o login nao usa — como antes, o
+// teste nao mexe em senha de verdade.
+async function definirSenha(usuario,senha){
+  try{
+    const r=await fetch(WORKER_URL,{method:'POST',cache:'no-store',
+      headers:cabecalhos(ambienteDeTeste()?'compras_teste':'compras',{'Content-Type':'application/json','X-Action':'definir-senha'}),
+      body:JSON.stringify({usuario:usuario,senha:senha})});
+    if(r.ok) return true;
+    let m=''; try{ m=(await r.json()).erro||''; }catch(e){}
+    alert('A senha NÃO foi salva.\n\n'+(m||('Erro '+r.status+' no servidor.')));
+    return false;
+  }catch(e){
+    alert('A senha NÃO foi salva: não consegui falar com o servidor.\n\nConfira a internet e tente de novo.');
+    return false;
+  }
+}
+
 async function fazerLoginWorker(user,senha){
   const r=await fetch(WORKER_URL,{
     method:'POST',
@@ -1263,6 +1283,7 @@ async function addUsuario(){
   if(document.getElementById('nu-mod-fabrica').checked) modulos.push('fabrica');
   if(document.getElementById('nu-mod-obra').checked) modulos.push('obra');
   if(!name||!username||!pass){ alert('Preencha nome, usuário e senha.'); return; }
+  if(pass.length<6){ alert('A senha precisa de pelo menos 6 caracteres.'); return; }
   if(ADMINS.find(a=>a.user===username)){ alert('Usuário reservado para administradores.'); return; }
   if(portalData.usuarios.find(u=>u.username===username)){ alert('Usuário já cadastrado.'); return; }
   if(!modulos.length){ alert('Selecione pelo menos 1 módulo.'); return; }
@@ -1273,17 +1294,22 @@ async function addUsuario(){
           'Só dá para cadastrar quem fica abaixo de você.');
     return;
   }
-  const passHash=await sha256(pass);
   // Quem cadastrou fica registrado: e por isso que o gerente consegue depois
   // enxergar so os seus. Sem isto nao haveria como saber de quem e cada um.
   // Guarda so os digitos: o numero e usado para montar o link do WhatsApp, e
   // parenteses, traco e espaco atrapalham. O 55 do Brasil entra na hora de
   // montar o link, para nao depender de quem digitou lembrar dele.
   const whatsapp=document.getElementById('nu-whatsapp').value.replace(/\D/g,'');
-  portalData.usuarios.push({name,username,password:passHash,role,modulos,active:true,tempPass:true,
+  portalData.usuarios.push({name,username,role,modulos,active:true,tempPass:true,
     whatsapp:whatsapp,
     criadoPor:meuUsuario(), criadoEm:new Date().toISOString()});
   await savePortalData();
+  // A senha vai DEPOIS da lista: o Worker confere se o usuario existe.
+  if(!await definirSenha(username,pass)){
+    alert('O usuário "'+username+'" foi cadastrado, mas ficou SEM senha.\n\nClique em Editar nele e defina a senha de novo.');
+    renderUserList();
+    return;
+  }
   ['nu-name','nu-username','nu-pass','nu-whatsapp'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('nu-mod-compras').checked=true;
   document.getElementById('nu-mod-financeiro').checked=false;
@@ -1360,7 +1386,10 @@ async function salvarEdicaoUsuario(){
   u.whatsapp=document.getElementById('eu-whatsapp').value.replace(/\D/g,'');
   u.role=role;
   u.modulos=modulos;
-  if(senha){ u.password=await sha256(senha); u.tempPass=false; }
+  if(senha){
+    if(!await definirSenha(u.username,senha)) return;
+    u.tempPass=false;
+  }
   await savePortalData();
   fecharEdicaoUsuario();
   renderUserList();
@@ -1391,29 +1420,31 @@ async function removeUsuario(idx){
 }
 
 // ---- SENHAS ----
-function changeMyPass(){
+async function changeMyPass(){
   const nova=prompt('Nova senha (mínimo 6 caracteres):','');
   if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
   if(prompt('Confirme a nova senha:','')!==nova.trim()){ alert('Senhas não coincidem.'); return; }
-  const nome=sessionStorage.getItem('portal-user')||'';
-  const key=sessionStorage.getItem('portal-admin-key')||'';
-  const idx=portalData.usuarios.findIndex(u=>u.username===key||u.name===nome);
+  // Quem troca e quem esta logado: o usuario vem do cracha, nao do nome.
+  const tk=lerToken(); const eu=tk&&tk.dados?String(tk.dados.u||'').toLowerCase():'';
+  const idx=portalData.usuarios.findIndex(u=>String(u.username||'').toLowerCase()===eu);
   if(idx<0){ alert('Usuário não encontrado na base. Senha não alterada.'); return; }
-  sha256(nova.trim()).then(h=>{
-    portalData.usuarios[idx].password=h;
-    portalData.usuarios[idx].tempPass=false;
-    savePortalData();
-    alert('Senha alterada! ✅ Vale em qualquer computador.');
-  });
+  if(!await definirSenha(eu,nova.trim())) return;
+  portalData.usuarios[idx].tempPass=false;
+  await savePortalData();
+  alert('Senha alterada! ✅ Vale em qualquer computador.');
 }
 
 
-function trocarSenhaUser(found){
+async function trocarSenhaUser(found){
   const nova=prompt(`Bem-vindo(a), ${found.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
   if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
   if(prompt('Confirme:','')!==nova.trim()){ alert('Senhas não coincidem.'); return; }
   const idx=portalData.usuarios.findIndex(u=>u.username===found.username);
-  if(idx>=0){ sha256(nova.trim()).then(h=>{ portalData.usuarios[idx].password=h; portalData.usuarios[idx].tempPass=false; savePortalData(); alert('Senha alterada! ✅'); }); }
+  if(idx<0) return;
+  if(!await definirSenha(found.username,nova.trim())) return;
+  portalData.usuarios[idx].tempPass=false;
+  await savePortalData();
+  alert('Senha alterada! ✅');
 }
 
 // ---- INIT ----
