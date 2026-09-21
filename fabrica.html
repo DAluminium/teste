@@ -1151,6 +1151,54 @@ async function enviarRelato(){
 const _sessionIdFab='fab-'+Math.random().toString(36).slice(2)+Date.now().toString(36);
 let _checkFab=null;
 
+// ---- ANEXOS PRIVADOS (auditoria de LGPD, item 6, 21/09/2026) ----
+// O arquivo nao tem mais endereco aberto: antes, quem tivesse o link abria
+// contrato, proposta ou comprovante sem login, para sempre. Agora o Worker
+// confere o cracha e devolve um link que vale 1 minuto. Para mandar um anexo
+// a alguem, mande o ARQUIVO, nao o link.
+async function linkDoAnexo(url){
+  const r=await fetch(WORKER_URL,{method:'POST',cache:'no-store',
+    headers:cabecalhos({'Content-Type':'application/json','X-Action':'abrir-anexo'}),
+    body:JSON.stringify({url:url})});
+  let j=null; try{ j=await r.json(); }catch(e){}
+  if(!r.ok||!j||!j.url) throw new Error((j&&j.erro)||('erro '+r.status+' no servidor'));
+  return j.url;
+}
+// A aba abre JA no clique e recebe o endereco quando ele chega: aberta depois
+// de esperar o Worker, o navegador a bloquearia como propaganda.
+async function abrirAnexo(url){
+  const aba=window.open('','_blank');
+  try{
+    const u=await linkDoAnexo(url);
+    if(aba){ aba.opener=null; aba.location.href=u; } else location.href=u;
+  }catch(e){
+    if(aba) aba.close();
+    alert('Não consegui abrir o anexo.\n\n'+e.message);
+  }
+}
+// Envio assinado pelo Worker: o arquivo sobe como privado. Devolve a mesma
+// resposta do servico de arquivos (secure_url, public_id...) de antes.
+async function enviarArquivoPrivado(arquivo,pasta,tipoRecurso){
+  const r=await fetch(WORKER_URL,{method:'POST',cache:'no-store',
+    headers:cabecalhos({'Content-Type':'application/json','X-Action':'assinar-envio'}),
+    body:JSON.stringify({pasta:pasta})});
+  let a=null; try{ a=await r.json(); }catch(e){}
+  if(!r.ok||!a||!a.signature) throw new Error((a&&a.erro)||('o servidor não autorizou o envio ('+r.status+')'));
+  const fd=new FormData();
+  fd.append('file',arquivo);
+  fd.append('api_key',a.api_key);
+  fd.append('timestamp',a.timestamp);
+  fd.append('signature',a.signature);
+  fd.append('folder',a.folder);
+  fd.append('type',a.type);
+  const up=await fetch('https://api.cloudinary.com/v1_1/'+a.conta+'/'+tipoRecurso+'/upload',{method:'POST',body:fd});
+  if(!up.ok){
+    let t=''; try{ t=await up.text(); }catch(e){}
+    throw new Error('Servidor de arquivos recusou ('+up.status+') '+t.slice(0,150));
+  }
+  return await up.json();
+}
+
 function cabecalhosSessoesFab(extra){
   // 'sessions' é um registro próprio no banco, separado do da fábrica.
   return Object.assign(cabecalhos(extra||{}),{'X-Sistema':'sessions'});
@@ -1718,14 +1766,7 @@ async function anexarDoc(ev){
   st.textContent='Enviando '+arq.name+'...';
   try{
     const ehPdf=arq.type==='application/pdf';
-    const fd=new FormData();
-    fd.append('file',arq);
-    fd.append('upload_preset',UPLOAD_PRESET);
-    fd.append('folder','daluminium_fabrica');
-    const r=await fetch('https://api.cloudinary.com/v1_1/'+CLOUD_NAME+'/'+(ehPdf?'raw':'auto')+'/upload',
-      {method:'POST',body:fd});
-    if(!r.ok) throw new Error('Servidor de arquivos recusou ('+r.status+')');
-    const j=await r.json();
+    const j=await enviarArquivoPrivado(arq,'daluminium_fabrica',ehPdf?'raw':'auto');
     juntarDoc({
       id:novoId(),
       tipo:document.getElementById('f-doc-tipo').value,
@@ -1800,7 +1841,7 @@ function renderDocs(){
       '<span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#0e7490;'+
         'background:#e0f2f5;padding:2px 6px;border-radius:5px;white-space:nowrap">'+
         (d.tipo||'Documento')+'</span>'+
-      '<a href="'+d.url+'" target="_blank" rel="noopener" '+
+      '<a href="#" data-anexo="'+d.url+'" onclick="abrirAnexo(this.dataset.anexo);return false;" '+
         'style="flex:1;font-size:12px;color:#2c3e50;text-decoration:none;overflow:hidden;'+
         'text-overflow:ellipsis;white-space:nowrap" title="'+d.nome+'">'+d.nome+'</a>'+
       '<span style="font-size:10.5px;color:#9aa5b1;white-space:nowrap">'+fmtTamanho(d.tamanho||0)+'</span>'+
@@ -2352,13 +2393,7 @@ async function scanSalvar(){
     const arquivo=new File([bytes],nome,{type:'application/pdf'});
 
     st.textContent='Enviando '+fmtTamanho(bytes.length)+'...';
-    const fd=new FormData();
-    fd.append('file',arquivo);
-    fd.append('upload_preset',UPLOAD_PRESET);
-    fd.append('folder','daluminium_fabrica');
-    const r=await fetch('https://api.cloudinary.com/v1_1/'+CLOUD_NAME+'/raw/upload',{method:'POST',body:fd});
-    if(!r.ok) throw new Error('Servidor de arquivos recusou ('+r.status+')');
-    const j=await r.json();
+    const j=await enviarArquivoPrivado(arquivo,'daluminium_fabrica','raw');
 
     juntarDoc({
       id:novoId(),
