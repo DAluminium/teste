@@ -1100,7 +1100,14 @@ async function enviarArquivoPrivado(arquivo,pasta,tipoRecurso){
     let t=''; try{ t=await up.text(); }catch(e){}
     throw new Error('Servidor de arquivos recusou ('+up.status+') '+t.slice(0,150));
   }
-  return await up.json();
+  const j=await up.json();
+  // O endereco devolvido traz uma assinatura (s--...--) que abre o arquivo
+  // PARA SEMPRE, sem login. Guardado sem ela, o endereco sozinho e recusado;
+  // quem abre e o Worker (linkDoAnexo).
+  ['secure_url','url'].forEach(function(k){
+    if(j && typeof j[k]==='string') j[k]=j[k].replace(/\/s--[^\/]+--\//,'/');
+  });
+  return j;
 }
 
 async function fazerLoginWorker(user,senha){
