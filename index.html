@@ -684,11 +684,11 @@ function cabecalhos(sistema,extra){
 // navegador baixa: o Worker guarda num registro que nenhum modulo le. No
 // teste ela vai para 'senhas_teste', que o login nao usa — como antes, o
 // teste nao mexe em senha de verdade.
-async function definirSenha(usuario,senha){
+async function definirSenha(usuario,senha,senhaAtual){
   try{
     const r=await fetch(WORKER_URL,{method:'POST',cache:'no-store',
       headers:cabecalhos(ambienteDeTeste()?'compras_teste':'compras',{'Content-Type':'application/json','X-Action':'definir-senha'}),
-      body:JSON.stringify({usuario:usuario,senha:senha})});
+      body:JSON.stringify({usuario:usuario,senha:senha,senhaAtual:senhaAtual||''})});
     if(r.ok) return true;
     let m=''; try{ m=(await r.json()).erro||''; }catch(e){}
     alert('A senha NÃO foi salva.\n\n'+(m||('Erro '+r.status+' no servidor.')));
@@ -1387,7 +1387,15 @@ async function salvarEdicaoUsuario(){
   u.role=role;
   u.modulos=modulos;
   if(senha){
-    if(!await definirSenha(u.username,senha)) return;
+    // Editando a si mesmo: o Worker pede a senha atual.
+    const tk=lerToken();
+    const souEu=!!(tk&&tk.dados&&String(tk.dados.u||'').toLowerCase()===String(u.username||'').toLowerCase());
+    let atual='';
+    if(souEu){
+      atual=prompt('Você está trocando a SUA senha.\n\nDigite sua senha ATUAL:','');
+      if(!atual) return;
+    }
+    if(!await definirSenha(u.username,senha,atual)) return;
     u.tempPass=false;
   }
   await savePortalData();
@@ -1421,6 +1429,10 @@ async function removeUsuario(idx){
 
 // ---- SENHAS ----
 async function changeMyPass(){
+  // A senha atual primeiro (pedido do Ander, 21/09/2026). Quem confere e o
+  // Worker: pular esta pergunta mexendo na pagina nao adianta.
+  const atual=prompt('Digite sua senha ATUAL:','');
+  if(!atual){ alert('Senha não alterada.'); return; }
   const nova=prompt('Nova senha (mínimo 6 caracteres):','');
   if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
   if(prompt('Confirme a nova senha:','')!==nova.trim()){ alert('Senhas não coincidem.'); return; }
@@ -1428,7 +1440,7 @@ async function changeMyPass(){
   const tk=lerToken(); const eu=tk&&tk.dados?String(tk.dados.u||'').toLowerCase():'';
   const idx=portalData.usuarios.findIndex(u=>String(u.username||'').toLowerCase()===eu);
   if(idx<0){ alert('Usuário não encontrado na base. Senha não alterada.'); return; }
-  if(!await definirSenha(eu,nova.trim())) return;
+  if(!await definirSenha(eu,nova.trim(),atual)) return;
   portalData.usuarios[idx].tempPass=false;
   await savePortalData();
   alert('Senha alterada! ✅ Vale em qualquer computador.');

@@ -1040,11 +1040,11 @@ function cabecalhos(sistema,extra){
 // navegador baixa: o Worker guarda num registro que nenhum modulo le. No
 // teste ela vai para 'senhas_teste', que o login nao usa — como antes, o
 // teste nao mexe em senha de verdade.
-async function definirSenha(usuario,senha){
+async function definirSenha(usuario,senha,senhaAtual){
   try{
     const r=await fetch(WORKER_URL,{method:'POST',cache:'no-store',
       headers:cabecalhos(SUPA_SISTEMA.replace('financeiro','compras'),{'Content-Type':'application/json','X-Action':'definir-senha'}),
-      body:JSON.stringify({usuario:usuario,senha:senha})});
+      body:JSON.stringify({usuario:usuario,senha:senha,senhaAtual:senhaAtual||''})});
     if(r.ok) return true;
     let m=''; try{ m=(await r.json()).erro||''; }catch(e){}
     alert('A senha NÃO foi salva.\n\n'+(m||('Erro '+r.status+' no servidor.')));
@@ -1464,13 +1464,17 @@ async function doLogout(){
 
 async function changeMyPass(){
   if(isAdmin()){ openChangePassAdmin(null); return; }
+  // A senha atual primeiro (pedido do Ander, 21/09/2026). Quem confere e o
+  // Worker: pular esta pergunta mexendo na pagina nao adianta.
+  const atual=prompt('Digite sua senha ATUAL:','');
+  if(!atual){ alert('Senha não alterada.'); return; }
   const nova=prompt('Digite sua nova senha (mínimo 6 caracteres):','');
   if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
   if(prompt('Confirme a nova senha:','')!==nova.trim()){ alert('As senhas não coincidem.'); return; }
   // Quem troca e quem esta logado: o usuario vem do cracha, nao do nome.
   const tk=lerToken(); const eu=tk&&tk.dados?String(tk.dados.u||'').toLowerCase():'';
   if(!eu){ alert('Sessão sem usuário. Saia e entre de novo.'); return; }
-  if(!await definirSenha(eu,nova.trim())) return;
+  if(!await definirSenha(eu,nova.trim(),atual)) return;
   const users=getFinUsers();
   const idx=users.findIndex(u=>String(u.username||'').toLowerCase()===eu);
   if(idx>=0){ users[idx].tempPass=false; saveFinUsers(users); await persistUsers(); }
