@@ -2095,6 +2095,21 @@ async function salvarFicha(manterAberta){
     return false;
   }
 
+  // Data de prazo que ja passou: quase sempre e o ano digitado errado (em
+  // 22/09/2026 uma entrega saiu como 22/01/2026 no lugar de 22/01/2027). So
+  // avisa, e so quando a data MUDOU nesta edicao: obra ja entregue tem data
+  // no passado de verdade, e seria um aviso em toda gravacao.
+  {
+    const antes=(dados.contratos||[]).find(function(x){ return x.id===fichaId; })||{};
+    const hoje=hojeISO();
+    const passadas=[['Entrega','entrega'],['Projeção de entrada na obra','projEntrada'],['Medição prevista','medicao']]
+      .filter(function(p){ const v=c[p[1]]; return v && v<hoje && v!==antes[p[1]]; });
+    if(passadas.length){
+      const lista=passadas.map(function(p){ return '• '+p[0]+': '+fmtData(c[p[1]]); }).join('\n');
+      if(!confirm('Esta data já passou:\n\n'+lista+'\n\nConfira o ano — é isso mesmo?')) return false;
+    }
+  }
+
   const novo=!fichaId;
   // Mesmo CT e mesmo ano já cadastrados? Avisa e deixa decidir — a planilha
   // tem contratos repetidos de propósito (116-84, 116-89, 116-113).
