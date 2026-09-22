@@ -277,6 +277,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <button class="view-btn" id="vb-hist" onclick="setView('historico')" style="display:none">📋 Histórico</button>
       </div>
       <button class="btn btn-outline btn-sm" id="btn-lixeira" onclick="alternarLixeira()">Lixeira</button>
+      <button class="btn btn-outline btn-sm" onclick="imprimirCarteira()" title="Imprimir a Carteira como está na tela">Imprimir</button>
     </div>
     <div id="conteudo"></div>
   </div>
@@ -1793,6 +1794,47 @@ function htmlCarteira(){
   return '<div class="tabela-cx"><table class="carteira"><thead><tr>'+cabeca+
     '</tr></thead><tbody>'+linhas+'</tbody></table></div>'+
     '<div style="font-size:11.5px;color:var(--gray-4);margin-top:8px">'+rodape+'</div>';
+}
+// ---- IMPRIMIR A CARTEIRA (pedido do Ander, 22/09/2026) ----
+// Copia a tabela que esta na tela — com a busca, os filtros e a ordem que a
+// pessoa escolheu — para uma folha limpa, na horizontal, e chama a impressao.
+// A aba abre JA no clique: aberta depois, o navegador bloqueia.
+function imprimirCarteira(){
+  if(view!=='carteira') setView('carteira');
+  const tab=document.querySelector('#conteudo table.carteira');
+  if(!tab){ alert('Nenhum contrato na lista para imprimir.'); return; }
+  const w=window.open('','_blank');
+  if(!w){ alert('O navegador bloqueou a janela de impressão. Libere janelas para este site e tente de novo.'); return; }
+  const copia=tab.cloneNode(true);
+  copia.querySelectorAll('button,input,select').forEach(function(x){ x.remove(); });
+  copia.querySelectorAll('[onclick]').forEach(function(x){ x.removeAttribute('onclick'); });
+  const filtros=[];
+  const busca=(document.getElementById('busca')||{}).value||'';
+  if(busca.trim()) filtros.push('busca: "'+busca.trim()+'"');
+  ['f-status-filtro','f-ano-filtro','f-coord-filtro'].forEach(function(id){
+    const s=document.getElementById(id);
+    if(s && s.value) filtros.push(s.options[s.selectedIndex].text);
+  });
+  const qtd=copia.querySelectorAll('tbody tr').length;
+  const agora=new Date().toLocaleString('pt-BR');
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Carteira de contratos</title><style>'+
+    '@page{size:A4 landscape;margin:10mm}'+
+    'body{font-family:Arial,Helvetica,sans-serif;color:#222;margin:0}'+
+    'h1{font-size:15px;margin:0 0 2px}'+
+    '.sub{font-size:10.5px;color:#555;margin-bottom:8px}'+
+    'table{border-collapse:collapse;width:100%;font-size:9.5px}'+
+    'th,td{border:1px solid #bbb;padding:3px 4px;text-align:left;vertical-align:top}'+
+    'th{background:#eef2f3;font-weight:700}'+
+    'tr{page-break-inside:avoid}thead{display:table-header-group}'+
+    'a{color:inherit;text-decoration:none}'+
+    '</style></head><body>'+
+    '<h1>D\'Aluminium · Carteira de contratos</h1>'+
+    '<div class="sub">'+qtd+' contrato'+(qtd===1?'':'s')+' · '+(filtros.length?'filtros: '+esc(filtros.join(' · ')):'sem filtros')+' · impresso em '+esc(agora)+'</div>'+
+    copia.outerHTML+
+    '</body></html>');
+  w.document.close();
+  w.focus();
+  setTimeout(function(){ w.print(); },300);
 }
 function htmlPainel(){
   const lista=filtrados(false);
