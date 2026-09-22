@@ -635,6 +635,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     </div>
     <div class="modal-foot">
       <button class="btn btn-outline" onclick="fecharContrato()">Fechar</button>
+      <button class="btn btn-outline" id="ctr-pdf" onclick="baixarContratoComSenha()" title="Baixa o PDF protegido pelo CPF/CNPJ do cliente">Baixar PDF com senha</button>
       <button class="btn btn-teal" onclick="imprimirContrato()">Imprimir ou salvar em PDF</button>
     </div>
   </div>
@@ -2725,6 +2726,156 @@ function mostrarAnexosDoContrato(c){
         '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Proposta · '+esc(d.nome||'arquivo')+'</span>'+
         '<a class="btn btn-outline btn-sm" href="#" data-anexo="'+esc(d.url)+'" data-nome="'+esc(d.nome)+'" onclick="abrirAnexo(this.dataset.anexo,this.dataset.nome);return false;">Abrir</a></div>';
     }).join('')+'</div>';
+}
+
+// ---- O CONTRATO EM PDF, COM SENHA (pedido do Ander, 22/09/2026) ----
+// O navegador nao sabe por senha no PDF que ele mesmo imprime. Entao aqui o
+// sistema monta o PDF por conta propria, com o componente jsPDF, e o protege
+// com o CPF/CNPJ do cliente (so numeros).
+//
+// O componente e baixado SO na hora de gerar, e o navegador confere a
+// impressao digital (integrity): se o arquivo vier alterado, ele recusa. Sem
+// internet, o botao avisa e a impressao normal continua funcionando.
+//
+// O conteudo e o MESMO da tela: o modelo, os blocos e os dados ja trocados.
+const JSPDF_URL='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+const JSPDF_SELO='sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk';
+let _jspdf=null;
+function carregarJsPDF(){
+  if(window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
+  if(_jspdf) return _jspdf;
+  _jspdf=new Promise(function(ok, falhou){
+    const s=document.createElement('script');
+    s.src=JSPDF_URL; s.integrity=JSPDF_SELO; s.crossOrigin='anonymous';
+    s.onload=function(){
+      if(window.jspdf && window.jspdf.jsPDF) ok(window.jspdf.jsPDF);
+      else falhou(new Error('o componente de PDF não carregou direito'));
+    };
+    s.onerror=function(){ _jspdf=null; falhou(new Error('não consegui baixar o componente de PDF (confira a internet)')); };
+    document.head.appendChild(s);
+  });
+  return _jspdf;
+}
+
+function montarPdfContrato(jsPDFctor, modelo, d, op){
+  op=op||{};
+  const senha=String(op.senha||'');
+  const doc=new jsPDFctor(Object.assign({unit:'mm',format:'a4'},
+    senha?{encryption:{userPassword:senha, ownerPassword:senha}}:{}));
+  const L=20, DIR=20, TOPO=16, BAIXO=20, LARG=210-L-DIR, FIM=297-BAIXO;
+  let y=TOPO;
+  function alturaLinha(tam){ return tam*0.3528*1.35; }
+  function novaPagina(){ doc.addPage(); y=TOPO; }
+  function escrever(texto, o){
+    o=o||{};
+    const tam=o.tam||10.5;
+    doc.setFont('helvetica', o.negrito?'bold':'normal');
+    doc.setFontSize(tam);
+    const alt=alturaLinha(tam);
+    const linhas=doc.splitTextToSize(String(texto==null?'':texto), LARG);
+    linhas.forEach(function(ln, i){
+      if(y+alt>FIM) novaPagina();
+      const ultima=(i===linhas.length-1);
+      if(o.centro) doc.text(ln, 105, y, {align:'center'});
+      // Justificado como no papel da tela, menos a ultima linha do paragrafo
+      // (esticar a ultima linha abre buracos entre as palavras).
+      else if(o.justificar && !ultima) doc.text(ln, L, y, {align:'justify', maxWidth:LARG});
+      else doc.text(ln, L, y);
+      y+=alt;
+    });
+    y+=(o.depois||0);
+  }
+  function assinatura(nome, sob){
+    const alt=alturaLinha(10.5);
+    if(y+alt*4>FIM) novaPagina();
+    y+=alt;
+    doc.setDrawColor(60); doc.setLineWidth(0.3);
+    doc.line(105-40, y, 105+40, y);
+    y+=alt;
+    doc.setFont('helvetica','bold'); doc.setFontSize(10.5);
+    doc.text(String(nome||'__________'), 105, y, {align:'center'});
+    y+=alt;
+    if(sob){
+      doc.setFont('helvetica','normal'); doc.setFontSize(9.5);
+      doc.text(String(sob), 105, y, {align:'center'});
+      y+=alturaLinha(9.5);
+    }
+    y+=alt;
+  }
+  if(op.logo){
+    try{
+      const p=doc.getImageProperties(op.logo);
+      const larg=42, alt=larg*(p.height/p.width);
+      doc.addImage(op.logo, p.fileType||'PNG', 105-larg/2, y, larg, alt);
+      y+=alt+4;
+    }catch(e){ /* sem logo, o contrato sai igual em tudo o mais */ }
+  }
+  escrever(trocarCampos(modelo.titulo, d), {tam:13, negrito:true, centro:true, depois:1});
+  escrever((modelo.rotuloNumero||'Nº do Pedido')+': '+(d.numero||'__________'), {tam:10, centro:true, depois:5});
+  (modelo.blocos||[]).forEach(function(b){
+    if(b.tipo==='pagina'){ novaPagina(); return; }
+    if(b.tipo==='assinaturas'){
+      const porRotulo=(modelo.assinaturaEstilo==='rotulo');
+      escrever((d.cidadeForo||'__________')+', '+(d.dataTexto||'__________')+'.', {depois:6});
+      assinatura(d.clienteNome, porRotulo?'CONTRATANTE':(d.clienteDoc?'CPF/CNPJ: '+d.clienteDoc:''));
+      assinatura(d.contratadaNome, porRotulo?'CONTRATADA':('CNPJ: '+(d.contratadaCnpj||'__________')));
+      return;
+    }
+    escrever(trocarCampos(b.titulo, d), {negrito:true, depois:1.5});
+    String(textoDoBloco(b)||'').split(/\n{2,}/).forEach(function(p){
+      const t=p.trim();
+      if(!t) return;
+      // Bloco com quebra de linha dentro (lista, "Nome: ...") vai linha a
+      // linha e sem justificar, como na tela.
+      if(t.indexOf('\n')>=0){
+        t.split('\n').forEach(function(ln){ escrever(trocarCampos(ln, d), {}); });
+        y+=1.5;
+      } else {
+        escrever(trocarCampos(t, d), {justificar:true, depois:2.5});
+      }
+    });
+    y+=2;
+  });
+  const paginas=doc.getNumberOfPages();
+  for(let i=1;i<=paginas;i++){
+    doc.setPage(i);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8);
+    doc.setTextColor(120);
+    doc.text('Página '+i+' de '+paginas, 105, 297-10, {align:'center'});
+    doc.setTextColor(0);
+  }
+  return doc;
+}
+
+async function baixarContratoComSenha(){
+  const c=(dados.contratos||[]).find(function(x){ return x.id===_contratoId; });
+  if(!c) return;
+  const modelo=modeloContratoDe((c.contrato||{}).modelo||'');
+  if(!modelo){ aviso('Sem modelo','Nenhum modelo de contrato cadastrado.'); return; }
+  const d=dadosDoContrato(c, modelo);
+  // A senha e o CPF/CNPJ do cliente, so numeros (11 ou 14 digitos).
+  const senha=String(d.clienteDoc||'').replace(/\D/g,'');
+  if(senha.length!==11 && senha.length!==14){
+    aviso('Falta o CPF/CNPJ do cliente',
+      'A senha do PDF é o CPF/CNPJ do cliente, só números.\n\n'+
+      'Preencha na parte Contrato da ficha, salve e gere de novo. Enquanto isso, dá para imprimir sem senha.');
+    return;
+  }
+  const btn=document.getElementById('ctr-pdf');
+  if(btn){ btn.disabled=true; btn.textContent='Gerando...'; }
+  try{
+    const jsPDFctor=await carregarJsPDF();
+    const doc=montarPdfContrato(jsPDFctor, modelo, d, {senha:senha, logo:LOGO_DALUMINIUM});
+    const nome=('Contrato '+(d.numero||'')+' - '+(d.clienteNome||'')).replace(/[\\/:*?"<>|]/g,'-').trim().slice(0,110)+'.pdf';
+    doc.save(nome);
+    aviso('PDF baixado, com senha',
+      'A senha para abrir é o CPF/CNPJ do cliente, SÓ NÚMEROS:\n\n'+senha+'\n\n'+
+      'Avise o cliente ao enviar o arquivo. Sem a senha ninguém abre, nem quem receber por engano.');
+  }catch(e){
+    aviso('Não consegui gerar o PDF com senha',
+      (e&&e.message?e.message:'erro')+'\n\nUse "Imprimir ou salvar em PDF" — só que esse sai sem senha.');
+  }
+  if(btn){ btn.disabled=false; btn.textContent='Baixar PDF com senha'; }
 }
 
 function imprimirContrato(){
