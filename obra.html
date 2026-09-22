@@ -991,6 +991,24 @@ async function enviarArquivoPrivado(arquivo,pasta,tipoRecurso){
   return j;
 }
 
+// ---- SESSAO PARADA (pedido do Ander, 22/09/2026) ----
+// Quem encerra a sessao e o PORTAL. O modulo roda dentro de uma moldura
+// (iframe) e os cliques daqui nao chegam la, entao ele so anota a hora da
+// ultima atividade na marca que os dois leem.
+(function(){
+  var ATIVIDADE_KEY='dalum-ativo', ultimo=0;
+  function marcar(){
+    var agora=Date.now();
+    if(agora-ultimo<5000) return;   // no maximo uma anotacao a cada 5 s
+    ultimo=agora;
+    try{ localStorage.setItem(ATIVIDADE_KEY,String(agora)); }catch(e){}
+  }
+  ['pointerdown','keydown','wheel','touchstart'].forEach(function(ev){
+    document.addEventListener(ev,marcar,{passive:true});
+  });
+  marcar();
+})();
+
 function cabecalhosSessoesObra(extra){
   return Object.assign(cabecalhos(extra||{}),{'X-Sistema':'sessions'});
 }

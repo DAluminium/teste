@@ -994,6 +994,11 @@ async function doLogin(){
 
 async function doLogout(){
   if(!confirm('Deseja sair?')) return;
+  await sairDoSistema();
+}
+// A saida em si, sem perguntar nada: serve para o botao Sair e para o
+// encerramento por sessao parada (ver PARADO_MS).
+async function sairDoSistema(){
   await removerSessaoPortal();
   localStorage.removeItem('dalum-sso'); localStorage.removeItem(TOKEN_KEY); apagarDadosLocais();
   ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key'].forEach(k=>sessionStorage.removeItem(k));
@@ -1011,6 +1016,75 @@ async function doLogout(){
 // (document.body.innerHTML), então não havia como voltar a entrar a não ser
 // pelo botão dela. Sair agora cai direto na tela de login, que as linhas
 // acima já deixaram pronta.
+
+// ---- SESSAO PARADA (pedido do Ander, 22/09/2026) ----
+// O cracha vale 8 horas. Sem isto, um computador deixado aberto continuava
+// dentro do sistema o dia inteiro — e quem passasse por ele via contrato,
+// CPF e endereco de cliente. Agora 30 minutos sem ninguem mexer encerram a
+// sessao, com aviso 1 minuto antes para ninguem perder o que esta digitando.
+//
+// A hora da ultima atividade fica no localStorage porque os modulos rodam
+// dentro de uma moldura e os cliques deles nao chegam a esta pagina: cada
+// modulo anota na mesma marca (ver SESSAO PARADA nos modulos).
+const PARADO_MS=30*60*1000, AVISO_MS=60*1000, ATIVIDADE_KEY='dalum-ativo';
+let _avisoParado=null, _ultimaMarca=0;
+function marcarAtividade(){
+  const agora=Date.now();
+  if(agora-_ultimaMarca<5000) return;
+  _ultimaMarca=agora;
+  try{ localStorage.setItem(ATIVIDADE_KEY,String(agora)); }catch(e){}
+}
+function ultimaAtividade(){
+  try{ return Number(localStorage.getItem(ATIVIDADE_KEY))||Date.now(); }catch(e){ return Date.now(); }
+}
+['pointerdown','keydown','wheel','touchstart'].forEach(function(ev){
+  // Com o aviso na tela, mexer no resto da pagina NAO conta: a pessoa tem de
+  // dizer que continua, senao o aviso seria dispensado sem querer.
+  document.addEventListener(ev,function(){ if(!_avisoParado) marcarAtividade(); },{passive:true});
+});
+function fecharAvisoParado(){
+  if(_avisoParado){ _avisoParado.remove(); _avisoParado=null; }
+}
+function continuarConectado(){
+  fecharAvisoParado();
+  _ultimaMarca=0;
+  marcarAtividade();
+}
+function mostrarAvisoParado(segundos){
+  if(_avisoParado){
+    const c=_avisoParado.querySelector('[data-conta]');
+    if(c) c.textContent=segundos;
+    return;
+  }
+  const ov=document.createElement('div');
+  ov.id='parado-ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9500;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;max-width:380px;width:100%;padding:20px;text-align:center;font-size:13.5px;line-height:1.5;color:#2c3e50">'+
+    '<div style="font-weight:700;font-size:16px;margin-bottom:8px">Você ainda está aí?</div>'+
+    '<div>O sistema vai encerrar a sessão em <b data-conta>'+segundos+'</b> segundos, porque ficou parado.</div>'+
+    '<button type="button" onclick="continuarConectado()" style="margin-top:14px;background:#17a2b8;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit">Continuar conectado</button>'+
+  '</div>';
+  document.body.appendChild(ov);
+}
+async function conferirSessaoParada(){
+  // So vale para quem esta dentro: na tela de login nao ha o que encerrar.
+  if(!lerToken() || !document.getElementById('portal').classList.contains('active')) { fecharAvisoParado(); return; }
+  const parado=Date.now()-ultimaAtividade();
+  if(parado>=PARADO_MS){
+    fecharAvisoParado();
+    await sairDoSistema();
+    const err=document.getElementById('login-error');
+    if(err){
+      err.textContent='Sua sessão foi encerrada porque ficou 30 minutos parada. Entre de novo.';
+      err.style.display='block';
+    }
+    return;
+  }
+  if(parado>=PARADO_MS-AVISO_MS) mostrarAvisoParado(Math.max(1,Math.ceil((PARADO_MS-parado)/1000)));
+  else fecharAvisoParado();
+}
+setInterval(conferirSessaoParada,5000);
+marcarAtividade();
 
 // ---- PORTAL UI ----
 function showPortal(nome, modulos, isAdmin){
