@@ -644,6 +644,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <div class="modal-foot">
       <button class="btn btn-outline" onclick="fecharContrato()">Fechar</button>
       <button class="btn btn-outline" id="ctr-pdf" onclick="baixarContratoComSenha()" title="Baixa o PDF protegido pelo CPF/CNPJ do cliente">Baixar PDF com senha</button>
+      <button class="btn btn-outline" id="ctr-pdf-junto" onclick="baixarContratoComProposta()" title="Um arquivo só: o contrato e, no fim, as páginas da proposta">Baixar contrato + proposta</button>
       <button class="btn btn-teal" onclick="imprimirContrato()">Imprimir ou salvar em PDF</button>
     </div>
   </div>
@@ -2952,6 +2953,82 @@ function montarPdfContrato(jsPDFctor, modelo, d, op){
     doc.setTextColor(0);
   }
   return doc;
+}
+
+// ---- CONTRATO + PROPOSTA NUM ARQUIVO SO (pedido do Ander, 22/09/2026) ----
+// A proposta entra DEPOIS das assinaturas, na ordem em que esta anexada.
+// Este arquivo NAO leva senha: o componente que junta paginas (pdf-lib) nao
+// protege, e o que protege (jsPDF) nao junta. Para mandar, use o botao
+// Enviar, que abre a conversa da pessoa.
+const PDFLIB_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
+const PDFLIB_SELO='sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI';
+let _pdflib=null;
+function carregarPdfLib(){
+  if(window.PDFLib && window.PDFLib.PDFDocument) return Promise.resolve(window.PDFLib);
+  if(_pdflib) return _pdflib;
+  _pdflib=new Promise(function(ok, falhou){
+    const s=document.createElement('script');
+    s.src=PDFLIB_URL; s.integrity=PDFLIB_SELO; s.crossOrigin='anonymous';
+    s.onload=function(){
+      if(window.PDFLib && window.PDFLib.PDFDocument) ok(window.PDFLib);
+      else falhou(new Error('o componente de PDF não carregou direito'));
+    };
+    s.onerror=function(){ _pdflib=null; falhou(new Error('não consegui baixar o componente que junta PDFs (confira a internet)')); };
+    document.head.appendChild(s);
+  });
+  return _pdflib;
+}
+function propostasDoContrato(c){
+  return (c.docs||[]).filter(function(d){
+    return d && d.url && /proposta/i.test(d.tipo||'') && /\.pdf$/i.test(d.nome||'');
+  });
+}
+async function baixarContratoComProposta(){
+  const c=(dados.contratos||[]).find(function(x){ return x.id===_contratoId; });
+  if(!c) return;
+  const modelo=modeloContratoDe((c.contrato||{}).modelo||'');
+  if(!modelo){ aviso('Sem modelo','Nenhum modelo de contrato cadastrado.'); return; }
+  const props=propostasDoContrato(c);
+  if(!props.length){
+    aviso('Nenhuma proposta em PDF nesta obra',
+      'Anexe o PDF da proposta na ficha, em Anexos, com o rótulo Proposta — e gere de novo.\n\n'+
+      'Enquanto isso dá para baixar só o contrato, com senha.');
+    return;
+  }
+  const btn=document.getElementById('ctr-pdf-junto');
+  if(btn){ btn.disabled=true; btn.textContent='Juntando...'; }
+  try{
+    const jsPDFctor=await carregarJsPDF();
+    const PDFLib=await carregarPdfLib();
+    const d=dadosDoContrato(c, modelo);
+    // Sem senha: o arquivo vai ser juntado, e o juntador nao protege.
+    const contrato=montarPdfContrato(jsPDFctor, modelo, d, {senha:'', logo:LOGO_DALUMINIUM, contrato:c});
+    const juntos=await PDFLib.PDFDocument.load(contrato.output('arraybuffer'));
+    for(const p of props){
+      const link=await linkDoAnexo(p.url, p.nome);
+      const r=await fetch(link,{cache:'no-store'});
+      if(!r.ok) throw new Error('não consegui baixar a proposta '+(p.nome||'')+' ('+r.status+')');
+      const prop=await PDFLib.PDFDocument.load(await r.arrayBuffer(), {ignoreEncryption:true});
+      const paginas=await juntos.copyPages(prop, prop.getPageIndices());
+      paginas.forEach(function(pg){ juntos.addPage(pg); });
+    }
+    const bytes=await juntos.save();
+    const nome=('Contrato '+(d.numero||'')+' e proposta - '+(d.clienteNome||'')).replace(/[\\/:*?"<>|]/g,'-').trim().slice(0,110)+'.pdf';
+    const url=URL.createObjectURL(new Blob([bytes],{type:'application/octet-stream'}));
+    const a=document.createElement('a');
+    a.href=url; a.download=nome;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); },60000);
+    anotarAcesso('baixou o contrato com a proposta', alvoDoContrato(c));
+    aviso('Baixado: contrato + proposta',
+      'O arquivo tem o contrato e, no fim, '+(props.length>1?'as propostas':'a proposta')+'.\n\n'+
+      'Atenção: este arquivo NÃO tem senha, porque juntar páginas e proteger não funcionam no mesmo arquivo.\n\n'+
+      'Mande pelo botão Enviar, na conversa da pessoa. Se precisar de senha, use "Baixar PDF com senha" e mande a proposta em separado.');
+  }catch(e){
+    aviso('Não consegui juntar os arquivos',
+      (e&&e.message?e.message:'erro')+'\n\nSe a proposta estiver protegida por senha, ela não pode ser juntada: mande os dois arquivos separados.');
+  }
+  if(btn){ btn.disabled=false; btn.textContent='Baixar contrato + proposta'; }
 }
 
 async function baixarContratoComSenha(){
