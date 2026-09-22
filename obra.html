@@ -256,6 +256,9 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="btn btn-ghost btn-sm" data-so-gestor onclick="novoContrato()">
         <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Novo
       </button>
+      <button class="btn btn-ghost btn-sm" id="btn-acessos" onclick="abrirAcessos()" style="display:none" title="Quem abriu cada contrato, gerou o PDF ou abriu um anexo">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Acessos
+      </button>
       <button class="btn btn-ghost btn-sm" id="btn-relato" onclick="abrirRelato()" style="display:none" title="Avisar o administrador sobre um erro ou pedir uma alteração">
         <svg class="icon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Relatar
       </button>
@@ -637,6 +640,26 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="btn btn-outline" onclick="fecharContrato()">Fechar</button>
       <button class="btn btn-outline" id="ctr-pdf" onclick="baixarContratoComSenha()" title="Baixa o PDF protegido pelo CPF/CNPJ do cliente">Baixar PDF com senha</button>
       <button class="btn btn-teal" onclick="imprimirContrato()">Imprimir ou salvar em PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- QUEM ABRIU CADA CONTRATO — só o administrador vê este botão e esta janela -->
+<div class="overlay" id="acs-ov">
+  <div class="modal" style="max-width:820px">
+    <div class="modal-head">
+      <div class="modal-title">Quem abriu cada contrato</div>
+      <button class="btn btn-outline btn-sm" onclick="fecharAcessos()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+        <input id="acs-busca" class="busca" style="flex:1;min-width:220px" placeholder="Buscar por pessoa, contrato ou ação..." oninput="renderAcessos()">
+        <button class="btn btn-outline btn-sm" onclick="abrirAcessos()">Atualizar</button>
+      </div>
+      <div id="acs-lista" style="font-size:12.5px">Carregando...</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="fecharAcessos()">Fechar</button>
     </div>
   </div>
 </div>
@@ -2000,6 +2023,7 @@ function novoContrato(){
 function abrirFicha(id){
   const c=(dados.contratos||[]).find(function(x){ return x.id===id; });
   if(!c) return;
+  anotarAcesso('abriu a ficha', alvoDoContrato(c));
   fichaId=id;
   _manual={projEntrada:!!c.projEntrada, entrega:!!c.entrega};
   fichaDocs=Array.isArray(c.docs)?JSON.parse(JSON.stringify(c.docs)):[];
@@ -2645,6 +2669,7 @@ async function abrirContrato(){
   const c=(dados.contratos||[]).find(function(x){ return x.id===fichaId; });
   if(!c){ aviso('Contrato não encontrado','Recarregue a tela e tente de novo.'); return; }
   _contratoId=c.id;
+  anotarAcesso('gerou o contrato', alvoDoContrato(c));
   montarContrato();
   document.getElementById('ctr-ov').classList.add('open');
 }
@@ -2868,6 +2893,7 @@ async function baixarContratoComSenha(){
     const doc=montarPdfContrato(jsPDFctor, modelo, d, {senha:senha, logo:LOGO_DALUMINIUM});
     const nome=('Contrato '+(d.numero||'')+' - '+(d.clienteNome||'')).replace(/[\\/:*?"<>|]/g,'-').trim().slice(0,110)+'.pdf';
     doc.save(nome);
+    anotarAcesso('baixou o PDF com senha', alvoDoContrato(c));
     aviso('PDF baixado, com senha',
       'A senha para abrir é o CPF/CNPJ do cliente, SÓ NÚMEROS:\n\n'+senha+'\n\n'+
       'Avise o cliente ao enviar o arquivo. Sem a senha ninguém abre, nem quem receber por engano.');
@@ -5246,6 +5272,66 @@ function mostrarCompras(c){
     '<span><strong>'+total.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+'</strong></span></div>'+linhas;
 }
 
+// ================= QUEM ABRIU CADA CONTRATO =================
+// Pedido do Ander em 22/09/2026, para fechar a parte de LGPD: com CPF,
+// endereco e valor de cliente aqui dentro, tem de dar para responder "quem
+// viu isso?". Quem guarda e o Worker, no registro 'acessos', que nenhum
+// modulo consegue ler — so o administrador, por esta tela.
+//
+// Anotar NUNCA pode atrapalhar quem esta usando: o pedido vai solto e um
+// erro aqui e ignorado de proposito.
+function anotarAcesso(acao, alvo){
+  try{
+    fetch(WORKER,{method:'POST',cache:'no-store',
+      headers:cabecalhos({'Content-Type':'application/json','X-Action':'anotar-acesso'}),
+      body:JSON.stringify({acao:acao, alvo:alvo})}).catch(function(){});
+  }catch(e){}
+}
+function alvoDoContrato(c){
+  if(!c) return '';
+  return 'CT '+(ctFormatado(c.ct)||'—')+' · '+String(c.cliente||'').slice(0,80);
+}
+
+let _acessos=[];
+async function abrirAcessos(){
+  if(!soAdmin()){ aviso('Só o administrador','Este registro mostra o que cada pessoa da equipe abriu.'); return; }
+  document.getElementById('acs-ov').classList.add('open');
+  const el=document.getElementById('acs-lista');
+  el.textContent='Carregando...';
+  try{
+    const r=await fetch(WORKER,{method:'POST',cache:'no-store',
+      headers:cabecalhos({'Content-Type':'application/json','X-Action':'ler-acessos'}),
+      body:JSON.stringify({quantos:500})});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.erro||('erro '+r.status));
+    _acessos=Array.isArray(j.lista)?j.lista:[];
+    renderAcessos(j.total);
+  }catch(e){
+    el.innerHTML='<div class="aviso" style="margin:0">Não consegui ler o registro: '+esc(e.message)+'</div>';
+  }
+}
+function fecharAcessos(){ document.getElementById('acs-ov').classList.remove('open'); }
+function renderAcessos(total){
+  const el=document.getElementById('acs-lista');
+  if(!el) return;
+  const busca=String((document.getElementById('acs-busca')||{}).value||'').toLowerCase().trim();
+  const lista=_acessos.filter(function(x){
+    if(!busca) return true;
+    return ((x.n||'')+' '+(x.u||'')+' '+(x.a||'')+' '+(x.alvo||'')).toLowerCase().indexOf(busca)>=0;
+  });
+  if(!lista.length){ el.innerHTML='<p style="color:var(--gray-4)">Nada registrado ainda'+(busca?' para essa busca':'')+'.</p>'; return; }
+  el.innerHTML='<div class="tabela-cx"><table class="carteira"><thead><tr>'+
+      '<th>Quando</th><th>Quem</th><th>O que fez</th><th>Onde</th></tr></thead><tbody>'+
+    lista.map(function(x){
+      let quando=x.t||'';
+      try{ quando=new Date(x.t).toLocaleString('pt-BR'); }catch(e){}
+      return '<tr><td style="white-space:nowrap">'+esc(quando)+'</td><td>'+esc(x.n||x.u||'—')+
+        '</td><td>'+esc(x.a||'—')+'</td><td>'+esc(x.alvo||'—')+'</td></tr>';
+    }).join('')+'</tbody></table></div>'+
+    '<div style="font-size:11.5px;color:var(--gray-4);margin-top:8px">'+
+      lista.length+' de '+_acessos.length+' mostrados'+(total?' · '+total+' guardados no total (os mais antigos saem sozinhos)':'')+'.</div>';
+}
+
 // ================= PERMISSÕES =================
 function aplicarPermissoes(){
   const gestor=podeGerenciar();
@@ -5256,6 +5342,8 @@ function aplicarPermissoes(){
   if(h) h.style.display=soAdmin()?'':'none';
   const l=document.getElementById('btn-lixeira');
   if(l) l.style.display=gestor?'':'none';
+  const ac=document.getElementById('btn-acessos');
+  if(ac) ac.style.display=soAdmin()?'':'none';
 }
 
 // ================= INÍCIO =================
