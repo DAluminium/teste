@@ -1245,6 +1245,7 @@ function abrirProtecaoAnexos(){
         '<button class="btn btn-outline" id="prot-um" onclick="protegerAnexos(true)">1. Proteger UM arquivo, para conferir</button>'+
         '<button class="btn btn-outline" id="prot-abrir" onclick="abrirAmostraProtegida()" disabled>2. Abrir esse arquivo pelo sistema</button>'+
         '<button class="btn btn-teal" id="prot-todos" onclick="protegerAnexos(false)" disabled>3. Proteger todos os outros</button>'+
+        '<button class="btn btn-outline" id="prot-varrer" onclick="varrerAnexos()">4. Varrer a conta inteira (arquivos esquecidos)</button>'+
       '</div>'+
       '<div id="prot-status" style="margin-top:12px;white-space:pre-wrap;color:#34495e"></div>'+
       '<div style="text-align:right;margin-top:12px"><button class="btn btn-outline btn-sm" onclick="document.getElementById(\'protecao-overlay\').remove()">Fechar</button></div>'+
@@ -1298,6 +1299,36 @@ async function protegerAnexos(soUm){
     b1.disabled=false; b3.disabled=false;
   }
 }
+// Os anexos excluidos de uma ficha continuam no Cloudinary (excluir no
+// sistema nunca apagou la) e o sistema nao os cita mais, entao o passo 3 nao
+// os alcanca. Aqui a lista vem do proprio Cloudinary: tudo o que ainda for
+// publico vira privado. So protege; nao apaga nada.
+async function varrerAnexos(){
+  if(!confirm('Tornar privado TODO arquivo ainda aberto na conta do Cloudinary, inclusive os que foram excluídos das fichas?\n\nNada é apagado.')) return;
+  const st=document.getElementById('prot-status'), b=document.getElementById('prot-varrer');
+  b.disabled=true;
+  let rodada=0, prot=0, falhas=[], j;
+  try{
+    do{
+      rodada++;
+      st.textContent='Varrendo... rodada '+rodada+' ('+prot+' protegidos até agora)';
+      const r=await fetch(WORKER_URL,{method:'POST',cache:'no-store',
+        headers:cabecalhos('compras',{'Content-Type':'application/json','X-Action':'varrer-anexos'}),
+        body:'{}'});
+      j=null; try{ j=await r.json(); }catch(e){}
+      if(!r.ok||!j) throw new Error((j&&j.erro)||('erro '+r.status+' no servidor'));
+      prot+=j.protegidos; falhas=j.falhas||[];
+    }while(j.restam && j.protegidos>0 && rodada<200);
+    st.textContent='Varredura terminada: '+prot+' arquivos esquecidos protegidos agora.'+
+      (falhas.length?'\n\n'+falhas.length+' não deu para proteger (continuam como estavam). Mande um print disto:\n'+
+        falhas.slice(0,5).map(function(f){ return '• '+f.id+' ('+(f.status||'')+')'; }).join('\n'):
+        '\n\nNão sobrou nenhum arquivo aberto na conta.');
+  }catch(e){
+    st.textContent='Parou: '+e.message+'\n\nO que já foi protegido continua protegido. Pode tentar de novo.';
+  }
+  b.disabled=false;
+}
+
 // A aba abre no clique e recebe o endereco quando ele chega (senao o
 // navegador bloqueia como propaganda).
 async function abrirAmostraProtegida(){
