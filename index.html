@@ -1026,7 +1026,7 @@ async function sairDoSistema(){
 // A hora da ultima atividade fica no localStorage porque os modulos rodam
 // dentro de uma moldura e os cliques deles nao chegam a esta pagina: cada
 // modulo anota na mesma marca (ver SESSAO PARADA nos modulos).
-const PARADO_MS=30*60*1000, AVISO_MS=60*1000, ATIVIDADE_KEY='dalum-ativo';
+const PARADO_MS=30*60*1000, AVISO_MS=5*60*1000, ATIVIDADE_KEY='dalum-ativo';
 let _avisoParado=null, _ultimaMarca=0;
 function marcarAtividade(){
   const agora=Date.now();
@@ -1043,17 +1043,26 @@ function ultimaAtividade(){
   document.addEventListener(ev,function(){ if(!_avisoParado) marcarAtividade(); },{passive:true});
 });
 function fecharAvisoParado(){
-  if(_avisoParado){ _avisoParado.remove(); _avisoParado=null; }
+  _avisoParado=null;
+  // Por id, e nao so pela variavel: assim um aviso solto na tela tambem sai.
+  document.querySelectorAll('#parado-ov').forEach(function(x){ x.remove(); });
 }
 function continuarConectado(){
   fecharAvisoParado();
   _ultimaMarca=0;
   marcarAtividade();
 }
+function tempoQueFalta(segundos){
+  if(segundos<60) return segundos+' segundo'+(segundos===1?'':'s');
+  const m=Math.floor(segundos/60), s=segundos%60;
+  return m+' minuto'+(m===1?'':'s')+(s?' e '+s+' segundo'+(s===1?'':'s'):'');
+}
 function mostrarAvisoParado(segundos){
+  // Um aviso so: sem isto nascia um a cada 5 s, e fechar um deixava os outros
+  // (visto na tela em 22/09/2026 — quatro empilhados).
   if(_avisoParado){
     const c=_avisoParado.querySelector('[data-conta]');
-    if(c) c.textContent=segundos;
+    if(c) c.textContent=tempoQueFalta(segundos);
     return;
   }
   const ov=document.createElement('div');
@@ -1061,10 +1070,11 @@ function mostrarAvisoParado(segundos){
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9500;display:flex;align-items:center;justify-content:center;padding:16px';
   ov.innerHTML='<div style="background:#fff;border-radius:14px;max-width:380px;width:100%;padding:20px;text-align:center;font-size:13.5px;line-height:1.5;color:#2c3e50">'+
     '<div style="font-weight:700;font-size:16px;margin-bottom:8px">Você ainda está aí?</div>'+
-    '<div>O sistema vai encerrar a sessão em <b data-conta>'+segundos+'</b> segundos, porque ficou parado.</div>'+
+    '<div>O sistema vai encerrar a sessão em <b data-conta>'+tempoQueFalta(segundos)+'</b>, porque ficou parado.</div>'+
     '<button type="button" onclick="continuarConectado()" style="margin-top:14px;background:#17a2b8;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit">Continuar conectado</button>'+
   '</div>';
   document.body.appendChild(ov);
+  _avisoParado=ov;
 }
 async function conferirSessaoParada(){
   // So vale para quem esta dentro: na tela de login nao ha o que encerrar.
