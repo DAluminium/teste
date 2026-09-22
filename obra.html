@@ -5387,7 +5387,11 @@ function mostrarLogin(){
       const r=await fazerLogin(u,s);
       abrirApp(r.nome||r.username||u, r.role);
     }catch(e){
-      if(e.status===401) avisar('Usuário ou senha inválidos.');
+      // Bloqueado pelo Worker por excesso de senhas erradas: a mensagem dele ja
+      // diz quantos minutos faltam. Sem isto aparecia "nao consegui falar com o
+      // servidor" (achado na auditoria de 22/09/2026 — os outros modulos ja tinham).
+      if(e.status===429) avisar(e.message);
+      else if(e.status===401) avisar('Usuário ou senha inválidos.');
       else avisar('Não consegui falar com o servidor ('+(e.message||'erro')+'). Tente de novo.');
       btn.disabled=false; btn.textContent='Entrar';
     }
