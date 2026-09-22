@@ -1082,6 +1082,19 @@ async function abrirAnexo(url,nome){
     alert('Não consegui abrir o anexo.\n\n'+e.message);
   }
 }
+// Depois de gravar a ficha SEM o anexo, apaga o arquivo no Cloudinary (LGPD:
+// direito de exclusao). Antes, remover so tirava o anexo da tela e o arquivo
+// ficava guardado para sempre. O Worker so apaga se nenhum registro citar mais
+// o arquivo (a Obra e a Fabrica dividem anexos). Falha aqui nao atrapalha
+// quem esta usando: o anexo ja saiu da ficha.
+async function excluirArquivoDoAnexo(url){
+  if(!url) return;
+  try{
+    await fetch(WORKER_URL,{method:'POST',cache:'no-store',
+      headers:cabecalhos(SUPA_SISTEMA,{'Content-Type':'application/json','X-Action':'excluir-anexo'}),
+      body:JSON.stringify({url:url})});
+  }catch(e){ console.warn('Não consegui apagar o arquivo no Cloudinary:',e); }
+}
 // Envio assinado pelo Worker: o arquivo sobe como privado. Devolve a mesma
 // resposta do servico de arquivos (secure_url, public_id...) de antes.
 async function enviarArquivoPrivado(arquivo,pasta,tipoRecurso){
@@ -2840,10 +2853,12 @@ async function removeAttach(idx){
   if(!confirm('Remover este anexo?')) return;
   const r=attachType==='pagar'?data.pagar[attachIdx]:data.receber[attachIdx];
   const arq=(r.attachments[idx]||{}).name||'(sem nome)';
-  r.attachments.splice(idx,1);
+  const removido=r.attachments.splice(idx,1)[0];
   logFin('Removeu anexo',
     (attachType==='pagar'?'A pagar · ':'A receber · ')+(attachType==='pagar'?(r.desc||'—'):(r.cliente||'—')),arq);
   await persist(); render(); renderAttachList();
+  // Gravado sem o anexo: agora apaga o arquivo no Cloudinary.
+  if(removido) excluirArquivoDoAnexo(removido.url);
 }
 
 // ---- PARCELAS ----
