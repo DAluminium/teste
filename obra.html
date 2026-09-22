@@ -139,8 +139,11 @@ table.carteira tbody tr:hover{background:var(--teal-light)}
 #ctr-papel .ctr-pagina{page-break-before:always;break-before:page;height:0}
 #ctr-papel .ctr-assina{margin-top:26px;page-break-inside:avoid;break-inside:avoid}
 #ctr-papel .ctr-local{margin:0 0 26px}
-#ctr-papel .ctr-assina-um{margin:0 0 22px;text-align:center}
-#ctr-papel .ctr-linha{border-top:1px solid #111;width:78%;margin:0 auto 4px}
+/* 35 mm em branco ACIMA da linha: e onde entra a assinatura, inclusive o
+   carimbo da assinatura digital ("Assinado de forma digital por..."), que
+   ocupa varias linhas. Embaixo, folga para separar os dois blocos. */
+#ctr-papel .ctr-assina-um{margin:0 0 14mm;text-align:center}
+#ctr-papel .ctr-linha{border-top:1px solid #111;width:78%;margin:35mm auto 4px}
 #ctr-papel .ctr-nome{font-weight:700;font-size:11pt}
 #ctr-papel .ctr-sob{font-size:10.5pt}
 #ctr-ov .modal-body{background:var(--gray-1)}
