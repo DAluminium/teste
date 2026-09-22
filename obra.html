@@ -883,6 +883,70 @@ async function abrirAnexo(url,nome){
     alert('Não consegui abrir o anexo.\n\n'+e.message);
   }
 }
+// ---- ENVIAR ANEXO PELO WHATSAPP (pedido do Ander, 21/09/2026) ----
+// O WhatsApp nao recebe arquivo por link. Entao o sistema BAIXA o arquivo, com
+// o nome original, e abre a conversa da pessoa com a mensagem pronta; quem
+// esta usando arrasta o arquivo para a conversa (no celular, anexa pelo
+// clipe). Nunca manda o LINK do anexo: ele vale 1 minuto e e so para quem
+// tem login.
+let _envioAnexo=null;
+function escEnvio(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function fecharEnvio(){ const ov=document.getElementById('envio-ov'); if(ov) ov.remove(); }
+async function enviarAnexo(url,nome){
+  if(!url) return;
+  _envioAnexo={url:url,nome:nome||'arquivo',link:'',quando:0,pessoas:[]};
+  if(!_avisaveis.length){ try{ await carregarAvisaveis(); }catch(e){} }
+  _envioAnexo.pessoas=_avisaveis.filter(function(p){ return numeroWhats(p.whatsapp); });
+  fecharEnvio();
+  const ov=document.createElement('div');
+  ov.id='envio-ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.onclick=function(e){ if(e.target===ov) fecharEnvio(); };
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;max-width:440px;width:100%;padding:18px;font-size:13.5px;line-height:1.45;max-height:90vh;overflow:auto;color:#2c3e50">'+
+    '<div style="font-weight:700;font-size:15px;margin-bottom:4px">Enviar pelo WhatsApp</div>'+
+    '<div style="color:#667;font-size:12.5px;margin-bottom:12px;word-break:break-word">'+escEnvio(_envioAnexo.nome)+'</div>'+
+    '<div style="font-size:12px;color:#556;margin-bottom:6px">Escolha quem vai receber:</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">'+
+      (_envioAnexo.pessoas.length ? _envioAnexo.pessoas.map(function(p,i){
+        return '<button type="button" style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer;font-family:inherit" onclick="enviarPara('+i+')">'+escEnvio(p.name)+'</button>';
+      }).join('') : '<span style="color:#889;font-size:12px">Ninguém da equipe tem WhatsApp cadastrado.</span>')+
+    '</div>'+
+    '<div style="font-size:12px;color:#556;margin-bottom:6px">Ou outro número (com DDD):</div>'+
+    '<div style="display:flex;gap:6px">'+
+      '<input id="envio-num" type="tel" placeholder="Ex: 69 99999-9999" style="flex:1;min-width:0;padding:8px 10px;border:1px solid #ccd;border-radius:8px;font-size:13px;font-family:inherit">'+
+      '<button type="button" style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer;font-family:inherit;background:#25D366;border-color:#25D366;color:#fff;font-weight:600" onclick="enviarPara(-1)">Enviar</button>'+
+    '</div>'+
+    '<div style="font-size:11.5px;color:#778;margin-top:12px">O arquivo vai para a sua pasta de <b>Downloads</b> e a conversa abre com a mensagem pronta. <b>Arraste o arquivo para a conversa</b> (no celular, anexe pelo clipe).</div>'+
+    '<div style="text-align:right;margin-top:12px"><button type="button" style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer;font-family:inherit" onclick="fecharEnvio()">Fechar</button></div>'+
+  '</div>';
+  document.body.appendChild(ov);
+  // Ja pede o endereco do arquivo, para o download sair no mesmo clique.
+  try{ _envioAnexo.link=await linkDoAnexo(url,nome); _envioAnexo.quando=Date.now(); }catch(e){}
+}
+async function enviarPara(i){
+  if(!_envioAnexo) return;
+  let num='', primeiro='';
+  if(i>=0){
+    const p=_envioAnexo.pessoas[i]; if(!p) return;
+    num=numeroWhats(p.whatsapp); primeiro=String(p.name||'').split(' ')[0];
+  } else {
+    num=numeroWhats((document.getElementById('envio-num')||{}).value);
+    if(!num){ alert('Número inválido.\n\nDigite com DDD, por exemplo 69 99999-9999.'); return; }
+  }
+  // O endereco vale 1 minuto: se a janela ficou aberta mais que isso, pede outro.
+  if(!_envioAnexo.link || Date.now()-_envioAnexo.quando>50000){
+    try{ _envioAnexo.link=await linkDoAnexo(_envioAnexo.url,_envioAnexo.nome); _envioAnexo.quando=Date.now(); }
+    catch(e){ alert('Não consegui preparar o arquivo.\n\n'+e.message); return; }
+  }
+  // Baixa pelo endereco do Worker (ele manda o navegador salvar, com o nome).
+  const d=document.createElement('a');
+  d.href=_envioAnexo.link+(_envioAnexo.link.indexOf('/anexo/')>0?'&baixar=1':'');
+  document.body.appendChild(d); d.click(); d.remove();
+  const msg='Olá'+(primeiro?', '+primeiro:'')+'! Segue o arquivo: '+_envioAnexo.nome;
+  fecharEnvio();
+  abrirWhats('https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg));
+}
+
 // Depois de gravar a ficha SEM o anexo, apaga o arquivo no Cloudinary (LGPD:
 // direito de exclusao). Antes, remover so tirava o anexo da tela e o arquivo
 // ficava guardado para sempre. O Worker so apaga se nenhum registro citar mais
@@ -3566,6 +3630,8 @@ function renderDocs(){
         'style="flex:1;font-size:12px;color:var(--gray-6);text-decoration:none;overflow:hidden;'+
         'text-overflow:ellipsis;white-space:nowrap" title="'+esc(d.nome)+'">'+esc(d.nome)+'</a>'+
       '<span style="font-size:10.5px;color:var(--gray-4);white-space:nowrap">'+fmtTamanho(d.tamanho||0)+'</span>'+
+      '<button type="button" data-anexo="'+esc(d.url)+'" data-nome="'+esc(d.nome)+'" onclick="enviarAnexo(this.dataset.anexo,this.dataset.nome)" title="Enviar pelo WhatsApp" '+
+        'style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;border-radius:6px;font-size:11px;padding:2px 8px;cursor:pointer;white-space:nowrap;font-family:inherit">Enviar</button>'+
       '<button type="button" onclick="removerDoc(\''+esc(d.id)+'\')" title="Remover"'+
         ' style="border:0;background:transparent;color:var(--red);cursor:pointer;font-size:15px;padding:0 3px">&times;</button>'+
       '</div>';
