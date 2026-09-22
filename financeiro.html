@@ -1060,20 +1060,22 @@ async function definirSenha(usuario,senha,senhaAtual){
 // contrato, proposta ou comprovante sem login, para sempre. Agora o Worker
 // confere o cracha e devolve um link que vale 1 minuto. Para mandar um anexo
 // a alguem, mande o ARQUIVO, nao o link.
-async function linkDoAnexo(url){
+async function linkDoAnexo(url,nome){
   const r=await fetch(WORKER_URL,{method:'POST',cache:'no-store',
     headers:cabecalhos(SUPA_SISTEMA,{'Content-Type':'application/json','X-Action':'abrir-anexo'}),
-    body:JSON.stringify({url:url})});
+    body:JSON.stringify({url:url,nome:nome||''})});
   let j=null; try{ j=await r.json(); }catch(e){}
   if(!r.ok||!j||!j.url) throw new Error((j&&j.erro)||('erro '+r.status+' no servidor'));
-  return j.url;
+  // 'abrir' e o endereco pelo Worker, com o nome original no fim (o leitor de
+  // PDF salva com esse nome, e baixar imagem funciona).
+  return j.abrir||j.url;
 }
 // A aba abre JA no clique e recebe o endereco quando ele chega: aberta depois
 // de esperar o Worker, o navegador a bloquearia como propaganda.
-async function abrirAnexo(url){
+async function abrirAnexo(url,nome){
   const aba=window.open('','_blank');
   try{
-    const u=await linkDoAnexo(url);
+    const u=await linkDoAnexo(url,nome);
     if(aba){ aba.opener=null; aba.location.href=u; } else location.href=u;
   }catch(e){
     if(aba) aba.close();
@@ -2259,7 +2261,7 @@ function renderAttachList(){
     const isPdf=/\.pdf$/i.test(a.name);
     return`<div class="attach-item">
       ${isImg?`<svg style="width:16px;height:16px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`:`<svg style="width:16px;height:16px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`}
-      <a href="#" data-anexo="${a.url}" onclick="abrirAnexo(this.dataset.anexo);return false;" title="${a.name}">${a.name}</a>
+      <a href="#" data-anexo="${a.url}" data-nome="${a.name}" onclick="abrirAnexo(this.dataset.anexo,this.dataset.nome);return false;" title="${a.name}">${a.name}</a>
       <button class="act act-del" onclick="removeAttach(${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
     </div>`;
   }).join('');

@@ -1156,20 +1156,22 @@ let _checkFab=null;
 // contrato, proposta ou comprovante sem login, para sempre. Agora o Worker
 // confere o cracha e devolve um link que vale 1 minuto. Para mandar um anexo
 // a alguem, mande o ARQUIVO, nao o link.
-async function linkDoAnexo(url){
+async function linkDoAnexo(url,nome){
   const r=await fetch(WORKER,{method:'POST',cache:'no-store',
     headers:cabecalhos({'Content-Type':'application/json','X-Action':'abrir-anexo'}),
-    body:JSON.stringify({url:url})});
+    body:JSON.stringify({url:url,nome:nome||''})});
   let j=null; try{ j=await r.json(); }catch(e){}
   if(!r.ok||!j||!j.url) throw new Error((j&&j.erro)||('erro '+r.status+' no servidor'));
-  return j.url;
+  // 'abrir' e o endereco pelo Worker, com o nome original no fim (o leitor de
+  // PDF salva com esse nome, e baixar imagem funciona).
+  return j.abrir||j.url;
 }
 // A aba abre JA no clique e recebe o endereco quando ele chega: aberta depois
 // de esperar o Worker, o navegador a bloquearia como propaganda.
-async function abrirAnexo(url){
+async function abrirAnexo(url,nome){
   const aba=window.open('','_blank');
   try{
-    const u=await linkDoAnexo(url);
+    const u=await linkDoAnexo(url,nome);
     if(aba){ aba.opener=null; aba.location.href=u; } else location.href=u;
   }catch(e){
     if(aba) aba.close();
@@ -1848,7 +1850,7 @@ function renderDocs(){
       '<span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#0e7490;'+
         'background:#e0f2f5;padding:2px 6px;border-radius:5px;white-space:nowrap">'+
         (d.tipo||'Documento')+'</span>'+
-      '<a href="#" data-anexo="'+d.url+'" onclick="abrirAnexo(this.dataset.anexo);return false;" '+
+      '<a href="#" data-anexo="'+d.url+'" data-nome="'+esc(d.nome)+'" onclick="abrirAnexo(this.dataset.anexo,this.dataset.nome);return false;" '+
         'style="flex:1;font-size:12px;color:#2c3e50;text-decoration:none;overflow:hidden;'+
         'text-overflow:ellipsis;white-space:nowrap" title="'+d.nome+'">'+d.nome+'</a>'+
       '<span style="font-size:10.5px;color:#9aa5b1;white-space:nowrap">'+fmtTamanho(d.tamanho||0)+'</span>'+

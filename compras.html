@@ -1802,10 +1802,10 @@ async function viewFile(id,type,name,url){
   }
   const isPdf=(type||'').includes('pdf');
   if(isPdf){
-    abrirAnexo(url);
+    abrirAnexo(url,name);
   } else {
     try{
-      showImagePreview(await linkDoAnexo(url),name);
+      showImagePreview(await linkDoAnexo(url,name),name);
       document.getElementById('img-dl-btn').onclick=function(){ baixarAnexo(url,name); };
     }
     catch(e){ alert('Não consegui abrir o anexo.\n\n'+e.message); }
@@ -3463,20 +3463,22 @@ async function definirSenha(usuario,senha,senhaAtual){
 // contrato, proposta ou comprovante sem login, para sempre. Agora o Worker
 // confere o cracha e devolve um link que vale 1 minuto. Para mandar um anexo
 // a alguem, mande o ARQUIVO, nao o link.
-async function linkDoAnexo(url){
+async function linkDoAnexo(url,nome){
   const r=await fetch(WORKER_URL,{method:'POST',cache:'no-store',
     headers:cabecalhos(SUPA_SISTEMA,{'Content-Type':'application/json','X-Action':'abrir-anexo'}),
-    body:JSON.stringify({url:url})});
+    body:JSON.stringify({url:url,nome:nome||''})});
   let j=null; try{ j=await r.json(); }catch(e){}
   if(!r.ok||!j||!j.url) throw new Error((j&&j.erro)||('erro '+r.status+' no servidor'));
-  return j.url;
+  // 'abrir' e o endereco pelo Worker, com o nome original no fim (o leitor de
+  // PDF salva com esse nome, e baixar imagem funciona).
+  return j.abrir||j.url;
 }
 // A aba abre JA no clique e recebe o endereco quando ele chega: aberta depois
 // de esperar o Worker, o navegador a bloquearia como propaganda.
-async function abrirAnexo(url){
+async function abrirAnexo(url,nome){
   const aba=window.open('','_blank');
   try{
-    const u=await linkDoAnexo(url);
+    const u=await linkDoAnexo(url,nome);
     if(aba){ aba.opener=null; aba.location.href=u; } else location.href=u;
   }catch(e){
     if(aba) aba.close();
@@ -3488,7 +3490,7 @@ async function abrirAnexo(url){
 // lugar da tela do modulo, e o PDF saia com o nome "download.pdf".
 async function baixarAnexo(url,nome){
   try{
-    const r=await fetch(await linkDoAnexo(url),{cache:'no-store'});
+    const r=await fetch(await linkDoAnexo(url,nome),{cache:'no-store'});
     if(!r.ok) throw new Error('o serviço de arquivos respondeu '+r.status);
     const obj=URL.createObjectURL(await r.blob());
     const a=document.createElement('a');
