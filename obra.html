@@ -137,6 +137,7 @@ table.carteira tbody tr:hover{background:var(--teal-light)}
 .chip-campo{display:inline-block;background:var(--teal-light);color:var(--teal-dark);border-radius:5px;
   padding:0 5px;font-size:10.5px;font-weight:600;line-height:1.5}
 #ctr-papel .ctr-pagina{page-break-before:always;break-before:page;height:0}
+#ctr-papel .ctr-proposta{margin:18px 0 0;font-style:italic}
 #ctr-papel .ctr-assina{margin-top:26px;page-break-inside:avoid;break-inside:avoid}
 #ctr-papel .ctr-local{margin:0 0 26px}
 /* 35 mm em branco ACIMA da linha: e onde entra a assinatura, inclusive o
@@ -2668,6 +2669,18 @@ function paragrafosHtml(texto, d){
   }).join('');
 }
 
+// A proposta comercial vai num arquivo separado, do jeito que o comercial
+// mandou. Para o cliente nao ficar na duvida do que recebeu, o contrato diz
+// por escrito que ela acompanha — so quando o numero esta preenchido.
+function textoDaProposta(d){
+  const n=(d&&d.proposta||'').trim();
+  return n ? 'Acompanha este contrato a proposta comercial nº '+n+', enviada junto com ele.' : '';
+}
+function notaDaPropostaHtml(d){
+  const t=textoDaProposta(d);
+  return t ? '<p class="ctr-proposta">'+esc(t)+'</p>' : '';
+}
+
 function assinaturasHtml(modelo, d){
   const porRotulo=(modelo.assinaturaEstilo==='rotulo');
   function bloco(nome, linha2){
@@ -2710,7 +2723,7 @@ function htmlDoContrato(c, modelo){
     '<h1>'+esc(trocarCampos(modelo.titulo,d))+'</h1>'+
     '<p class="ctr-num">'+esc(modelo.rotuloNumero||'Nº do Pedido')+': '+esc(d.numero)+'</p>';
   (modelo.blocos||[]).forEach(function(b){
-    if(b.tipo==='assinaturas'){ html+=assinaturasHtml(modelo,d); return; }
+    if(b.tipo==='assinaturas'){ html+=notaDaPropostaHtml(d)+assinaturasHtml(modelo,d); return; }
     if(b.tipo==='pagina'){ html+='<div class="ctr-pagina"></div>'; return; }
     html+='<div class="ctr-clausula"><h2>'+esc(trocarCampos(tituloDoBloco(c,b),d))+'</h2>'+
       paragrafosHtml(textoDoBlocoNoContrato(c,b),d)+'</div>';
@@ -2908,6 +2921,8 @@ function montarPdfContrato(jsPDFctor, modelo, d, op){
     if(b.tipo==='pagina'){ novaPagina(); return; }
     if(b.tipo==='assinaturas'){
       const porRotulo=(modelo.assinaturaEstilo==='rotulo');
+      const nota=textoDaProposta(d);
+      if(nota) escrever(nota, {depois:4});
       escrever((d.cidadeForo||'__________')+', '+(d.dataTexto||'__________')+'.', {depois:6});
       assinatura(d.clienteNome, porRotulo?'CONTRATANTE':(d.clienteDoc?'CPF/CNPJ: '+d.clienteDoc:''));
       assinatura(d.contratadaNome, porRotulo?'CONTRATADA':('CNPJ: '+(d.contratadaCnpj||'__________')));
