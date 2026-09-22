@@ -1804,7 +1804,10 @@ async function viewFile(id,type,name,url){
   if(isPdf){
     abrirAnexo(url);
   } else {
-    try{ showImagePreview(await linkDoAnexo(url),name); }
+    try{
+      showImagePreview(await linkDoAnexo(url),name);
+      document.getElementById('img-dl-btn').onclick=function(){ baixarAnexo(url,name); };
+    }
     catch(e){ alert('Não consegui abrir o anexo.\n\n'+e.message); }
   }
 }
@@ -1814,7 +1817,7 @@ function downloadFile(id,type,name,url){
     alert('Este anexo foi salvo antes da atualização para a nuvem.\nPor favor remova-o (🗑️) e anexe novamente.');
     return;
   }
-  abrirAnexo(url);
+  baixarAnexo(url,name);
 }
 
 function showImagePreview(url,name){
@@ -1846,7 +1849,7 @@ function closeImagePreview(){
 function printAll(){
   const r=data[attachType][attachIdx];
   if(!r.attachments||!r.attachments.length){ alert('Nenhum anexo.'); return; }
-  r.attachments.forEach(a=>abrirAnexo(a.url));
+  r.attachments.forEach(a=>baixarAnexo(a.url,a.name));
 }
 
 async function removeAttach(idx){
@@ -3478,6 +3481,22 @@ async function abrirAnexo(url){
   }catch(e){
     if(aba) aba.close();
     alert('Não consegui abrir o anexo.\n\n'+e.message);
+  }
+}
+// Baixar de verdade, com o nome original. Sem isto o navegador ignora o
+// pedido de baixar (o arquivo e de outro site) e so abre — a imagem abria no
+// lugar da tela do modulo, e o PDF saia com o nome "download.pdf".
+async function baixarAnexo(url,nome){
+  try{
+    const r=await fetch(await linkDoAnexo(url),{cache:'no-store'});
+    if(!r.ok) throw new Error('o serviço de arquivos respondeu '+r.status);
+    const obj=URL.createObjectURL(await r.blob());
+    const a=document.createElement('a');
+    a.href=obj; a.download=nome||'arquivo';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(obj); },60000);
+  }catch(e){
+    alert('Não consegui baixar o anexo.\n\n'+e.message);
   }
 }
 // Envio assinado pelo Worker: o arquivo sobe como privado. Devolve a mesma
