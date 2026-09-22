@@ -3355,6 +3355,11 @@ async function savePagar(){
   if(!desc){ alert('Preencha a Descrição.'); return; }
   const parcelas=getParcelas();
   if(!parcelas.length){ alert('Adicione pelo menos 1 boleto/parcela com vencimento e valor.'); return; }
+  // Ano fora de 2000-2100 e erro de digitacao (ver dataImpossivel).
+  for(let i=0;i<parcelas.length;i++){
+    const q=conferirDatas({'vencimento':parcelas[i].venc,'pagamento':parcelas[i].dtPag});
+    if(q){ alert('Data inválida na parcela '+(i+1)+' ('+q+').\n\nConfira o ano: o certo é algo como '+today().slice(0,4)+'.'); return; }
+  }
   const totalValor=parcelas.reduce((a,p)=>a+p.valor,0);
   const parentId=pagarEditId!==null?data.pagar[pagarEditId].parentId||genId():genId();
 
@@ -4271,6 +4276,10 @@ async function saveReceber(){
   const valor=parseBR(document.getElementById('r-valor').value);
   const venc=document.getElementById('r-venc').value;
   if(!cliente||!valor||!venc){ alert('Preencha Cliente, Valor e Vencimento.'); return; }
+  {
+    const q=conferirDatas({'vencimento':venc,'recebimento':document.getElementById('r-dtrec')?document.getElementById('r-dtrec').value:''});
+    if(q){ alert('Data inválida ('+q+').\n\nConfira o ano: o certo é algo como '+today().slice(0,4)+'.'); return; }
+  }
   const entry={
     id:receberEditId!==null?data.receber[receberEditId].id:genId(),
     cliente, contrato:document.getElementById('r-contrato').value.trim(),
@@ -4617,11 +4626,43 @@ async function saveTransf(){
   await persist(); closeTransf(); renderCaixa();
 }
 
+// ---- DATA IMPOSSÍVEL (22/09/2026) ----
+// Uma data digitada errada (ano 0002 no lugar de 2026) criava um mes que nao
+// existe no relatorio, e o lancamento sumia das telas. Ano fora de 2000-2100
+// e sempre erro de digitacao.
+const ANO_MIN=2000, ANO_MAX=2100;
+function dataImpossivel(v){
+  if(!v) return false;
+  const a=parseInt(String(v).slice(0,4),10);
+  return !(a>=ANO_MIN && a<=ANO_MAX);
+}
+// Diz o que esta errado numa lista de datas {rotulo: valor}; '' se tudo certo.
+function conferirDatas(datas){
+  const ruins=[];
+  Object.keys(datas).forEach(function(k){ if(dataImpossivel(datas[k])) ruins.push(k+': '+datas[k]); });
+  return ruins.join(', ');
+}
+// Lancamentos ja gravados com data impossivel — para o relatorio avisar.
+function lancamentosComDataImpossivel(){
+  const fora=[];
+  (data.pagar||[]).forEach(function(r){
+    const q=conferirDatas({'vencimento':r.venc,'pagamento':r.dtPag});
+    if(q) fora.push({onde:'Contas a pagar', desc:r.desc||r.forn||'—', valor:r.valor, erro:q});
+  });
+  (data.receber||[]).forEach(function(r){
+    const q=conferirDatas({'vencimento':r.venc,'recebimento':r.dtRec});
+    if(q) fora.push({onde:'Contas a receber', desc:r.cliente||r.desc||'—', valor:r.valor, erro:q});
+  });
+  return fora;
+}
+
 // ---- RELATÓRIO ----
 function populateMesFiltros(){
   const meses=new Set();
-  data.pagar.forEach(r=>{ if(r.venc) meses.add(r.venc.slice(0,7)); if(r.dtPag) meses.add(r.dtPag.slice(0,7)); });
-  data.receber.forEach(r=>{ if(r.venc) meses.add(r.venc.slice(0,7)); if(r.dtRec) meses.add(r.dtRec.slice(0,7)); });
+  // Data impossivel nao vira mes na lista (era assim que nascia "setembro de
+  // 2"); o relatorio avisa sobre ela num aviso proprio.
+  data.pagar.forEach(r=>{ if(r.venc&&!dataImpossivel(r.venc)) meses.add(r.venc.slice(0,7)); if(r.dtPag&&!dataImpossivel(r.dtPag)) meses.add(r.dtPag.slice(0,7)); });
+  data.receber.forEach(r=>{ if(r.venc&&!dataImpossivel(r.venc)) meses.add(r.venc.slice(0,7)); if(r.dtRec&&!dataImpossivel(r.dtRec)) meses.add(r.dtRec.slice(0,7)); });
   const sorted=[...meses].sort().reverse();
   const curMes=today().slice(0,7);
   if(!meses.has(curMes)) sorted.unshift(curMes);
@@ -4649,7 +4690,14 @@ function renderRelatorio(){
   const porCat={};
   pagMes.forEach(r=>{ if(!porCat[r.cat]) porCat[r.cat]=0; porCat[r.cat]+=r.valorPago||r.valor; });
 
-  let html=`
+  const fora=lancamentosComDataImpossivel();
+  let html=fora.length ? `
+  <div class="rel-section" style="border:1px solid #E6B800;background:#FFFBEA">
+    <div class="rel-title">⚠️ LANÇAMENTO COM DATA IMPOSSÍVEL</div>
+    ${fora.map(f=>`<div class="rel-row"><span>${f.onde} · ${f.desc} <span style="color:#8a6d00">(${f.erro})</span></span><span>R$ ${fmtBR(f.valor||0)}</span></div>`).join('')}
+    <div class="rel-row"><span style="font-size:12px;color:#8a6d00">Corrija a data na aba correspondente (ou exclua o lançamento). Enquanto estiver assim, ele não entra em nenhum mês.</span><span></span></div>
+  </div>` : '';
+  html+=`
   <div class="rel-section">
     <div class="rel-title">💰 RECEITAS — ${mesLabel(mes+'-01').toUpperCase()}</div>
     <div class="rel-row"><span>Recebimentos do período</span><span class="rel-pos">R$ ${fmtBR(totalRec)}</span></div>
