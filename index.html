@@ -288,6 +288,10 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
           <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
           Manual de emergência
         </div>
+        <div class="admin-card" data-so-admin onclick="abrirProtecaoAnexos()">
+          <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Proteger anexos antigos
+        </div>
         <div class="admin-card" data-so-admin onclick="openSessoes()">
           <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
           Sessões ativas
@@ -1217,6 +1221,97 @@ function fecharTempoUso(){
   // funcao rodar antes dessa linha, o erro derrubaria a entrada inteira.
   try{ _tempoUltimo=[]; }catch(e){}
 }
+// ---- PROTEGER ANEXOS ANTIGOS (auditoria de LGPD, item 6, 21/09/2026) ----
+// Os anexos enviados antes de 21/09/2026 tem endereco aberto: quem tiver o
+// link abre, sem login. Esta janela pede ao Worker para torna-los privados,
+// no mesmo lugar e com o mesmo nome. Nada e apagado e nenhum dado do sistema
+// muda; depois disso eles so abrem pelo sistema. Vale para producao e teste
+// ao mesmo tempo (os arquivos sao os mesmos). Pode rodar de novo sem medo:
+// o que ja estiver protegido e pulado.
+let _amostraProtegida='';
+function abrirProtecaoAnexos(){
+  if(recusarSeNaoForAdmin('Tornar os anexos antigos privados mexe nos arquivos de todos os módulos.')) return;
+  let ov=document.getElementById('protecao-overlay');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='protecao-overlay';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px';
+    ov.innerHTML='<div style="background:#fff;border-radius:14px;max-width:520px;width:100%;padding:20px;font-size:13.5px;line-height:1.5;max-height:90vh;overflow:auto">'+
+      '<div style="font-weight:700;font-size:16px;margin-bottom:8px">Proteger anexos antigos</div>'+
+      '<p>Os anexos enviados antes de 21/09/2026 abrem por link, sem login. Aqui eles passam a abrir <b>só pelo sistema</b>. Nada é apagado.</p>'+
+      '<p style="margin-top:6px">Depois disso, links antigos copiados ou mandados para alguém <b>param de abrir</b>. Para mandar um anexo, mande o arquivo.</p>'+
+      '<div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">'+
+        '<button class="btn btn-outline" id="prot-um" onclick="protegerAnexos(true)">1. Proteger UM arquivo, para conferir</button>'+
+        '<button class="btn btn-outline" id="prot-abrir" onclick="abrirAmostraProtegida()" disabled>2. Abrir esse arquivo pelo sistema</button>'+
+        '<button class="btn btn-teal" id="prot-todos" onclick="protegerAnexos(false)" disabled>3. Proteger todos os outros</button>'+
+      '</div>'+
+      '<div id="prot-status" style="margin-top:12px;white-space:pre-wrap;color:#34495e"></div>'+
+      '<div style="text-align:right;margin-top:12px"><button class="btn btn-outline btn-sm" onclick="document.getElementById(\'protecao-overlay\').remove()">Fechar</button></div>'+
+    '</div>';
+    document.body.appendChild(ov);
+  }
+}
+async function chamarProtecao(corpo){
+  const r=await fetch(WORKER_URL,{method:'POST',cache:'no-store',
+    headers:cabecalhos('compras',{'Content-Type':'application/json','X-Action':'proteger-anexos'}),
+    body:JSON.stringify(corpo)});
+  let j=null; try{ j=await r.json(); }catch(e){}
+  if(!r.ok||!j) throw new Error((j&&j.erro)||('erro '+r.status+' no servidor'));
+  return j;
+}
+async function protegerAnexos(soUm){
+  const st=document.getElementById('prot-status');
+  const b1=document.getElementById('prot-um'), b3=document.getElementById('prot-todos');
+  b1.disabled=true; b3.disabled=true;
+  try{
+    if(soUm){
+      st.textContent='Protegendo um arquivo...';
+      const j=await chamarProtecao({inicio:0,quantos:1});
+      _amostraProtegida=j.amostra||'';
+      if(j.protegidos===1){
+        st.textContent='Pronto: 1 arquivo protegido (de '+j.total+' citados no sistema).\n\n'+
+          'Agora clique em 2 para abrir esse arquivo pelo sistema. Se ele abrir, siga para o 3.';
+        document.getElementById('prot-abrir').disabled=false;
+      } else if(j.falhas&&j.falhas.length){
+        st.textContent='O serviço de arquivos recusou: '+(j.falhas[0].detalhe||j.falhas[0].status)+'\n\nNada mais foi feito. Mande um print disto.';
+        b1.disabled=false;
+      } else {
+        st.textContent='Esse primeiro já estava protegido ('+j.total+' citados no sistema). Pode seguir para o 3.';
+      }
+      b3.disabled=false;
+      return;
+    }
+    let inicio=0, prot=0, ja=0, falhas=[], total=0, fim=false;
+    while(!fim){
+      st.textContent='Protegendo... '+inicio+(total?' de '+total:'');
+      const j=await chamarProtecao({inicio:inicio});
+      total=j.total; prot+=j.protegidos; ja+=j.jaEstavam; falhas=falhas.concat(j.falhas||[]);
+      inicio=j.proximo; fim=j.terminou;
+    }
+    st.textContent='Terminado. '+total+' anexos citados no sistema:\n'+
+      '• '+prot+' protegidos agora\n• '+ja+' já estavam protegidos\n• '+falhas.length+' falharam'+
+      (falhas.length?'\n\nOs que falharam continuam como estavam. Pode clicar em 3 de novo: o que já foi é pulado.':'');
+    b3.disabled=false;
+  }catch(e){
+    st.textContent='Parou: '+e.message+'\n\nO que já foi protegido continua protegido. Pode tentar de novo.';
+    b1.disabled=false; b3.disabled=false;
+  }
+}
+// A aba abre no clique e recebe o endereco quando ele chega (senao o
+// navegador bloqueia como propaganda).
+async function abrirAmostraProtegida(){
+  if(!_amostraProtegida) return;
+  const aba=window.open('','_blank');
+  try{
+    const r=await fetch(WORKER_URL,{method:'POST',cache:'no-store',
+      headers:cabecalhos('compras',{'Content-Type':'application/json','X-Action':'abrir-anexo'}),
+      body:JSON.stringify({url:_amostraProtegida})});
+    const j=await r.json();
+    if(!r.ok||!j.url) throw new Error(j.erro||('erro '+r.status));
+    if(aba){ aba.opener=null; aba.location.href=j.url; } else location.href=j.url;
+  }catch(e){ if(aba) aba.close(); alert('Não consegui abrir: '+e.message); }
+}
+
 function recusarSeNaoForAdmin(oque){
   if(soAdmin()) return false;
   alert('Isto é só para o administrador.\n\n' + oque);
