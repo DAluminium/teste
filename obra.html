@@ -634,6 +634,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div id="ctr-qual" style="font-size:12.5px;margin-bottom:8px"></div>
       <div id="ctr-faltando" style="margin-bottom:10px"></div>
       <div id="ctr-anexos" style="margin-bottom:10px"></div>
+      <div id="ctr-clausulas" style="margin-bottom:10px"></div>
       <div id="ctr-papel"></div>
     </div>
     <div class="modal-foot">
@@ -660,6 +661,30 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     </div>
     <div class="modal-foot">
       <button class="btn btn-outline" onclick="fecharAcessos()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLÁUSULA SÓ DESTE CONTRATO -->
+<div class="overlay" id="clz-ov">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-head">
+      <div class="modal-title">Cláusula só deste contrato</div>
+      <button class="btn btn-outline btn-sm" onclick="fecharClausulaDoContrato()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div class="aviso" style="margin:0 0 10px">O que você mudar aqui vale <strong>só para este contrato</strong>. O modelo continua como está para os próximos clientes.</div>
+      <div class="form-grid">
+        <div class="fg span2"><label>Título da cláusula</label><input id="clz-titulo"></div>
+        <div class="fg span2"><label>Texto</label>
+          <textarea id="clz-texto" style="min-height:260px"></textarea>
+          <small style="color:var(--gray-4);font-size:11px">Uma linha em branco separa um parágrafo do outro. Campos entre chaves, como {{valor}}, continuam sendo preenchidos.</small></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="fecharClausulaDoContrato()">Cancelar</button>
+      <button class="btn btn-outline" id="clz-padrao" onclick="voltarClausulaAoPadrao()" style="display:none">Voltar ao padrão</button>
+      <button class="btn btn-teal" onclick="salvarClausulaDoContrato()">Salvar só neste contrato</button>
     </div>
   </div>
 </div>
@@ -2656,6 +2681,25 @@ function assinaturasHtml(modelo, d){
     '</div>';
 }
 
+// ---- CLÁUSULA MUDADA SÓ NESTE CONTRATO (pedido do Ander, 22/09/2026) ----
+// O modelo serve para todos, mas um contrato as vezes precisa de outro texto
+// — por exemplo, o cliente que so fechou esquadria preta nao tem o paragrafo
+// do amadeirado. A versao propria fica na ficha do contrato
+// (c.contrato.clausulas[id do bloco]) e NAO toca no modelo: o proximo cliente
+// sai com o texto completo. Cada clausula volta ao padrao sozinha.
+function clausulaPropria(c, b){
+  const l=((c&&c.contrato)||{}).clausulas||{};
+  return (b && b.id && l[b.id]) ? l[b.id] : null;
+}
+function tituloDoBloco(c, b){
+  const p=clausulaPropria(c,b);
+  return (p && p.titulo!==undefined && p.titulo!=='') ? p.titulo : (b.titulo||'');
+}
+function textoDoBlocoNoContrato(c, b){
+  const p=clausulaPropria(c,b);
+  return (p && p.texto!==undefined) ? p.texto : textoDoBloco(b);
+}
+
 function htmlDoContrato(c, modelo){
   if(!modelo) return '<p>Nenhum modelo de contrato cadastrado.</p>';
   const d=dadosDoContrato(c, modelo);
@@ -2665,8 +2709,8 @@ function htmlDoContrato(c, modelo){
   (modelo.blocos||[]).forEach(function(b){
     if(b.tipo==='assinaturas'){ html+=assinaturasHtml(modelo,d); return; }
     if(b.tipo==='pagina'){ html+='<div class="ctr-pagina"></div>'; return; }
-    html+='<div class="ctr-clausula"><h2>'+esc(trocarCampos(b.titulo,d))+'</h2>'+
-      paragrafosHtml(textoDoBloco(b),d)+'</div>';
+    html+='<div class="ctr-clausula"><h2>'+esc(trocarCampos(tituloDoBloco(c,b),d))+'</h2>'+
+      paragrafosHtml(textoDoBlocoNoContrato(c,b),d)+'</div>';
   });
   return html;
 }
@@ -2733,6 +2777,7 @@ function montarContrato(){
   if(qual) qual.innerHTML='<strong>Modelo:</strong> '+esc(modelo?modelo.nome:'—')+
     ' <span style="color:var(--gray-4)">— para trocar, feche e mude na parte Contrato da ficha.</span>';
   mostrarAnexosDoContrato(c);
+  renderClausulasDoContrato();
   const av=document.getElementById('ctr-faltando');
   if(av){
     const faltam=faltandoNoContrato(c, modelo);
@@ -2827,9 +2872,10 @@ function montarPdfContrato(jsPDFctor, modelo, d, op){
   }
   function assinatura(nome, sob){
     const alt=alturaLinha(10.5);
-    // Espaco em branco ACIMA da linha: e onde a pessoa assina. Sem isto a
-    // assinatura ficava espremida entre a clausula e o nome.
-    const ESPACO_DE_ASSINAR=18;
+    // Espaco em branco ACIMA da linha: e onde a assinatura entra. Precisa
+    // caber o carimbo da assinatura DIGITAL, que tem varias linhas
+    // ("Assinado de forma digital por...") — por isso 35 mm, e nao 18.
+    const ESPACO_DE_ASSINAR=35;
     if(y+ESPACO_DE_ASSINAR+alt*3>FIM) novaPagina();
     y+=ESPACO_DE_ASSINAR;
     doc.setDrawColor(60); doc.setLineWidth(0.3);
@@ -2843,7 +2889,7 @@ function montarPdfContrato(jsPDFctor, modelo, d, op){
       doc.text(String(sob), 105, y, {align:'center'});
       y+=alturaLinha(9.5);
     }
-    y+=alt*1.5;
+    y+=alt*2.5;
   }
   if(op.logo){
     try{
@@ -2864,8 +2910,8 @@ function montarPdfContrato(jsPDFctor, modelo, d, op){
       assinatura(d.contratadaNome, porRotulo?'CONTRATADA':('CNPJ: '+(d.contratadaCnpj||'__________')));
       return;
     }
-    escrever(trocarCampos(b.titulo, d), {negrito:true, depois:1.5});
-    String(textoDoBloco(b)||'').split(/\n{2,}/).forEach(function(p){
+    escrever(trocarCampos(tituloDoBloco(op.contrato, b), d), {negrito:true, depois:1.5});
+    String(textoDoBlocoNoContrato(op.contrato, b)||'').split(/\n{2,}/).forEach(function(p){
       const t=p.trim();
       if(!t) return;
       // Bloco com quebra de linha dentro (lista, "Nome: ...") vai linha a
@@ -2908,7 +2954,7 @@ async function baixarContratoComSenha(){
   if(btn){ btn.disabled=true; btn.textContent='Gerando...'; }
   try{
     const jsPDFctor=await carregarJsPDF();
-    const doc=montarPdfContrato(jsPDFctor, modelo, d, {senha:senha, logo:LOGO_DALUMINIUM});
+    const doc=montarPdfContrato(jsPDFctor, modelo, d, {senha:senha, logo:LOGO_DALUMINIUM, contrato:c});
     const nome=('Contrato '+(d.numero||'')+' - '+(d.clienteNome||'')).replace(/[\\/:*?"<>|]/g,'-').trim().slice(0,110)+'.pdf';
     doc.save(nome);
     anotarAcesso('baixou o PDF com senha', alvoDoContrato(c));
@@ -2920,6 +2966,73 @@ async function baixarContratoComSenha(){
       (e&&e.message?e.message:'erro')+'\n\nUse "Imprimir ou salvar em PDF" — só que esse sai sem senha.');
   }
   if(btn){ btn.disabled=false; btn.textContent='Baixar PDF com senha'; }
+}
+
+let _clausulaDoContratoEditando=null;
+function renderClausulasDoContrato(){
+  const el=document.getElementById('ctr-clausulas');
+  if(!el) return;
+  const c=(dados.contratos||[]).find(function(x){ return x.id===_contratoId; });
+  const modelo=c?modeloContratoDe((c.contrato||{}).modelo||''):null;
+  if(!c||!modelo){ el.innerHTML=''; return; }
+  const blocos=(modelo.blocos||[]).filter(function(b){ return b.tipo==='clausula'||b.tipo==='dados'; });
+  const mudadas=blocos.filter(function(b){ return !!clausulaPropria(c,b); }).length;
+  el.innerHTML='<details'+(mudadas?' open':'')+' style="border:1px solid var(--gray-3);border-radius:8px;padding:8px 10px">'+
+    '<summary style="cursor:pointer;font-size:12.5px"><strong>Cláusulas deste contrato</strong> — '+
+      (mudadas? '<span style="color:#B9770E;font-weight:700">'+mudadas+' alterada'+(mudadas>1?'s':'')+' só aqui</span>' : 'todas iguais ao modelo')+
+      ' <span style="color:var(--gray-4)">· clique para abrir</span></summary>'+
+    '<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">'+
+    blocos.map(function(b){
+      const p=clausulaPropria(c,b);
+      return '<div class="caixa-linha" style="font-size:12px;gap:8px">'+
+        '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(tituloDoBloco(c,b))+
+          (p?' <span style="color:#B9770E;font-weight:700">· alterada</span>':'')+'</span>'+
+        '<button class="btn btn-outline btn-sm" onclick="abrirClausulaDoContrato(\''+esc(b.id)+'\')">Editar</button>'+
+      '</div>';
+    }).join('')+'</div></details>';
+}
+function abrirClausulaDoContrato(id){
+  const c=(dados.contratos||[]).find(function(x){ return x.id===_contratoId; });
+  const modelo=c?modeloContratoDe((c.contrato||{}).modelo||''):null;
+  const b=modelo?(modelo.blocos||[]).find(function(x){ return x.id===id; }):null;
+  if(!b) return;
+  _clausulaDoContratoEditando=id;
+  document.getElementById('clz-titulo').value=tituloDoBloco(c,b);
+  document.getElementById('clz-texto').value=textoDoBlocoNoContrato(c,b);
+  document.getElementById('clz-padrao').style.display=clausulaPropria(c,b)?'':'none';
+  document.getElementById('clz-ov').classList.add('open');
+}
+function fecharClausulaDoContrato(){
+  document.getElementById('clz-ov').classList.remove('open');
+  _clausulaDoContratoEditando=null;
+}
+async function salvarClausulaDoContrato(){
+  if(!_clausulaDoContratoEditando) return;
+  const id=_clausulaDoContratoEditando;
+  const titulo=document.getElementById('clz-titulo').value;
+  const texto=document.getElementById('clz-texto').value;
+  const ok=await alterar(function(base){
+    const alvo=(base.contratos||[]).find(function(x){ return x.id===_contratoId; });
+    if(!alvo) return;
+    if(!alvo.contrato) alvo.contrato={};
+    if(!alvo.contrato.clausulas) alvo.contrato.clausulas={};
+    alvo.contrato.clausulas[id]={titulo:titulo, texto:texto};
+  }, {acao:'mudou uma cláusula só deste contrato', alvo:titulo});
+  if(!ok) return;
+  fecharClausulaDoContrato();
+  montarContrato();
+}
+async function voltarClausulaAoPadrao(){
+  const id=_clausulaDoContratoEditando;
+  if(!id) return;
+  if(!confirm('Voltar esta cláusula ao texto do modelo?\n\nO que foi escrito só neste contrato se perde.')) return;
+  const ok=await alterar(function(base){
+    const alvo=(base.contratos||[]).find(function(x){ return x.id===_contratoId; });
+    if(alvo && alvo.contrato && alvo.contrato.clausulas) delete alvo.contrato.clausulas[id];
+  }, {acao:'voltou uma cláusula ao modelo', alvo:id});
+  if(!ok) return;
+  fecharClausulaDoContrato();
+  montarContrato();
 }
 
 function imprimirContrato(){
