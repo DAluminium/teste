@@ -1211,12 +1211,28 @@ async function enviarAnexo(url,nome){
       '<input id="envio-num" type="tel" placeholder="Ex: 69 99999-9999" style="flex:1;min-width:0;padding:8px 10px;border:1px solid #ccd;border-radius:8px;font-size:13px;font-family:inherit">'+
       '<button type="button" style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer;font-family:inherit;background:#25D366;border-color:#25D366;color:#fff;font-weight:600" onclick="enviarPara(-1)">Enviar</button>'+
     '</div>'+
-    '<div style="font-size:11.5px;color:#778;margin-top:12px">O arquivo vai para a sua pasta de <b>Downloads</b> e a conversa abre com a mensagem pronta. <b>Arraste o arquivo para a conversa</b> (no celular, anexe pelo clipe).</div>'+
+    '<div style="font-size:11.5px;color:#778;margin-top:12px">No <b>celular</b>, o arquivo vai junto: escolha a conversa e envie (a mensagem fica copiada, é só colar na legenda). No <b>computador</b>, o arquivo vai para a pasta de <b>Downloads</b> e você arrasta para dentro da conversa.</div>'+
     '<div style="text-align:right;margin-top:12px"><button type="button" style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer;font-family:inherit" onclick="fecharEnvio()">Fechar</button></div>'+
   '</div>';
   document.body.appendChild(ov);
   // Ja pede o endereco do arquivo, para o download sair no mesmo clique.
   try{ _envioAnexo.link=await linkDoAnexo(url,nome); _envioAnexo.quando=Date.now(); }catch(e){}
+}
+// O tipo precisa combinar com a extensao do nome. Quando ele vem generico
+// (application/octet-stream), o celular nao sabe batizar o arquivo e o
+// WhatsApp mostra "Sem titulo".
+function tipoPeloNome(nome, doServidor){
+  const e=String(nome||'').toLowerCase().split('.').pop();
+  const T={pdf:'application/pdf',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',
+    gif:'image/gif',webp:'image/webp',heic:'image/heic',bmp:'image/bmp',
+    doc:'application/msword',
+    docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls:'application/vnd.ms-excel',
+    xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    txt:'text/plain',csv:'text/csv',zip:'application/zip'};
+  if(T[e]) return T[e];
+  const s=String(doServidor||'').split(';')[0].trim();
+  return s||'application/octet-stream';
 }
 async function enviarPara(i){
   if(!_envioAnexo) return;
@@ -1241,10 +1257,15 @@ async function enviarPara(i){
     if(navigator.canShare && navigator.share){
       const r=await fetch(_envioAnexo.link,{cache:'no-store'});
       if(r.ok){
-        const arq=new File([await r.blob()], _envioAnexo.nome||'arquivo',
-          {type:r.headers.get('content-type')||'application/octet-stream'});
+        const nomeArq=_envioAnexo.nome||'arquivo';
+        const arq=new File([await r.blob()], nomeArq,
+          {type:tipoPeloNome(nomeArq, r.headers.get('content-type'))});
         if(navigator.canShare({files:[arq]})){
-          await navigator.share({files:[arq], text:msg});
+          // A mensagem NAO vai dentro do compartilhar: quando ia junto, o
+          // WhatsApp do celular mostrava o arquivo como "Sem titulo". Ela fica
+          // copiada, para colar na legenda de quem quiser.
+          await navigator.share({files:[arq]});
+          try{ await navigator.clipboard.writeText(msg); }catch(e){}
           fecharEnvio();
           return;
         }
