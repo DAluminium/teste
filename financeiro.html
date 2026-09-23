@@ -1115,28 +1115,12 @@ async function enviarAnexo(url,nome){
       '<input id="envio-num" type="tel" placeholder="Ex: 69 99999-9999" style="flex:1;min-width:0;padding:8px 10px;border:1px solid #ccd;border-radius:8px;font-size:13px;font-family:inherit">'+
       '<button type="button" style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer;font-family:inherit;background:#25D366;border-color:#25D366;color:#fff;font-weight:600" onclick="enviarPara(-1)">Enviar</button>'+
     '</div>'+
-    '<div style="font-size:11.5px;color:#778;margin-top:12px">No <b>celular</b>, o arquivo vai junto: escolha a conversa e envie (a mensagem fica copiada, é só colar na legenda). No <b>computador</b>, o arquivo vai para a pasta de <b>Downloads</b> e você arrasta para dentro da conversa.</div>'+
+    '<div style="font-size:11.5px;color:#778;margin-top:12px">O arquivo vai para a pasta de <b>Downloads</b> e a conversa abre com a mensagem pronta. No <b>computador</b>, arraste o arquivo para dentro da conversa; no <b>celular</b>, anexe pelo clipe <b>📎 → Documento</b>.</div>'+
     '<div style="text-align:right;margin-top:12px"><button type="button" style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer;font-family:inherit" onclick="fecharEnvio()">Fechar</button></div>'+
   '</div>';
   document.body.appendChild(ov);
   // Ja pede o endereco do arquivo, para o download sair no mesmo clique.
   try{ _envioAnexo.link=await linkDoAnexo(url,nome); _envioAnexo.quando=Date.now(); }catch(e){}
-}
-// O tipo precisa combinar com a extensao do nome. Quando ele vem generico
-// (application/octet-stream), o celular nao sabe batizar o arquivo e o
-// WhatsApp mostra "Sem titulo".
-function tipoPeloNome(nome, doServidor){
-  const e=String(nome||'').toLowerCase().split('.').pop();
-  const T={pdf:'application/pdf',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',
-    gif:'image/gif',webp:'image/webp',heic:'image/heic',bmp:'image/bmp',
-    doc:'application/msword',
-    docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    xls:'application/vnd.ms-excel',
-    xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    txt:'text/plain',csv:'text/csv',zip:'application/zip'};
-  if(T[e]) return T[e];
-  const s=String(doServidor||'').split(';')[0].trim();
-  return s||'application/octet-stream';
 }
 async function enviarPara(i){
   if(!_envioAnexo) return;
@@ -1155,47 +1139,44 @@ async function enviarPara(i){
   }
   const msg='Olá'+(primeiro?', '+primeiro:'')+'! Segue o arquivo: '+_envioAnexo.nome;
 
-  // No CELULAR o proprio aparelho manda o arquivo junto: abre a folha de
-  // compartilhar com o PDF anexado e a pessoa escolhe a conversa.
-  try{
-    if(navigator.canShare && navigator.share){
-      const r=await fetch(_envioAnexo.link,{cache:'no-store'});
-      if(r.ok){
-        const nomeArq=_envioAnexo.nome||'arquivo';
-        const arq=new File([await r.blob()], nomeArq,
-          {type:tipoPeloNome(nomeArq, r.headers.get('content-type'))});
-        if(navigator.canShare({files:[arq]})){
-          // A mensagem NAO vai dentro do compartilhar: quando ia junto, o
-          // WhatsApp do celular mostrava o arquivo como "Sem titulo". Ela fica
-          // copiada, para colar na legenda de quem quiser.
-          await navigator.share({files:[arq]});
-          try{ await navigator.clipboard.writeText(msg); }catch(e){}
-          fecharEnvio();
-          return;
-        }
-      }
-    }
-  }catch(e){ /* cancelou ou o aparelho nao deixou: segue pelo computador */ }
-
-  // No COMPUTADOR o WhatsApp nao aceita receber arquivo por link. Entao o
-  // arquivo e baixado, a conversa abre com a mensagem pronta e a janela diz
-  // o passo que falta — antes ela sumia e parecia que o anexo tinha ido.
+  // O arquivo e BAIXADO nos dois casos — no computador e no celular. Deixar o
+  // navegador mandar o arquivo direto para o WhatsApp funciona, mas o arquivo
+  // chega na conversa como "Sem titulo": o WhatsApp descarta o nome ao subir
+  // (testado em 23/09/2026, seis variantes, todas iguais). Baixando, a pessoa
+  // anexa pelo clipe e o nome chega certo.
   const d=document.createElement('a');
   d.href=_envioAnexo.link+(_envioAnexo.link.indexOf('/anexo/')>0?'&baixar=1':'');
   document.body.appendChild(d); d.click(); d.remove();
-  mostrarPassoDoEnvio(primeiro||('o número '+num));
-  abrirWhats('https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg));
+
+  const conversa='https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg);
+  if(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'')){
+    // No celular a conversa so abre quando a pessoa tocar: abrir na hora tira
+    // ela da tela antes de ler o passo, e o download ainda esta acontecendo.
+    mostrarPassoDoEnvio(primeiro||('o número '+num), conversa);
+    return;
+  }
+  mostrarPassoDoEnvio(primeiro||('o número '+num), '');
+  abrirWhats(conversa);
 }
-function mostrarPassoDoEnvio(quem){
+let _envioConversa='';
+function abrirConversaDoEnvio(){ if(_envioConversa) abrirWhats(_envioConversa); }
+function mostrarPassoDoEnvio(quem, conversa){
   const ov=document.getElementById('envio-ov');
   const cx=ov&&ov.firstElementChild;
   if(!cx) return;
+  _envioConversa=conversa||'';
+  const noCelular=!!_envioConversa;
   cx.innerHTML='<div style="font-weight:700;font-size:15px;margin-bottom:8px">Arquivo baixado ✓</div>'+
-    '<div>A conversa de <b>'+escEnvio(quem)+'</b> abre com a mensagem já escrita.</div>'+
+    '<div>'+(noCelular
+      ? 'Toque no botão abaixo: a conversa de <b>'+escEnvio(quem)+'</b> abre com a mensagem já escrita.'
+      : 'A conversa de <b>'+escEnvio(quem)+'</b> abre com a mensagem já escrita.')+'</div>'+
     '<div style="margin-top:10px;background:#FFFBEA;border:1px solid #E6B800;border-radius:8px;padding:10px">'+
-      '<b>Falta anexar o arquivo:</b> arraste-o da barra de downloads do navegador para dentro da conversa e envie.'+
+      (noCelular
+        ? '<b>Falta anexar o arquivo:</b> na conversa, toque no clipe <b>📎</b> → <b>Documento</b>. O arquivo aparece no alto da lista, como recente.'
+        : '<b>Falta anexar o arquivo:</b> arraste-o da barra de downloads do navegador para dentro da conversa e envie.')+
     '</div>'+
-    '<div style="margin-top:8px;font-size:12px;color:#667">O WhatsApp não aceita receber arquivo por link — por isso, no computador, esse passo é manual. No celular o arquivo vai junto automaticamente.</div>'+
+    '<div style="margin-top:8px;font-size:12px;color:#667">O WhatsApp não aceita receber arquivo por link, e quando o navegador manda o arquivo direto ele chega sem o nome ("Sem título"). Anexando o arquivo baixado, o nome vai certo.</div>'+
+    (noCelular?'<div style="margin-top:12px"><button type="button" style="border:1px solid #25D366;background:#25D366;color:#fff;border-radius:8px;padding:9px 14px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;width:100%" onclick="abrirConversaDoEnvio()">Abrir a conversa</button></div>':'')+
     '<div style="text-align:right;margin-top:12px"><button type="button" style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer;font-family:inherit" onclick="fecharEnvio()">Entendi</button></div>';
 }
 
