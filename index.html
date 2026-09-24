@@ -1263,6 +1263,9 @@ function ajustarCartoesDeAdmin(){
   if(!eh){ fecharPainelSessoes(); fecharTempoUso(); }
 }
 function fecharPainelSessoes(){
+  // Fechou: para de pedir a lista. Sem isto o pedido continuaria de 10 em 10
+  // segundos pelo resto do dia, com o painel escondido.
+  if(_sessoesRelogio){ clearInterval(_sessoesRelogio); _sessoesRelogio=null; }
   const p=document.getElementById('sessoes-panel');
   if(p) p.style.display='none';
   // Tira da tela os nomes da sessao anterior, nao so esconde.
@@ -1679,10 +1682,14 @@ function openManual(){
 }
 function closeManual(){ document.getElementById('manual-overlay').classList.remove('open'); }
 
+let _sessoesRelogio=null;
 function openSessoes(){
   if(recusarSeNaoForAdmin('A lista mostra quem esta trabalhando e permite encerrar a sessao de qualquer pessoa.')) return;
   document.getElementById('sessoes-panel').style.display='block';
   loadSessoes();
+  // Enquanto o painel estiver aberto, a lista se refaz sozinha: quem trocou de
+  // modulo ou acabou de sair aparece sem ninguem clicar em Atualizar.
+  if(!_sessoesRelogio) _sessoesRelogio=setInterval(loadSessoes,10000);
 }
 
 async function loadSessoes(){
