@@ -751,6 +751,11 @@ function mostrarBarraDeVersao(v){
     +'border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Atualizar agora</button>'
     +'<button type="button" id="barra-versao-x" style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;'
     +'border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit">Agora não</button>';
+  // No ambiente de teste ha uma faixa fixa no alto: sem isto a barra nasce
+  // por baixo dela e a primeira linha do texto some.
+  let altoDaFaixa=0;
+  try{ const f=document.getElementById('faixa-teste'); if(f) altoDaFaixa=f.getBoundingClientRect().height||0; }catch(e){}
+  b.style.top=altoDaFaixa+'px';
   (document.body||document.documentElement).appendChild(b);
   b.querySelector('#barra-versao-ok').onclick=function(){ atualizarParaVersaoNova(v); };
   b.querySelector('#barra-versao-x').onclick=function(){ b.remove(); };
