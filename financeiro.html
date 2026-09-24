@@ -990,6 +990,36 @@ let JSONBIN_BIN_ID = SUPA_SISTEMA;
 const WORKER_URL='https://daluminium-api.daluminium2.workers.dev';
 const TOKEN_KEY='dalum-token';
 
+// ---- ONDE O CRACHA E A SESSAO FICAM GUARDADOS (24/09/2026) ----
+// O cracha do ADMIN fica so na ABA. Antes ficava no navegador, valendo 8
+// horas: o admin usava um computador, esquecia de sair, e qualquer pessoa
+// daquele navegador entrava como admin so atualizando a pagina — sem digitar
+// senha nenhuma. Na aba, fechou = acabou.
+// Para os demais usuarios nada muda: segue no navegador, e quem entrou de
+// manha continua entrando direto o dia todo.
+// De quebra: como o admin nao escreve no navegador, a janela de quem ja
+// estava logado continua com o cracha dela.
+function loginGuardaLer(chave){
+  try{ const v=sessionStorage.getItem(chave); if(v!==null) return v; }catch(e){}
+  try{ return localStorage.getItem(chave); }catch(e){ return null; }
+}
+function loginGuardaGravar(chave, valor, soNestaAba){
+  try{ sessionStorage.setItem(chave, valor); }catch(e){}
+  // O admin nao grava no navegador — e nao apaga o que ja esta la, que seria
+  // derrubar quem estiver logado em outra janela.
+  if(!soNestaAba){ try{ localStorage.setItem(chave, valor); }catch(e){} }
+}
+function loginGuardaApagar(chave){
+  let meu=null;
+  try{ meu=sessionStorage.getItem(chave); }catch(e){}
+  try{ sessionStorage.removeItem(chave); }catch(e){}
+  try{
+    // So apaga o que esta no navegador se for o MESMO desta aba: numa aba de
+    // admin, o que esta guardado no navegador e de outra pessoa.
+    if(meu===null || localStorage.getItem(chave)===meu) localStorage.removeItem(chave);
+  }catch(e){}
+}
+
 // LGPD (auditoria de 18/09/2026): ao sair, apaga a copia dos dados guardada no
 // navegador. Antes o Sair tirava so o cracha — os contratos (com CPF), as
 // contas e a lista de usuarios (com o resumo das senhas) continuavam no
@@ -1015,14 +1045,14 @@ function b64urlParaTexto(s){
 
 function lerToken(){
   try{
-    const t=localStorage.getItem(TOKEN_KEY);
+    const t=loginGuardaLer(TOKEN_KEY);
     if(!t) return null;
     const partes=t.split('.');
     if(partes.length!==2) return null;
     const d=JSON.parse(b64urlParaTexto(partes[0]));
-    if(!d||!d.exp||Date.now()>=d.exp){ localStorage.removeItem(TOKEN_KEY); return null; }
+    if(!d||!d.exp||Date.now()>=d.exp){ loginGuardaApagar(TOKEN_KEY); return null; }
     return {token:t,dados:d};
-  }catch(e){ localStorage.removeItem(TOKEN_KEY); return null; }
+  }catch(e){ loginGuardaApagar(TOKEN_KEY); return null; }
 }
 
 // Cabeçalhos de toda conversa com o Worker. Quando há crachá, ele vai junto.
@@ -1259,7 +1289,8 @@ async function fazerLoginWorker(user,senha){
     e.status=r.status;
     throw e;
   }
-  localStorage.setItem(TOKEN_KEY,j.token);
+  // O cracha do admin nao fica guardado no navegador: so nesta aba.
+  loginGuardaGravar(TOKEN_KEY,j.token,String(j.role||'').toLowerCase()==='admin');
   return j;
 }
 
@@ -1573,8 +1604,8 @@ async function doLogout(){
   if(!confirm('Deseja sair do sistema?')) return;
   await removerSessao();
   ['fin-logged','fin-user','fin-role','fin-admin-key'].forEach(k=>sessionStorage.removeItem(k));
-  localStorage.removeItem('dalum-sso');
-  localStorage.removeItem(TOKEN_KEY);
+  loginGuardaApagar('dalum-sso');
+  loginGuardaApagar(TOKEN_KEY);
   apagarDadosLocais();
   // Volta para a tela de login DESTE módulo, igual à Fábrica. Antes ia para o
   // portal, o que só fazia sentido quando o portal era a única porta de entrada.
@@ -1715,7 +1746,7 @@ async function ensureBin(){ /* Supabase — sem necessidade */ }
 function sessaoExpirada(){
   if(window.__sessaoExpirada) return;   // um aviso só, mesmo com várias chamadas
   window.__sessaoExpirada = true;
-  try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){} apagarDadosLocais();
+  try{ loginGuardaApagar(TOKEN_KEY); loginGuardaApagar('dalum-sso'); }catch(e){} apagarDadosLocais();
   // A marca de "está logado" mora na ABA, não no crachá. Sem apagar também
   // aqui, ao recarregar o módulo achava que a pessoa continuava dentro, ia
   // buscar dados sem crachá, levava 401 e mostrava esta mesma mensagem de
@@ -4831,10 +4862,10 @@ function exportRelatorio(){
 // ---- SSO AUTO-LOGIN ----
 function checkSSO(){
   try{
-    const sso=JSON.parse(localStorage.getItem('dalum-sso')||'null');
+    const sso=JSON.parse(loginGuardaLer('dalum-sso')||'null');
     if(!sso||!sso.nome) return false;
     // Token válido por 8 horas
-    if(Date.now()-sso.ts>8*60*60*1000){ localStorage.removeItem('dalum-sso'); return false; }
+    if(Date.now()-sso.ts>8*60*60*1000){ loginGuardaApagar('dalum-sso'); return false; }
     sessionStorage.setItem('fin-logged','true');
     sessionStorage.setItem('fin-user',sso.nome);
     sessionStorage.setItem('fin-role',sso.role||'user');
@@ -4843,7 +4874,7 @@ function checkSSO(){
     showAdminBtn(sso.role==='admin');
     updateSaldosBtn();
     // Adicionar botão voltar ao portal
-    const ssoCheck=JSON.parse(localStorage.getItem('dalum-sso')||'null');
+    const ssoCheck=JSON.parse(loginGuardaLer('dalum-sso')||'null');
     const inIframe=window.self!==window.top;
     if(inIframe&&ssoCheck&&(ssoCheck.modulos||[]).length>1) addPortalBackBtn();
     // Entrada via portal tambem conta como sessao ativa
@@ -4857,7 +4888,7 @@ function addPortalBackBtn(){
   // Dentro do portal a barra superior ja tem o botao Voltar — nao duplicar
   try{ if(window.self!==window.top) return; }catch(e){ return; }
   // Não mostrar se usuário tem só 1 módulo
-  const _sso=JSON.parse(localStorage.getItem('dalum-sso')||'null');
+  const _sso=JSON.parse(loginGuardaLer('dalum-sso')||'null');
   if(!_sso||(_sso.modulos||[]).length<=1) return;
   if(document.getElementById('portal-back-btn')) return;
   const btn=document.createElement('button');
