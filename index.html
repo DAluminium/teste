@@ -1860,7 +1860,7 @@ async function loadSessoes(){
         <div title="${recente?'Usando o sistema agora':'Sem atividade há mais de 10 minutos'}" style="width:8px;height:8px;border-radius:50%;background:${recente?'#1A7A45':'#B9770E'};flex-shrink:0"></div>
         <div style="flex:1">
           <div style="font-weight:600;font-size:13px">${s.nome}</div>
-          <div style="font-size:11px;color:var(--gray-4)">${sistemaLabel[s.sistema]||s.sistema} · Ativo ${tempo}${deTeste}</div>
+          <div style="font-size:11px;color:var(--gray-4)">${sistemaLabel[s.sistema]||s.sistema} · ${recente?('Ativo '+tempo):('<span style="color:#B9770E">sem sinal '+tempo+'</span>')}${deTeste}</div>
           <div style="font-size:11px;color:var(--gray-4)">⏱️ Operando há <strong>${duracaoTexto((Date.now()-g.inicio)/60000)}</strong> · entrou às ${new Date(g.inicio).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
         </div>
         <button onclick="forceLogout('${g.ids.join(',')}','${s.nome}')" style="background:var(--red);color:white;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600">Deslogar</button>
@@ -1879,7 +1879,9 @@ async function forceLogout(sessionId, nome){
   try{
     // Pode vir mais de um id: o painel mostra uma linha por pessoa.
     await acaoSessao('sessao-derrubar',{ids:String(sessionId||'').split(',').filter(Boolean)});
-    alert(nome+' será deslogado(a) em até 30 segundos. ✅');
+    alert(nome+' vai ser desconectado(a) assim que a tela dele(a) der sinal — em poucos segundos.\n\n'
+      +'Se o computador estiver suspenso ou o navegador fechado, acontece quando ele voltar. '
+      +'A sessão sai da lista sozinha depois de 1 hora sem sinal.');
     setTimeout(loadSessoes,2000);
   }catch(e){ alert('Erro ao deslogar usuário.'); }
 }
