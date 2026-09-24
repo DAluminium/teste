@@ -715,6 +715,65 @@ function lerSSO(){
 // recusa (a partir da etapa em que ele passar a exigir o crachá).
 const TOKEN_KEY='dalum-token';
 
+// ---- AVISO DE VERSAO NOVA (pedido do Ander, 24/09/2026) ----
+// Quem fica com a pagina aberta continua com a versao antiga depois de uma
+// publicacao — e obedecendo as regras antigas. Esta tela le o versao.json ao
+// abrir, guarda o numero, e confere de tempos em tempos. Mudou, avisa.
+let _versaoQuandoAbriu=null, _avisouVersaoNova=false;
+function enderecoDaVersao(){
+  const base=(AMBIENTE_FAB==='teste') ? 'https://daluminium.github.io/teste/versao.json'
+                                : 'https://daluminium.github.io/portal/versao.json';
+  return base+'?t='+Date.now();
+}
+async function conferirVersao(){
+  if(_avisouVersaoNova) return;
+  let v=null;
+  try{
+    const r=await fetch(enderecoDaVersao(),{cache:'no-store'});
+    if(!r.ok) return;
+    v=(await r.json()).versao;
+  }catch(e){ return; }          // sem internet ou arquivo fora do ar: nao atrapalha
+  if(!v) return;
+  if(_versaoQuandoAbriu===null){ _versaoQuandoAbriu=v; return; }   // 1a leitura: so guarda
+  if(v===_versaoQuandoAbriu) return;
+  _avisouVersaoNova=true;
+  mostrarBarraDeVersao(v);
+}
+function mostrarBarraDeVersao(v){
+  if(document.getElementById('barra-versao')) return;
+  const b=document.createElement('div');
+  b.id='barra-versao';
+  b.style.cssText='position:fixed;left:0;right:0;top:0;z-index:10050;background:#FFFBEA;border-bottom:2px solid #E6B800;'
+    +'color:#2c3e50;font-family:inherit;font-size:13.5px;padding:10px 14px;display:flex;align-items:center;gap:12px;'
+    +'justify-content:center;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.12)';
+  b.innerHTML='<span><b>Saiu uma versão nova do sistema.</b> Atualize esta página para usar a versão nova.</span>'
+    +'<button type="button" id="barra-versao-ok" style="border:1px solid #0E7C7B;background:#0E7C7B;color:#fff;'
+    +'border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Atualizar agora</button>'
+    +'<button type="button" id="barra-versao-x" style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;'
+    +'border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit">Agora não</button>';
+  (document.body||document.documentElement).appendChild(b);
+  b.querySelector('#barra-versao-ok').onclick=function(){ atualizarParaVersaoNova(v); };
+  b.querySelector('#barra-versao-x').onclick=function(){ b.remove(); };
+}
+function atualizarParaVersaoNova(v){
+  // Dentro do portal, quem recarrega e o portal: ele abre os modulos com um
+  // numero unico, entao o modulo vem novo junto.
+  try{
+    if(window.self!==window.top){ window.parent.postMessage('atualizar-versao','*'); return; }
+  }catch(e){}
+  // Endereco novo = o navegador busca de verdade, sem cache (o mesmo que o
+  // Ctrl+Shift+R faz, sem a pessoa precisar saber o atalho).
+  location.replace(location.pathname+'?v='+encodeURIComponent(v||Date.now()));
+}
+// Confere ao abrir, de 5 em 5 minutos, e quando a aba volta a ficar visivel —
+// que e quando a pessoa volta para o sistema depois de um tempo fora.
+// A primeira conferencia espera um pouco de proposito: este bloco fica no
+// comeco do arquivo, e o nome do ambiente so e definido mais abaixo.
+setTimeout(conferirVersao,1500);
+setInterval(conferirVersao,5*60*1000);
+document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') conferirVersao(); });
+
+
 // ---- ONDE O CRACHA E A SESSAO FICAM GUARDADOS (24/09/2026) ----
 // O cracha do ADMIN fica so na ABA. Antes ficava no navegador, valendo 8
 // horas: o admin usava um computador, esquecia de sair, e qualquer pessoa
