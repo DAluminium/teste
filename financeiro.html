@@ -1323,14 +1323,19 @@ let pagarEditId = null, receberEditId = null, baixaType = null, baixaIdx = null;
 
 
 // ---- SESSÕES ----
-// A identidade desta TELA agora vive no navegador, em vez de ser sorteada a
-// cada carregamento — e e a MESMA do portal, porque dividem o endereco. Assim
-// recarregar a pagina nao vira "outra sessao", e abrir um modulo nao faz a
-// pessoa aparecer duas vezes na lista.
+// A identidade desta TELA vive na memoria da ABA, e nao e sorteada a cada
+// carregamento. Assim, recarregar a pagina continua sendo a MESMA tela — era
+// o defeito de 24/09/2026, em que o F5 virava "outra sessao" — enquanto abrir
+// uma aba nova conta como outro lugar, e a regra de um acesso por usuario
+// derruba a anterior. O modulo aberto dentro do portal divide a memoria da
+// aba, entao portal e modulo sao a mesma linha na lista de sessoes.
 function idDestaTela(){
   try{
-    let i=localStorage.getItem('dalum-sessao');
-    if(!i){ i=Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('dalum-sessao',i); }
+    // Na memoria da ABA: sobrevive ao F5 (era o defeito original) e nao
+    // atravessa para outra aba — duas abas sao duas telas, e a regra de um
+    // acesso por usuario derruba a anterior, como sempre foi.
+    let i=sessionStorage.getItem('dalum-sessao');
+    if(!i){ i=Math.random().toString(36).slice(2)+Date.now().toString(36); sessionStorage.setItem('dalum-sessao',i); }
     return i;
   }catch(e){ return 'tela'+Date.now(); }
 }
