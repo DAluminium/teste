@@ -1041,10 +1041,28 @@ function atualizarParaVersaoNova(v){
   try{
     if(window.self!==window.top){ window.parent.postMessage('atualizar-versao','*'); return; }
   }catch(e){}
+  // Deixa um bilhete para a propria pagina: depois de recarregar, ela mostra
+  // a confirmacao. Sem isto a barra some e parece que so foi fechada.
+  try{ sessionStorage.setItem('dalum-atualizou','1'); }catch(e){}
   // Endereco novo = o navegador busca de verdade, sem cache (o mesmo que o
   // Ctrl+Shift+R faz, sem a pessoa precisar saber o atalho).
   location.replace(location.pathname+'?v='+encodeURIComponent(v||Date.now()));
 }
+function confirmarQueAtualizou(){
+  let veio=null;
+  try{ veio=sessionStorage.getItem('dalum-atualizou'); sessionStorage.removeItem('dalum-atualizou'); }catch(e){}
+  if(!veio) return;
+  const c=document.createElement('div');
+  let alto=0;
+  try{ const f=document.getElementById('faixa-teste'); if(f) alto=f.getBoundingClientRect().height||0; }catch(e){}
+  c.style.cssText='position:fixed;left:0;right:0;top:'+alto+'px;z-index:10050;background:#E8F6EE;border-bottom:2px solid #1A7A45;'
+    +'color:#14532d;font-family:inherit;font-size:13.5px;padding:10px 14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.12)';
+  c.textContent='Sistema atualizado ✓ Você está na versão nova.';
+  (document.body||document.documentElement).appendChild(c);
+  setTimeout(function(){ c.remove(); },5000);
+}
+setTimeout(confirmarQueAtualizou,400);
+
 // Confere ao abrir, de 5 em 5 minutos, e quando a aba volta a ficar visivel —
 // que e quando a pessoa volta para o sistema depois de um tempo fora.
 // A primeira conferencia espera um pouco de proposito: este bloco fica no
