@@ -1798,15 +1798,21 @@ async function acaoSessao(nome, corpo){
     headers:cabecalhos('sessions',{'Content-Type':'application/json','X-Action':nome}),
     body:JSON.stringify(Object.assign({sessionId:_sessionId, ambiente:AMBIENTE}, corpo||{}))
   });
-  if(r.status===401||r.status===403){
-    // Cracha vencido: a pessoa precisa saber, mas uma vez so — este ciclo
-    // repete a cada 5 s e encheria a tela de avisos.
+  if(r.status===401){
+    // Cracha vencido ou recusado: nada mais vai funcionar nesta tela. Avisa
+    // uma vez so — este ciclo repete a cada 5 s — e devolve a pessoa ao
+    // login, em vez de deixar o portal aberto sem servir para nada.
     if(!_avisouFalhaSessao){
       _avisouFalhaSessao=true;
-      alert('O seu acesso venceu e o sistema parou de registrar esta sessão.\n\n'
-        +'Saia e entre de novo para voltar ao normal.');
+      alert('O seu acesso venceu.\n\nVocê vai voltar para a tela de entrada.');
+      forcarSaida();
     }
-    throw Object.assign(new Error('acesso recusado'),{status:r.status});
+    throw Object.assign(new Error('acesso recusado'),{status:401});
+  }
+  if(r.status===403){
+    // Recusa legitima — por exemplo, so o administrador ve a lista de
+    // sessoes. Nao e problema de cracha, entao nao assusta ninguem.
+    throw Object.assign(new Error('sem permissao'),{status:403});
   }
   if(!r.ok) throw Object.assign(new Error('worker '+r.status),{status:r.status});
   _avisouFalhaSessao=false;
