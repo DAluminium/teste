@@ -1825,8 +1825,11 @@ async function pedirSessoes(){
 // confirm nao aparece em todo lugar — no navegador do Claude ele responde
 // "nao" sozinho, e a pessoa ficava sem entrar sem entender o motivo
 // (visto em 24/09/2026).
+let _perguntaSessao=null;
 function perguntarSessao(){
-  return new Promise(function(resolve){
+  // Ja esta perguntando: a mesma pergunta vale para as duas chamadas.
+  if(_perguntaSessao) return _perguntaSessao;
+  _perguntaSessao=new Promise(function(resolve){
     const ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
     ov.innerHTML='<div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:20px;color:#2c3e50;font-size:14px;line-height:1.5">'
@@ -1837,10 +1840,11 @@ function perguntarSessao(){
         +'<button type="button" id="sess-sim" style="border:1px solid #0E7C7B;background:#0E7C7B;color:#fff;border-radius:8px;padding:8px 14px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit">Continuar aqui</button>'
       +'</div></div>';
     document.body.appendChild(ov);
-    const fim=function(v){ ov.remove(); resolve(v); };
+    const fim=function(v){ ov.remove(); _perguntaSessao=null; resolve(v); };
     ov.querySelector('#sess-sim').onclick=function(){ fim(true); };
     ov.querySelector('#sess-nao').onclick=function(){ fim(false); };
   });
+  return _perguntaSessao;
 }
 
 // A porta UNICA da regra "um acesso por usuario". Vale para os dois caminhos
