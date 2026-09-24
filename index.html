@@ -894,31 +894,7 @@ function toggleSenha(btn){
 }
 
 async function verificarEEncerrarSesoesAntigas(usuario){
-  try{
-    const r=await fetch(WORKER_SESS,{headers:cabecalhos('sessions')});
-    if(!r.ok) return true;
-    const d=await r.json();
-    const _u=(usuario||'').toLowerCase().trim();
-    // So conta sessao do MESMO ambiente: entrar no teste nao pode derrubar quem
-    // esta trabalhando em producao, e vice-versa.
-    const sesoesAnteriores=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&(s.username||'').toLowerCase().trim()===_u&&mesmoAmbiente(s));
-    if(sesoesAnteriores.length===0) return true;
-    const confirmou=confirm('Você já está conectado em outro lugar.\n\nDeseja continuar? Isso vai desconectar a outra sessão.');
-    if(!confirmou){
-      await removerSessaoPortal();
-      return false;
-    }
-    d.forceLogout=[...(d.forceLogout||[]),...sesoesAnteriores.map(s=>s.sessionId)];
-    // Guarda POR QUE cada sessao caiu. Sem isso a pessoa que e derrubada le
-    // "encerrada pelo administrador", que nao e verdade e assusta a toa.
-    d.forceLogoutMotivo=Object.assign({},d.forceLogoutMotivo||{});
-    sesoesAnteriores.forEach(s=>{ d.forceLogoutMotivo[s.sessionId]='outro-login'; });
-    await gravarSessoes(d);
-    return true;
-  }catch(e){
-    console.error('Erro ao verificar sessões antigas:',e);
-    return true;
-  }
+  return await entrarNaLista();
 }
 
 async function doLogin(){
@@ -1714,9 +1690,7 @@ async function loadSessoes(){
   const lista=document.getElementById('sessoes-lista');
   lista.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center">Carregando...</p>';
   try{
-    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:cabecalhos('sessions')
-    });
+    const r=await pedirSessoes();
     if(!r.ok){ lista.innerHTML='<p style="font-size:13px;color:var(--red);text-align:center">Erro ao carregar sessões.</p>'; return; }
     const d=await r.json();
     // Uma hora sem sinal de vida e a pessoa sai da lista. Antes eram 8 horas
@@ -1724,9 +1698,7 @@ async function loadSessoes(){
     // notebook continuava aparecendo como ativo o resto do expediente.
     // Fecha aqui mesmo quem passou de 1 hora sem sinal, para o tempo de uso
     // dessas pessoas ficar guardado em vez de simplesmente sumir da tela.
-    if(limparParadas(d)){
-      try{ await gravarSessoes(d); }catch(e){}
-    }
+    // Fechar quem passou de 1 hora sem sinal agora e conta do Worker.
     const ativas=(d.ativas||[]).filter(s=>Date.now()-s.ts<60*60*1000);
     if(!ativas.length){
       lista.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center">Nenhum usuário ativo no momento.</p>';
@@ -1775,24 +1747,13 @@ async function loadSessoes(){
 }
 
 async function forceLogout(sessionId, nome){
-  // Encerrar a sessao de outra pessoa e so do admin. Antes a unica barreira
-  // era o botao estar escondido, e o gerente conseguia derrubar qualquer um.
+  // Encerrar a sessao de outra pessoa e so do admin — e agora quem confere
+  // isso e o Worker, nao o botao estar escondido.
   if(recusarSeNaoForAdmin('Encerrar a sessão de outra pessoa é só do administrador.')) return;
   if(!confirm('Deslogar '+nome+'? O usuário será redirecionado para o login.')) return;
   try{
-    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:cabecalhos('sessions')
-    });
-    const d=await r.json();
-    // Pode vir mais de um id: o painel mostra uma linha por pessoa, e Deslogar
-    // derruba todas as telas dela.
-    const ids=String(sessionId||'').split(',').filter(Boolean);
-    d.forceLogout=[...(d.forceLogout||[]),...ids];
-    await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      method:'PATCH',
-      headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
-      body:JSON.stringify({data:d})
-    });
+    // Pode vir mais de um id: o painel mostra uma linha por pessoa.
+    await acaoSessao('sessao-derrubar',{ids:String(sessionId||'').split(',').filter(Boolean)});
     alert(nome+' será deslogado(a) em até 30 segundos. ✅');
     setTimeout(loadSessoes,2000);
   }catch(e){ alert('Erro ao deslogar usuário.'); }
@@ -1802,7 +1763,19 @@ async function forceLogout(sessionId, nome){
 
 // ---- SESSAO DO PROPRIO PORTAL ----
 const WORKER_SESS='https://daluminium-api.daluminium2.workers.dev';
-const _sessionId = Math.random().toString(36).slice(2)+Date.now().toString(36);
+// A identidade desta TELA agora vive no navegador, em vez de ser sorteada a
+// cada carregamento. Sem isso, recarregar a pagina virava "outra sessao": a
+// regra de um acesso por pessoa perguntaria a toa a cada F5, e a sessao
+// derrubada ficava presa a um numero que ja nao existia mais.
+// Fica no localStorage, que o portal e os modulos dividem (mesmo endereco).
+function idDestaTela(){
+  try{
+    let i=localStorage.getItem('dalum-sessao');
+    if(!i){ i=Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('dalum-sessao',i); }
+    return i;
+  }catch(e){ return 'tela'+Date.now(); }
+}
+const _sessionId = idDestaTela();
 // De qual ambiente e esta sessao. A lista de sessoes e UMA SO para teste e
 // producao — nao existe 'sessions_teste'. Sem esta marca, entrar no teste
 // derrubava quem estava trabalhando em producao, porque a busca por "outra
@@ -1819,119 +1792,107 @@ function mesmoAmbiente(s){ return (s.ambiente||'producao')===AMBIENTE; }
 // de um acesso por pessoa deixa de enxerga-la, e ninguem fica sabendo. Foi
 // exatamente assim que um defeito passou despercebido em 02/09/2026.
 let _avisouFalhaSessao=false;
-async function gravarSessoes(d){
-  try{
-    const r=await fetch(WORKER_SESS,{method:'PATCH',
-      headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
-      body:JSON.stringify({data:d})});
-    if(r.ok){ _avisouFalhaSessao=false; return true; }
-    console.error('Sessao NAO gravada. Worker respondeu '+r.status);
-    // Cracha vencido ou recusado e o unico caso em que a pessoa precisa agir, e
-    // avisa uma vez so — este ciclo repete a cada 5s e encheria a tela.
-    if((r.status===401||r.status===403)&&!_avisouFalhaSessao){
+async function acaoSessao(nome, corpo){
+  const r=await fetch(WORKER_SESS,{
+    method:'POST',
+    headers:cabecalhos('sessions',{'Content-Type':'application/json','X-Action':nome}),
+    body:JSON.stringify(Object.assign({sessionId:_sessionId, ambiente:AMBIENTE}, corpo||{}))
+  });
+  if(r.status===401||r.status===403){
+    // Cracha vencido: a pessoa precisa saber, mas uma vez so — este ciclo
+    // repete a cada 5 s e encheria a tela de avisos.
+    if(!_avisouFalhaSessao){
       _avisouFalhaSessao=true;
       alert('O seu acesso venceu e o sistema parou de registrar esta sessão.\n\n'
         +'Saia e entre de novo para voltar ao normal.');
     }
-    return false;
-  }catch(e){ console.error('Sessao NAO gravada:',e); return false; }
+    throw Object.assign(new Error('acesso recusado'),{status:r.status});
+  }
+  if(!r.ok) throw Object.assign(new Error('worker '+r.status),{status:r.status});
+  _avisouFalhaSessao=false;
+  return r.json();
+}
+
+// Para as telas do administrador (Sessoes ativas e Tempo de uso), que leem a
+// lista inteira. Devolve no formato do fetch antigo para o resto da tela
+// continuar igual.
+async function pedirSessoes(){
+  try{ const d=await acaoSessao('sessao-lista',{}); return {ok:true, json:async()=>d}; }
+  catch(e){ return {ok:false, json:async()=>null}; }
+}
+
+// Pergunta feita pelo PROPRIO sistema, em vez do confirm() do navegador. O
+// confirm nao aparece em todo lugar — no navegador do Claude ele responde
+// "nao" sozinho, e a pessoa ficava sem entrar sem entender o motivo
+// (visto em 24/09/2026).
+function perguntarSessao(){
+  return new Promise(function(resolve){
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+    ov.innerHTML='<div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:20px;color:#2c3e50;font-size:14px;line-height:1.5">'
+      +'<div style="font-weight:700;font-size:16px;margin-bottom:8px">Você já está conectado em outro lugar</div>'
+      +'<div>Continuar aqui vai <b>encerrar a outra tela</b>, em até 5 segundos.</div>'
+      +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'
+        +'<button type="button" id="sess-nao" style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;border-radius:8px;padding:8px 14px;font-size:13.5px;cursor:pointer;font-family:inherit">Cancelar</button>'
+        +'<button type="button" id="sess-sim" style="border:1px solid #0E7C7B;background:#0E7C7B;color:#fff;border-radius:8px;padding:8px 14px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit">Continuar aqui</button>'
+      +'</div></div>';
+    document.body.appendChild(ov);
+    const fim=function(v){ ov.remove(); resolve(v); };
+    ov.querySelector('#sess-sim').onclick=function(){ fim(true); };
+    ov.querySelector('#sess-nao').onclick=function(){ fim(false); };
+  });
+}
+
+// A porta UNICA da regra "um acesso por usuario". Vale para os dois caminhos
+// de entrada: senha digitada e cracha guardado. Ate 24/09/2026 so o primeiro
+// conferia — quem recarregava a pagina entrava sem derrubar a outra tela, e a
+// regra parecia funcionar quando so funcionava as vezes.
+async function entrarNaLista(){
+  let outras=0;
+  // Se nao der para perguntar ao servidor, deixa entrar: ficar de fora por
+  // causa de uma falha de rede seria pior que uma sessao a mais.
+  try{ outras=(await acaoSessao('sessao-outras',{})).outras||0; }catch(e){ return true; }
+  if(outras>0 && !await perguntarSessao()) return false;
+  try{ await acaoSessao('sessao-entrar',{sistema:'portal', derrubarOutras:outras>0}); }catch(e){}
+  return true;
 }
 let _sessCheck=null;
 async function registrarSessaoPortal(nome, username){
-  try{
-    const r=await fetch(WORKER_SESS,{headers:cabecalhos('sessions')});
-    if(!r.ok) return;
-    const d=await r.json();
-    const _u=(username||nome||'').toLowerCase().trim();
-    const ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&!((s.username||'').toLowerCase().trim()===_u&&mesmoAmbiente(s)));
-    ativas.push({sessionId:_sessionId,username:_u,nome,sistema:'portal',ambiente:AMBIENTE,ts:Date.now()});
-    d.ativas=ativas;
-    await gravarSessoes(d);
-  }catch(e){}
+  // Volta a constar como "no portal" (quem, de verdade, vem do cracha). Nao
+  // derruba ninguem: quem confere um acesso por pessoa e a entrada.
+  try{ await acaoSessao('sessao-entrar',{sistema:'portal'}); }catch(e){}
 }
 async function removerSessaoPortal(){
-  try{
-    const r=await fetch(WORKER_SESS,{headers:cabecalhos('sessions')});
-    if(!r.ok) return;
-    const d=await r.json();
-    encerrarNaLista(d,_sessionId,'saiu');
-    await gravarSessoes(d);
-  }catch(e){}
+  try{ await acaoSessao('sessao-sair',{}); }catch(e){}
 }
 async function checkForceLogoutPortal(){
-  try{
-    const r=await fetch(WORKER_SESS,{headers:cabecalhos('sessions')});
-    if(!r.ok) return;
-    const d=await r.json();
-    const forced=(d.forceLogout||[]);
-    if(forced.includes(_sessionId)){
-      const motivo=(d.forceLogoutMotivo||{})[_sessionId]==='outro-login'?'outro-login':'deslogado';
-      d.forceLogout=forced.filter(x=>x!==_sessionId);
-      if(d.forceLogoutMotivo) delete d.forceLogoutMotivo[_sessionId];
-      encerrarNaLista(d,_sessionId,motivo);
-      await gravarSessoes(d);
-      alert(motivo==='outro-login'
-        ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
-        :'Sua sessão foi encerrada pelo administrador.');
-      forcarSaida();
-      return;
-    }
-    await renovarPresencaPortal(d);
-  }catch(e){}
+  // Um pedido so faz as duas coisas: diz se esta tela foi derrubada e marca
+  // que a pessoa continua trabalhando. A resposta fala SO desta sessao.
+  let r=null;
+  try{ r=await acaoSessao('sessao-sinal',{sistema:'portal'}); }catch(e){ return; }
+  if(!r||!r.derrubado) return;
+  alert(r.motivo==='outro-login'
+    ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
+    :'Sua sessão foi encerrada pelo administrador.');
+  forcarSaida();
 }
 
 // Marca que esta pessoa continua usando o sistema, aproveitando a consulta que
 // ja acontece a cada 30 segundos. So grava quando a marca passa de 5 minutos:
 // gravar a cada 30s encheria o servidor de escrita a troco de nada.
-async function renovarPresencaPortal(d){
-  const AGORA=Date.now(), CADA=5*60*1000;
-  let precisaGravar=limparParadas(d);
-  const eu=(d.ativas||[]).find(s=>s.sessionId===_sessionId);
-  if(eu){
-    if(AGORA-(eu.ts||0)>CADA){ eu.ts=AGORA; precisaGravar=true; }
-  } else {
-    // Caiu da lista por ter ficado parado, mas voltou a usar: entra de novo, e
-    // este e um novo periodo de trabalho — o anterior ja foi fechado.
-    const nome=sessionStorage.getItem('portal-user')||'';
-    d.ativas=(d.ativas||[]).concat([{sessionId:_sessionId,
-      username:(sessionStorage.getItem('portal-admin-key')||nome).toLowerCase().trim(),
-      nome, sistema:'portal', ambiente:AMBIENTE, ts:AGORA, inicio:AGORA}]);
-    precisaGravar=true;
-  }
-  if(!precisaGravar) return;
-  await gravarSessoes(d);
-}
+// renovarPresencaPortal saiu daqui: quem renova a presenca e fecha quem parou
+// de dar sinal agora e o proprio Worker, dentro da acao 'sessao-sinal'.
 
 // Fecha uma sessao: tira das ativas e guarda quanto tempo durou. Serve para os
 // tres jeitos de acabar — clicou em Sair, foi deslogado pelo admin, ou parou de
 // dar sinal de vida.
-function encerrarNaLista(d, sessionId, motivo){
-  const i=(d.ativas||[]).findIndex(s=>s.sessionId===sessionId);
-  if(i<0) return false;
-  const s=d.ativas[i];
-  d.ativas.splice(i,1);
-  const inicio=s.inicio||s.ts||Date.now();
-  // Quem parou de dar sinal fecha na hora do ULTIMO sinal, nao agora: senao o
-  // tempo de uso contaria a hora em que a pessoa nem estava no computador.
-  const fim=(motivo==='parou')?(s.ts||inicio):Date.now();
-  d.encerradas=[{sessionId:s.sessionId, username:s.username||'', nome:s.nome||'',
-    sistema:s.sistema||'', inicio, fim,
-    minutos:Math.max(0,Math.round((fim-inicio)/60000)), motivo}]
-    .concat(d.encerradas||[]).slice(0,500);
-  return true;
-}
+// encerrarNaLista e limparParadas sairam daqui: fechar sessao e limpar quem
+// parou viraram conta do Worker. A tela nao mexe mais na lista dos outros.
 
 // Quem ficou 1 hora sem sinal de vida nao esta mais operando. Qualquer pessoa
 // que esteja usando o sistema faz essa limpeza, porque quem fechou o navegador
 // nao tem como fechar a propria sessao.
-function limparParadas(d){
-  const LIMITE=60*60*1000, agora=Date.now();
-  let mexeu=false;
-  (d.ativas||[]).slice().forEach(s=>{
-    if(agora-(s.ts||0)>=LIMITE && encerrarNaLista(d,s.sessionId,'parou')) mexeu=true;
-  });
-  return mexeu;
-}
+
 
 // ---- MEUS LEMBRETES ----
 // Recado que a pessoa deixa para si mesma, com data. O sistema NÃO manda nada
@@ -2365,7 +2326,7 @@ async function loadTempoUso(){
   const alvo=document.getElementById('tempo-lista');
   alvo.innerHTML='<p style="font-size:13px;color:var(--gray-4);text-align:center">Carregando...</p>';
   try{
-    const r=await fetch(WORKER_SESS,{headers:cabecalhos('sessions')});
+    const r=await pedirSessoes();
     if(!r.ok){ alvo.innerHTML='<p style="font-size:13px;color:var(--red);text-align:center">Erro ao carregar.</p>'; return; }
     const d=await r.json();
     const periodo=document.getElementById('tempo-periodo').value;
@@ -2528,7 +2489,7 @@ window.addEventListener('message',function(e){
 // Entrou antes e o crachá ainda está no prazo: volta direto, sem pedir senha.
 // Vale mesmo depois de fechar e reabrir o navegador, porque o crachá fica no
 // localStorage — ao contrário do `portal-logged`, que morre com a aba.
-function entrarPeloCracha(){
+async function entrarPeloCracha(){
   const t=lerToken();
   if(!t) return false;
   const nome=t.dados.n||t.dados.u||'';
@@ -2539,38 +2500,47 @@ function entrarPeloCracha(){
   sessionStorage.setItem('portal-role',role);
   sessionStorage.setItem('portal-modulos',JSON.stringify(modulos));
   sessionStorage.setItem('portal-admin-key',t.dados.u||'');
+  // A regra de um acesso por pessoa vale TAMBEM por aqui. Sem isto bastava
+  // recarregar a pagina para entrar sem derrubar a outra tela: o cracha vale
+  // 8 horas, entao qualquer navegador que entrou uma vez no dia voltava de
+  // graca. Foi o defeito de 24/09/2026.
+  if(!await entrarNaLista()){
+    ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key']
+      .forEach(k=>sessionStorage.removeItem(k));
+    return false;
+  }
   document.getElementById('login-screen').classList.remove('active');
   showPortal(nome, modulos, role==='admin');
   loadPortalData();
   return true;
 }
 
-if(entrarPeloCracha()){
-  // já entrou
-} else {
+entrarPeloCracha().then(function(entrou){
+  if(entrou){ reabrirModuloSalvo(); return; }
   // Sem crachá valido, a marca de "logado" da aba nao vale mais nada: desde
   // 10/08 o servidor recusa tudo sem crachá. Antes o portal entrava por ela
   // mesmo assim — e em 11/09 isso prendeu o Ander num ciclo: o Compras dizia
   // "Sua sessão expirou", voltava para o portal, o portal entrava sem crachá e
   // reabria o Compras, que levava recusa e mostrava a mensagem de novo.
+  // Tambem cai aqui quem escolheu NAO derrubar a outra tela.
   ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key']
     .forEach(k=>sessionStorage.removeItem(k));
   localStorage.removeItem('dalum-sso');
   setTimeout(()=>document.getElementById('login-user').focus(),300);
-}
+});
 
 // Reabre o modulo em que a pessoa estava. Nao reabre se o acesso foi recusado
 // — nesse caso a tela de aviso e que tem de aparecer.
 // Reabre AGORA, sem esperar. Esperar fazia o portal piscar na tela antes de
 // o modulo voltar. Se o acesso for recusado, o aviso cobre tudo de qualquer
 // forma, entao nao ha por que aguardar a resposta do servidor para decidir.
-(function(){
+function reabrirModuloSalvo(){
   if(document.getElementById('bloqueio-acesso')) return;
   if(sessionStorage.getItem('portal-logged')!=='true') return;
   let m=null;
   try{ m=JSON.parse(sessionStorage.getItem('portal-modulo-aberto')||'null'); }catch(e){}
   if(m&&m.url&&m.titulo) abrirModulo(m.url,m.titulo);
-})();
+}
 </script>
 </body>
 </html>

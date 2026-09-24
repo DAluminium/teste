@@ -3074,28 +3074,24 @@ function logAction(user, action, r, detail){
 let _sessoesHist=null;
 async function carregarSessoesHist(){
   try{
-    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{headers:cabecalhos('sessions')});
-    if(!r.ok){ _sessoesHist=[]; return; }
-    const d=await r.json();
+    // A lista de quem usou o sistema e de quanto tempo cada um ficou agora e
+    // so do administrador (pedido do Ander, 24/09/2026). Para os demais, o
+    // Worker recusa e o historico mostra apenas as alteracoes do modulo.
+    const d=await acaoSessao('sessao-lista',{});
     const agora=Date.now();
     const dur=m=>{ m=Math.max(0,Math.round(m)); if(m<1) return 'menos de 1 min';
       if(m<60) return m+' min'; const h=Math.floor(m/60), x=m%60; return h+'h'+(x?String(x).padStart(2,'0'):''); };
     const hora=t=>new Date(t).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    const motivo={saiu:'saiu pelo botão',deslogado:'deslogado pelo admin',parou:'parou de usar'};
+    const motivo={saiu:'saiu pelo botão',deslogado:'deslogado pelo admin',parou:'parou de usar','outro-login':'entrou em outro lugar'};
     _sessoesHist=[]
       .concat((d.encerradas||[]).filter(s=>s.sistema==='compras').map(s=>({
         ts:new Date(s.fim).toISOString(), user:s.nome||'—', action:'Uso do sistema',
         obra:hora(s.inicio)+' → '+hora(s.fim), contrato:'',
         detail:dur(s.minutos)+' · '+(motivo[s.motivo]||s.motivo||'') })))
-      // Sessão sem sinal há mais de 1 hora não está "em andamento": ela conta
-      // até o último sinal. Sem isto, quem fechou o navegador de manhã
-      // apareceria trabalhando o dia inteiro.
       .concat((d.ativas||[]).filter(s=>s.sistema==='compras').map(s=>{
-        const parado=agora-(s.ts||agora)>=60*60*1000;
-        const fim=parado?(s.ts||agora):agora, ini=s.inicio||s.ts;
-        return { ts:new Date(fim).toISOString(), user:s.nome||'—', action:'Uso do sistema',
-          obra:hora(ini)+' → '+(parado?hora(fim):'agora'), contrato:'',
-          detail:dur((fim-ini)/60000)+' · '+(parado?'parou de usar':'em andamento') };
+        const fim=agora, ini=s.inicio||s.ts;
+        return {ts:new Date(fim).toISOString(), user:s.nome||'—', action:'Uso do sistema',
+          obra:hora(ini)+' → agora', contrato:'', detail:dur((fim-ini)/60000)+' · em andamento'};
       }));
   }catch(e){ _sessoesHist=[]; }
 }
@@ -4346,7 +4342,18 @@ async function removeUser(idx){
 
 
 // ---- SESSÕES ----
-const _sessionId = Math.random().toString(36).slice(2)+Date.now().toString(36);
+// A identidade desta TELA agora vive no navegador, em vez de ser sorteada a
+// cada carregamento — e e a MESMA do portal, porque dividem o endereco. Assim
+// recarregar a pagina nao vira "outra sessao", e abrir um modulo nao faz a
+// pessoa aparecer duas vezes na lista.
+function idDestaTela(){
+  try{
+    let i=localStorage.getItem('dalum-sessao');
+    if(!i){ i=Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('dalum-sessao',i); }
+    return i;
+  }catch(e){ return 'tela'+Date.now(); }
+}
+const _sessionId = idDestaTela();
 
 // Guarda quem entrou nesta aba, para a renovacao de presenca poder recadastrar
 // a pessoa se ela cair da lista por ter ficado parada.
@@ -4355,98 +4362,43 @@ let _sessQuem={nome:'',username:''};
 // Fecha uma sessao: tira das ativas e guarda quanto tempo durou. Serve para os
 // tres jeitos de acabar — clicou em Sair, foi deslogado pelo admin, ou parou de
 // dar sinal de vida.
-function encerrarNaLista(d, sessionId, motivo){
-  const i=(d.ativas||[]).findIndex(s=>s.sessionId===sessionId);
-  if(i<0) return false;
-  const s=d.ativas[i];
-  d.ativas.splice(i,1);
-  const inicio=s.inicio||s.ts||Date.now();
-  // Quem parou de dar sinal fecha na hora do ULTIMO sinal, nao agora: senao o
-  // tempo de uso contaria a hora em que a pessoa nem estava no computador.
-  const fim=(motivo==='parou')?(s.ts||inicio):Date.now();
-  d.encerradas=[{sessionId:s.sessionId, username:s.username||'', nome:s.nome||'',
-    sistema:s.sistema||'', inicio, fim,
-    minutos:Math.max(0,Math.round((fim-inicio)/60000)), motivo}]
-    .concat(d.encerradas||[]).slice(0,500);
-  return true;
+// encerrarNaLista, limparParadas e renovarPresenca sairam daqui: fechar
+// sessao, limpar quem parou e renovar presenca viraram conta do Worker.
+// Esta tela so fala da propria sessao, pelas acoes de sessao.
+async function acaoSessao(nome, corpo){
+  const r=await fetch(WORKER_URL,{
+    method:'POST',
+    headers:cabecalhos('sessions',{'Content-Type':'application/json','X-Action':nome}),
+    body:JSON.stringify(Object.assign({sessionId:_sessionId, ambiente:AMBIENTE}, corpo||{}))
+  });
+  if(!r.ok) throw Object.assign(new Error('worker '+r.status),{status:r.status});
+  return r.json();
 }
 
 // Quem ficou 1 hora sem sinal de vida nao esta mais operando. Qualquer pessoa
 // que esteja usando o sistema faz essa limpeza, porque quem fechou o navegador
 // nao tem como fechar a propria sessao.
-function limparParadas(d){
-  const LIMITE=60*60*1000, agora=Date.now();
-  let mexeu=false;
-  (d.ativas||[]).slice().forEach(s=>{
-    if(agora-(s.ts||0)>=LIMITE && encerrarNaLista(d,s.sessionId,'parou')) mexeu=true;
-  });
-  return mexeu;
-}
+
 async function registrarSessao(nome, username){
-  try{
-    _sessQuem={nome:nome||'',username:(username||nome||'').toLowerCase().trim()};
-    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:cabecalhos('sessions')
-    });
-    if(!r.ok) return;
-    const d=await r.json();
-    const _u=(username||nome||'').toLowerCase().trim();
-    const ativas=(d.ativas||[]).filter(s=>s.sessionId!==_sessionId&&!((s.username||'').toLowerCase().trim()===_u&&mesmoAmbiente(s)));
-    ativas.push({sessionId:_sessionId,username:_u,nome,sistema:'compras',ambiente:AMBIENTE,ts:Date.now(),inicio:Date.now()});
-    d.ativas=ativas;
-    await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      method:'PATCH',
-      headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
-      body:JSON.stringify({data:d})
-    });
-  }catch(e){}
+  _sessQuem={nome:nome||'',username:(username||nome||'').toLowerCase().trim()};
+  // Quem diz o nome e o usuario agora e o cracha, do lado do servidor.
+  try{ await acaoSessao('sessao-entrar',{sistema:'compras'}); }catch(e){}
 }
 
 async function removerSessao(){
-  try{
-    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:cabecalhos('sessions')
-    });
-    if(!r.ok) return;
-    const d=await r.json();
-    encerrarNaLista(d,_sessionId,'saiu');
-    await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      method:'PATCH',
-      headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
-      body:JSON.stringify({data:d})
-    });
-  }catch(e){}
+  try{ await acaoSessao('sessao-sair',{}); }catch(e){}
 }
 
 async function checkForceLogout(){
-  try{
-    const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
-      headers:cabecalhos('sessions')
-    });
-    if(!r.ok) return;
-    const d=await r.json();
-    const forced=(d.forceLogout||[]);
-    if(forced.includes(_sessionId)){
-      // O motivo vem junto do portal. Sem ele a pessoa lia "encerrada pelo
-      // administrador" mesmo quando o administrador nao tinha feito nada.
-      const motivo=(d.forceLogoutMotivo||{})[_sessionId]==='outro-login'?'outro-login':'deslogado';
-      // Remove da lista e faz logout
-      d.forceLogout=forced.filter(s=>s!==_sessionId);
-      if(d.forceLogoutMotivo) delete d.forceLogoutMotivo[_sessionId];
-      encerrarNaLista(d,_sessionId,motivo);
-      await fetch('https://daluminium-api.daluminium2.workers.dev',{
-        method:'PATCH',
-        headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
-        body:JSON.stringify({data:d})
-      });
-      alert(motivo==='outro-login'
-        ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
-        :'Sua sessão foi encerrada pelo administrador.');
-      doLogout();
-      return;
-    }
-    await renovarPresenca(d);
-  }catch(e){}
+  // Um pedido so: diz se esta tela foi derrubada e marca que a pessoa
+  // continua trabalhando. A resposta fala SO desta sessao.
+  let r=null;
+  try{ r=await acaoSessao('sessao-sinal',{sistema:'compras'}); }catch(e){ return; }
+  if(!r||!r.derrubado) return;
+  alert(r.motivo==='outro-login'
+    ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
+    :'Sua sessão foi encerrada pelo administrador.');
+  doLogout();
 }
 
 // Marca que esta pessoa continua usando o sistema, aproveitando a consulta que
@@ -4455,28 +4407,7 @@ async function checkForceLogout(){
 //
 // Sem isto, "Sessoes ativas" mostrava a hora do LOGIN e nada mais — quem fechou
 // o notebook continuava aparecendo como ativo por 8 horas.
-async function renovarPresenca(d){
-  const AGORA=Date.now(), CADA=5*60*1000;
-  let precisaGravar=limparParadas(d);
-  const eu=(d.ativas||[]).find(s=>s.sessionId===_sessionId);
-  if(eu){
-    if(AGORA-(eu.ts||0)>CADA){ eu.ts=AGORA; precisaGravar=true; }
-  } else {
-    // Caiu da lista por ter ficado parado, mas voltou a usar: entra de novo, e
-    // este e um novo periodo de trabalho — o anterior ja foi fechado.
-    const nome=_sessQuem.nome||sessionStorage.getItem('dalum-user')||'';
-    d.ativas=(d.ativas||[]).concat([{sessionId:_sessionId,
-      username:_sessQuem.username||nome.toLowerCase().trim(),
-      nome, sistema:'compras', ambiente:AMBIENTE, ts:AGORA, inicio:AGORA}]);
-    precisaGravar=true;
-  }
-  if(!precisaGravar) return;
-  await fetch('https://daluminium-api.daluminium2.workers.dev',{
-    method:'PATCH',
-    headers:cabecalhos('sessions',{'Content-Type':'application/json'}),
-    body:JSON.stringify({data:d})
-  });
-}
+
 
 let _forceLogoutInterval=null;
 function startSessionCheck(){

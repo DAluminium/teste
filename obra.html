@@ -908,7 +908,18 @@ async function fazerLogin(user,senha){
 }
 
 // ================= UM ACESSO POR PESSOA =================
-let _sessionIdObra=Math.random().toString(36).slice(2)+Date.now().toString(36);
+// A identidade desta TELA agora vive no navegador, em vez de ser sorteada a
+// cada carregamento — e e a MESMA do portal, porque dividem o endereco. Assim
+// recarregar a pagina nao vira "outra sessao", e abrir um modulo nao faz a
+// pessoa aparecer duas vezes na lista.
+function idDestaTela(){
+  try{
+    let i=localStorage.getItem('dalum-sessao');
+    if(!i){ i=Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('dalum-sessao',i); }
+    return i;
+  }catch(e){ return 'tela'+Date.now(); }
+}
+let _sessionIdObra=idDestaTela();
 let _checkObra=null;
 
 // ---- ANEXOS PRIVADOS (auditoria de LGPD, item 6, 21/09/2026) ----
@@ -1101,100 +1112,42 @@ function cabecalhosSessoesObra(extra){
   return Object.assign(cabecalhos(extra||{}),{'X-Sistema':'sessions'});
 }
 
-function encerrarNaListaObra(d, sessionId, motivo){
-  const i=(d.ativas||[]).findIndex(function(s){ return s.sessionId===sessionId; });
-  if(i<0) return false;
-  const s=d.ativas[i];
-  d.ativas.splice(i,1);
-  const inicio=s.inicio||s.ts||Date.now();
-  const fim=(motivo==='parou')?(s.ts||inicio):Date.now();
-  d.encerradas=[{sessionId:s.sessionId,username:s.username||'',nome:s.nome||'',
-    sistema:s.sistema||'',inicio:inicio,fim:fim,
-    minutos:Math.max(0,Math.round((fim-inicio)/60000)),motivo:motivo}]
-    .concat(d.encerradas||[]).slice(0,500);
-  return true;
+// encerrarNaListaObra e limparParadasObra sairam daqui: fechar sessao e
+// limpar quem parou viraram conta do Worker.
+async function acaoSessaoObra(nome, corpo){
+  const r=await fetch(WORKER,{
+    method:'POST',
+    headers:cabecalhosSessoesObra({'Content-Type':'application/json','X-Action':nome}),
+    body:JSON.stringify(Object.assign({sessionId:_sessionIdObra, ambiente:AMBIENTE_OBRA}, corpo||{}))
+  });
+  if(!r.ok) throw Object.assign(new Error('worker '+r.status),{status:r.status});
+  return r.json();
 }
 
-function limparParadasObra(d){
-  const LIMITE=60*60*1000, agora=Date.now();
-  let mexeu=false;
-  (d.ativas||[]).slice().forEach(function(s){
-    if(agora-(s.ts||0)>=LIMITE && encerrarNaListaObra(d,s.sessionId,'parou')) mexeu=true;
-  });
-  return mexeu;
-}
+
 
 async function registrarSessaoObra(nome, username){
-  try{
-    const r=await fetch(WORKER,{headers:cabecalhosSessoesObra()});
-    if(!r.ok) return;
-    const d=await r.json();
-    const u=(username||nome||'').toLowerCase().trim();
-    const ativas=(d.ativas||[]).filter(function(s){
-      return s.sessionId!==_sessionIdObra && !((s.username||'').toLowerCase().trim()===u && s.sistema==='obra' && mesmoAmbienteObra(s));
-    });
-    ativas.push({sessionId:_sessionIdObra,username:u,nome:nome,sistema:'obra',ambiente:AMBIENTE_OBRA,ts:Date.now(),inicio:Date.now()});
-    d.ativas=ativas;
-    await fetch(WORKER,{method:'PATCH',
-      headers:cabecalhosSessoesObra({'Content-Type':'application/json'}),
-      body:JSON.stringify({data:d})});
-  }catch(e){}
+  try{ await acaoSessaoObra('sessao-entrar',{sistema:'obra'}); }catch(e){}
 }
 
 async function removerSessaoObra(){
-  try{
-    const r=await fetch(WORKER,{headers:cabecalhosSessoesObra()});
-    if(!r.ok) return;
-    const d=await r.json();
-    encerrarNaListaObra(d,_sessionIdObra,'saiu');
-    await fetch(WORKER,{method:'PATCH',
-      headers:cabecalhosSessoesObra({'Content-Type':'application/json'}),
-      body:JSON.stringify({data:d})});
-  }catch(e){}
+  try{ await acaoSessaoObra('sessao-sair',{}); }catch(e){}
 }
 
 async function checkForceLogoutObra(){
-  try{
-    const r=await fetch(WORKER,{headers:cabecalhosSessoesObra()});
-    if(!r.ok) return;
-    const d=await r.json();
-    const forcados=(d.forceLogout||[]);
-    if(forcados.indexOf(_sessionIdObra)>=0){
-      const motivo=(d.forceLogoutMotivo||{})[_sessionIdObra]==='outro-login'?'outro-login':'deslogado';
-      d.forceLogout=forcados.filter(function(x){ return x!==_sessionIdObra; });
-      if(d.forceLogoutMotivo) delete d.forceLogoutMotivo[_sessionIdObra];
-      encerrarNaListaObra(d,_sessionIdObra,motivo);
-      await fetch(WORKER,{method:'PATCH',
-        headers:cabecalhosSessoesObra({'Content-Type':'application/json'}),
-        body:JSON.stringify({data:d})});
-      // Este aviso PRECISA parar o código até o clique: o que vem depois
-      // recarrega a página. Por isso a ação vai no callback.
-      aviso('Sessão encerrada',
-        motivo==='outro-login'
-          ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
-          :'Sua sessão foi encerrada pelo administrador.',
-        function(){
-          try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){} apagarDadosLocais();
-          location.reload();
-        });
-      return;
-    }
-    const AGORA=Date.now(), CADA=5*60*1000;
-    let precisaGravar=limparParadasObra(d);
-    const eu=(d.ativas||[]).find(function(s){ return s.sessionId===_sessionIdObra; });
-    if(eu){
-      if(AGORA-(eu.ts||0)>CADA){ eu.ts=AGORA; precisaGravar=true; }
-    } else {
-      d.ativas=(d.ativas||[]).concat([{sessionId:_sessionIdObra,
-        username:(usuario||'').toLowerCase().trim(), nome:usuario,
-        sistema:'obra', ambiente:AMBIENTE_OBRA, ts:AGORA, inicio:AGORA}]);
-      precisaGravar=true;
-    }
-    if(!precisaGravar) return;
-    await fetch(WORKER,{method:'PATCH',
-      headers:cabecalhosSessoesObra({'Content-Type':'application/json'}),
-      body:JSON.stringify({data:d})});
-  }catch(e){}
+  let r=null;
+  try{ r=await acaoSessaoObra('sessao-sinal',{sistema:'obra'}); }catch(e){ return; }
+  if(!r||!r.derrubado) return;
+  // Este aviso PRECISA parar o código até o clique: o que vem depois
+  // recarrega a página. Por isso a ação vai no callback.
+  aviso('Sessão encerrada',
+    r.motivo==='outro-login'
+      ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
+      :'Sua sessão foi encerrada pelo administrador.',
+    function(){
+      try{ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('dalum-sso'); }catch(e){} apagarDadosLocais();
+      location.reload();
+    });
 }
 
 async function sairDaObra(){
