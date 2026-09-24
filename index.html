@@ -1087,7 +1087,12 @@ async function doLogout(){
 }
 // A saida em si, sem perguntar nada: serve para o botao Sair e para o
 // encerramento por sessao parada (ver PARADO_MS).
+// Sair e sair: sem isto, o ciclo de 5 s seguia rodando sem cracha e a pessoa
+// levava um "seu acesso venceu" a cada clique em Sair (24/09/2026).
+let _saiuDeProposito=false;
 async function sairDoSistema(){
+  _saiuDeProposito=true;
+  if(_sessCheck){ clearInterval(_sessCheck); _sessCheck=null; }
   await removerSessaoPortal();
   loginGuardaApagar('dalum-sso'); loginGuardaApagar(TOKEN_KEY); apagarDadosLocais();
   ['portal-logged','portal-user','portal-role','portal-modulos','portal-admin-key'].forEach(k=>sessionStorage.removeItem(k));
@@ -1926,7 +1931,7 @@ async function acaoSessao(nome, corpo){
     // Cracha vencido ou recusado: nada mais vai funcionar nesta tela. Avisa
     // uma vez so — este ciclo repete a cada 5 s — e devolve a pessoa ao
     // login, em vez de deixar o portal aberto sem servir para nada.
-    if(!_avisouFalhaSessao){
+    if(!_avisouFalhaSessao && !_saiuDeProposito){
       _avisouFalhaSessao=true;
       alert('O seu acesso venceu.\n\nVocê vai voltar para a tela de entrada.');
       forcarSaida();
@@ -1982,6 +1987,9 @@ function perguntarSessao(){
 // conferia — quem recarregava a pagina entrava sem derrubar a outra tela, e a
 // regra parecia funcionar quando so funcionava as vezes.
 async function entrarNaLista(){
+  // Entrou de novo: a saida anterior ficou para tras.
+  _saiuDeProposito=false;
+  _avisouFalhaSessao=false;
   let outras=0;
   // Se nao der para perguntar ao servidor, deixa entrar: ficar de fora por
   // causa de uma falha de rede seria pior que uma sessao a mais.
