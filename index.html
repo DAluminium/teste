@@ -1882,7 +1882,26 @@ async function registrarSessaoPortal(nome, username){
 async function removerSessaoPortal(){
   try{ await acaoSessao('sessao-sair',{}); }catch(e){}
 }
+// O cracha e UM POR NAVEGADOR. Se alguem entrar com outro usuario em outra
+// janela do mesmo navegador, esta tela continua desenhada com a pessoa antiga
+// — e os botoes dela param de funcionar, porque o servidor ja conhece outra.
+// Comparar o dono do cracha com o dono da tela resolve sem enganar ninguem.
+function outroUsuarioEntrouAqui(){
+  const t=lerToken();
+  const doCracha=(t&&t.dados)?String(t.dados.u||'').toLowerCase().trim():'';
+  const daTela=String(sessionStorage.getItem('portal-admin-key')||'').toLowerCase().trim();
+  return !!doCracha && !!daTela && doCracha!==daTela;
+}
+let _avisouTrocaDeUsuario=false;
 async function checkForceLogoutPortal(){
+  if(outroUsuarioEntrouAqui()){
+    if(_avisouTrocaDeUsuario) return;
+    _avisouTrocaDeUsuario=true;
+    alert('Outro usuário entrou neste navegador.\n\n'
+      +'Cada navegador guarda um acesso por vez. Esta tela vai recarregar com quem entrou.');
+    location.reload();
+    return;
+  }
   // Um pedido so faz as duas coisas: diz se esta tela foi derrubada e marca
   // que a pessoa continua trabalhando. A resposta fala SO desta sessao.
   let r=null;
