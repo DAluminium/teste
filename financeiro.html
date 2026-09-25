@@ -1545,6 +1545,13 @@ const ADMINS_FIN=[
 function getFinUsers(){ return data.usuarios||[]; }
 function saveFinUsers(u){ data.usuarios=u; }
 function isAdmin(){ return sessionStorage.getItem('fin-role')==='admin'; }
+// Corrigir uma baixa ja registrada (data, valor e conta) e do admin E do
+// gerente — e o gerente quem cuida do financeiro no dia a dia. Mesma regra de
+// Saldos iniciais, Categorias e Empresas.
+function podeCorrigirBaixas(){
+  const p=sessionStorage.getItem('fin-role')||'';
+  return p==='admin'||p==='gerente';
+}
 function showAdminBtn(s){
   const btn=document.getElementById('admin-btn');
   if(btn) btn.style.display=s?'flex':'none';
@@ -3444,7 +3451,7 @@ function renderPagar(){
       <td>${pillStatus(r._status)}${r.dtPag?`<span class="td-sub">${fmtDate(r.dtPag)}</span>`:''}</td>
       <td class="td-actions">
         ${r._status!=='pago'?`<button class="act act-pay" onclick="openBaixa('pagar',${r._i})" title="Baixar pagamento"><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>`:''}
-        ${(pagoDe(r)>0.004&&isAdmin())?`<button class="act act-baixas" onclick="openEditarBaixas('pagar',${r._i})" title="Corrigir os pagamentos lançados"><svg class="icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>`:''}
+        ${(pagoDe(r)>0.004&&podeCorrigirBaixas())?`<button class="act act-baixas" onclick="openEditarBaixas('pagar',${r._i})" title="Corrigir os pagamentos lançados"><svg class="icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>`:''}
         ${pagoDe(r)>0.004?`<button class="act act-comprov" onclick="abrirComprovante('pagar',${r._i})" title="Comprovante de pagamento"><svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>`:''}
         <button class="act act-attach ${(r.attachments&&r.attachments.length)?'has-files':''}" onclick="openAttach('pagar',${r._i})" title="${(r.attachments&&r.attachments.length)?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
           <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>${(r.attachments&&r.attachments.length)?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
@@ -3695,7 +3702,7 @@ function renderReceber(){
         <td>${pillStatus(r._status)}${r.dtRec?`<span class="td-sub">${fmtDate(r.dtRec)}</span>`:''}</td>
         <td class="td-actions">
           ${r._status!=='recebido'?`<button class="act act-pay" onclick="openBaixa('receber',${r._i})" title="Baixar recebimento"><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>`:''}
-          ${(recebidoDe(r)>0.004&&isAdmin())?`<button class="act act-baixas" onclick="openEditarBaixas('receber',${r._i})" title="Corrigir os recebimentos lançados"><svg class="icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>`:''}
+          ${(recebidoDe(r)>0.004&&podeCorrigirBaixas())?`<button class="act act-baixas" onclick="openEditarBaixas('receber',${r._i})" title="Corrigir os recebimentos lançados"><svg class="icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>`:''}
           ${recebidoDe(r)>0.004?`<button class="act act-comprov" onclick="abrirComprovante('receber',${r._i})" title="Comprovante de recebimento"><svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></button>`:''}
           <button class="act act-attach ${(r.attachments&&r.attachments.length)?'has-files':''}" onclick="openAttach('receber',${r._i})" title="${(r.attachments&&r.attachments.length)?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
             <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>${(r.attachments&&r.attachments.length)?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
@@ -3722,7 +3729,7 @@ function registroDaEdicao(){
 }
 
 function openEditarBaixas(tipo,idx){
-  if(!isAdmin()){ alert('Somente o administrador pode editar baixas já registradas.'); return; }
+  if(!podeCorrigirBaixas()){ alert('Somente o administrador ou o gerente podem corrigir lançamentos já registrados.'); return; }
   const r=(tipo==='pagar'?data.pagar:data.receber)[idx];
   if(!r) return;
   baixasEditTipo=tipo; baixasEditIdx=idx;
