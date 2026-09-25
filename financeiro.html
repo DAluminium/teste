@@ -2363,6 +2363,37 @@ function baixasDe(r, tipo){
             ? (Number(r.valor)||0) : (Number(bruto)||0);
   return [{data:dt, valor:v, conta:r.conta, obs:r.obsBaixa||''}];
 }
+// Trocar a conta do TITULO nao move o dinheiro que ja foi baixado: cada baixa
+// tem a sua propria conta, e e ela que o fluxo de caixa usa. Sem este aviso, a
+// tela passava a dizer Sicredi enquanto o relatorio continuava mostrando
+// PagBank — foi o caso do Alexandre Jesus (25/09/2026), e a varredura achou
+// outros 7 lancamentos assim. Aqui a pessoa escolhe o que fazer.
+// O 'memo' existe por causa das despesas parceladas: pergunta uma vez so e a
+// mesma resposta vale para todas as parcelas.
+function ajustarBaixasAoTrocarConta(antigo, entry, memo){
+  if(!antigo || !antigo.conta || !entry || antigo.conta===entry.conta) return;
+  const lista=Array.isArray(entry.baixas)?entry.baixas:null;
+  if(!lista || !lista.length) return;
+  const naAntiga=lista.filter(function(b){ return (b.conta||antigo.conta)===antigo.conta; });
+  if(!naAntiga.length) return;
+  const nome=function(c){ return (typeof CONTA_LABEL!=='undefined' && CONTA_LABEL[c])||c; };
+  let mover;
+  if(memo && memo.resposta!==null && memo.resposta!==undefined){ mover=memo.resposta; }
+  else {
+    const soma=naAntiga.reduce(function(a,b){ return a+(Number(b.valor)||0); },0);
+    mover=confirm('Atenção: este lançamento já tem R$ '+fmtBR(soma)+' registrado(s) em '+nome(antigo.conta)+'.\n\n'
+      +'Trocar a conta aqui NÃO muda onde o dinheiro aparece no fluxo de caixa.\n\n'
+      +'OK — mover também esse dinheiro para '+nome(entry.conta)+'\n'
+      +'Cancelar — deixar o dinheiro em '+nome(antigo.conta)+'\n\n'
+      +'(se houver mais parcelas, a mesma escolha vale para todas)');
+    if(memo) memo.resposta=mover;
+  }
+  if(!mover) return;
+  entry.baixas=lista.map(function(b){
+    return ((b.conta||antigo.conta)===antigo.conta) ? Object.assign({}, b, {conta:entry.conta}) : b;
+  });
+}
+
 function somaBaixas(r, tipo){
   return baixasDe(r,tipo).reduce((a,b)=>a+(Number(b.valor)||0),0);
 }
@@ -3470,7 +3501,7 @@ async function savePagar(){
     const existingParent=data.pagar[pagarEditId].parentId||data.pagar[pagarEditId].id;
     data.pagar.forEach(r=>{
       if(r.parentId===existingParent||r.id===existingParent){
-        guardados[r.id]={valorPago:r.valorPago,attachments:r.attachments,obsBaixa:r.obsBaixa,baixas:r.baixas};
+        guardados[r.id]={valorPago:r.valorPago,attachments:r.attachments,obsBaixa:r.obsBaixa,baixas:r.baixas,conta:r.conta};
       }
     });
     data.pagar=data.pagar.filter(r=>r.parentId!==existingParent&&r.id!==existingParent);
@@ -3487,6 +3518,7 @@ async function savePagar(){
     totalValor,
   };
 
+  const memoConta={resposta:null};
   parcelas.forEach((p,i)=>{
     const id=p.id||genId();
     const g=guardados[id]||{};
@@ -3524,6 +3556,7 @@ async function savePagar(){
         reg.baixas=[{id:genId(),data:reg.dtPag,valor:totalAgora,conta:reg.conta,obs:g.obsBaixa||''}];
       }
     }
+    ajustarBaixasAoTrocarConta(g, reg, memoConta);
     if(g.attachments) reg.attachments=g.attachments;
     if(reg.dtPag && g.obsBaixa) reg.obsBaixa=g.obsBaixa;
     data.pagar.push(reg);
@@ -4418,6 +4451,8 @@ async function saveReceber(){
   }
   // Sem data de recebimento nao ha recebimento: o valor e o historico saem
   // junto, senao o titulo ficaria "recebido" sem ninguem saber quando.
+
+  ajustarBaixasAoTrocarConta(antigo, entry, null);
 
   if(receberEditId!==null){ data.receber[receberEditId]=entry; } else { data.receber.push(entry); }
   logFin(receberEditId!==null?'Editou':'Criou','A receber · '+cliente,
