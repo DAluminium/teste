@@ -2374,23 +2374,41 @@ function ajustarBaixasAoTrocarConta(antigo, entry, memo){
   if(!antigo || !antigo.conta || !entry || antigo.conta===entry.conta) return;
   const lista=Array.isArray(entry.baixas)?entry.baixas:null;
   if(!lista || !lista.length) return;
-  const naAntiga=lista.filter(function(b){ return (b.conta||antigo.conta)===antigo.conta; });
-  if(!naAntiga.length) return;
+  const contaDe=function(b){ return b.conta||antigo.conta; };
+  // O que importa e o dinheiro que NAO esta na conta nova — venha ele da conta
+  // anterior do titulo ou de um terceiro banco.
+  const fora=lista.filter(function(b){ return contaDe(b)!==entry.conta; });
+  if(!fora.length) return;
   const nome=function(c){ return (typeof CONTA_LABEL!=='undefined' && CONTA_LABEL[c])||c; };
+  const soma=fora.reduce(function(a,b){ return a+(Number(b.valor)||0); },0);
+  const bancos=[];
+  fora.forEach(function(b){ if(bancos.indexOf(contaDe(b))<0) bancos.push(contaDe(b)); });
+
+  // Dinheiro espalhado em mais de um banco: avisa e nao mexe. Juntar tudo numa
+  // conta so apagaria um rateio feito de proposito.
+  if(bancos.length>1){
+    if(memo && memo.avisou) return;
+    alert('Atenção: este lançamento tem R$ '+fmtBR(soma)+' já registrado(s), dividido(s) entre '
+      +bancos.map(nome).join(' e ')+'.\n\n'
+      +'Trocar a conta aqui NÃO muda onde esse dinheiro aparece no fluxo de caixa.\n\n'
+      +'Para mover, use o botão "Corrigir os lançamentos" na linha, que edita um por um.');
+    if(memo) memo.avisou=true;
+    return;
+  }
+
   let mover;
   if(memo && memo.resposta!==null && memo.resposta!==undefined){ mover=memo.resposta; }
   else {
-    const soma=naAntiga.reduce(function(a,b){ return a+(Number(b.valor)||0); },0);
-    mover=confirm('Atenção: este lançamento já tem R$ '+fmtBR(soma)+' registrado(s) em '+nome(antigo.conta)+'.\n\n'
+    mover=confirm('Atenção: este lançamento já tem R$ '+fmtBR(soma)+' registrado(s) em '+nome(bancos[0])+'.\n\n'
       +'Trocar a conta aqui NÃO muda onde o dinheiro aparece no fluxo de caixa.\n\n'
       +'OK — mover também esse dinheiro para '+nome(entry.conta)+'\n'
-      +'Cancelar — deixar o dinheiro em '+nome(antigo.conta)+'\n\n'
+      +'Cancelar — deixar o dinheiro em '+nome(bancos[0])+'\n\n'
       +'(se houver mais parcelas, a mesma escolha vale para todas)');
     if(memo) memo.resposta=mover;
   }
   if(!mover) return;
   entry.baixas=lista.map(function(b){
-    return ((b.conta||antigo.conta)===antigo.conta) ? Object.assign({}, b, {conta:entry.conta}) : b;
+    return (contaDe(b)!==entry.conta) ? Object.assign({}, b, {conta:entry.conta}) : b;
   });
 }
 
