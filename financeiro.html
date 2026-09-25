@@ -1577,13 +1577,15 @@ function openSaldosIniciais(){
 function closeSaldosIniciais(){ document.getElementById('saldos-overlay').classList.remove('open'); }
 
 function calcSaldoTotal_si(){
-  const total=['si-pagbank','si-inter','si-sicredi','si-caixa','si-transitorio']
+  // A Transitorio fica FORA do total, como a Antecipacao de Boleto: e conta de
+  // passagem, para o que ainda nao foi identificado (pedido da Hyllary, 25/09/2026).
+  const total=['si-pagbank','si-inter','si-sicredi','si-caixa']
     .reduce((a,id)=>a+parseBR((document.getElementById(id)||{}).value||'0'),0);
   document.getElementById('si-total').textContent='R$ '+fmtBR(total);
 }
 // Bind input events
 setTimeout(()=>{
-  ['si-pagbank','si-inter','si-sicredi','si-caixa','si-transitorio'].forEach(id=>{
+  ['si-pagbank','si-inter','si-sicredi','si-caixa'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('input',calcSaldoTotal_si);
   });
