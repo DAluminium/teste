@@ -464,7 +464,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Data</th><th>Descrição</th><th>Tipo</th><th>Conta</th><th>Entrada</th><th>Saída</th><th>Saldo</th>
+          <th>Data</th><th>Descrição</th><th>Tipo</th><th>Conta</th><th>Entrada</th><th>Saída</th><th>Saldo</th><th>Ações</th>
         </tr></thead>
         <tbody id="tbody-caixa"></tbody>
       </table>
@@ -4693,7 +4693,8 @@ function movimentosDoCaixa(){
   // Lançamentos feitos direto no banco (sem contas a pagar/receber).
   (data.movimentos||[]).forEach(m=>{
     if(m.tipo==='entrada'||m.tipo==='saida'){
-      movs.push({data:m.data, desc:m.desc||'Lançamento no banco',
+      // leva o id: e por ele que a lixeira sabe o que apagar
+      movs.push({id:m.id, data:m.data, desc:m.desc||'Lançamento no banco',
         tipo:m.tipo==='entrada'?'Outra entrada':'Outra saída', conta:m.conta,
         entrada:m.tipo==='entrada'?(Number(m.valor)||0):0,
         saida:m.tipo==='saida'?(Number(m.valor)||0):0});
@@ -4702,8 +4703,8 @@ function movimentosDoCaixa(){
   // Transferências
   (data.movimentos||[]).forEach(m=>{
     if(m.tipo==='transferencia'){
-      movs.push({data:m.data,desc:'Transf. para '+CONTA_LABEL[m.destino],tipo:'Transferência',conta:m.origem,saida:m.valor,entrada:0});
-      movs.push({data:m.data,desc:'Transf. de '+CONTA_LABEL[m.origem],tipo:'Transferência',conta:m.destino,entrada:m.valor,saida:0});
+      movs.push({id:m.id,data:m.data,desc:'Transf. para '+CONTA_LABEL[m.destino],tipo:'Transferência',conta:m.origem,saida:m.valor,entrada:0});
+      movs.push({id:m.id,data:m.data,desc:'Transf. de '+CONTA_LABEL[m.origem],tipo:'Transferência',conta:m.destino,entrada:m.valor,saida:0});
     }
   });
 
@@ -4763,7 +4764,7 @@ function renderCaixa(){
   // Linha do saldo anterior, no pé da lista — que é onde fica o mais antigo,
   // já que a tabela mostra do mais novo para o mais velho.
   const linhaAnterior=`<tr style="background:var(--gray-1)">
-    <td colspan="6" style="font-size:12px;color:var(--gray-5);font-style:italic">
+    <td colspan="7" style="font-size:12px;color:var(--gray-5);font-style:italic">
       Saldo anterior${inicioPeriodo?' (até '+fmtDate(inicioPeriodo)+')':''}</td>
     <td style="font-weight:700;color:${saldoAnterior>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(saldoAnterior)}</td>
   </tr>`;
@@ -4771,7 +4772,7 @@ function renderCaixa(){
   const tbody=document.getElementById('tbody-caixa');
   if(!filtered.length){
     tbody.innerHTML=linhaAnterior+
-      '<tr class="empty-row"><td colspan="7">Nenhuma movimentação no período.</td></tr>';
+      '<tr class="empty-row"><td colspan="8">Nenhuma movimentação no período.</td></tr>';
   }
   else {
     tbody.innerHTML=withSaldo.map(m=>`<tr>
@@ -4782,6 +4783,7 @@ function renderCaixa(){
       <td style="color:var(--green);font-weight:600">${m.entrada?'R$ '+fmtBR(m.entrada):'—'}</td>
       <td style="color:var(--red);font-weight:600">${m.saida?'R$ '+fmtBR(m.saida):'—'}</td>
       <td style="font-weight:700;color:${m.saldo>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(m.saldo)}</td>
+      <td class="td-actions">${m.id?`<button class="act act-del" onclick="apagarMovimento('${m.id}')" title="Apagar este lançamento"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg></button>`:''}</td>
     </tr>`).join('')+linhaAnterior;
   }
   document.getElementById('t-caixa-footer').innerHTML=
@@ -4961,6 +4963,24 @@ function openModalLancamento(){
   document.getElementById('lanc-overlay').classList.add('open');
 }
 function closeLanc(){ document.getElementById('lanc-overlay').classList.remove('open'); }
+
+// Apaga um lancamento feito direto no banco ou uma transferencia. So estes:
+// linha que veio de contas a pagar/receber nao tem lixeira, porque la o certo
+// e corrigir pela tela do titulo, que guarda o historico das baixas.
+async function apagarMovimento(id){
+  const lista=data.movimentos||[];
+  const m=lista.find(function(x){ return x.id===id; });
+  if(!m){ alert('Não encontrei este lançamento.'); return; }
+  const quanto='R$ '+fmtBR(m.valor);
+  const oque = m.tipo==='transferencia'
+    ? 'a transferência de '+quanto+' ('+CONTA_LABEL[m.origem]+' → '+CONTA_LABEL[m.destino]+')'
+    : 'o lançamento "'+(m.desc||'sem descrição')+'" de '+quanto+' em '+CONTA_LABEL[m.conta];
+  if(!confirm('Apagar '+oque+', de '+fmtDate(m.data)+'?\n\nO saldo da conta volta ao que era. Não há como desfazer.')) return;
+  data.movimentos=lista.filter(function(x){ return x.id!==id; });
+  logFin('Apagou lançamento', (m.tipo==='transferencia'?'Transferência':(m.desc||'Lançamento no banco')),
+    quanto+' · '+fmtDate(m.data));
+  await persist(); render();
+}
 async function saveLanc(){
   const tipo=document.getElementById('lc-tipo').value;
   const conta=document.getElementById('lc-conta').value;
