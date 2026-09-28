@@ -3278,7 +3278,12 @@ function renderHistorico(){
 function exportarTabelaExcel(tabela, nomeArquivo, titulo){
   if(!tabela){ alert('Não encontrei a tabela desta tela.'); return; }
   const limpar=function(s){ return String(s||'').replace(/\s+/g,' ').trim(); };
-  const aspas=function(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; };
+  // Aspas so quando o campo tem ponto e virgula, aspas ou quebra de linha.
+  // Numero entre aspas o Excel importa como TEXTO, e a coluna deixa de somar.
+  const aspas=function(v){
+    const s=String(v==null?'':v);
+    return /[;"\r\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  };
   // So o numero, sem o "R$ ", para o Excel somar a coluna. Qualquer outra
   // coisa vai como esta.
   const semMoeda=function(t){
