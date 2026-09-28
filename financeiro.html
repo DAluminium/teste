@@ -375,6 +375,9 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <option value="despesas-cliente">Despesas com Cliente</option>
           <option value="outros">Outros</option>
         </select>
+        <button class="btn btn-outline btn-sm" onclick="exportarPagarExcel()" title="Levar para o Excel a lista como está na tela">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel
+        </button>
         <button class="btn btn-red btn-sm" onclick="openModalPagar()">
           <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nova despesa
         </button>
@@ -404,6 +407,9 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <option value="recebido">Recebido</option>
           <option value="parcial">Parcial</option>
         </select>
+        <button class="btn btn-outline btn-sm" onclick="exportarReceberExcel()" title="Levar para o Excel a lista como está na tela">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel
+        </button>
         <button class="btn btn-teal btn-sm" onclick="openModalReceber()">
           <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Novo recebimento
         </button>
@@ -440,6 +446,9 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <span style="color:var(--gray-4);font-size:12px">até</span>
           <input type="date" id="cx-ate" onchange="ajustarLimitesDatas();renderCaixa()" title="Data final" style="width:auto;font-size:12px;padding:4px 6px;border-radius:var(--radius);border:1px solid var(--gray-3)">
         </span>
+        <button class="btn btn-outline btn-sm" onclick="exportarCaixaExcel()" title="Levar para o Excel o fluxo de caixa como está na tela">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel
+        </button>
         <button class="btn btn-outline btn-sm" onclick="printCaixa()" title="Imprimir o fluxo de caixa como está na tela">
           <svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Imprimir
         </button>
@@ -501,6 +510,9 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <div class="panel-header">
       <div class="panel-title" id="ap-titulo">📅 Contas a Pagar por Período</div>
       <div class="panel-actions">
+        <button class="btn btn-outline btn-sm" onclick="exportarPeriodoExcel()" title="Levar para o Excel o detalhamento como está na tela">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel
+        </button>
         <button class="btn btn-outline btn-sm" onclick="printRelatorio()">
           <svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Imprimir
         </button>
@@ -3256,6 +3268,54 @@ function renderHistorico(){
     q ? `${lista.length} de ${todos.length} registro(s)`
       : `${acoes.length} alteração(ões) e ${(_sessoesHist||[]).length} período(s) de uso · guarda os 500 mais recentes`;
 }
+
+// ---- EXPORTAR A TELA PARA O EXCEL (28/09/2026) ----
+// Le a tabela que esta desenhada e escreve um CSV que o Excel abre direto:
+// separador ';' (o que o Excel em portugues espera) e marca de UTF-8 na
+// frente, senao os acentos chegam trocados.
+// A coluna de botoes (Ações) fica de fora, e o "R$ " sai da frente do numero
+// para o Excel entender 1.234,56 como valor, e nao como texto.
+function exportarTabelaExcel(tabela, nomeArquivo, titulo){
+  if(!tabela){ alert('Não encontrei a tabela desta tela.'); return; }
+  const limpar=function(s){ return String(s||'').replace(/\s*\n\s*/g,' · ').replace(/\s+/g,' ').trim(); };
+  const aspas=function(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; };
+  const semMoeda=function(s){
+    const t=limpar(s);
+    const m=t.match(/^R\$\s*(-?[\d.]*\d,\d{2})$/);
+    return m?m[1]:t;
+  };
+  const cabecalhos=[].slice.call(tabela.querySelectorAll('thead th')).map(function(th){ return limpar(th.innerText); });
+  const pular=cabecalhos.map(function(h){ return /^(ações|acoes|#)$/i.test(h); });
+  const linhas=[cabecalhos.filter(function(h,i){ return !pular[i]; }).map(aspas).join(';')];
+  [].slice.call(tabela.querySelectorAll('tbody tr')).forEach(function(tr){
+    if(tr.classList.contains('empty-row')) return;
+    const celulas=[];
+    [].slice.call(tr.children).forEach(function(td,i){ if(!pular[i]) celulas.push(semMoeda(td.innerText)); });
+    if(celulas.join('').trim()) linhas.push(celulas.map(aspas).join(';'));
+  });
+  if(linhas.length<2){ alert('Não há nada para exportar nesta tela.'); return; }
+  const topo = titulo ? aspas(titulo)+'\r\n'+aspas('Gerado pelo sistema em '+new Date().toLocaleString('pt-BR'))+'\r\n\r\n' : '';
+  const blob=new Blob(['\ufeff'+topo+linhas.join('\r\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=nomeArquivo+'_'+today()+'.csv';
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); },1000);
+}
+function tabelaDe(id){ const t=document.getElementById(id); return t?t.closest('table'):null; }
+function exportarPagarExcel(){ exportarTabelaExcel(tabelaDe('tbody-pagar'),'contas_a_pagar','Contas a pagar — como está na tela'); }
+function exportarReceberExcel(){ exportarTabelaExcel(tabelaDe('tbody-receber'),'contas_a_receber','Contas a receber — como está na tela'); }
+function exportarCaixaExcel(){
+  const per=document.getElementById('fil-caixa-mes');
+  const nome=per&&per.selectedOptions[0]?per.selectedOptions[0].textContent:'';
+  exportarTabelaExcel(tabelaDe('tbody-caixa'),'fluxo_de_caixa','Fluxo de Caixa'+(nome?' — '+nome:''));
+}
+function exportarPeriodoExcel(){
+  const alvo=document.querySelector('#apagar-content table');
+  const titulo=(document.getElementById('ap-titulo')||{}).textContent||'Por período';
+  exportarTabelaExcel(alvo,'por_periodo',limparTituloExcel(titulo));
+}
+function limparTituloExcel(t){ return String(t||'').replace(/[^\x20-\x7EÀ-ÿ]/g,'').trim(); }
 
 function exportHistorico(){
   const lista=(Array.isArray(data.historico)?data.historico:[]).concat(_sessoesHist||[])
