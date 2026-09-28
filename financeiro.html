@@ -3277,23 +3277,43 @@ function renderHistorico(){
 // para o Excel entender 1.234,56 como valor, e nao como texto.
 function exportarTabelaExcel(tabela, nomeArquivo, titulo){
   if(!tabela){ alert('Não encontrei a tabela desta tela.'); return; }
-  const limpar=function(s){ return String(s||'').replace(/\s*\n\s*/g,' · ').replace(/\s+/g,' ').trim(); };
+  const limpar=function(s){ return String(s||'').replace(/\s+/g,' ').trim(); };
   const aspas=function(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; };
-  const semMoeda=function(s){
-    const t=limpar(s);
-    const m=t.match(/^R\$\s*(-?[\d.]*\d,\d{2})$/);
-    return m?m[1]:t;
+  // So o numero, sem o "R$ ", para o Excel somar a coluna. Qualquer outra
+  // coisa vai como esta.
+  const semMoeda=function(t){
+    const m=limpar(t).match(/^R\$\s*(-?[\d.]*\d,\d{2})$/);
+    return m?m[1]:limpar(t);
   };
   const cabecalhos=[].slice.call(tabela.querySelectorAll('thead th')).map(function(th){ return limpar(th.innerText); });
   const pular=cabecalhos.map(function(h){ return /^(ações|acoes|#)$/i.test(h); });
-  const linhas=[cabecalhos.filter(function(h,i){ return !pular[i]; }).map(aspas).join(';')];
+  const corpo=[];
+  let temDetalhe=false;
   [].slice.call(tabela.querySelectorAll('tbody tr')).forEach(function(tr){
     if(tr.classList.contains('empty-row')) return;
-    const celulas=[];
-    [].slice.call(tr.children).forEach(function(td,i){ if(!pular[i]) celulas.push(semMoeda(td.innerText)); });
-    if(celulas.join('').trim()) linhas.push(celulas.map(aspas).join(';'));
+    const celulas=[], extras=[];
+    [].slice.call(tr.children).forEach(function(td,i){
+      if(pular[i]) return;
+      // A primeira linha da celula e o dado; o que vem embaixo (parcela,
+      // "falta R$ ...", dias em atraso) e explicacao, e vai para o fim. Sem
+      // isso a celula do valor virava texto e o SOMA do Excel a ignorava.
+      const partes=String(td.innerText||'').split('\n').map(limpar).filter(function(x){ return x!==''; });
+      celulas.push(semMoeda(partes[0]||''));
+      partes.slice(1).forEach(function(x){ extras.push(x); });
+    });
+    if(!celulas.join('').trim()) return;
+    if(extras.length) temDetalhe=true;
+    corpo.push({celulas:celulas, extras:extras.join(' · ')});
   });
-  if(linhas.length<2){ alert('Não há nada para exportar nesta tela.'); return; }
+  if(!corpo.length){ alert('Não há nada para exportar nesta tela.'); return; }
+  const cab=cabecalhos.filter(function(h,i){ return !pular[i]; });
+  if(temDetalhe) cab.push('Detalhes');
+  const linhas=[cab.map(aspas).join(';')];
+  corpo.forEach(function(l){
+    const c=l.celulas.slice();
+    if(temDetalhe) c.push(l.extras);
+    linhas.push(c.map(aspas).join(';'));
+  });
   const topo = titulo ? aspas(titulo)+'\r\n'+aspas('Gerado pelo sistema em '+new Date().toLocaleString('pt-BR'))+'\r\n\r\n' : '';
   const blob=new Blob(['\ufeff'+topo+linhas.join('\r\n')],{type:'text/csv;charset=utf-8;'});
   const a=document.createElement('a');
@@ -3302,6 +3322,7 @@ function exportarTabelaExcel(tabela, nomeArquivo, titulo){
   a.click();
   setTimeout(function(){ URL.revokeObjectURL(a.href); },1000);
 }
+
 function tabelaDe(id){ const t=document.getElementById(id); return t?t.closest('table'):null; }
 function exportarPagarExcel(){ exportarTabelaExcel(tabelaDe('tbody-pagar'),'contas_a_pagar','Contas a pagar — como está na tela'); }
 function exportarReceberExcel(){ exportarTabelaExcel(tabelaDe('tbody-receber'),'contas_a_receber','Contas a receber — como está na tela'); }
