@@ -3285,6 +3285,7 @@ function exportarTabelaExcel(tabela, nomeArquivo, titulo){
     const m=limpar(t).match(/^R\$\s*(-?[\d.]*\d,\d{2})$/);
     return m?m[1]:limpar(t);
   };
+  const k0Extras=function(partes){ return partes.length>1; };
   const cabecalhos=[].slice.call(tabela.querySelectorAll('thead th')).map(function(th){ return limpar(th.innerText); });
   const pular=cabecalhos.map(function(h){ return /^(ações|acoes|#)$/i.test(h); });
   const corpo=[];
@@ -3292,14 +3293,21 @@ function exportarTabelaExcel(tabela, nomeArquivo, titulo){
   [].slice.call(tabela.querySelectorAll('tbody tr')).forEach(function(tr){
     if(tr.classList.contains('empty-row')) return;
     const celulas=[], extras=[];
-    [].slice.call(tr.children).forEach(function(td,i){
-      if(pular[i]) return;
+    let col=0;
+    [].slice.call(tr.children).forEach(function(td){
+      // Uma celula pode valer por varias colunas — e o caso do "Saldo
+      // anterior" do Fluxo de Caixa. Sem respeitar isso, tudo o que vem
+      // depois dela escorrega uma coluna para a esquerda.
+      const largura=Math.max(1, td.colSpan||1);
       // A primeira linha da celula e o dado; o que vem embaixo (parcela,
       // "falta R$ ...", dias em atraso) e explicacao, e vai para o fim. Sem
       // isso a celula do valor virava texto e o SOMA do Excel a ignorava.
       const partes=String(td.innerText||'').split('\n').map(limpar).filter(function(x){ return x!==''; });
-      celulas.push(semMoeda(partes[0]||''));
-      partes.slice(1).forEach(function(x){ extras.push(x); });
+      for(let k=0;k<largura;k++){
+        if(!pular[col+k]) celulas.push(k===0?semMoeda(partes[0]||''):'');
+      }
+      if(k0Extras(partes)) partes.slice(1).forEach(function(x){ extras.push(x); });
+      col+=largura;
     });
     if(!celulas.join('').trim()) return;
     if(extras.length) temDetalhe=true;
