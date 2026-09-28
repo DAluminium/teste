@@ -3489,6 +3489,30 @@ function calcSaldoConta(conta){
   return s;
 }
 
+// Saldo de uma conta ATE um dia (inclusive). E o mesmo calculo do cartao,
+// so que parando numa data — e o numero que se compara com o extrato do
+// banco naquele dia.
+function saldoContaAte(conta, dia){
+  if(!dia) return calcSaldoConta(conta);
+  const si=data.saldosIniciais||{};
+  let s=Number(si[conta])||0;
+  data.receber.forEach(function(r){ baixasDe(r,'receber').forEach(function(b){
+    if((b.conta||r.conta)===conta && b.data && b.data<=dia) s+=Number(b.valor)||0; }); });
+  data.pagar.forEach(function(r){ baixasDe(r,'pagar').forEach(function(b){
+    if((b.conta||r.conta)===conta && b.data && b.data<=dia) s-=Number(b.valor)||0; }); });
+  (data.movimentos||[]).forEach(function(m){
+    if(!m.data || m.data>dia) return;
+    if(m.tipo==='transferencia'){
+      if(m.destino===conta) s+=Number(m.valor)||0;
+      if(m.origem===conta)  s-=Number(m.valor)||0;
+    }
+    if((m.tipo==='entrada'||m.tipo==='saida') && m.conta===conta){
+      s+=(m.tipo==='entrada'?1:-1)*(Number(m.valor)||0);
+    }
+  });
+  return s;
+}
+
 // ---- ALERTAS ----
 // Fica fechado por padrao: vira uma barra resumida, e so mostra a lista
 // inteira quando a pessoa clica. Sobrevive as atualizacoes automaticas
@@ -4749,17 +4773,38 @@ function renderCaixa(){
   const saldosDiv=document.getElementById('contas-saldos');
   const si=data.saldosIniciais||{};
   const dataRef=si.dataRef?` · Ref: ${fmtDate(si.dataRef)}`:'';
+  const caixa=movimentosDoCaixa();
+  const {filtered,withSaldo,totalEnt,totalSai,saldoAnterior,saldoFinal,inicioPeriodo}=caixa;
+
+  // Ate que dia vai o periodo escolhido. Mes inteiro: o dia 31 serve para
+  // comparar texto, porque as datas ficam guardadas como 2026-08-13.
+  const fimDoPeriodo = (caixa.filtMes==='livre') ? (caixa.ate||'')
+                     : (caixa.filtMes ? caixa.filtMes+'-31' : '');
+  const mostraFim = !!fimDoPeriodo && fimDoPeriodo < today();
+  // Como escrever o fim do periodo: mes inteiro vira o nome do mes (nem todo
+  // mes tem dia 31), e periodo livre vira a data escolhida.
+  const comoEscreverFim = (caixa.filtMes==='livre')
+    ? ('em '+fmtDate(caixa.ate||today()))
+    : ('no fim de '+(caixa.filtMes?mesLabel(caixa.filtMes+'-01'):''));
+
   saldosDiv.innerHTML=contas.map(c=>{
     const s=calcSaldoConta(c);
     const sInicial=si[c]||0;
-    return`<div class="conta-card">
+    // O numero grande e o saldo de HOJE. Quando ha periodo escolhido, vem
+    // junto o saldo no fim dele — que e o que se confere com o extrato.
+    // Sem isso, os dois numeros ficavam lado a lado sem dizer o que eram, e
+    // a conciliacao "nao batia" (28/09/2026).
+    const doPeriodo = mostraFim ? saldoContaAte(c, fimDoPeriodo) : null;
+    return `<div class="conta-card">
       <div class="conta-nome" style="color:${cores[c]}">${nomesContas[c]}</div>
       ${sInicial?`<div style="font-size:10px;color:var(--gray-4);margin-bottom:2px">Inicial: R$ ${fmtBR(sInicial)}${dataRef}</div>`:''}
       <div class="conta-saldo ${s>=0?'conta-pos':'conta-neg'}">R$ ${fmtBR(s)}</div>
+      <div style="font-size:10px;color:var(--gray-4)">saldo de hoje</div>
+      ${doPeriodo===null?'':`<div style="margin-top:4px;padding-top:4px;border-top:1px dashed var(--gray-3);font-size:11px;color:var(--gray-5)">
+        ${comoEscreverFim}:
+        <strong style="color:${doPeriodo>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(doPeriodo)}</strong></div>`}
     </div>`;
   }).join('');
-
-  const {filtered,withSaldo,totalEnt,totalSai,saldoAnterior,saldoFinal,inicioPeriodo}=movimentosDoCaixa();
 
   // Linha do saldo anterior, no pé da lista — que é onde fica o mais antigo,
   // já que a tabela mostra do mais novo para o mais velho.
