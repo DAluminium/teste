@@ -3905,10 +3905,28 @@ async function salvarBaixasEdit(){
   const antes=baixasDe(r,baixasEditTipo).map(b=>fmtDate(b.data)+' '+(CONTA_LABEL[b.conta]||b.conta)+' R$ '+fmtBR(b.valor)).join(' | ')||'nenhuma';
   r.baixas=baixasEdit.map(b=>({...b}));
   sincronizarTotais(r,baixasEditTipo);
+
+  // O titulo continua com o banco antigo depois da correcao, e e ele que
+  // aparece na lista — a tela passa a dizer uma coisa e o fluxo de caixa a
+  // mostrar outra. Se todo o dinheiro ficou num banco so, oferece acertar.
+  let acertouTitulo='';
+  if(baixasEdit.length){
+    const bancos=[];
+    baixasEdit.forEach(function(b){ const c=b.conta||r.conta; if(bancos.indexOf(c)<0) bancos.push(c); });
+    const nome=function(c){ return CONTA_LABEL[c]||c; };
+    if(bancos.length===1 && bancos[0]!==r.conta){
+      if(confirm('O dinheiro deste lançamento está em '+nome(bancos[0])+', mas o título continua dizendo '+nome(r.conta)+'.\n\n'
+        +'OK — acertar o título para '+nome(bancos[0])+'\n'
+        +'Cancelar — deixar o título como está (parte do dinheiro pode ter ido por outro banco)')){
+        r.conta=bancos[0];
+        acertouTitulo=' · título acertado para '+nome(bancos[0]);
+      }
+    }
+  }
   const depois=baixasEdit.map(b=>fmtDate(b.data)+' '+(CONTA_LABEL[b.conta]||b.conta)+' R$ '+fmtBR(b.valor)).join(' | ')||'nenhuma';
   logFin('Corrigiu baixas',
     (baixasEditTipo==='pagar'?'A pagar · ':'A receber · ')+(baixasEditTipo==='pagar'?(r.desc||'—'):(r.cliente||'—')),
-    'antes: '+antes+'  →  depois: '+depois);
+    'antes: '+antes+'  →  depois: '+depois+acertouTitulo);
   closeEditarBaixas();
   await persist();
   render();
