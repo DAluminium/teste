@@ -452,6 +452,9 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <button class="btn btn-outline btn-sm" onclick="printCaixa()" title="Imprimir o fluxo de caixa como está na tela">
           <svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Imprimir
         </button>
+        <button class="btn btn-outline btn-sm" onclick="openModalLancamento()" title="Dinheiro que entrou ou saiu sem ser venda">
+          <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Lançamento no banco
+        </button>
         <button class="btn btn-green btn-sm" onclick="openModalTransferencia()">
           <svg class="icon" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Transferência
         </button>
@@ -728,6 +731,49 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeTransf()">Cancelar</button>
       <button class="btn btn-green" onclick="saveTransf()">Confirmar transferência</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LANCAMENTO DIRETO NO BANCO -->
+<div class="modal-overlay" id="lanc-overlay">
+  <div class="modal" style="width:min(420px,100%)">
+    <div class="modal-header">
+      <div class="modal-title">Lançamento no banco</div>
+      <button class="act" onclick="closeLanc()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--teal-light);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:14px">
+        ℹ️ Para dinheiro que <strong>não veio de venda</strong> — aporte de sócio, empréstimo, reembolso, tarifa avulsa.
+        Entra direto no banco e no fluxo de caixa. <strong>Não</strong> aparece em "Recebido do mês" nem em "A receber",
+        que continuam sendo só de cliente.
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label>Tipo <span style="color:var(--red)">*</span></label>
+          <select id="lc-tipo">
+            <option value="entrada">Entrada (dinheiro entrou)</option>
+            <option value="saida">Saída (dinheiro saiu)</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Conta <span style="color:var(--red)">*</span></label>
+          <select id="lc-conta">
+            <option value="pagbank">PagBank</option>
+            <option value="inter">Inter</option>
+            <option value="sicredi">Sicredi</option>
+            <option value="caixa">Caixa (espécie)</option>
+            <option value="antecipacao">Antecipação de Boleto</option>
+            <option value="transitorio">Transitório</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Valor <span style="color:var(--red)">*</span></label><input id="lc-valor" type="text" placeholder="Ex: 1.500,00"></div>
+        <div class="form-group"><label>Data <span style="color:var(--red)">*</span></label><input id="lc-data" type="date"></div>
+        <div class="form-group span2"><label>Descrição <span style="color:var(--red)">*</span></label><input id="lc-desc" type="text" placeholder="Ex: Aporte da sócia Aretusa"></div>
+        <div class="form-group span2"><label>Observação</label><input id="lc-obs" type="text" placeholder="opcional"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeLanc()">Cancelar</button>
+      <button class="btn btn-green" onclick="saveLanc()">Confirmar lançamento</button>
     </div>
   </div>
 </div>
@@ -3413,6 +3459,12 @@ function calcSaldoTotal(){
   // valores, e nao o total cheio de uma vez so.
   data.receber.forEach(r=>{ baixasDe(r,'receber').forEach(b=>{ saldo+=Number(b.valor)||0; }); });
   data.pagar.forEach(r=>{ baixasDe(r,'pagar').forEach(b=>{ saldo-=Number(b.valor)||0; }); });
+  // Lançamentos feitos direto no banco. Transferência continua de fora: ela
+  // só muda o dinheiro de lugar, não muda o total.
+  (data.movimentos||[]).forEach(function(m){
+    if(m.tipo==='entrada') saldo+=Number(m.valor)||0;
+    if(m.tipo==='saida')   saldo-=Number(m.valor)||0;
+  });
   return saldo;
 }
 
@@ -3425,6 +3477,10 @@ function calcSaldoConta(conta){
   data.receber.forEach(r=>{ baixasDe(r,'receber').forEach(b=>{ if((b.conta||r.conta)===conta) s+=Number(b.valor)||0; }); });
   data.pagar.forEach(r=>{ baixasDe(r,'pagar').forEach(b=>{ if((b.conta||r.conta)===conta) s-=Number(b.valor)||0; }); });
   (data.movimentos||[]).forEach(m=>{
+    // Lançamento feito direto no banco entra no saldo daquela conta.
+    if((m.tipo==='entrada'||m.tipo==='saida') && m.conta===conta){
+      s+=(m.tipo==='entrada'?1:-1)*(Number(m.valor)||0);
+    }
     if(m.tipo==='transferencia'){
       if(m.destino===conta) s+=m.valor;
       if(m.origem===conta) s-=m.valor;
@@ -4634,6 +4690,15 @@ function movimentosDoCaixa(){
         tipo:'Recebimento',conta:b.conta||r.conta,entrada:Number(b.valor)||0,saida:0});
     });
   });
+  // Lançamentos feitos direto no banco (sem contas a pagar/receber).
+  (data.movimentos||[]).forEach(m=>{
+    if(m.tipo==='entrada'||m.tipo==='saida'){
+      movs.push({data:m.data, desc:m.desc||'Lançamento no banco',
+        tipo:m.tipo==='entrada'?'Outra entrada':'Outra saída', conta:m.conta,
+        entrada:m.tipo==='entrada'?(Number(m.valor)||0):0,
+        saida:m.tipo==='saida'?(Number(m.valor)||0):0});
+    }
+  });
   // Transferências
   (data.movimentos||[]).forEach(m=>{
     if(m.tipo==='transferencia'){
@@ -4883,6 +4948,41 @@ function printCaixa(){
 // ---- TRANSFERÊNCIA ----
 function openModalTransferencia(){ document.getElementById('t-data').value=today(); document.getElementById('t-valor').value=''; document.getElementById('t-obs').value=''; document.getElementById('transf-overlay').classList.add('open'); }
 function closeTransf(){ document.getElementById('transf-overlay').classList.remove('open'); }
+
+// ---- LANCAMENTO DIRETO NO BANCO (pedido da Hyllary, 28/09/2026) ----
+// Dinheiro que entrou ou saiu sem ser venda. Fica em data.movimentos, ao lado
+// das transferencias, e conta no fluxo de caixa e no saldo da conta — e so
+// neles: "Recebido do mes" e "A receber" continuam sendo de cliente.
+function openModalLancamento(){
+  document.getElementById('lc-data').value=today();
+  document.getElementById('lc-valor').value='';
+  document.getElementById('lc-desc').value='';
+  document.getElementById('lc-obs').value='';
+  document.getElementById('lanc-overlay').classList.add('open');
+}
+function closeLanc(){ document.getElementById('lanc-overlay').classList.remove('open'); }
+async function saveLanc(){
+  const tipo=document.getElementById('lc-tipo').value;
+  const conta=document.getElementById('lc-conta').value;
+  const valor=parseBR(document.getElementById('lc-valor').value);
+  const dt=document.getElementById('lc-data').value;
+  const desc=document.getElementById('lc-desc').value.trim();
+  if(!valor||valor<=0){ alert('Informe um valor maior que zero.'); return; }
+  if(!dt){ alert('Informe a data.'); return; }
+  if(!desc){ alert('Escreva do que se trata — é o que vai aparecer no fluxo de caixa.'); return; }
+  // Mesma conferencia de data das outras telas: ano fora de 2000-2100 cria
+  // mes fantasma no relatorio (22/09/2026).
+  {
+    const q=conferirDatas({'lançamento':dt});
+    if(q){ alert('Data inválida ('+q+').\n\nConfira o ano: o certo é algo como '+today().slice(0,4)+'.'); return; }
+  }
+  if(!data.movimentos) data.movimentos=[];
+  data.movimentos.push({id:genId(), tipo:tipo, conta:conta, valor:valor, data:dt,
+    desc:desc, obs:document.getElementById('lc-obs').value.trim()});
+  logFin(tipo==='entrada'?'Entrada no banco':'Saída do banco',
+    desc+' · '+CONTA_LABEL[conta], 'R$ '+fmtBR(valor)+' · '+fmtDate(dt));
+  await persist(); closeLanc(); render();
+}
 async function saveTransf(){
   const origem=document.getElementById('t-origem').value;
   const destino=document.getElementById('t-destino').value;
