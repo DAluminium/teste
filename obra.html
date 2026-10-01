@@ -549,6 +549,17 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </div>
       <div id="ce-lista"></div>
 
+      <div class="secao">Campos da ficha na tabela</div>
+      <div class="aviso">Escolha um campo que <strong>já existe</strong> na ficha para aparecer também como coluna na carteira. Tirar a coluna não apaga nada: o valor continua na ficha.</div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="fg"><label>Campo da ficha</label><select id="cf-campo"></select></div>
+        <div class="fg"><label>A coluna entra depois de</label><select id="cf-depois"></select></div>
+        <div class="fg span2" style="display:flex;flex-direction:row;gap:8px">
+          <button class="btn btn-teal" style="flex:1" id="cf-btn" onclick="addColunaFicha()">Mostrar na tabela</button>
+        </div>
+      </div>
+      <div id="cf-lista"></div>
+
       <div class="secao">Rótulos dos anexos</div>
       <div class="aviso">São as etiquetas que aparecem na frente de cada arquivo anexado na ficha — o rótulo diz o que é o documento sem precisar abrir. Um rótulo em uso não pode ser removido.</div>
       <div class="form-grid" style="margin-bottom:12px">
@@ -1287,6 +1298,7 @@ function arrumar(d){
   if(!Array.isArray(d.tiposDoc)||!d.tiposDoc.length) d.tiposDoc=TIPOS_DOC_PADRAO.slice();
   if(!Array.isArray(d.statusObra)||!d.statusObra.length) d.statusObra=statusPadraoNovo();
   if(!Array.isArray(d.camposExtras)) d.camposExtras=[];
+  if(!Array.isArray(d.colunasFicha)) d.colunasFicha=[];
   return d;
 }
 function lerLocal(){
@@ -1793,6 +1805,16 @@ function gravarPreferencias(){
 // O valor de uma coluna já pronto para comparar. O segundo item diz se está
 // vazio: vazio vai sempre para o fim, nas duas direções — é o que se espera.
 function valorParaOrdenar(col, c){
+  if(col.ficha){
+    const bruto=valorCampoFicha(col.ficha, c);
+    const t=String(bruto==null?'':bruto).trim();
+    if(!t) return {vazio:true, v:''};
+    if(col.ficha.tipo==='numero'){
+      const n=Number(t.replace(',','.'));
+      return {vazio:false, v:isFinite(n)?n:0, numero:true};
+    }
+    return {vazio:false, v:t.toLowerCase()};
+  }
   if(col.extra){
     const v=(c.extras||{})[col.extra.id];
     const t=String(v==null?'':v).trim();
@@ -3762,6 +3784,37 @@ const CAMPOS_DA_PLANILHA=[
   {nome:'Custo do material', tipo:'dinheiro', secao:'prazos', naCarteira:true, depoisDe:'pecas'}
 ];
 
+// Campos que JÁ existem na ficha e podem virar coluna da carteira (pedido do
+// Ander, 01/10/2026). Diferente do campo extra: aqui não se cria nada, só se
+// escolhe mostrar. Tirar a coluna não mexe no valor gravado no contrato.
+// "Comprar até" não é gravado: é a conta fechamento + prazo de material.
+const CAMPOS_FICHA_TABELA=[
+  {campo:'respCom',        rotulo:'Resp. comercial',     tipo:'texto'},
+  {campo:'cidade',         rotulo:'Cidade',              tipo:'texto'},
+  {campo:'condominio',     rotulo:'Condomínio / Local',  tipo:'texto'},
+  {campo:'fechamento',     rotulo:'Fechamento',          tipo:'data'},
+  {campo:'prazoMaterial',  rotulo:'Prazo de material',   tipo:'numero'},
+  {campo:'limiteMaterial', rotulo:'Comprar até',         tipo:'data',
+    valor:function(c){ return contasDe(c).limiteMaterial; }},
+  {campo:'medicao',        rotulo:'Medição prevista',    tipo:'data'},
+  {campo:'diasProd',       rotulo:'Dias de produção',    tipo:'numero'},
+  {campo:'projEntrada',    rotulo:'Projeção de entrada', tipo:'data'},
+  {campo:'diasInst',       rotulo:'Dias de instalação',  tipo:'numero'},
+  {campo:'cores',          rotulo:'Cores',               tipo:'texto'},
+  {campo:'vidros',         rotulo:'Vidros',              tipo:'texto'}
+];
+function colunasFicha(){
+  return (Array.isArray(dados.colunasFicha)?dados.colunasFicha:[]).filter(function(x){
+    return !!defCampoFicha(x.campo);
+  });
+}
+function defCampoFicha(campo){
+  return CAMPOS_FICHA_TABELA.find(function(d){ return d.campo===campo; });
+}
+function valorCampoFicha(def, c){
+  return def.valor ? def.valor(c) : c[def.campo];
+}
+
 // Qual campo está sendo editado na tela de Cadastros. Nulo = cadastro novo.
 let _editandoCampo=null;
 
@@ -3852,14 +3905,27 @@ function lerExtras(){
 // nenhuma obra pode desaparecer do quadro.
 function colunasDaCarteira(){
   const extras=camposExtras().filter(function(cp){ return !!cp.naCarteira; });
+  const daFicha=colunasFicha();
   const saida=[], usados={};
   COLUNAS_CARTEIRA.forEach(function(col){
     saida.push(col);
+    // Os campos da ficha vêm antes dos extras quando escolhem a mesma coluna.
+    daFicha.forEach(function(x){
+      if((x.depoisDe||'entrega')!==col.key) return;
+      usados['f:'+x.campo]=1;
+      const def=defCampoFicha(x.campo);
+      saida.push({key:'f:'+x.campo, rotulo:def.rotulo, ficha:def});
+    });
     extras.forEach(function(cp){
       if((cp.depoisDe||'pecas')!==col.key) return;
       usados[cp.id]=1;
       saida.push({key:'x:'+cp.id, rotulo:cp.nome, extra:cp});
     });
+  });
+  daFicha.forEach(function(x){
+    if(usados['f:'+x.campo]) return;
+    const def=defCampoFicha(x.campo);
+    saida.push({key:'f:'+x.campo, rotulo:def.rotulo, ficha:def});
   });
   extras.forEach(function(cp){
     if(usados[cp.id]) return;
@@ -3872,6 +3938,10 @@ function colunasDaCarteira(){
 // dentro do htmlCarteira; ficam aqui para que a coluna extra possa entrar no
 // meio delas sem duplicar o desenho da tabela.
 function celulaDaCarteira(col, c){
+  if(col.ficha){
+    const v=valorExtraFormatado(col.ficha, valorCampoFicha(col.ficha, c));
+    return '<td class="td-nowrap'+(v?'':' td-fraco')+'">'+(v||'—')+'</td>';
+  }
   if(col.extra){
     const v=valorExtraFormatado(col.extra, (c.extras||{})[col.extra.id]);
     return '<td class="td-nowrap'+(v?'':' td-fraco')+'">'+(v||'—')+'</td>';
@@ -3948,7 +4018,75 @@ function ondeFica(cp){
   return partes.join(' · ');
 }
 
+// ---- CAMPOS DA FICHA NA TABELA ----
+function renderColunasFicha(){
+  const sel=document.getElementById('cf-campo');
+  const dep=document.getElementById('cf-depois');
+  const el=document.getElementById('cf-lista');
+  if(!sel||!dep||!el) return;
+  const mostrados=colunasFicha();
+  // Só oferece o que ainda não está na tabela.
+  const livres=CAMPOS_FICHA_TABELA.filter(function(d){
+    return !mostrados.some(function(x){ return x.campo===d.campo; });
+  });
+  const antes=sel.value;
+  sel.innerHTML=livres.length
+    ? livres.map(function(d){ return '<option value="'+esc(d.campo)+'">'+esc(d.rotulo)+'</option>'; }).join('')
+    : '<option value="">Todos já estão na tabela</option>';
+  if(livres.some(function(d){ return d.campo===antes; })) sel.value=antes;
+  document.getElementById('cf-btn').disabled=!livres.length;
+  const depAntes=dep.value;
+  dep.innerHTML=COLUNAS_CARTEIRA.map(function(col){
+    return '<option value="'+esc(col.key)+'">'+esc(col.rotulo)+'</option>';
+  }).join('');
+  dep.value=(COLUNAS_CARTEIRA.some(function(col){ return col.key===depAntes; })?depAntes:'entrega');
+  if(!mostrados.length){
+    el.innerHTML='<div style="font-size:12.5px;color:var(--gray-4)">Nenhum campo da ficha na tabela além das colunas de sempre.</div>';
+    return;
+  }
+  el.innerHTML='<div class="caixa">'+mostrados.map(function(x){
+    const def=defCampoFicha(x.campo);
+    const col=COLUNAS_CARTEIRA.find(function(k){ return k.key===(x.depoisDe||'entrega'); });
+    const arg=JSON.stringify(x.campo).replace(/"/g,'&quot;');
+    return '<div class="caixa-linha" style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">'+
+      '<span><strong>'+esc(def.rotulo)+'</strong> '+
+        '<span style="font-size:11px;color:var(--gray-4)">depois de '+esc(col?col.rotulo:'Entrega')+'</span></span>'+
+      '<button class="btn btn-outline btn-sm" onclick="tirarColunaFicha('+arg+')">Tirar da tabela</button>'+
+      '</div>';
+  }).join('')+'</div>';
+}
+
+async function addColunaFicha(){
+  const campo=document.getElementById('cf-campo').value;
+  const depoisDe=document.getElementById('cf-depois').value;
+  const def=defCampoFicha(campo);
+  if(!def) return;
+  if(colunasFicha().some(function(x){ return x.campo===campo; })) return;
+  const col=COLUNAS_CARTEIRA.find(function(k){ return k.key===depoisDe; });
+  const ok=await alterar(function(base){
+    if(!Array.isArray(base.colunasFicha)) base.colunasFicha=[];
+    if(base.colunasFicha.some(function(x){ return x.campo===campo; })) return;
+    base.colunasFicha.push({campo:campo, depoisDe:depoisDe});
+  }, {acao:'mostrou campo da ficha na carteira', alvo:def.rotulo,
+      detalhe:'depois de '+(col?col.rotulo:depoisDe)});
+  if(ok){ renderColunasFicha(); render(); }
+}
+
+// Tirar a coluna não mexe em contrato nenhum, então não pede confirmação.
+async function tirarColunaFicha(campo){
+  const def=defCampoFicha(campo);
+  if(!def) return;
+  const ok=await alterar(function(base){
+    base.colunasFicha=(base.colunasFicha||[]).filter(function(x){ return x.campo!==campo; });
+  }, {acao:'tirou campo da ficha da carteira', alvo:def.rotulo});
+  if(ok){
+    if(ordemCarteira.col==='f:'+campo){ ordemCarteira={col:'entrega', dir:1}; gravarPreferencias(); }
+    renderColunasFicha(); render();
+  }
+}
+
 function renderCamposExtras(){
+  renderColunasFicha();
   const el=document.getElementById('ce-lista');
   const at=document.getElementById('ce-atalho');
   preencherSelectsDeLugar();
