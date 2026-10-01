@@ -38,6 +38,11 @@ table.carteira{border-collapse:collapse;width:100%;min-width:900px;font-size:12.
 table.carteira th.th-ordena{cursor:pointer;user-select:none;white-space:nowrap}
 table.carteira th.th-ordena:hover{background:var(--teal-light);color:var(--teal-dark)}
 table.carteira th.ativa{color:var(--teal-dark)}
+table.carteira th .th-x{display:none;margin-left:6px;border:none;background:var(--gray-3);color:var(--gray-5);border-radius:50%;width:16px;height:16px;line-height:15px;font-size:12px;padding:0;cursor:pointer;vertical-align:middle}
+table.carteira th:hover .th-x{display:inline-block}
+table.carteira th .th-x:hover{background:var(--red);color:white}
+table.carteira th[draggable="true"]{cursor:grab}
+table.carteira th.solta-aqui{box-shadow:inset 3px 0 0 var(--teal)}
 table.carteira th{background:var(--gray-1);text-align:left;padding:9px 10px;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-5);font-weight:700;border-bottom:2px solid var(--gray-3);white-space:nowrap;position:sticky;top:0;z-index:1}
 table.carteira td{padding:9px 10px;border-bottom:1px solid var(--gray-2);vertical-align:top}
 table.carteira tbody tr{cursor:pointer}
@@ -549,8 +554,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </div>
       <div id="ce-lista"></div>
 
-      <div class="secao">Campos da ficha na tabela</div>
-      <div class="aviso">Escolha um campo que <strong>já existe</strong> na ficha para aparecer também como coluna na carteira. Tirar a coluna não apaga nada: o valor continua na ficha.</div>
+      <div class="secao">Colunas da tabela</div>
+      <div class="aviso">Escolha um campo que <strong>já existe</strong> na ficha para aparecer também como coluna na carteira. Na lista abaixo, as setas mudam a ordem — na própria tabela dá para <strong>arrastar o título</strong> da coluna e esconder no <strong>&times;</strong> que aparece ao passar o mouse. Esconder não apaga nada. A arrumação vale para todos.</div>
       <div class="form-grid" style="margin-bottom:12px">
         <div class="fg"><label>Campo da ficha</label><select id="cf-campo"></select></div>
         <div class="fg"><label>A coluna entra depois de</label><select id="cf-depois"></select></div>
@@ -1299,6 +1304,9 @@ function arrumar(d){
   if(!Array.isArray(d.statusObra)||!d.statusObra.length) d.statusObra=statusPadraoNovo();
   if(!Array.isArray(d.camposExtras)) d.camposExtras=[];
   if(!Array.isArray(d.colunasFicha)) d.colunasFicha=[];
+  if(!d.layoutCarteira||typeof d.layoutCarteira!=='object') d.layoutCarteira={};
+  if(!Array.isArray(d.layoutCarteira.ordem)) d.layoutCarteira.ordem=[];
+  if(!Array.isArray(d.layoutCarteira.ocultas)) d.layoutCarteira.ocultas=[];
   return d;
 }
 function lerLocal(){
@@ -1975,8 +1983,15 @@ function htmlCarteira(){
     const ativa=(ordemCarteira.col===col.key);
     const seta=ativa?(ordemCarteira.dir===1?' &#9650;':' &#9660;'):'';
     const arg=JSON.stringify(col.key).replace(/"/g,'&quot;');
+    const gestor=podeGerenciar();
+    const fixa=COLUNAS_SEMPRE.indexOf(col.key)>=0;
     return '<th class="th-ordena'+(ativa?' ativa':'')+'" onclick="ordenarPor('+arg+')" '+
-      'title="Ordenar por '+esc(col.rotulo)+'">'+esc(col.rotulo)+seta+'</th>';
+      (gestor?'draggable="true" ondragstart="arrastarColuna(event,'+arg+')" ondragover="sobreColuna(event)" '+
+        'ondrop="soltarColuna(event,'+arg+')" ondragend="fimArrasto()" ':'')+
+      'title="Ordenar por '+esc(col.rotulo)+(gestor?' · arraste para mudar de lugar':'')+'">'+esc(col.rotulo)+seta+
+      (gestor&&!fixa?'<button type="button" class="th-x" title="Esconder esta coluna" '+
+        'onclick="event.stopPropagation();esconderColuna('+arg+')">&times;</button>':'')+
+      '</th>';
   }).join('');
   // Quantas ficaram de fora por estarem finalizadas. Dizer o numero evita a
   // duvida de "por que a conta nao fecha", e o link resolve na hora.
@@ -3903,7 +3918,146 @@ function lerExtras(){
 // coluna que o gestor escolheu. Campo apontando para coluna que não existe
 // mais vai para o fim, em vez de sumir da tela — mesma regra da Fábrica, onde
 // nenhuma obra pode desaparecer do quadro.
-function colunasDaCarteira(){
+// ---- ORDEM E COLUNAS ESCONDIDAS (pedido do Ander, 01/10/2026) ----
+// Por cima da ordem-padrão (as fixas, com os campos encaixados depois da
+// coluna escolhida) vale a ordem que o gestor arrumou, arrastando o título ou
+// pelas setas em Cadastros. Coluna que não está na ordem gravada — um campo
+// acrescentado depois — entra logo depois da vizinha dela na ordem-padrão.
+// CT e Cliente nunca se escondem: sem eles a linha não diz de quem é.
+const COLUNAS_SEMPRE=['ct','cliente'];
+function layoutCarteira(){
+  const l=dados.layoutCarteira||{};
+  return {ordem:Array.isArray(l.ordem)?l.ordem:[], ocultas:Array.isArray(l.ocultas)?l.ocultas:[]};
+}
+function colunasDaCarteira(todas){
+  const base=colunasPadrao();
+  const lay=layoutCarteira();
+  const saida=[];
+  lay.ordem.forEach(function(k){
+    const col=base.find(function(c){ return c.key===k; });
+    if(col && saida.indexOf(col)<0) saida.push(col);
+  });
+  base.forEach(function(col,i){
+    if(saida.indexOf(col)>=0) return;
+    let pos=0;
+    for(let j=i-1;j>=0;j--){
+      const q=saida.indexOf(base[j]);
+      if(q>=0){ pos=q+1; break; }
+    }
+    saida.splice(pos,0,col);
+  });
+  if(todas) return saida;
+  return saida.filter(function(col){
+    return COLUNAS_SEMPRE.indexOf(col.key)>=0 || lay.ocultas.indexOf(col.key)<0;
+  });
+}
+// Fixas escondidas, para oferecer "mostrar de novo". Campo da ficha e campo
+// extra não entram aqui: esconder um deles é tirá-lo da tabela no cadastro dele.
+function colunasEscondidas(){
+  const oc=layoutCarteira().ocultas;
+  return COLUNAS_CARTEIRA.filter(function(col){ return oc.indexOf(col.key)>=0 && COLUNAS_SEMPRE.indexOf(col.key)<0; });
+}
+function rotuloDaColuna(key){
+  const col=colunasDaCarteira(true).find(function(c){ return c.key===key; });
+  return col?col.rotulo:key;
+}
+
+// Grava a ordem nova a partir da lista de chaves já arrumada.
+async function gravarOrdemColunas(chaves, registro){
+  const ok=await alterar(function(base){
+    if(!base.layoutCarteira||typeof base.layoutCarteira!=='object') base.layoutCarteira={};
+    base.layoutCarteira.ordem=chaves.slice();
+    if(!Array.isArray(base.layoutCarteira.ocultas)) base.layoutCarteira.ocultas=[];
+  }, registro);
+  if(ok){ render(); renderColunasFicha(); }
+  return ok;
+}
+
+// Põe a coluna "de" no lugar da coluna "para". Vindo da esquerda, fica depois
+// dela; vindo da direita, antes — é o que a mão espera ao arrastar.
+async function moverColunaPara(de, para){
+  if(!de||!para||de===para) return;
+  const chaves=colunasDaCarteira(true).map(function(c){ return c.key; });
+  const a=chaves.indexOf(de), b=chaves.indexOf(para);
+  if(a<0||b<0) return;
+  chaves.splice(a,1);
+  const nb=chaves.indexOf(para);
+  chaves.splice(a<b?nb+1:nb,0,de);
+  await gravarOrdemColunas(chaves, {acao:'mudou a ordem das colunas da carteira',
+    alvo:rotuloDaColuna(de), detalhe:(a<b?'depois de ':'antes de ')+rotuloDaColuna(para)});
+}
+
+// As setas de Cadastros: troca com a vizinha VISÍVEL, para a seta nunca
+// parecer que não fez nada por ter pulado uma coluna escondida.
+async function moverColunaPasso(key, passo){
+  const vis=colunasDaCarteira().map(function(c){ return c.key; });
+  const i=vis.indexOf(key), j=i+passo;
+  if(i<0||j<0||j>=vis.length) return;
+  await moverColunaPara(key, vis[j]);
+}
+
+async function esconderColuna(key){
+  if(COLUNAS_SEMPRE.indexOf(key)>=0) return;
+  const rot=rotuloDaColuna(key);
+  if(!confirm('Esconder a coluna "'+rot+'" da carteira?\n\nNada é apagado. Para mostrar de novo: Cadastros > Colunas da tabela.')) return;
+  if(key.indexOf('f:')===0){ await tirarColunaFicha(key.slice(2)); return; }
+  if(key.indexOf('x:')===0){
+    const id=key.slice(2);
+    const ok=await alterar(function(base){
+      const cp=(base.camposExtras||[]).find(function(x){ return x.id===id; });
+      if(cp) cp.naCarteira=false;
+    }, {acao:'tirou campo extra da carteira', alvo:rot});
+    if(ok){ render(); renderCamposExtras(); }
+    return;
+  }
+  const ok=await alterar(function(base){
+    if(!base.layoutCarteira||typeof base.layoutCarteira!=='object') base.layoutCarteira={};
+    if(!Array.isArray(base.layoutCarteira.ocultas)) base.layoutCarteira.ocultas=[];
+    if(base.layoutCarteira.ocultas.indexOf(key)<0) base.layoutCarteira.ocultas.push(key);
+  }, {acao:'escondeu coluna da carteira', alvo:rot});
+  if(ok){ render(); renderColunasFicha(); }
+}
+
+async function mostrarColuna(key){
+  const ok=await alterar(function(base){
+    if(!base.layoutCarteira) return;
+    base.layoutCarteira.ocultas=(base.layoutCarteira.ocultas||[]).filter(function(k){ return k!==key; });
+  }, {acao:'voltou a mostrar coluna da carteira', alvo:rotuloDaColuna(key)});
+  if(ok){ render(); renderColunasFicha(); }
+}
+
+async function voltarOrdemOriginal(){
+  if(!confirm('Voltar as colunas para a ordem original e mostrar de novo as que foram escondidas?\n\nOs campos da ficha e os extras que estão na tabela continuam nela.')) return;
+  const ok=await alterar(function(base){
+    base.layoutCarteira={ordem:[], ocultas:[]};
+  }, {acao:'voltou as colunas da carteira à ordem original'});
+  if(ok){ render(); renderColunasFicha(); }
+}
+
+// Arrastar o título. Só quem mexe nos cadastros: a arrumação vale para todos.
+let _colArrastada=null;
+function arrastarColuna(ev, key){
+  _colArrastada=key;
+  try{ ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain',key); }catch(e){}
+}
+function sobreColuna(ev){
+  if(!_colArrastada) return;
+  ev.preventDefault();
+  document.querySelectorAll('table.carteira th.solta-aqui').forEach(function(t){ t.classList.remove('solta-aqui'); });
+  ev.currentTarget.classList.add('solta-aqui');
+}
+function soltarColuna(ev, key){
+  ev.preventDefault();
+  const de=_colArrastada; _colArrastada=null;
+  document.querySelectorAll('table.carteira th.solta-aqui').forEach(function(t){ t.classList.remove('solta-aqui'); });
+  moverColunaPara(de, key);
+}
+function fimArrasto(){
+  _colArrastada=null;
+  document.querySelectorAll('table.carteira th.solta-aqui').forEach(function(t){ t.classList.remove('solta-aqui'); });
+}
+
+function colunasPadrao(){
   const extras=camposExtras().filter(function(cp){ return !!cp.naCarteira; });
   const daFicha=colunasFicha();
   const saida=[], usados={};
@@ -4040,20 +4194,38 @@ function renderColunasFicha(){
     return '<option value="'+esc(col.key)+'">'+esc(col.rotulo)+'</option>';
   }).join('');
   dep.value=(COLUNAS_CARTEIRA.some(function(col){ return col.key===depAntes; })?depAntes:'entrega');
-  if(!mostrados.length){
-    el.innerHTML='<div style="font-size:12.5px;color:var(--gray-4)">Nenhum campo da ficha na tabela além das colunas de sempre.</div>';
-    return;
-  }
-  el.innerHTML='<div class="caixa">'+mostrados.map(function(x){
-    const def=defCampoFicha(x.campo);
-    const col=COLUNAS_CARTEIRA.find(function(k){ return k.key===(x.depoisDe||'entrega'); });
-    const arg=JSON.stringify(x.campo).replace(/"/g,'&quot;');
-    return '<div class="caixa-linha" style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">'+
-      '<span><strong>'+esc(def.rotulo)+'</strong> '+
-        '<span style="font-size:11px;color:var(--gray-4)">depois de '+esc(col?col.rotulo:'Entrega')+'</span></span>'+
-      '<button class="btn btn-outline btn-sm" onclick="tirarColunaFicha('+arg+')">Tirar da tabela</button>'+
-      '</div>';
+  // A lista é a tabela de lado: todas as colunas visíveis, na ordem da tela.
+  const vis=colunasDaCarteira();
+  const linha='display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap';
+  let html='<div class="caixa">'+vis.map(function(col,i){
+    const arg=JSON.stringify(col.key).replace(/"/g,'&quot;');
+    const tipo=col.ficha?' <span class="pill pill-teal">da ficha</span>':(col.extra?' <span class="pill pill-cinza">campo extra</span>':'');
+    const fixa=COLUNAS_SEMPRE.indexOf(col.key)>=0;
+    return '<div class="caixa-linha" style="'+linha+'">'+
+      '<span><strong>'+esc(col.rotulo)+'</strong>'+tipo+'</span>'+
+      '<span style="display:flex;gap:5px;align-items:center">'+
+        '<button class="btn btn-outline btn-sm" title="Mais para a esquerda" '+(i===0?'disabled style="opacity:.4"':'')+
+          ' onclick="moverColunaPasso('+arg+',-1)">&uarr;</button>'+
+        '<button class="btn btn-outline btn-sm" title="Mais para a direita" '+(i===vis.length-1?'disabled style="opacity:.4"':'')+
+          ' onclick="moverColunaPasso('+arg+',1)">&darr;</button>'+
+        (fixa?'<span style="font-size:11px;color:var(--gray-4);min-width:70px;text-align:center">sempre</span>'
+             :'<button class="btn btn-outline btn-sm" style="min-width:70px" onclick="esconderColuna('+arg+')">Esconder</button>')+
+      '</span></div>';
   }).join('')+'</div>';
+  const esc2=colunasEscondidas();
+  if(esc2.length){
+    html+='<div style="font-size:12px;color:var(--gray-5);margin:10px 0 4px;font-weight:600">Escondidas</div>'+
+      '<div class="caixa">'+esc2.map(function(col){
+        const arg=JSON.stringify(col.key).replace(/"/g,'&quot;');
+        return '<div class="caixa-linha" style="'+linha+'"><span style="color:var(--gray-4)">'+esc(col.rotulo)+'</span>'+
+          '<button class="btn btn-outline btn-sm" onclick="mostrarColuna('+arg+')">Mostrar de novo</button></div>';
+      }).join('')+'</div>';
+  }
+  const lay=layoutCarteira();
+  if(lay.ordem.length||lay.ocultas.length){
+    html+='<div style="margin-top:8px"><button class="btn btn-outline btn-sm" onclick="voltarOrdemOriginal()">Voltar à ordem original</button></div>';
+  }
+  el.innerHTML=html;
 }
 
 async function addColunaFicha(){
