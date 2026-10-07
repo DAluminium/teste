@@ -4571,14 +4571,16 @@ function botoesDoAnexo(d){
     'white-space:nowrap;font-family:inherit';
   const pronto='border:1px solid var(--green);background:var(--green-light);'+
     'color:var(--green);border-radius:6px;font-size:11px;padding:2px 8px;'+
-    'white-space:nowrap;font-family:inherit';
+    'white-space:nowrap;font-family:inherit;cursor:pointer';
   const url=esc(d.url);
   return (anexoJaNaFabrica(d.url)
-      ? '<span style="'+pronto+'" title="Este arquivo ja esta na ficha desta obra na Fabrica">&#10003; Fábrica</span>'
+      ? '<button type="button" data-anexo="'+url+'" onclick="tirarAnexo(this.dataset.anexo,\'fabrica\')" '+
+        'title="Está na Fábrica. Clique para tirar de lá — o arquivo continua aqui no contrato." style="'+pronto+'">&#10003; Fábrica</button>'
       : '<button type="button" data-anexo="'+url+'" onclick="mandarAnexo(this.dataset.anexo,\'fabrica\')" '+
         'title="Mandar este arquivo para a ficha desta obra na Fábrica" style="'+botao+'">&rarr; Fábrica</button>')+
     (anexoJaNoCompras(d.url)
-      ? '<span style="'+pronto+'" title="Este arquivo ja esta no lancamento desta obra no Compras">&#10003; Compras</span>'
+      ? '<button type="button" data-anexo="'+url+'" onclick="tirarAnexo(this.dataset.anexo,\'compras\')" '+
+        'title="Está no Compras. Clique para tirar de lá — o arquivo continua aqui no contrato." style="'+pronto+'">&#10003; Compras</button>'
       : '<button type="button" data-anexo="'+url+'" onclick="mandarAnexo(this.dataset.anexo,\'compras\')" '+
         'title="Mandar este arquivo para o lançamento desta obra no Compras" style="'+botao+'">&rarr; Compras</button>');
 }
@@ -4612,6 +4614,106 @@ async function mandarAnexo(url, destino){
   }
   status('');
   renderDocs();
+}
+
+// Tirar o arquivo da ficha do outro modulo. Pedido do Ander (07/10/2026):
+// mandou errado, clica de novo e desfaz.
+// O arquivo NAO e apagado — continua neste contrato, e volta num clique.
+async function tirarAnexo(url, destino){
+  if(!podeGerenciar()){
+    aviso('Sem permissão','Só administrador ou gerente mexe nos anexos dos outros módulos.');
+    return;
+  }
+  const c=contratoDaFicha();
+  if(!c){ aviso('Contrato não salvo','Abra a ficha de um contrato já gravado.'); return; }
+  const d=fichaDocs.find(function(x){ return x.url===url; });
+  if(!d){ aviso('Anexo não encontrado','Feche a ficha e abra de novo.'); return; }
+  const deOnde = destino==='fabrica' ? 'da Fábrica' : 'do Compras';
+  if(!confirm('Tirar "'+d.nome+'" '+deOnde+'?\n\n'+
+      'Ele deixa de aparecer na ficha desta obra lá.\n\n'+
+      'O arquivo continua aqui no contrato — dá para mandar de novo quando quiser.')) return;
+  try{
+    if(destino==='fabrica') await tirarAnexoDaFabrica(c,d);
+    else                    await tirarAnexoDoCompras(c,d);
+  }catch(e){
+    aviso('Não consegui tirar',
+      'Nada foi mudado.\n\n'+
+      'O que falhou: '+(e.message||'erro')+'\n\n'+
+      'Tente de novo daqui a pouco.');
+  }
+  status('');
+  renderDocs();
+}
+
+async function tirarAnexoDaFabrica(c, d){
+  status('🔄 Tirando da Fábrica...');
+  const fab=await lerFabrica();
+  const o=(fab.obras||[]).find(function(x){ return x.ctoId===c.id; }) ||
+          obraManualNaFabrica(fab.obras, c);
+  if(!o) throw new Error('esta obra não está no quadro da Fábrica');
+  const antes=(o.docs||[]).length;
+  o.docs=(o.docs||[]).filter(function(x){ return x.url!==d.url; });
+  if(o.docs.length===antes){
+    _fabricaObras=fab.obras||[];
+    aviso('Não estava lá','"'+d.nome+'" não está na ficha desta obra na Fábrica.');
+    return;
+  }
+  o.atualizadoEm=agoraISO(); o.atualizadoPor=usuario;
+  if(!Array.isArray(fab.historico)) fab.historico=[];
+  fab.historico.unshift({
+    id: Math.random().toString(36).slice(2)+Date.now().toString(36),
+    ts: agoraISO(), user: usuario||'—',
+    acao:'anexo retirado (pelo Gerenciamento de Obra)',
+    alvo:(o.cliente||'')+(o.obra?' · '+o.obra:''),
+    detalhe:(d.tipo?d.tipo+' · ':'')+d.nome });
+  if(fab.historico.length>500) fab.historico=fab.historico.slice(0,500);
+  const carimbo=agoraISO();
+  fab.atualizadoEm=carimbo; fab.atualizadoPor=usuario;
+  const r=await fetch(WORKER,{method:'PATCH',
+    headers:cabecalhosFabrica({'Content-Type':'application/json'}),
+    body:JSON.stringify({data:fab})});
+  if(!r.ok) throw new Error('Fábrica '+r.status);
+  // O Worker responde ok mesmo quando NAO grava. Confere pelo carimbo.
+  const confere=await lerFabrica();
+  if(confere.atualizadoEm!==carimbo) throw new Error('a Fábrica não gravou');
+  _fabricaObras=confere.obras||[];
+  // De proposito NAO chamamos excluir-anexo: o arquivo continua sendo deste
+  // contrato. Apagar aqui tiraria o anexo de quem ainda precisa dele.
+  aviso('Pronto','"'+d.nome+'" não aparece mais na ficha desta obra na Fábrica.\n\n'+
+    'O arquivo continua aqui no contrato.');
+}
+
+async function tirarAnexoDoCompras(c, d){
+  status('🔄 Tirando do Compras...');
+  const comp=await lerCompras();
+  const alvo=acharLancamentoDaObra(comp, c.id) || lancamentoManualNoCompras(comp, c);
+  if(!alvo) throw new Error('esta obra não tem lançamento no Compras');
+  const reg=alvo.reg;
+  const antes=(reg.attachments||[]).length;
+  reg.attachments=(reg.attachments||[]).filter(function(a){ return a.url!==d.url; });
+  if(reg.attachments.length===antes){
+    _comprasDados=comp;
+    aviso('Não estava lá','"'+d.nome+'" não está no lançamento desta obra no Compras.');
+    return;
+  }
+  if(!Array.isArray(comp.historico)) comp.historico=[];
+  comp.historico.unshift({
+    ts: agoraISO(), user: usuario||'—',
+    action:'Anexo retirado (pelo Gerenciamento de Obra)',
+    obra: reg.obra||c.cliente||'—', contrato: reg.contrato||c.ct||'—',
+    detail:(d.tipo?d.tipo+' · ':'')+d.nome });
+  if(comp.historico.length>500) comp.historico=comp.historico.slice(0,500);
+  const carimbo=agoraISO();
+  comp.atualizadoEm=carimbo; comp.atualizadoPor=usuario;
+  const r=await fetch(WORKER,{method:'PATCH',
+    headers:cabecalhosCompras({'Content-Type':'application/json'}),
+    body:JSON.stringify({data:comp})});
+  if(!r.ok) throw new Error('Compras '+r.status);
+  const confere=await lerCompras();
+  if(confere.atualizadoEm!==carimbo) throw new Error('o Compras não gravou');
+  _comprasDados=confere;
+  aviso('Pronto','"'+d.nome+'" não aparece mais no lançamento desta obra no Compras.\n\n'+
+    'O arquivo continua aqui no contrato.');
 }
 
 async function mandarAnexoParaFabrica(c, d){
