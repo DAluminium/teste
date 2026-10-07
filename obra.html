@@ -4499,21 +4499,192 @@ function renderDocs(){
     return;
   }
   el.innerHTML=fichaDocs.map(function(d){
-    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;'+
+    return '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:6px 8px;'+
       'background:var(--gray-1);border:1px solid var(--gray-3);border-radius:8px">'+
       '<span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--teal-dark);'+
         'background:var(--teal-light);padding:2px 6px;border-radius:5px;white-space:nowrap">'+
         esc(d.tipo||'Documento')+'</span>'+
       '<a href="#" data-anexo="'+esc(d.url)+'" data-nome="'+esc(d.nome)+'" onclick="abrirAnexo(this.dataset.anexo,this.dataset.nome);return false;" '+
-        'style="flex:1;font-size:12px;color:var(--gray-6);text-decoration:none;overflow:hidden;'+
+        'style="flex:1;min-width:140px;font-size:12px;color:var(--gray-6);text-decoration:none;overflow:hidden;'+
         'text-overflow:ellipsis;white-space:nowrap" title="'+esc(d.nome)+'">'+esc(d.nome)+'</a>'+
       '<span style="font-size:10.5px;color:var(--gray-4);white-space:nowrap">'+fmtTamanho(d.tamanho||0)+'</span>'+
+      botoesDoAnexo(d)+
       '<button type="button" data-anexo="'+esc(d.url)+'" data-nome="'+esc(d.nome)+'" onclick="enviarAnexo(this.dataset.anexo,this.dataset.nome)" title="Enviar pelo WhatsApp" '+
         'style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;border-radius:6px;font-size:11px;padding:2px 8px;cursor:pointer;white-space:nowrap;font-family:inherit">Enviar</button>'+
       '<button type="button" onclick="removerDoc(\''+esc(d.id)+'\')" title="Remover"'+
         ' style="border:0;background:transparent;color:var(--red);cursor:pointer;font-size:15px;padding:0 3px">&times;</button>'+
       '</div>';
   }).join('');
+}
+
+// ================= MANDAR UM ANEXO PARA A FABRICA OU O COMPRAS =================
+// Pedido do Ander (07/10/2026). Um botao por arquivo: quem cadastra escolhe o
+// que cada modulo precisa ver.
+// O arquivo nao e copiado — os tres modulos usam a mesma conta de arquivos e o
+// que viaja e so o endereco. O Worker nao apaga arquivo que outro registro
+// ainda cite, entao remover o anexo daqui nao quebra o lado de la.
+
+// O contrato que esta aberto na ficha agora.
+function contratoDaFicha(){
+  if(!fichaId) return null;
+  return (dados.contratos||[]).find(function(x){ return x.id===fichaId; })||null;
+}
+
+// Tipo tecnico do arquivo (application/pdf, image/jpeg...). E o que o Compras
+// olha para decidir se abre como PDF ou como imagem. Anexo de antes de
+// 07/10/2026 nao guardou isso: da para descobrir pela terminacao do nome.
+function mimeDoAnexo(d){
+  if(d && d.mime) return d.mime;
+  const e=String((d&&d.nome)||'').toLowerCase().split('.').pop();
+  if(e==='pdf')  return 'application/pdf';
+  if(e==='png')  return 'image/png';
+  if(e==='jpg'||e==='jpeg') return 'image/jpeg';
+  if(e==='webp') return 'image/webp';
+  if(e==='gif')  return 'image/gif';
+  return '';
+}
+
+// Ja esta la? Serve para desenhar o botao, usando o que foi lido dos outros
+// modulos (pode ter ate 5 minutos). A conferencia que vale e feita na hora de
+// gravar, com os dados lidos do servidor naquele instante.
+function anexoJaNaFabrica(url){
+  const c=contratoDaFicha();
+  if(!c || !_fabricaObras) return false;
+  const o=_fabricaObras.find(function(x){ return x.ctoId===c.id; }) ||
+          obraManualNaFabrica(_fabricaObras, c);
+  return !!(o && (o.docs||[]).some(function(d){ return d.url===url; }));
+}
+function anexoJaNoCompras(url){
+  const c=contratoDaFicha();
+  if(!c || !_comprasDados) return false;
+  const alvo=acharLancamentoDaObra(_comprasDados, c.id) ||
+             lancamentoManualNoCompras(_comprasDados, c);
+  return !!(alvo && (alvo.reg.attachments||[]).some(function(a){ return a.url===url; }));
+}
+
+// Os dois botoes da linha do anexo. So quem altera contrato os ve — a mesma
+// regra de quem pode anexar.
+function botoesDoAnexo(d){
+  if(!podeGerenciar()) return '';
+  const botao='border:1px solid var(--gray-3);background:#fff;color:var(--gray-6);'+
+    'border-radius:6px;font-size:11px;padding:2px 8px;cursor:pointer;'+
+    'white-space:nowrap;font-family:inherit';
+  const pronto='border:1px solid var(--green);background:var(--green-light);'+
+    'color:var(--green);border-radius:6px;font-size:11px;padding:2px 8px;'+
+    'white-space:nowrap;font-family:inherit';
+  const url=esc(d.url);
+  return (anexoJaNaFabrica(d.url)
+      ? '<span style="'+pronto+'" title="Este arquivo ja esta na ficha desta obra na Fabrica">&#10003; Fábrica</span>'
+      : '<button type="button" data-anexo="'+url+'" onclick="mandarAnexo(this.dataset.anexo,\'fabrica\')" '+
+        'title="Mandar este arquivo para a ficha desta obra na Fábrica" style="'+botao+'">&rarr; Fábrica</button>')+
+    (anexoJaNoCompras(d.url)
+      ? '<span style="'+pronto+'" title="Este arquivo ja esta no lancamento desta obra no Compras">&#10003; Compras</span>'
+      : '<button type="button" data-anexo="'+url+'" onclick="mandarAnexo(this.dataset.anexo,\'compras\')" '+
+        'title="Mandar este arquivo para o lançamento desta obra no Compras" style="'+botao+'">&rarr; Compras</button>');
+}
+
+async function mandarAnexo(url, destino){
+  if(!podeGerenciar()){
+    aviso('Sem permissão','Só administrador ou gerente manda arquivo para outro módulo.');
+    return;
+  }
+  const c=contratoDaFicha();
+  if(!c){
+    aviso('Salve o contrato primeiro',
+      'Este contrato ainda não foi gravado, então a obra ainda não existe na Fábrica nem no Compras.\n\n'+
+      'Toque em Salvar e tente de novo.');
+    return;
+  }
+  const d=fichaDocs.find(function(x){ return x.url===url; });
+  if(!d){ aviso('Anexo não encontrado','Feche a ficha e abra de novo.'); return; }
+  const nomeDestino = destino==='fabrica' ? 'Fábrica' : 'Compras';
+  if(!confirm('Mandar "'+d.nome+'" para o módulo '+nomeDestino+'?\n\n'+
+      'O arquivo passa a aparecer na ficha desta obra lá. Ele não é copiado: '+
+      'os dois módulos apontam para o mesmo arquivo.')) return;
+  try{
+    if(destino==='fabrica') await mandarAnexoParaFabrica(c,d);
+    else                    await mandarAnexoParaCompras(c,d);
+  }catch(e){
+    aviso('Não consegui mandar',
+      'O arquivo continua aqui — nada foi perdido.\n\n'+
+      'O que falhou: '+(e.message||'erro')+'\n\n'+
+      'Tente de novo daqui a pouco.');
+  }
+  status('');
+  renderDocs();
+}
+
+async function mandarAnexoParaFabrica(c, d){
+  status('🔄 Mandando para a Fábrica...');
+  const fab=await lerFabrica();
+  const o=(fab.obras||[]).find(function(x){ return x.ctoId===c.id; }) ||
+          obraManualNaFabrica(fab.obras, c);
+  if(!o) throw new Error('esta obra ainda não está no quadro da Fábrica');
+  if(!Array.isArray(o.docs)) o.docs=[];
+  if(o.docs.some(function(x){ return x.url===d.url; })){
+    _fabricaObras=fab.obras||[];
+    aviso('Já estava lá','"'+d.nome+'" já está na ficha desta obra na Fábrica.');
+    return;
+  }
+  // Mesma forma que a Fabrica usa nos anexos dela. Os campos quem/quando ficam de
+  // quem anexou aqui: e a verdade do arquivo.
+  o.docs.push({id:novoId(), tipo:d.tipo||'Outro', nome:d.nome, url:d.url,
+    tamanho:d.tamanho||0, quem:d.quem||usuario, quando:d.quando||agoraISO()});
+  o.atualizadoEm=agoraISO(); o.atualizadoPor=usuario;
+  if(!Array.isArray(fab.historico)) fab.historico=[];
+  fab.historico.unshift({
+    id: Math.random().toString(36).slice(2)+Date.now().toString(36),
+    ts: agoraISO(), user: usuario||'—',
+    acao:'recebeu anexo (pelo Gerenciamento de Obra)',
+    alvo:(o.cliente||'')+(o.obra?' · '+o.obra:''),
+    detalhe:(d.tipo?d.tipo+' · ':'')+d.nome });
+  if(fab.historico.length>500) fab.historico=fab.historico.slice(0,500);
+  const carimbo=agoraISO();
+  fab.atualizadoEm=carimbo; fab.atualizadoPor=usuario;
+  const r=await fetch(WORKER,{method:'PATCH',
+    headers:cabecalhosFabrica({'Content-Type':'application/json'}),
+    body:JSON.stringify({data:fab})});
+  if(!r.ok) throw new Error('Fábrica '+r.status);
+  // O Worker responde ok mesmo quando NAO grava. Confere pelo carimbo.
+  const confere=await lerFabrica();
+  if(confere.atualizadoEm!==carimbo) throw new Error('a Fábrica não gravou');
+  _fabricaObras=confere.obras||[];
+  aviso('Pronto','"'+d.nome+'" agora aparece na ficha desta obra na Fábrica.');
+}
+
+async function mandarAnexoParaCompras(c, d){
+  status('🔄 Mandando para o Compras...');
+  const comp=await lerCompras();
+  const alvo=acharLancamentoDaObra(comp, c.id) || lancamentoManualNoCompras(comp, c);
+  if(!alvo) throw new Error('esta obra ainda não tem lançamento no Compras');
+  const reg=alvo.reg;
+  if(!Array.isArray(reg.attachments)) reg.attachments=[];
+  if(reg.attachments.some(function(a){ return a.url===d.url; })){
+    _comprasDados=comp;
+    aviso('Já estava lá','"'+d.nome+'" já está no lançamento desta obra no Compras.');
+    return;
+  }
+  // O Compras guarda o anexo com outros nomes de campo (name, size, type) e
+  // usa o campo type para saber se abre como PDF ou como imagem.
+  reg.attachments.push({id:novoId(), url:d.url, name:d.nome,
+    type:mimeDoAnexo(d), size:d.tamanho||0});
+  if(!Array.isArray(comp.historico)) comp.historico=[];
+  comp.historico.unshift({
+    ts: agoraISO(), user: usuario||'—',
+    action:'Anexo recebido (pelo Gerenciamento de Obra)',
+    obra: reg.obra||c.cliente||'—', contrato: reg.contrato||c.ct||'—',
+    detail:(d.tipo?d.tipo+' · ':'')+d.nome });
+  if(comp.historico.length>500) comp.historico=comp.historico.slice(0,500);
+  const carimbo=agoraISO();
+  comp.atualizadoEm=carimbo; comp.atualizadoPor=usuario;
+  const r=await fetch(WORKER,{method:'PATCH',
+    headers:cabecalhosCompras({'Content-Type':'application/json'}),
+    body:JSON.stringify({data:comp})});
+  if(!r.ok) throw new Error('Compras '+r.status);
+  const confere=await lerCompras();
+  if(confere.atualizadoEm!==carimbo) throw new Error('o Compras não gravou');
+  _comprasDados=confere;
+  aviso('Pronto','"'+d.nome+'" agora aparece no lançamento desta obra no Compras.');
 }
 
 async function anexarDoc(ev){
@@ -4544,6 +4715,7 @@ async function anexarDoc(ev){
       nome:arq.name,
       url:j.secure_url,
       tamanho:arq.size,
+      mime:arq.type||'',
       quem:usuario,
       quando:agoraISO()
     });
