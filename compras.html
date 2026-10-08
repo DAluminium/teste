@@ -3988,7 +3988,12 @@ async function persistUsers(){
 }
 
 // ---- ALTERACAO SIMULTANEA: comparar, mostrar e deixar escolher ----
-const LISTAS_DADOS=['urgente','importante','pago','manutencao','historico','usuarios'];
+// 'manutComprada' (manutencao ja comprada) ficava DE FORA desta lista e era
+// invisivel para a conferencia de conflito. Como a juncao parte da versao do
+// servidor, reabrir ou remover uma manutencao concluida era desfeito em
+// silencio quando outra pessoa gravava ao mesmo tempo — no caso do reabrir, o
+// registro ficava nas DUAS listas. (08/10/2026)
+const LISTAS_DADOS=['urgente','importante','pago','manutencao','manutComprada','historico','usuarios'];
 // Registro COM id e comparado pelo id: da para distinguir edicao de inclusao.
 // Registro antigo, ainda SEM id, cai na comparacao por conteudo — nesse caso
 // uma edicao aparece como remocao + inclusao, e por isso a juncao automatica
