@@ -2082,6 +2082,19 @@ function unirHistorico(a,b){
 const LISTAS_DADOS=['pagar','receber','movimentos','usuarios'];
 function chaveReg(r){ return (r&&r.id)?('id:'+r.id):('conteudo:'+JSON.stringify(r)); }
 
+// O documento tem partes que NAO sao lista de lancamentos: os saldos
+// iniciais, as categorias e as empresas. A diferencas() abaixo so compara as
+// listas, entao uma mudanca nessas partes era invisivel para a conferencia de
+// conflito — e juntarAlteracoes() parte da versao do servidor, ou seja, a
+// mudanca ia embora calada. Estas duas linhas fecham esse buraco.
+const CAMPOS_DADOS=['saldosIniciais','categorias','empresas'];
+function camposMudados(antes,depois){
+  return CAMPOS_DADOS.filter(function(k){
+    return JSON.stringify((antes&&antes[k])!==undefined?antes[k]:null)
+        !== JSON.stringify((depois&&depois[k])!==undefined?depois[k]:null);
+  });
+}
+
 function diferencas(antes,depois){
   const inc=[],rem=[],alt=[];
   LISTAS_DADOS.forEach(function(L){
@@ -2145,7 +2158,7 @@ function pedirDecisaoConcorrencia(deles,meu,podeJuntar){
 }
 
 // Parte da versao do servidor e aplica por cima o que EU fiz.
-function juntarAlteracoes(servidor,minhas){
+function juntarAlteracoes(servidor,minhas,meusCampos){
   const res=JSON.parse(JSON.stringify(servidor));
   const acha=function(L,chave){
     if(!Array.isArray(res[L])) res[L]=[];
@@ -2155,6 +2168,11 @@ function juntarAlteracoes(servidor,minhas){
   minhas.inc.forEach(function(x){ if(acha(x.lista,x.chave)<0) res[x.lista].push(x.reg); });
   minhas.alt.forEach(function(x){ const i=acha(x.lista,x.chave); if(i>=0) res[x.lista][i]=x.reg; else res[x.lista].push(x.reg); });
   minhas.rem.forEach(function(x){ const i=acha(x.lista,x.chave); if(i>=0) res[x.lista].splice(i,1); });
+  // Saldos iniciais, categorias e empresas que EU mudei. Sem isto a juncao
+  // partia do servidor e perdia a minha mudanca sem avisar.
+  (meusCampos||[]).forEach(function(k){
+    if(data[k]!==undefined) res[k]=JSON.parse(JSON.stringify(data[k]));
+  });
   // O log dos dois lados vai junto: sem isto, ficaria so o do servidor e o que
   // esta pessoa registrou nesta sessao sumiria.
   res.historico=unirHistorico(res.historico, data.historico);
@@ -2193,8 +2211,22 @@ async function gravarNoServidor(){
         // DIFERENTES. Se os dois mexeram no mesmo lancamento, a escolha e manual.
         const dela=chavesTocadas(deles), minhas=chavesTocadas(meu);
         const mesmoLancamento=minhas.some(function(k){ return dela.indexOf(k)>=0; });
-        const podeJuntar = !mesmoLancamento && (dela.length>0 || minhas.length>0);
-        const escolha=await pedirDecisaoConcorrencia(deles,meu,podeJuntar);
+        // Partes que nao sao lista (saldos iniciais, categorias, empresas):
+        // se os dois mexeram na MESMA, juntar nao da — uma sobrescreveria a
+        // outra inteira.
+        const camposDela=camposMudados(base,atual);
+        const camposMeus=camposMudados(base,data);
+        const mesmoCampo=camposMeus.some(function(k){ return camposDela.indexOf(k)>=0; });
+        const podeJuntar = !mesmoLancamento && !mesmoCampo &&
+          (dela.length>0 || minhas.length>0 || camposDela.length>0 || camposMeus.length>0);
+        // Pedido do Ander (08/10/2026): quando DA para juntar, junta sozinho.
+        // Cada um mexeu em coisa diferente, nada se perde, e a pergunta so
+        // atrasava o trabalho. A janela fica para o caso em que ha escolha de
+        // verdade — os dois no mesmo lancamento ou na mesma parte —, porque ali
+        // alguem perde trabalho de qualquer jeito e quem decide nao pode ser o
+        // sistema (foi assim que dados se perderam em setembro/2026).
+        const escolha = podeJuntar ? 'juntar'
+                                   : await pedirDecisaoConcorrencia(deles,meu,false);
         if(escolha==='descartar'){
           setStatus('↩️ Carregando a versão mais nova...');
           ultimoServidor=null;
@@ -2202,9 +2234,16 @@ async function gravarNoServidor(){
           return;
         }
         if(escolha==='juntar'){
-          data=juntarAlteracoes(atual,meu);
+          const outro=(atual.atualizadoPor||'outra pessoa');
+          data=juntarAlteracoes(atual,meu,camposMeus);
+          // Nao pergunta, mas tambem nao esconde: fica no topo e no historico,
+          // para dar para conferir depois o que foi juntado com o que.
+          logFin('Juntou alterações',
+            'minha gravação + a de '+outro,
+            'cada um mexeu em lançamentos diferentes, nada foi descartado');
           localStorage.setItem('fin-data',JSON.stringify(data));
           render();
+          setStatus('🔀 Juntado com a alteração de '+outro+'...');
         }
         // 'meu' = segue adiante e grava o que esta na tela, por cima.
         // Mesmo escolhendo o meu, o LOG dos dois vai junto: o que a outra
