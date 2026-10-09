@@ -75,6 +75,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .badge-financeiro{background:var(--purple-light);color:var(--purple)}
 .badge-fabrica{background:var(--amber-light);color:var(--amber)}
 .badge-obra{background:var(--green-light);color:var(--green)}
+.modulo-card.crm{border-top:4px solid #1F5FA8}
+.modulo-card.crm:hover{border-color:#1F5FA8}
+.modulo-card.crm .modulo-arrow{color:#1F5FA8}
+.badge-crm{background:#E8F1FB;color:#1F5FA8}
 .modulo-arrow{margin-top:1.5rem;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
 .modulo-card.compras .modulo-arrow{color:var(--teal-dark)}
 .modulo-card.financeiro .modulo-arrow{color:var(--purple)}
@@ -433,6 +437,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
               <label><input type="checkbox" id="nu-mod-financeiro"> 💰 Financeiro</label>
               <label><input type="checkbox" id="nu-mod-fabrica"> 🏭 Fábrica</label>
               <label><input type="checkbox" id="nu-mod-obra"> 📋 Gerenciamento de Obra</label>
+              <label><input type="checkbox" id="nu-mod-crm"> 🤝 CRM Comercial</label>
             </div>
           </div>
         </div>
@@ -472,6 +477,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
             <label><input type="checkbox" id="eu-mod-financeiro"> 💰 Financeiro</label>
             <label><input type="checkbox" id="eu-mod-fabrica"> 🏭 Fábrica</label>
             <label><input type="checkbox" id="eu-mod-obra"> 📋 Gerenciamento de Obra</label>
+            <label><input type="checkbox" id="eu-mod-crm"> 🤝 CRM Comercial</label>
           </div>
         </div>
         <div class="form-group span2">
@@ -697,7 +703,7 @@ function loginGuardaApagar(chave){
 // mesmo armazenamento: qualquer saida limpa a copia de TODOS eles.
 // Preferencias de tela (aba escolhida, ordem da carteira, ultima empresa do
 // comprovante) ficam: nao sao dado de ninguem.
-const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra',
+const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra','dalum-crm','dalum-crm-para-obra',
   'portal-admin-passes','dalum-admin-passes','fin-admin-passes'];
 function apagarDadosLocais(){
   DADOS_LOCAIS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
@@ -1218,8 +1224,8 @@ function showPortal(nome, modulos, isAdmin){
   renderModulos(modulos);
   // 1 módulo e não admin — entra direto
   if(modulos.length===1&&!isAdmin){
-    const URLS={compras:'https://daluminium.github.io/teste/compras.html',financeiro:'https://daluminium.github.io/teste/financeiro.html',fabrica:'https://daluminium.github.io/teste/fabrica.html',obra:'https://daluminium.github.io/teste/obra.html'};
-    const TITULOS={compras:'Gestão de Compras',financeiro:'Financeiro',fabrica:'Fábrica',obra:'Gerenciamento de Obra'};
+    const URLS={compras:'https://daluminium.github.io/teste/compras.html',financeiro:'https://daluminium.github.io/teste/financeiro.html',fabrica:'https://daluminium.github.io/teste/fabrica.html',obra:'https://daluminium.github.io/teste/obra.html',crm:'https://daluminium.github.io/teste/crm.html'};
+    const TITULOS={compras:'Gestão de Compras',financeiro:'Financeiro',fabrica:'Fábrica',obra:'Gerenciamento de Obra',crm:'CRM Comercial'};
     const m=modulos[0];
     if(URLS[m]){ document.getElementById('portal').style.display='none'; abrirModulo(URLS[m],TITULOS[m]); }
   }
@@ -1231,7 +1237,8 @@ function renderModulos(modulos){
     compras:{icon:'🛒',title:'Gestão de Compras',desc:'Orçamentos, fornecedores, manutenção e controle de entregas das obras',url:'https://daluminium.github.io/teste/compras.html',cls:'compras',badge:'badge-compras',badgeText:'Compras'},
     financeiro:{icon:'💰',title:'Financeiro',desc:'Contas a pagar, contas a receber, fluxo de caixa e relatórios',url:'https://daluminium.github.io/teste/financeiro.html',cls:'financeiro',badge:'badge-financeiro',badgeText:'Financeiro'},
     fabrica:{icon:'🏭',title:'Fábrica',desc:'Acompanhamento das obras da conferência técnica até a entrega ao cliente',url:'https://daluminium.github.io/teste/fabrica.html',cls:'fabrica',badge:'badge-fabrica',badgeText:'Fábrica'},
-    obra:{icon:'📋',title:'Gerenciamento de Obra',desc:'A carteira de contratos: status, prazos, medição, entrega e anexos de cada obra',url:'https://daluminium.github.io/teste/obra.html',cls:'obra',badge:'badge-obra',badgeText:'Obra'}
+    obra:{icon:'📋',title:'Gerenciamento de Obra',desc:'A carteira de contratos: status, prazos, medição, entrega e anexos de cada obra',url:'https://daluminium.github.io/teste/obra.html',cls:'obra',badge:'badge-obra',badgeText:'Obra'},
+    crm:{icon:'🤝',title:'CRM Comercial',desc:'O funil de vendas: clientes em negociação, retornos combinados e negócios fechados',url:'https://daluminium.github.io/teste/crm.html',cls:'crm',badge:'badge-crm',badgeText:'CRM'}
   };
   // A ordem dos cartoes e a ordem do TRABALHO, nao a ordem em que os modulos
   // aparecem no cadastro do usuario: tudo comeca no Gerenciamento de Obra,
@@ -1240,7 +1247,8 @@ function renderModulos(modulos){
   // Modulo que nao esteja nesta lista vai para o FIM, em vez de sumir: um dia
   // havera um modulo novo, e ele nao pode desaparecer da tela so por nao ter
   // sido acrescentado aqui.
-  const ORDEM=['obra','financeiro','compras','fabrica'];
+  // O CRM vem antes de tudo: e a venda que vira contrato na Obra (09/10/2026).
+  const ORDEM=['crm','obra','financeiro','compras','fabrica'];
   const pos=function(m){ const i=ORDEM.indexOf(m); return i<0?ORDEM.length:i; };
   const naOrdem=modulos.slice().sort(function(a,b){ return pos(a)-pos(b); });
   container.innerHTML=naOrdem.map(m=>{
@@ -1271,7 +1279,9 @@ function renderModulos(modulos){
 // dele. Sem isso, um gerente criaria outro gerente e o acesso se multiplicaria
 // sozinho; e pior, poderia trocar a senha de um colega de mesmo nível e entrar
 // no lugar dele.
-const NIVEL={admin:3, gerente:2, compras:1, financeiro:1, consulta:1};
+// vendedor (09/10/2026): mesmo nivel dos demais. No CRM ve so os proprios
+// negocios — quem recorta e o Worker, pelo papel do cracha.
+const NIVEL={admin:3, gerente:2, compras:1, financeiro:1, consulta:1, vendedor:1};
 function nivelDe(role){ return NIVEL[String(role||'').toLowerCase()] || 1; }
 function meuNivel(){ return nivelDe(sessionStorage.getItem('portal-role')||''); }
 function meuUsuario(){ return String(sessionStorage.getItem('portal-admin-key')||'').toLowerCase(); }
@@ -1333,7 +1343,7 @@ function podeMexerEm(u){
 // Os papéis que EU posso conceder: só os de nível menor que o meu.
 function papeisQuePossoDar(){
   const meu=meuNivel();
-  return ['gerente','compras','financeiro','consulta'].filter(function(r){ return nivelDe(r)<meu; });
+  return ['gerente','compras','financeiro','vendedor','consulta'].filter(function(r){ return nivelDe(r)<meu; });
 }
 
 // O formulário só oferece o que a pessoa pode conceder. A trava de verdade
@@ -1343,7 +1353,7 @@ function ajustarPapeisDisponiveis(){
   if(faixa) faixa.style.display = souAdmin() ? '' : 'none';
   const sel=document.getElementById('nu-role');
   if(!sel) return;
-  const rot={gerente:'Gerente',compras:'Compras',financeiro:'Financeiro',consulta:'Consulta'};
+  const rot={gerente:'Gerente',compras:'Compras',financeiro:'Financeiro',vendedor:'Vendedor',consulta:'Consulta'};
   const podem=papeisQuePossoDar();
   sel.innerHTML=podem.map(function(r){ return '<option value="'+r+'">'+rot[r]+'</option>'; }).join('');
 }
@@ -1556,7 +1566,7 @@ function closeUsuarios(){ document.getElementById('usuarios-overlay').classList.
 
 function renderUserList(){
   const list=document.getElementById('user-list-portal');
-  const roleLabel={compras:'Compras',gerente:'Gerente',financeiro:'Financeiro',consulta:'Consulta'};
+  const roleLabel={compras:'Compras',gerente:'Gerente',financeiro:'Financeiro',vendedor:'Vendedor',consulta:'Consulta'};
 
   // O gerente enxerga só quem ELE cadastrou; o admin enxerga todos.
   //
@@ -1608,6 +1618,7 @@ async function addUsuario(){
   if(document.getElementById('nu-mod-financeiro').checked) modulos.push('financeiro');
   if(document.getElementById('nu-mod-fabrica').checked) modulos.push('fabrica');
   if(document.getElementById('nu-mod-obra').checked) modulos.push('obra');
+  if(document.getElementById('nu-mod-crm').checked) modulos.push('crm');
   if(!name||!username||!pass){ alert('Preencha nome, usuário e senha.'); return; }
   if(pass.length<6){ alert('A senha precisa de pelo menos 6 caracteres.'); return; }
   if(ADMINS.find(a=>a.user===username)){ alert('Usuário reservado para administradores.'); return; }
@@ -1641,13 +1652,14 @@ async function addUsuario(){
   document.getElementById('nu-mod-financeiro').checked=false;
   document.getElementById('nu-mod-fabrica').checked=false;
   document.getElementById('nu-mod-obra').checked=false;
+  document.getElementById('nu-mod-crm').checked=false;
   renderUserList();
   alert('Usuário cadastrado e salvo! ✅');
 }
 
 // Qual usuário está aberto na janela de edição. Nulo = nenhuma.
 let _editandoUsuario=null;
-const MODULOS_DO_SISTEMA=['compras','financeiro','fabrica','obra'];
+const MODULOS_DO_SISTEMA=['compras','financeiro','fabrica','obra','crm'];
 
 function editUsuario(idx){
   const u=portalData.usuarios[idx];
@@ -1666,7 +1678,7 @@ function editUsuario(idx){
   // A lista oferece só o que EU posso conceder. A função atual entra junto
   // mesmo que eu não pudesse concedê-la, para ela não sumir da tela sem a
   // pessoa perceber — quem barra de verdade é o salvar.
-  const rot={gerente:'Gerente',compras:'Compras',financeiro:'Financeiro',consulta:'Consulta'};
+  const rot={gerente:'Gerente',compras:'Compras',financeiro:'Financeiro',vendedor:'Vendedor',consulta:'Consulta'};
   const podem=papeisQuePossoDar().slice();
   if(u.role && podem.indexOf(u.role)<0) podem.unshift(u.role);
   const sel=document.getElementById('eu-role');

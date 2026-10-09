@@ -983,7 +983,7 @@ function loginGuardaApagar(chave){
 // mesmo armazenamento: qualquer saida limpa a copia de TODOS eles.
 // Preferencias de tela (aba escolhida, ordem da carteira, ultima empresa do
 // comprovante) ficam: nao sao dado de ninguem.
-const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra',
+const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra','dalum-crm','dalum-crm-para-obra',
   'portal-admin-passes','dalum-admin-passes','fin-admin-passes'];
 function apagarDadosLocais(){
   DADOS_LOCAIS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
@@ -6261,6 +6261,34 @@ function aplicarPermissoes(){
   if(ac) ac.style.display=soAdmin()?'':'none';
 }
 
+// ---- NEGOCIO FECHADO NO CRM (09/10/2026) ----
+// O CRM nao grava aqui: deixa um bilhete no navegador e abre esta tela. Aqui o
+// bilhete vira um contrato NOVO ja preenchido, que a pessoa confere, completa
+// (CT, CPF, endereco...) e salva pelo caminho de sempre — que e o que manda a
+// obra para a Fabrica e para o Compras. O bilhete tem dado pessoal: e apagado
+// assim que lido, e vale so 10 minutos.
+function receberDoCrm(){
+  let b=null;
+  try{ b=JSON.parse(localStorage.getItem('dalum-crm-para-obra')||'null'); }catch(e){}
+  try{ localStorage.removeItem('dalum-crm-para-obra'); }catch(e){}
+  if(!b||!b.ts||Date.now()-b.ts>10*60*1000) return;
+  if(!podeGerenciar()) return;
+  novoContrato();
+  const p=function(id,v){ const el=document.getElementById(id); if(el && v!=null && v!=='') el.value=v; };
+  p('f-cliente',b.cliente); p('f-cidade',b.cidade); p('f-condominio',b.bairro);
+  p('f-respcom',b.vendedor); p('f-fechamento',b.fechadoEm);
+  p('f-obs',b.interesse?'Do CRM: '+b.interesse:'');
+  p('f-ctr-nome',b.cliente); p('f-ctr-contato',b.telefone); p('f-ctr-email',b.email);
+  if(b.valor!=='' && b.valor!=null && isFinite(Number(b.valor))){
+    p('f-ctr-valor',String(Number(b.valor)));
+    try{ mostrarValorPorExtenso(); }catch(e){}
+  }
+  try{ recalcular(); }catch(e){}
+  aviso('Dados trazidos do CRM',
+    'O contrato novo já veio com o cliente, o contato, o valor e o vendedor do CRM.\n\n'+
+    'Confira, complete o que falta (número do CT, CPF/CNPJ, endereço...) e clique em Salvar.');
+}
+
 // ================= INÍCIO =================
 function mostrarLogin(){
   const cx=document.getElementById('bloqueio');
@@ -6326,6 +6354,7 @@ function abrirApp(nome,papelDoUsuario){
   carregarFabrica();
   carregarCompras();
   carregarAvisaveis();
+  receberDoCrm();
 
   // Clicar fora ou apertar Esc fecha as janelas. Os dois caminhos passam por
   // fecharAviso(), então o que ficou pendente em `aoFechar` acontece igual.

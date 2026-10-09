@@ -1,0 +1,1819 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRM Comercial · Daluminium</title>
+<style>
+:root{--teal:#1FB6CF;--teal-dark:#0E8FA6;--teal-light:#E6F8FB;--red:#C0392B;--red-light:#FDF0EE;--amber:#B9770E;--amber-light:#FEF7E6;--amber-mid:#F5D98A;--green:#1A7A45;--green-light:#EDFAF3;--purple:#7B2D8B;--purple-light:#F3E8FF;--blue:#1F5FA8;--blue-light:#E8F1FB;--gray-0:#FFFFFF;--gray-1:#F7F8F9;--gray-2:#EEF0F2;--gray-3:#DEE1E5;--gray-4:#9AA1AB;--gray-5:#5A6370;--gray-6:#23282F;--radius:8px;--shadow:0 1px 4px rgba(0,0,0,0.07),0 0 0 0.5px rgba(0,0,0,0.05)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--gray-1);color:var(--gray-6);font-size:14px;min-height:100vh}
+
+.topbar{background:var(--teal-dark);color:white;padding:0 1rem;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:50;box-shadow:0 1px 6px rgba(0,0,0,0.15)}
+.topbar-logo{font-size:16px;font-weight:600;letter-spacing:.04em;display:flex;align-items:center;gap:10px}
+.topbar-logo span{opacity:.75;font-weight:400;font-size:13px}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 14px;border-radius:var(--radius);border:1px solid transparent;font-size:13px;font-family:inherit;cursor:pointer;font-weight:500;transition:background .1s;white-space:nowrap}
+.btn-ghost{background:rgba(255,255,255,.15);color:white;border-color:rgba(255,255,255,.25)}.btn-ghost:hover{background:rgba(255,255,255,.25)}
+.btn-outline{background:white;color:var(--gray-6);border-color:var(--gray-3)}.btn-outline:hover{background:var(--gray-1)}
+.btn-teal{background:var(--teal);color:white;border-color:var(--teal-dark)}.btn-teal:hover{background:var(--teal-dark)}
+.btn-red{background:var(--red);color:white;border-color:var(--red)}.btn-red:hover{opacity:.9}
+.btn-whats{background:#25D366;color:white;border-color:#25D366}.btn-whats:hover{opacity:.9}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-block{width:100%}
+.icon{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+
+.main{max-width:1500px;margin:0 auto;padding:1rem 1rem 4rem}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:1rem}
+.busca{flex:1;min-width:150px;padding:8px 12px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:13px;background:white}
+.busca:focus{outline:none;border-color:var(--teal)}
+.filtro{padding:8px 10px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:13px;background:white;color:var(--gray-6)}
+.view-switch{display:flex;background:white;border-radius:var(--radius);padding:3px;box-shadow:var(--shadow)}
+.view-btn{padding:6px 12px;border:none;background:transparent;border-radius:6px;font-family:inherit;font-size:12.5px;cursor:pointer;color:var(--gray-5);font-weight:500}
+.view-btn.active{background:var(--teal-dark);color:white}
+.conta{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-size:10.5px;font-weight:700;line-height:18px;text-align:center;margin-left:4px}
+
+/* NUMEROS DO TOPO */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:1rem}
+.card{background:white;border-radius:10px;box-shadow:var(--shadow);padding:13px 14px;border-left:4px solid var(--gray-3)}
+.card.clica{cursor:pointer}.card.clica:hover{box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.card-n{font-size:24px;font-weight:700;line-height:1.1}
+.card-t{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-5);font-weight:700;margin-top:3px}
+.card-s{font-size:12px;color:var(--gray-5);margin-top:2px}
+
+.lembrete{background:var(--amber-light);border:1px solid var(--amber-mid);border-radius:10px;padding:11px 14px;margin-bottom:1rem;font-size:13.5px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer}
+.lembrete:hover{background:#fdf0cf}
+
+/* FUNIL */
+.funil{display:flex;gap:10px;overflow-x:auto;padding-bottom:10px;align-items:flex-start}
+.coluna{background:var(--gray-2);border-radius:10px;min-width:250px;width:250px;flex-shrink:0;display:flex;flex-direction:column;max-height:calc(100vh - 240px)}
+.coluna.solta-aqui{outline:2px dashed var(--teal);outline-offset:-2px;background:var(--teal-light)}
+.coluna-head{padding:10px 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-top:4px solid var(--gray-3);border-radius:10px 10px 0 0;display:flex;justify-content:space-between;gap:6px}
+.coluna-soma{font-size:11px;color:var(--gray-5);font-weight:600;text-transform:none;letter-spacing:0;padding:0 12px 6px}
+.coluna-corpo{padding:0 8px 8px;overflow-y:auto;display:flex;flex-direction:column;gap:7px;min-height:40px}
+.neg{background:white;border-radius:8px;box-shadow:var(--shadow);padding:9px 10px;cursor:pointer;font-size:12.5px;line-height:1.4}
+.neg:hover{box-shadow:0 2px 10px rgba(0,0,0,.14)}
+.neg[draggable="true"]{cursor:grab}
+.neg-nome{font-weight:600;color:var(--gray-6)}
+.neg-linha{color:var(--gray-5);font-size:11.5px;margin-top:2px}
+.neg-valor{font-weight:700;color:var(--teal-dark)}
+.coluna-vazia{font-size:11.5px;color:var(--gray-4);text-align:center;padding:10px 0}
+
+/* LISTA */
+.tabela-cx{background:white;border-radius:10px;box-shadow:var(--shadow);overflow-x:auto}
+table.tab{border-collapse:collapse;width:100%;min-width:820px;font-size:12.5px}
+table.tab th{background:var(--gray-1);text-align:left;padding:9px 10px;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-5);font-weight:700;border-bottom:2px solid var(--gray-3);white-space:nowrap}
+table.tab td{padding:9px 10px;border-bottom:1px solid var(--gray-2);vertical-align:top}
+table.tab tbody tr{cursor:pointer}
+table.tab tbody tr:hover{background:var(--teal-light)}
+
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap;letter-spacing:.02em}
+.pill-cinza{background:var(--gray-2);color:var(--gray-5)}
+.pill-vermelho{background:var(--red-light);color:var(--red)}
+.pill-ambar{background:var(--amber-light);color:var(--amber)}
+.pill-verde{background:var(--green-light);color:var(--green)}
+.pill-azul{background:var(--blue-light);color:var(--blue)}
+.pill-roxo{background:var(--purple-light);color:var(--purple)}
+.pill-teal{background:var(--teal-light);color:var(--teal-dark)}
+
+.bloco{background:white;border-radius:10px;box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden}
+.bloco-head{padding:11px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:var(--gray-1);border-bottom:1px solid var(--gray-2);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.bloco-body{padding:6px 14px}
+.linha-ret{padding:9px 0;border-bottom:1px solid var(--gray-1);font-size:13px;line-height:1.45;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.linha-ret:last-child{border-bottom:none}
+.linha-ret .quem{flex:1;min-width:200px;cursor:pointer}
+.linha-ret .quem:hover .neg-nome{color:var(--teal-dark);text-decoration:underline}
+
+/* JANELAS */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:.6rem}
+.overlay.open{display:flex}
+.modal{background:white;border-radius:12px;width:min(680px,100%);max-height:92vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.modal-head{padding:13px 16px;border-bottom:1px solid var(--gray-2);display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;background:white;z-index:2}
+.modal-title{font-size:15px;font-weight:600}
+.modal-body{padding:14px 16px 26px}
+.modal-foot{padding:12px 16px;border-top:1px solid var(--gray-2);display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;bottom:0;background:white;z-index:2;box-shadow:0 -6px 10px -6px rgba(0,0,0,.18)}
+.modal-foot .esq{margin-right:auto;display:flex;gap:8px;flex-wrap:wrap}
+.x{border:none;background:none;font-size:22px;line-height:1;color:var(--gray-4);cursor:pointer;padding:0 4px}
+
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg.span2{grid-column:1/-1}
+.fg label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-5)}
+.fg input,.fg select,.fg textarea{padding:9px 11px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:14px;background:white;width:100%}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--teal)}
+.fg textarea{resize:vertical;min-height:58px}
+.fg .dica{font-size:11.5px;color:var(--gray-4);line-height:1.4}
+.secao{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-5);border-top:1px solid var(--gray-2);padding-top:12px;margin:16px 0 10px}
+.secao:first-child{border-top:none;padding-top:0;margin-top:0}
+.marca{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.45;cursor:pointer}
+.marca input{width:auto;margin-top:3px;flex:none}
+
+.aviso{background:var(--amber-light);border:1px solid var(--amber-mid);border-radius:8px;padding:11px 13px;font-size:12.5px;color:var(--gray-6);line-height:1.5;margin-bottom:12px}
+.lgpd{background:var(--blue-light);border:1px solid #c5d8f0;border-radius:8px;padding:9px 12px;font-size:12px;color:var(--gray-6);line-height:1.5;margin-bottom:12px}
+.vazio{text-align:center;padding:50px 20px;color:var(--gray-4)}
+.vazio-t{font-size:15px;font-weight:600;color:var(--gray-5);margin-bottom:6px}
+
+.nota{font-size:12.5px;padding:7px 0;border-bottom:1px solid var(--gray-2);line-height:1.45}
+.nota:last-child{border-bottom:none}
+.nota-quem{font-size:11px;color:var(--gray-4)}
+.cad-linha{display:flex;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid var(--gray-2);flex-wrap:wrap}
+.cad-linha input[type=text]{flex:1;min-width:140px;padding:6px 9px;border:1px solid var(--gray-3);border-radius:6px;font-family:inherit;font-size:13px}
+.cad-linha select{padding:6px;border:1px solid var(--gray-3);border-radius:6px;font-family:inherit;font-size:12.5px}
+
+.bloqueio{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1.5rem;text-align:center}
+.bloqueio-cx{background:white;border-radius:12px;padding:28px 24px;box-shadow:var(--shadow);max-width:380px}
+.sync{font-size:11.5px;opacity:.85;display:flex;align-items:center;gap:5px}
+
+@media(max-width:760px){
+  .topbar{padding:6px .7rem;height:auto;flex-wrap:wrap;gap:6px}
+  .topbar-actions{flex-wrap:wrap;justify-content:flex-end}
+  .topbar-logo span{display:none}
+  .main{padding:.7rem .6rem 4rem}
+  .form-grid{grid-template-columns:1fr}
+  .fg.span2{grid-column:1}
+  .modal{height:100dvh;max-height:100dvh;border-radius:0;width:100%;display:flex;flex-direction:column;overflow:hidden}
+  .modal-head{flex-shrink:0}
+  .modal-body{flex:1 1 auto;overflow-y:auto;min-height:0}
+  .modal-foot{flex-shrink:0;position:relative}
+  .overlay{padding:0}
+  .btn{padding:9px 14px}
+  .btn-sm{padding:7px 11px}
+  .coluna{max-height:none}
+}
+</style>
+<script>
+// Marca que este modulo esta aberto DENTRO do portal, para o CSS esconder
+// a faixa duplicada. Se a leitura falhar por ser outro dominio, e porque
+// estamos num quadro — entao vale a mesma regra.
+try{ if(window.self!==window.top) document.documentElement.classList.add('dentro-do-portal'); }
+catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
+</script>
+</head>
+<body>
+<!-- ================================================================
+     AVISO DE AMBIENTE DE TESTE
+     Este bloco existe SOMENTE nos arquivos de teste. Ao levar um
+     arquivo daqui para producao, ELE PRECISA SAIR — junto com a troca
+     do identificador do sistema.
+     ================================================================ -->
+<div id="faixa-teste">Ambiente de teste &middot; o que voce lancar aqui nao vale</div>
+<style>
+  #faixa-teste{position:fixed;top:0;left:0;right:0;height:30px;z-index:100000;
+    background:repeating-linear-gradient(45deg,#B9770E 0 14px,#8a5a0a 14px 28px);
+    color:#fff;font:700 12px/30px system-ui,-apple-system,"Segoe UI",sans-serif;
+    letter-spacing:.08em;text-align:center;text-transform:uppercase;
+    box-shadow:0 1px 6px rgba(0,0,0,.3);pointer-events:none}
+  body{padding-top:30px}
+  .topbar{top:30px !important;background:#B9770E !important}
+  .bloqueio{padding-top:30px}
+  html.dentro-do-portal #faixa-teste{display:none}
+  html.dentro-do-portal body{padding-top:0}
+  html.dentro-do-portal .topbar{top:0 !important}
+  html.dentro-do-portal .bloqueio{padding-top:0}
+</style>
+
+<!-- SEM SESSÃO — login próprio do módulo -->
+<div class="bloqueio" id="bloqueio" style="display:none">
+  <div class="bloqueio-cx" style="text-align:left;width:340px;max-width:100%">
+    <div style="text-align:center;font-size:34px;margin-bottom:8px">🔒</div>
+    <div style="text-align:center;font-size:16px;font-weight:600;margin-bottom:16px">CRM Comercial</div>
+    <div class="fg" style="margin-bottom:12px">
+      <label for="login-user">Usuário</label>
+      <input type="text" id="login-user" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="seu usuário">
+    </div>
+    <div class="fg" style="margin-bottom:12px">
+      <label for="login-pass">Senha</label>
+      <div style="display:flex;gap:6px">
+        <input type="password" id="login-pass" autocomplete="current-password" placeholder="••••••" style="flex:1">
+        <button type="button" class="btn btn-outline" id="login-olho" title="Mostrar ou esconder a senha">👁️</button>
+      </div>
+    </div>
+    <div id="login-erro" style="display:none;font-size:12.5px;color:var(--red);background:var(--red-light);border-radius:6px;padding:7px 9px;margin-bottom:12px;line-height:1.45"></div>
+    <button class="btn btn-teal btn-block" id="login-btn">Entrar</button>
+    <p style="font-size:12px;color:var(--gray-5);line-height:1.5;margin-top:14px;text-align:center">
+      Mesmo usuário e senha do portal.<br>
+      <a href="https://daluminium.github.io/teste/" style="color:var(--teal-dark)">Ir para o portal</a>
+    </p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <div class="topbar">
+    <div class="topbar-logo">DALUMINIUM <span>CRM Comercial</span></div>
+    <div class="topbar-actions">
+      <span class="sync" id="sync"></span>
+      <button class="btn btn-ghost btn-sm" onclick="atualizarDoBanco(true)" title="Buscar alterações de outras pessoas agora">
+        <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Atualizar
+      </button>
+      <button class="btn btn-ghost btn-sm" data-so-gestor onclick="abrirCadastros()" title="Etapas do funil, de onde vem o cliente, motivos de perda e limpeza de dados antigos">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8 7 17M17 7l2.8-2.8"/></svg>Cadastros
+      </button>
+      <button class="btn btn-ghost btn-sm" id="btn-hist" onclick="abrirHistorico()" style="display:none" title="Quem fez o quê no CRM">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Histórico
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="novoNegocio()">
+        <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Novo negócio
+      </button>
+      <button class="btn btn-ghost btn-sm" id="btn-sair" onclick="sairDoCrm()" style="display:none">Sair</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div id="lembrete-retornos"></div>
+    <div class="cards" id="numeros"></div>
+
+    <div class="toolbar">
+      <div class="view-switch">
+        <button class="view-btn" id="vb-funil" onclick="setView('funil')">Funil</button>
+        <button class="view-btn" id="vb-lista" onclick="setView('lista')">Lista</button>
+        <button class="view-btn" id="vb-retornos" onclick="setView('retornos')">Retornos<span id="conta-retornos"></span></button>
+        <button class="view-btn" id="vb-lixeira" data-so-gestor onclick="setView('lixeira')">Lixeira</button>
+      </div>
+      <input class="busca" id="busca" placeholder="Buscar por cliente, telefone, cidade..." oninput="render()">
+      <select class="filtro" id="f-vendedor" data-so-gestor onchange="render()" title="Mostrar só os negócios de um vendedor"></select>
+      <select class="filtro" id="f-etapa" onchange="render()" style="display:none"></select>
+    </div>
+
+    <div id="conteudo"></div>
+  </div>
+</div>
+
+<!-- FICHA DO NEGÓCIO -->
+<div class="overlay" id="ficha-ov">
+  <div class="modal" style="width:min(760px,100%)">
+    <div class="modal-head">
+      <div class="modal-title" id="ficha-titulo">Novo negócio</div>
+      <button class="x" onclick="fecharFicha()" title="Fechar">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="lgpd"><b>Proteção de dados (LGPD):</b> anote só o que serve para a venda. <b>Não</b> guarde aqui CPF, RG, dados bancários, de saúde ou da família do cliente — o CPF entra só no contrato, quando o negócio fecha.</div>
+
+      <div class="secao">Cliente</div>
+      <div class="form-grid">
+        <div class="fg span2"><label for="o-cliente">Nome do cliente ou da obra *</label><input id="o-cliente" maxlength="120"></div>
+        <div class="fg"><label for="o-telefone">Telefone / WhatsApp</label>
+          <div style="display:flex;gap:6px"><input id="o-telefone" type="tel" placeholder="69 99999-9999" style="flex:1;min-width:0">
+          <button type="button" class="btn btn-whats btn-sm" onclick="whatsDaFicha()" title="Abrir conversa no WhatsApp">WhatsApp</button></div></div>
+        <div class="fg"><label for="o-email">E-mail</label><input id="o-email" type="email" maxlength="120"></div>
+        <div class="fg"><label for="o-cidade">Cidade</label><input id="o-cidade" list="lista-cidade" maxlength="80"></div>
+        <div class="fg"><label for="o-bairro">Bairro / condomínio</label><input id="o-bairro" maxlength="80"></div>
+        <div class="fg"><label for="o-origem">Como chegou até nós</label><select id="o-origem"></select></div>
+        <div class="fg"><label for="o-vendedor">Vendedor</label><select id="o-vendedor"></select>
+          <span class="dica" id="o-vendedor-dica"></span></div>
+      </div>
+
+      <div class="secao">Negócio</div>
+      <div class="form-grid">
+        <div class="fg span2"><label for="o-interesse">O que o cliente quer</label><textarea id="o-interesse" placeholder="Ex.: 6 janelas de correr pretas e porta de entrada pivotante"></textarea></div>
+        <div class="fg"><label for="o-etapa">Etapa</label><select id="o-etapa" onchange="mostrarMotivo()"></select></div>
+        <div class="fg"><label for="o-valor">Valor (R$)</label><input id="o-valor" inputmode="decimal" placeholder="0,00"></div>
+        <div class="fg span2" id="o-motivo-cx" style="display:none"><label for="o-motivo">Por que perdemos *</label><select id="o-motivo"></select></div>
+      </div>
+
+      <div class="secao">Próximo retorno</div>
+      <div class="form-grid">
+        <div class="fg"><label for="o-retorno">Quando</label><input id="o-retorno" type="date"></div>
+        <div class="fg"><label for="o-retorno-oque">O que fazer</label><input id="o-retorno-oque" maxlength="140" placeholder="Ex.: ligar para saber se aprovou o orçamento"></div>
+        <div class="fg span2"><span class="dica">No dia marcado o negócio aparece em <b>Retornos</b> e o CRM avisa ao abrir. Deixe em branco se não houver retorno combinado.</span></div>
+      </div>
+
+      <div class="secao">Contatos feitos</div>
+      <div id="o-notas"></div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <input id="o-nota" class="busca" placeholder="Ex.: Liguei, pediu desconto de 5%" maxlength="400" onkeydown="if(event.key==='Enter'){event.preventDefault();anotar();}">
+        <button type="button" class="btn btn-outline" onclick="anotar()">Anotar</button>
+      </div>
+
+      <div class="secao">Observações e autorização</div>
+      <div class="form-grid">
+        <div class="fg span2"><label for="o-obs">Observações</label><textarea id="o-obs" maxlength="2000"></textarea></div>
+        <div class="fg span2">
+          <label class="marca"><input type="checkbox" id="o-autoriza"> <span>O cliente <b>autorizou</b> receber novidades e promoções da D'Aluminium.<br><span class="dica" id="o-autoriza-dica">Sem essa autorização, não mande propaganda — só fale do orçamento que ele pediu.</span></span></label>
+        </div>
+      </div>
+      <div class="dica" id="o-quem" style="margin-top:14px;font-size:11.5px;color:var(--gray-4)"></div>
+    </div>
+    <div class="modal-foot">
+      <div class="esq">
+        <button class="btn btn-outline btn-sm" id="ficha-btn-excluir" onclick="excluirNegocio()">Excluir</button>
+        <button class="btn btn-outline btn-sm" id="ficha-btn-restaurar" onclick="restaurarNegocio()">Restaurar</button>
+        <button class="btn btn-outline btn-sm" id="ficha-btn-anonimizar" onclick="apagarDadosPessoais()" title="O cliente pediu para apagar os dados dele (LGPD)">Apagar dados pessoais</button>
+      </div>
+      <button class="btn btn-outline" id="ficha-btn-obra" onclick="levarParaObra()" title="Abre um contrato novo na Obra já com estes dados">Gerar contrato na Obra</button>
+      <button class="btn btn-outline" onclick="fecharFicha()">Cancelar</button>
+      <button class="btn btn-teal" id="ficha-btn-salvar" onclick="salvarFicha()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- CADASTROS -->
+<div class="overlay" id="cad-ov">
+  <div class="modal" style="width:min(720px,100%)">
+    <div class="modal-head">
+      <div class="modal-title">Cadastros do CRM</div>
+      <button class="x" onclick="fecharCadastros()" title="Fechar">×</button>
+    </div>
+    <div class="modal-body" id="cad-corpo"></div>
+    <div class="modal-foot"><button class="btn btn-teal" onclick="fecharCadastros()">Fechar</button></div>
+  </div>
+</div>
+
+<!-- HISTÓRICO -->
+<div class="overlay" id="hist-ov">
+  <div class="modal" style="width:min(760px,100%)">
+    <div class="modal-head">
+      <div class="modal-title">Histórico do CRM</div>
+      <button class="x" onclick="fecharHistorico()" title="Fechar">×</button>
+    </div>
+    <div class="modal-body" id="hist-corpo"></div>
+  </div>
+</div>
+
+<!-- AVISO — substitui o alert() do navegador -->
+<div class="overlay" id="aviso-ov">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-head"><div class="modal-title" id="aviso-titulo">Aviso</div></div>
+    <div class="modal-body"><div id="aviso-texto" style="font-size:13.5px;line-height:1.6;white-space:pre-wrap"></div></div>
+    <div class="modal-foot"><button class="btn btn-teal" id="aviso-btn" onclick="fecharAviso()">Entendi</button></div>
+  </div>
+</div>
+
+<datalist id="lista-cidade"></datalist>
+
+<script>
+// ================= CONFIG =================
+const WORKER='https://daluminium-api.daluminium2.workers.dev';
+// ATENCAO: ao levar para producao muda para 'crm'.
+const SUPA_SISTEMA='crm_teste';
+const PORTAL_URL='https://daluminium.github.io/teste/';
+// A Obra do mesmo ambiente: e para la que o negocio fechado vai virar contrato.
+const OBRA_URL=/_teste$/.test(SUPA_SISTEMA) ? 'https://daluminium.github.io/teste/obra.html'
+                                            : 'https://daluminium.github.io/obra/';
+const AMBIENTE_CRM=/_teste$/.test(SUPA_SISTEMA) ? 'teste' : 'producao';
+// A lista de usuários do sistema inteiro vive no registro do Compras de
+// PRODUÇÃO, em qualquer ambiente.
+const SISTEMA_USUARIOS='compras';
+const LS_KEY='dalum-crm';
+// O bilhete que leva o negocio fechado para a Obra (ver levarParaObra). Tem
+// dado pessoal: a Obra apaga ao ler, e o Sair apaga se ficar para tras.
+const PARA_OBRA_KEY='dalum-crm-para-obra';
+
+// ---- O FUNIL (09/10/2026) ----
+// As etapas sao so o PONTO DE PARTIDA: quem manda e dados.etapas, que a tela
+// de Cadastros escreve (como o status da Obra). O negocio guarda o ID da
+// etapa, e nao o nome — assim renomear nao exige mexer em cada negocio.
+//   tipo 'aberta'  — negocio em andamento, conta no "em aberto";
+//   tipo 'ganho'   — fechou; da para gerar o contrato na Obra;
+//   tipo 'perdido' — nao fechou; pede o motivo.
+// Ganho e perdido existem uma vez cada e nao podem ser removidos.
+const CORES=[
+  {id:'ambar',    rotulo:'Amarelo',    pill:'pill-ambar',    cor:'var(--amber)'},
+  {id:'teal',     rotulo:'Verde-água', pill:'pill-teal',     cor:'var(--teal)'},
+  {id:'azul',     rotulo:'Azul',       pill:'pill-azul',     cor:'var(--blue)'},
+  {id:'roxo',     rotulo:'Roxo',       pill:'pill-roxo',     cor:'var(--purple)'},
+  {id:'verde',    rotulo:'Verde',      pill:'pill-verde',    cor:'var(--green)'},
+  {id:'vermelho', rotulo:'Vermelho',   pill:'pill-vermelho', cor:'var(--red)'},
+  {id:'cinza',    rotulo:'Cinza',      pill:'pill-cinza',    cor:'var(--gray-3)'}
+];
+const ETAPAS_PADRAO=[
+  {id:'contato',    nome:'Primeiro contato',  cor:'ambar',    tipo:'aberta'},
+  {id:'visita',     nome:'Visita / medição',  cor:'azul',     tipo:'aberta'},
+  {id:'orcamento',  nome:'Orçamento enviado', cor:'roxo',     tipo:'aberta'},
+  {id:'negociacao', nome:'Negociação',        cor:'teal',     tipo:'aberta'},
+  {id:'ganho',      nome:'Fechado',           cor:'verde',    tipo:'ganho'},
+  {id:'perdido',    nome:'Perdido',           cor:'vermelho', tipo:'perdido'}
+];
+const ORIGENS_PADRAO=['Indicação','Instagram','WhatsApp','Site','Loja / showroom',
+  'Construtora / arquiteto','Cliente antigo','Outro'];
+const MOTIVOS_PADRAO=['Preço','Prazo de entrega','Fechou com concorrente','Desistiu da obra',
+  'Sem retorno do cliente','Outro'];
+// LGPD: negocio PERDIDO, sem autorizacao de contato, parado ha mais que isto,
+// entra na lista de "apagar dados pessoais" da tela de Cadastros.
+const MESES_GUARDAR_PERDIDO=12;
+
+let dados={oportunidades:[],etapas:[],origens:[],motivosPerda:[],historico:[]};
+// Gravacao em andamento e alteracao local ainda nao confirmada pelo servidor.
+// Mesma trava dos outros modulos (ver "Sincronização apagava gravação").
+let _gravando=0, _versaoLocal=0;
+let usuario='';        // nome de quem entrou
+let usuarioLogin='';   // login (o campo `u` do cracha) — e o que fica no negocio
+let papel='';
+function podeGerenciar(){ return papel==='admin' || papel==='gerente'; }
+function soAdmin(){ return papel==='admin'; }
+// Gerar contrato abre a Obra: so faz sentido para quem tem acesso a ela e
+// pode cadastrar contrato la (admin ou gerente com o modulo Obra).
+function podeLevarParaObra(){
+  if(soAdmin()) return true;
+  if(papel!=='gerente') return false;
+  const t=lerToken();
+  const m=(t&&t.dados&&Array.isArray(t.dados.m))?t.dados.m:[];
+  return m.indexOf('obra')>=0;
+}
+let view='funil';
+let fichaId=null;
+let _notasNovas=[];
+let _vendedores=[];   // quem tem o modulo CRM (para o gerente atribuir)
+
+// ================= SESSÃO =================
+function lerSSO(){
+  try{
+    const s=JSON.parse(loginGuardaLer('dalum-sso')||'null');
+    if(!s||!s.nome) return null;
+    if(Date.now()-s.ts>8*60*60*1000){ loginGuardaApagar('dalum-sso'); return null; }
+    return s;
+  }catch(e){ return null; }
+}
+
+const TOKEN_KEY='dalum-token';
+
+// ---- AVISO DE VERSAO NOVA ----
+// Igual aos outros modulos: le o versao.json ao abrir e de tempos em tempos.
+let _versaoQuandoAbriu=null, _avisouVersaoNova=false;
+function enderecoDaVersao(){
+  const base=(AMBIENTE_CRM==='teste') ? 'https://daluminium.github.io/teste/versao.json'
+                                     : 'https://daluminium.github.io/portal/versao.json';
+  return base+'?t='+Date.now();
+}
+async function conferirVersao(){
+  if(_avisouVersaoNova) return;
+  let v=null;
+  try{
+    const r=await fetch(enderecoDaVersao(),{cache:'no-store'});
+    if(!r.ok) return;
+    v=(await r.json()).versao;
+  }catch(e){ return; }
+  if(!v) return;
+  if(_versaoQuandoAbriu===null){ _versaoQuandoAbriu=v; return; }
+  if(v===_versaoQuandoAbriu) return;
+  _avisouVersaoNova=true;
+  mostrarBarraDeVersao(v);
+}
+function mostrarBarraDeVersao(v){
+  if(document.getElementById('barra-versao')) return;
+  const b=document.createElement('div');
+  b.id='barra-versao';
+  b.style.cssText='position:fixed;left:0;right:0;top:0;z-index:10050;background:#FFFBEA;border-bottom:2px solid #E6B800;'
+    +'color:#2c3e50;font-family:inherit;font-size:13.5px;padding:10px 14px;display:flex;align-items:center;gap:12px;'
+    +'justify-content:center;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.12)';
+  b.innerHTML='<span><b>Saiu uma versão nova do sistema.</b> Atualize esta página para usar a versão nova.</span>'
+    +'<button type="button" id="barra-versao-ok" style="border:1px solid #0E7C7B;background:#0E7C7B;color:#fff;'
+    +'border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Atualizar agora</button>'
+    +'<button type="button" id="barra-versao-x" style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;'
+    +'border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit">Agora não</button>';
+  let altoDaFaixa=0;
+  try{ const f=document.getElementById('faixa-teste'); if(f) altoDaFaixa=f.getBoundingClientRect().height||0; }catch(e){}
+  b.style.top=altoDaFaixa+'px';
+  (document.body||document.documentElement).appendChild(b);
+  b.querySelector('#barra-versao-ok').onclick=function(){ atualizarParaVersaoNova(v); };
+  b.querySelector('#barra-versao-x').onclick=function(){ b.remove(); };
+}
+function atualizarParaVersaoNova(v){
+  try{
+    if(window.self!==window.top){ window.parent.postMessage('atualizar-versao','*'); return; }
+  }catch(e){}
+  try{ sessionStorage.setItem('dalum-atualizou','1'); }catch(e){}
+  location.replace(location.pathname+'?v='+encodeURIComponent(v||Date.now()));
+}
+function confirmarQueAtualizou(){
+  let veio=null;
+  try{ veio=sessionStorage.getItem('dalum-atualizou'); sessionStorage.removeItem('dalum-atualizou'); }catch(e){}
+  if(!veio) return;
+  const c=document.createElement('div');
+  let alto=0;
+  try{ const f=document.getElementById('faixa-teste'); if(f) alto=f.getBoundingClientRect().height||0; }catch(e){}
+  c.style.cssText='position:fixed;left:0;right:0;top:'+alto+'px;z-index:10050;background:#E8F6EE;border-bottom:2px solid #1A7A45;'
+    +'color:#14532d;font-family:inherit;font-size:13.5px;padding:10px 14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.12)';
+  c.textContent='Sistema atualizado ✓ Você está na versão nova.';
+  (document.body||document.documentElement).appendChild(c);
+  setTimeout(function(){ c.remove(); },5000);
+}
+setTimeout(confirmarQueAtualizou,400);
+setTimeout(conferirVersao,1500);
+setInterval(conferirVersao,5*60*1000);
+document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') conferirVersao(); });
+
+// ---- ONDE O CRACHA E A SESSAO FICAM GUARDADOS ----
+// O cracha do ADMIN fica so na ABA; o dos demais, no navegador. Igual aos
+// outros modulos.
+function loginGuardaLer(chave){
+  try{ const v=sessionStorage.getItem(chave); if(v!==null) return v; }catch(e){}
+  try{ return localStorage.getItem(chave); }catch(e){ return null; }
+}
+function loginGuardaGravar(chave, valor, soNestaAba){
+  try{ sessionStorage.setItem(chave, valor); }catch(e){}
+  if(!soNestaAba){ try{ localStorage.setItem(chave, valor); }catch(e){} }
+}
+function loginGuardaApagar(chave){
+  let meu=null;
+  try{ meu=sessionStorage.getItem(chave); }catch(e){}
+  try{ sessionStorage.removeItem(chave); }catch(e){}
+  try{
+    if(meu===null || localStorage.getItem(chave)===meu) localStorage.removeItem(chave);
+  }catch(e){}
+}
+
+// LGPD: ao sair, apaga a copia dos dados guardada no navegador — de TODOS os
+// modulos, porque todos dividem o mesmo armazenamento.
+const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra','dalum-crm','dalum-crm-para-obra',
+  'portal-admin-passes','dalum-admin-passes','fin-admin-passes'];
+function apagarDadosLocais(){
+  DADOS_LOCAIS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+}
+
+function b64urlParaTexto(s){
+  const b64=s.replace(/-/g,'+').replace(/_/g,'/');
+  const bin=atob(b64+'==='.slice((b64.length+3)%4));
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+function lerToken(){
+  try{
+    const t=loginGuardaLer(TOKEN_KEY);
+    if(!t) return null;
+    const partes=t.split('.');
+    if(partes.length!==2) return null;
+    const d=JSON.parse(b64urlParaTexto(partes[0]));
+    if(!d||!d.exp||Date.now()>=d.exp){ loginGuardaApagar(TOKEN_KEY); return null; }
+    return {token:t,dados:d};
+  }catch(e){ loginGuardaApagar(TOKEN_KEY); return null; }
+}
+
+function cabecalhos(extra){
+  const h=Object.assign({'X-Sistema':SUPA_SISTEMA,'Origin':'https://daluminium.github.io'},extra||{});
+  const t=lerToken();
+  if(t) h['Authorization']='Bearer '+t.token;
+  return h;
+}
+
+async function fazerLogin(user,senha){
+  const r=await fetch(WORKER,{
+    method:'POST',
+    cache:'no-store',
+    headers:{'Content-Type':'application/json','X-Action':'login'},
+    body:JSON.stringify({usuario:user,senha:senha})
+  });
+  let j=null;
+  try{ j=await r.json(); }catch(e){}
+  if(r.status===503){ telaManutencao((j&&j.mensagem)||''); const e=new Error('Em manutencao'); e.status=503; throw e; }
+  if(!r.ok||!j||!j.token){
+    const e=new Error((j&&j.erro)||('Worker '+r.status));
+    e.status=r.status;
+    throw e;
+  }
+  loginGuardaGravar(TOKEN_KEY,j.token,String(j.role||'').toLowerCase()==='admin');
+  return j;
+}
+
+// ================= UM ACESSO POR PESSOA =================
+function idDestaTela(){
+  try{
+    let i=sessionStorage.getItem('dalum-sessao');
+    if(!i){ i=Math.random().toString(36).slice(2)+Date.now().toString(36); sessionStorage.setItem('dalum-sessao',i); }
+    return i;
+  }catch(e){ return 'tela'+Date.now(); }
+}
+let _sessionIdCrm=idDestaTela();
+let _checkCrm=null;
+
+// ---- SESSAO PARADA ----
+// Quem encerra a sessao e o PORTAL; o modulo so anota a hora da ultima
+// atividade na marca que os dois leem.
+(function(){
+  var ATIVIDADE_KEY='dalum-ativo', ultimo=0;
+  function marcar(){
+    var agora=Date.now();
+    if(agora-ultimo<5000) return;
+    ultimo=agora;
+    try{ localStorage.setItem(ATIVIDADE_KEY,String(agora)); }catch(e){}
+  }
+  ['pointerdown','keydown','wheel','touchstart'].forEach(function(ev){
+    document.addEventListener(ev,marcar,{passive:true});
+  });
+  marcar();
+})();
+
+function cabecalhosSessoesCrm(extra){
+  return Object.assign(cabecalhos(extra||{}),{'X-Sistema':'sessions'});
+}
+async function acaoSessaoCrm(nome, corpo){
+  const r=await fetch(WORKER,{
+    method:'POST',
+    headers:cabecalhosSessoesCrm({'Content-Type':'application/json','X-Action':nome}),
+    body:JSON.stringify(Object.assign({sessionId:_sessionIdCrm, ambiente:AMBIENTE_CRM}, corpo||{}))
+  });
+  if(!r.ok) throw Object.assign(new Error('worker '+r.status),{status:r.status});
+  return r.json();
+}
+async function registrarSessaoCrm(){
+  try{ await acaoSessaoCrm('sessao-entrar',{sistema:'crm'}); }catch(e){}
+}
+async function removerSessaoCrm(){
+  try{ await acaoSessaoCrm('sessao-sair',{}); }catch(e){}
+}
+async function checkForceLogoutCrm(){
+  let r=null;
+  try{ r=await acaoSessaoCrm('sessao-sinal',{sistema:'crm'}); }catch(e){ return; }
+  if(!r||!r.derrubado) return;
+  aviso('Sessão encerrada',
+    r.motivo==='outro-login'
+      ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
+      :'Sua sessão foi encerrada pelo administrador.',
+    function(){
+      try{ loginGuardaApagar(TOKEN_KEY); loginGuardaApagar('dalum-sso'); }catch(e){} apagarDadosLocais();
+      location.reload();
+    });
+}
+async function sairDoCrm(){
+  if(!confirm('Deseja sair?')) return;
+  await removerSessaoCrm();
+  loginGuardaApagar(TOKEN_KEY);
+  loginGuardaApagar('dalum-sso');
+  apagarDadosLocais();
+  if(window.self!==window.top) window.parent.postMessage('logout','*');
+  location.reload();
+}
+
+// Registro de quem abriu cada negocio (o mesmo da Obra; so o admin le, pela
+// Obra). Falha aqui nunca atrapalha o trabalho.
+function anotarAcesso(acao, alvo){
+  try{
+    fetch(WORKER,{method:'POST',cache:'no-store',
+      headers:cabecalhos({'Content-Type':'application/json','X-Action':'anotar-acesso'}),
+      body:JSON.stringify({acao:acao, alvo:alvo})}).catch(function(){});
+  }catch(e){}
+}
+function alvoDoNegocio(o){
+  if(!o) return '';
+  return 'CRM · '+(o.anonimizadoEm?'(dados apagados) '+o.id:String(o.cliente||'').slice(0,80));
+}
+
+// ================= DADOS =================
+function etapasPadraoNovas(){ return ETAPAS_PADRAO.map(function(e){ return Object.assign({},e); }); }
+function arrumar(d){
+  if(!d||typeof d!=='object') d={};
+  if(!Array.isArray(d.oportunidades)) d.oportunidades=[];
+  if(!Array.isArray(d.historico)) d.historico=[];
+  if(!Array.isArray(d.etapas)||!d.etapas.length) d.etapas=etapasPadraoNovas();
+  if(!Array.isArray(d.origens)||!d.origens.length) d.origens=ORIGENS_PADRAO.slice();
+  if(!Array.isArray(d.motivosPerda)||!d.motivosPerda.length) d.motivosPerda=MOTIVOS_PADRAO.slice();
+  return d;
+}
+function lerLocal(){
+  try{ const s=localStorage.getItem(LS_KEY); if(s) dados=JSON.parse(s); }catch(e){}
+  dados=arrumar(dados);
+}
+function gravarLocal(){ try{ localStorage.setItem(LS_KEY,JSON.stringify(dados)); }catch(e){} }
+
+function status(txt,cor){ const e=document.getElementById('sync'); if(e){ e.textContent=txt; e.style.color=cor||'rgba(255,255,255,.85)'; } }
+
+let _avisoAoFechar=null;
+function aviso(titulo, texto, aoFechar){
+  document.getElementById('aviso-titulo').textContent = titulo || 'Aviso';
+  document.getElementById('aviso-texto').textContent  = texto || '';
+  _avisoAoFechar = aoFechar || null;
+  document.getElementById('aviso-ov').classList.add('open');
+  setTimeout(function(){ const b=document.getElementById('aviso-btn'); if(b) b.focus(); }, 60);
+}
+function fecharAviso(){
+  document.getElementById('aviso-ov').classList.remove('open');
+  const fn=_avisoAoFechar; _avisoAoFechar=null;
+  if(fn) fn();
+}
+
+function sessaoExpirada(){
+  if(window.__sessaoExpirada) return;
+  window.__sessaoExpirada = true;
+  try{ loginGuardaApagar(TOKEN_KEY); loginGuardaApagar('dalum-sso'); }catch(e){} apagarDadosLocais();
+  aviso('Sessão expirada',
+        'O acesso vale 8 horas e o seu venceu. Nada foi perdido — o que você ' +
+        'já tinha salvo continua guardado.\n\nVamos voltar para a tela de entrada.',
+        function(){
+          if(window.self!==window.top){
+            try{ window.parent.postMessage('logout','*'); }catch(e){}
+            setTimeout(function(){ location.reload(); }, 800);
+            return;
+          }
+          location.reload();
+        });
+}
+
+function telaManutencao(msg){
+  const ja=document.getElementById('tela-manutencao');
+  if(ja){
+    const p=ja.querySelector('[data-msg]');
+    if(p&&msg) p.textContent=msg;
+    return;
+  }
+  const d=document.createElement('div');
+  d.id='tela-manutencao';
+  d.style.cssText='position:fixed;inset:0;z-index:300000;background:#fff;display:flex;'+
+    'align-items:center;justify-content:center;padding:24px;'+
+    'font-family:system-ui,-apple-system,"Segoe UI",sans-serif';
+  d.innerHTML='<div style="max-width:460px;text-align:center">'+
+    '<div style="font-size:46px;line-height:1;margin-bottom:16px">&#128736;</div>'+
+    '<h1 style="font-size:20px;margin:0 0 12px;color:#1f2937;font-weight:700">Sistema em manutenção</h1>'+
+    '<p data-msg style="font-size:14.5px;line-height:1.65;color:#4b5563;margin:0 0 10px"></p>'+
+    '<p style="font-size:13.5px;line-height:1.65;color:#6b7280;margin:0 0 22px">'+
+      'Seus lançamentos estão guardados. Nada foi perdido — só não dá para gravar durante estes minutos.</p>'+
+    '<button onclick="location.reload()" style="background:#0e7490;color:#fff;border:0;'+
+      'padding:11px 20px;border-radius:8px;font-size:14.5px;font-weight:600;'+
+      'cursor:pointer;font-family:inherit">Tentar de novo</button>'+
+    '</div>';
+  d.querySelector('[data-msg]').textContent=msg||'Estamos ajustando o sistema. Volta já.';
+  document.body.appendChild(d);
+}
+
+// 403 tem dois motivos aqui: o ambiente de teste (so admin e gerente) ou a
+// pessoa nao ter o modulo CRM liberado. O Worker diz qual.
+function bloqueioAcesso(msg){
+  if(document.getElementById('bloqueio-acesso')) return;
+  const d=document.createElement('div');
+  d.id='bloqueio-acesso';
+  d.style.cssText='position:fixed;inset:0;z-index:300000;background:#fff;display:flex;'+
+    'align-items:center;justify-content:center;padding:24px;'+
+    'font-family:system-ui,-apple-system,"Segoe UI",sans-serif';
+  d.innerHTML='<div style="max-width:480px;text-align:center">'+
+    '<div style="font-size:46px;line-height:1;margin-bottom:16px">&#128274;</div>'+
+    '<h1 style="font-size:20px;margin:0 0 12px;color:#1f2937;font-weight:700">Sem acesso ao CRM</h1>'+
+    '<p data-msg style="font-size:14.5px;line-height:1.65;color:#4b5563;margin:0 0 22px"></p>'+
+    '<a href="'+PORTAL_URL+'" target="_top" style="display:inline-block;'+
+      'background:#0e7490;color:#fff;text-decoration:none;padding:11px 20px;'+
+      'border-radius:8px;font-size:14.5px;font-weight:600">Voltar ao portal</a>'+
+    '</div>';
+  d.querySelector('[data-msg]').textContent=msg||'Seu acesso não inclui este módulo. Peça ao administrador para liberar.';
+  document.body.appendChild(d);
+}
+
+async function buscarRemoto(){
+  const url=WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7);
+  const r=await fetch(url,{cache:'no-store',headers:cabecalhos()});
+  if(r.status===503){ let m=''; try{ m=(await r.json()).mensagem||''; }catch(e){} telaManutencao(m); throw new Error('Em manutencao'); }
+  if(r.status===403){ let m=''; try{ m=(await r.json()).erro||''; }catch(e){} bloqueioAcesso(m); throw new Error('Acesso negado'); }
+  if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
+  if(!r.ok) throw new Error('Worker '+r.status);
+  const j=await r.json();
+  if(!j||typeof j!=='object'||Array.isArray(j)) return null;
+  return arrumar(j);
+}
+
+async function enviarRemoto(payload){
+  const r=await fetch(WORKER,{
+    method:'PATCH',
+    headers:cabecalhos({'Content-Type':'application/json'}),
+    body:JSON.stringify({data:payload})
+  });
+  if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
+  if(!r.ok) throw new Error('Worker '+r.status);
+}
+
+// Historico gravado JUNTO com a alteracao. O vendedor nao le o historico (o
+// Worker entrega vazio para ele) e so consegue ACRESCENTAR linhas.
+function logCrm(base, acao, alvo, detalhe){
+  if(!Array.isArray(base.historico)) base.historico=[];
+  base.historico.unshift({
+    id: novoId(), ts: agoraISO(), user: usuario||'—',
+    acao: acao, alvo: alvo||'—', detalhe: detalhe||''
+  });
+  if(base.historico.length>500) base.historico=base.historico.slice(0,500);
+}
+
+// Toda alteracao passa por aqui: rele o servidor, aplica a mudanca em cima do
+// que esta la, grava e confere. Igual a Obra.
+async function alterar(fn, registro){
+  _versaoLocal++;
+  _gravando++;
+  try{ return await gravarAlteracao(fn, registro); }
+  finally{ _gravando--; }
+}
+async function gravarAlteracao(fn, registro){
+  status('🔄 Salvando...');
+  try{
+    let base=null;
+    try{ base=await buscarRemoto(); }catch(e){ base=null; }
+    if(!base) base=arrumar(JSON.parse(JSON.stringify(dados)));
+    const resultado=await fn(base);
+    if(resultado===false){ status(''); return false; }
+    if(registro){
+      try{
+        const r=(typeof registro==='function')?registro(base):registro;
+        if(r && r.acao) logCrm(base, r.acao, r.alvo, r.detalhe);
+      }catch(e){}
+    }
+    const carimbo=agoraISO();
+    base.atualizadoEm=carimbo;
+    base.atualizadoPor=usuario;
+    await enviarRemoto(base);
+
+    // O Worker ja respondeu "ok" sem gravar (registro inexistente): relemos e
+    // conferimos o carimbo.
+    let confere=null;
+    try{ confere=await buscarRemoto(); }catch(e){ confere=null; }
+    if(!confere || confere.atualizadoEm!==carimbo){
+      status('🔴 NÃO gravou no servidor','#ffcccc');
+      aviso('Os dados NÃO foram salvos',
+            'O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+
+            'A causa mais comum é o registro do CRM ainda não ter sido criado no banco.\n\n'+
+            'Não continue cadastrando: o que você digitar será perdido. Avise o responsável pelo sistema.');
+      return false;
+    }
+    dados=confere; gravarLocal(); render();
+    status('🟢 Salvo · '+agoraHora());
+    return true;
+  }catch(e){
+    status('🔴 Não salvou — sem conexão','#ffcccc');
+    aviso('Não foi possível salvar','Verifique a internet e tente de novo.\n\nNada foi perdido: seus dados continuam na tela.');
+    return false;
+  }
+}
+
+async function sincronizar(){
+  status('🔄 Buscando...');
+  try{
+    const r=await buscarRemoto();
+    if(r){ dados=r; gravarLocal(); }
+    render();
+    status('🟢 Atualizado · '+agoraHora());
+  }catch(e){
+    render();
+    status('🔴 Sem conexão — dados locais','#ffcccc');
+  }
+}
+function telaAbertaParaEdicao(){
+  return ['ficha-ov','cad-ov'].some(function(id){
+    const el=document.getElementById(id);
+    return el && el.classList.contains('open');
+  });
+}
+async function atualizarDoBanco(manual){
+  if(!manual && (telaAbertaParaEdicao() || _gravando>0)) return;
+  const versaoAoSair=_versaoLocal;
+  try{
+    const r=await buscarRemoto();
+    if(!r) return;
+    if(_gravando>0 || _versaoLocal!==versaoAoSair) return;
+    const mudou=JSON.stringify(r)!==JSON.stringify(dados);
+    dados=r; gravarLocal();
+    if(mudou && !telaAbertaParaEdicao()) render();
+    status('🟢 Atualizado · '+agoraHora());
+  }catch(e){
+    if(manual) status('🔴 Sem conexão','#ffcccc');
+  }
+}
+
+// ================= AJUDANTES =================
+function agoraISO(){ return new Date().toISOString(); }
+function agoraHora(){ return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+function novoId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function hojeISO(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function somaDias(iso,n){
+  const d=new Date(Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10))+n*86400000);
+  return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+}
+function fmtData(iso){
+  if(!iso||!/^\d{4}-\d{2}-\d{2}/.test(iso)) return '';
+  const p=iso.slice(0,10).split('-');
+  return p[2]+'/'+p[1]+'/'+p[0];
+}
+function esc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function normTexto(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+// "12.500,00", "12500", "12500.5" e "R$ 1.200" viram numero. Vazio fica vazio.
+function lerValor(txt){
+  let t=String(txt||'').replace(/[^\d,.\-]/g,'');
+  if(!t) return '';
+  if(t.indexOf(',')>=0) t=t.replace(/\./g,'').replace(',','.');
+  else if((t.match(/\./g)||[]).length>1 || /\.\d{3}$/.test(t)) t=t.replace(/\./g,'');
+  const n=Number(t);
+  return isFinite(n)?Math.round(n*100)/100:'';
+}
+function fmtMoeda(n){
+  if(n===''||n==null||!isFinite(Number(n))) return '';
+  return Number(n).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+}
+function fmtValorCampo(n){
+  if(n===''||n==null||!isFinite(Number(n))) return '';
+  return Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+// ---- ETAPAS ----
+function etapas(){ return dados.etapas||[]; }
+function etapaDe(id){ return etapas().find(function(e){ return e.id===id; })||null; }
+function etapaInicial(){ const e=etapas().find(function(x){ return x.tipo==='aberta'; }); return e?e.id:(etapas()[0]||{}).id; }
+function tipoDe(o){ const e=etapaDe(o.etapa); return e?e.tipo:'aberta'; }
+function pillDe(id){
+  const e=etapaDe(id);
+  const c=e?CORES.find(function(x){ return x.id===e.cor; }):null;
+  return '<span class="pill '+(c?c.pill:'pill-cinza')+'">'+esc(e?e.nome:'Sem etapa')+'</span>';
+}
+function corDe(id){
+  const e=etapaDe(id);
+  const c=e?CORES.find(function(x){ return x.id===e.cor; }):null;
+  return c?c.cor:'var(--gray-3)';
+}
+
+// ---- WHATSAPP ----
+// Mesmo jeito da Obra: chama o APLICATIVO; se ele nao atender, mostra um botao.
+function numeroWhats(n){
+  const so=String(n||'').replace(/\D/g,'');
+  if(!so) return '';
+  if(so.length===10||so.length===11) return '55'+so;
+  if(so.length<12) return '';
+  return so;
+}
+let _urlWhats='';
+function abrirWhats(url){
+  _urlWhats=url;
+  var doApp=String(url).replace('https://api.whatsapp.com/send?','whatsapp://send?');
+  var atendeu=false;
+  var aoSumir=function(){ if(document.visibilityState==='hidden') atendeu=true; };
+  document.addEventListener('visibilitychange',aoSumir);
+  window.addEventListener('blur',aoSumir);
+  setTimeout(function(){
+    document.removeEventListener('visibilitychange',aoSumir);
+    window.removeEventListener('blur',aoSumir);
+    if(atendeu) return;
+    mostrarBotaoWhats();
+  },1400);
+  try{ location.href=doApp; }catch(e){ mostrarBotaoWhats(); }
+}
+function mostrarBotaoWhats(){
+  var cx=document.getElementById('whats-fallback');
+  if(!cx){ cx=document.createElement('div'); cx.id='whats-fallback';
+    cx.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;'+
+      'display:flex;align-items:center;justify-content:center;padding:16px';
+    document.body.appendChild(cx); }
+  cx.innerHTML='<div style="background:#fff;border-radius:12px;padding:20px 22px;max-width:380px;text-align:center">'+
+    '<div style="font-size:14px;font-weight:700;margin-bottom:8px">Abrir o WhatsApp</div>'+
+    '<div style="font-size:12.5px;color:#555;line-height:1.5;margin-bottom:14px">'+
+    '<strong>Se o WhatsApp já abriu, pode fechar este aviso.</strong></div>'+
+    '<button type="button" onclick="abrirWhatsAgora()" style="background:#25D366;color:#fff;border:none;'+
+    'padding:10px 18px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Abrir a conversa</button>'+
+    '<div style="margin-top:12px"><button type="button" style="background:none;border:none;color:#777;font-size:12px;cursor:pointer;font-family:inherit" '+
+    'onclick="fecharAvisoWhats()">Fechar</button></div></div>';
+  cx.style.display='flex';
+  cx.onclick=function(e){ if(e.target===cx) fecharAvisoWhats(); };
+}
+function fecharAvisoWhats(){ var cx=document.getElementById('whats-fallback'); if(cx) cx.remove(); }
+function abrirWhatsAgora(){
+  fecharAvisoWhats();
+  var w=null;
+  try{ w=window.open(_urlWhats,'_blank'); }catch(e){}
+  if(w){ try{ w.opener=null; }catch(e){} } else location.href=_urlWhats;
+}
+function whatsDoNegocio(o){
+  const num=numeroWhats(o&&o.telefone);
+  if(!num){ aviso('Telefone inválido','Cadastre o telefone com DDD (ex.: 69 99999-9999) para abrir o WhatsApp.'); return; }
+  const primeiro=String(o.cliente||'').trim().split(' ')[0];
+  const msg='Olá'+(primeiro?', '+primeiro:'')+'! Aqui é '+(String(usuario||'').split(' ')[0]||'')+", da D'Aluminium.";
+  abrirWhats('https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg));
+}
+function whatsDaFicha(){
+  whatsDoNegocio({telefone:document.getElementById('o-telefone').value, cliente:document.getElementById('o-cliente').value});
+}
+
+// ---- VENDEDORES ----
+// Para o gerente atribuir o negocio. Vem da lista de usuarios (registro do
+// Compras de producao) — so quem tem o modulo CRM, e quem esta ativo.
+async function carregarVendedores(){
+  try{
+    const r=await fetch(WORKER+'?t='+Date.now(),{cache:'no-store',
+      headers:Object.assign(cabecalhos({}),{'X-Sistema':SISTEMA_USUARIOS})});
+    if(!r.ok) return;
+    const d=await r.json();
+    _vendedores=((d&&d.usuarios)||[]).filter(function(u){
+      return u && u.active!==false && u.username && Array.isArray(u.modulos) && u.modulos.indexOf('crm')>=0;
+    }).map(function(u){ return {u:String(u.username).toLowerCase(), n:u.name||u.username}; });
+  }catch(e){}
+  preencherFiltroVendedor();
+}
+function nomeDoVendedor(login){
+  const v=_vendedores.find(function(x){ return x.u===login; });
+  if(v) return v.n;
+  const o=(dados.oportunidades||[]).find(function(x){ return x.vendedor===login && x.vendedorNome; });
+  return o?o.vendedorNome:(login||'—');
+}
+function vendedoresConhecidos(){
+  const mapa={};
+  _vendedores.forEach(function(v){ mapa[v.u]=v.n; });
+  (dados.oportunidades||[]).forEach(function(o){ if(o.vendedor && !mapa[o.vendedor]) mapa[o.vendedor]=o.vendedorNome||o.vendedor; });
+  if(usuarioLogin && !mapa[usuarioLogin]) mapa[usuarioLogin]=usuario;
+  return Object.keys(mapa).map(function(k){ return {u:k,n:mapa[k]}; })
+    .sort(function(a,b){ return a.n.localeCompare(b.n,'pt-BR'); });
+}
+function preencherFiltroVendedor(){
+  const sel=document.getElementById('f-vendedor');
+  if(!sel) return;
+  const atual=sel.value;
+  sel.innerHTML='<option value="">Todos os vendedores</option>'+vendedoresConhecidos().map(function(v){
+    return '<option value="'+esc(v.u)+'">'+esc(v.n)+'</option>';
+  }).join('');
+  sel.value=atual;
+}
+
+// ================= O QUE APARECE =================
+function ativos(){ return (dados.oportunidades||[]).filter(function(o){ return !o.excluido; }); }
+function filtrados(){
+  const busca=normTexto((document.getElementById('busca')||{}).value||'').trim();
+  const vend=podeGerenciar()?((document.getElementById('f-vendedor')||{}).value||''):'';
+  const etapa=(view==='lista')?((document.getElementById('f-etapa')||{}).value||''):'';
+  return ativos().filter(function(o){
+    if(vend && o.vendedor!==vend) return false;
+    if(etapa && o.etapa!==etapa) return false;
+    if(!busca) return true;
+    return normTexto([o.cliente,o.telefone,o.email,o.cidade,o.bairro,o.interesse,o.origem,o.vendedorNome].join(' ')).indexOf(busca)>=0;
+  });
+}
+// Retorno combinado e ainda aberto (negocio ganho ou perdido nao cobra).
+function retornoPendente(o){ return !!(o.retorno && tipoDe(o)==='aberta'); }
+
+function setView(v){
+  if(v==='lixeira' && !podeGerenciar()) v='funil';
+  view=v;
+  try{ localStorage.setItem('dalum-crm-view',v); }catch(e){}
+  ['funil','lista','retornos','lixeira'].forEach(function(x){
+    const b=document.getElementById('vb-'+x); if(b) b.classList.toggle('active',x===v);
+  });
+  document.getElementById('f-etapa').style.display=(v==='lista')?'':'none';
+  render();
+}
+
+function render(){
+  renderNumeros();
+  renderLembrete();
+  const el=document.getElementById('conteudo');
+  if(!el) return;
+  if(view==='lista') el.innerHTML=htmlLista();
+  else if(view==='retornos') el.innerHTML=htmlRetornos();
+  else if(view==='lixeira') el.innerHTML=htmlLixeira();
+  else { el.innerHTML=htmlFunil(); ligarArrastar(); }
+  preencherListaCidades();
+}
+
+function renderNumeros(){
+  const vend=podeGerenciar()?((document.getElementById('f-vendedor')||{}).value||''):'';
+  const lista=ativos().filter(function(o){ return !vend || o.vendedor===vend; });
+  const hoje=hojeISO(), mes=hoje.slice(0,7);
+  const abertos=lista.filter(function(o){ return tipoDe(o)==='aberta'; });
+  const somaAbertos=abertos.reduce(function(s,o){ return s+(Number(o.valor)||0); },0);
+  const ganhosMes=lista.filter(function(o){ return tipoDe(o)==='ganho' && String(o.fechadoEm||'').slice(0,7)===mes; });
+  const somaGanhos=ganhosMes.reduce(function(s,o){ return s+(Number(o.valor)||0); },0);
+  const perdidosMes=lista.filter(function(o){ return tipoDe(o)==='perdido' && String(o.fechadoEm||'').slice(0,7)===mes; });
+  const venc=lista.filter(function(o){ return retornoPendente(o) && o.retorno<=hoje; });
+  // Taxa de conversao dos ultimos 90 dias: fechados / (fechados + perdidos).
+  const desde=somaDias(hoje,-90);
+  const g90=lista.filter(function(o){ return tipoDe(o)==='ganho' && String(o.fechadoEm||'')>=desde; }).length;
+  const p90=lista.filter(function(o){ return tipoDe(o)==='perdido' && String(o.fechadoEm||'')>=desde; }).length;
+  const taxa=(g90+p90)?Math.round(100*g90/(g90+p90))+'%':'—';
+  document.getElementById('numeros').innerHTML=
+    card('var(--teal)',abertos.length,'Em negociação',fmtMoeda(somaAbertos)||'sem valor informado',"setView('funil')")+
+    card(venc.length?'var(--red)':'var(--gray-3)',venc.length,'Retornos para hoje',venc.length?'incluindo atrasados':'nada pendente',"setView('retornos')")+
+    card('var(--green)',ganhosMes.length,'Fechados no mês',fmtMoeda(somaGanhos)||'—','')+
+    card('var(--red)',perdidosMes.length,'Perdidos no mês','','')+
+    card('var(--purple)',taxa,'Conversão (90 dias)',g90+' fechados · '+p90+' perdidos','');
+  const c=document.getElementById('conta-retornos');
+  if(c) c.innerHTML=venc.length?'<span class="conta">'+venc.length+'</span>':'';
+}
+function card(cor,n,t,s,clique){
+  return '<div class="card'+(clique?' clica':'')+'" style="border-left-color:'+cor+'"'+(clique?' onclick="'+clique+'"':'')+'>'+
+    '<div class="card-n">'+esc(n)+'</div><div class="card-t">'+esc(t)+'</div>'+(s?'<div class="card-s">'+esc(s)+'</div>':'')+'</div>';
+}
+
+// O LEMBRETE: ao abrir, quem tem retorno vencido ve a faixa no alto. Mostra
+// so os DESTA pessoa (o gerente ve o funil de todos, mas a faixa e pessoal).
+function renderLembrete(){
+  const el=document.getElementById('lembrete-retornos');
+  if(!el) return;
+  const hoje=hojeISO();
+  const meus=ativos().filter(function(o){ return o.vendedor===usuarioLogin && retornoPendente(o) && o.retorno<=hoje; });
+  if(!meus.length || view==='retornos'){ el.innerHTML=''; return; }
+  const atras=meus.filter(function(o){ return o.retorno<hoje; }).length;
+  el.innerHTML='<div class="lembrete" onclick="setView(\'retornos\')">🔔 <span><b>Você tem '+meus.length+' retorno'+(meus.length>1?'s':'')+' para fazer'+
+    '</b>'+(atras?' — '+atras+' atrasado'+(atras>1?'s':''):'')+'.</span><span style="margin-left:auto;color:var(--teal-dark);font-weight:600">Ver retornos →</span></div>';
+}
+
+function linhaDoVendedor(o){
+  return podeGerenciar()?'<div class="neg-linha">👤 '+esc(o.vendedorNome||nomeDoVendedor(o.vendedor))+'</div>':'';
+}
+function etiquetaRetorno(o){
+  if(!retornoPendente(o)) return '';
+  const hoje=hojeISO();
+  const cor=o.retorno<hoje?'var(--red)':(o.retorno===hoje?'var(--amber)':'var(--gray-5)');
+  const txt=o.retorno<hoje?'atrasado ('+fmtData(o.retorno)+')':(o.retorno===hoje?'hoje':fmtData(o.retorno));
+  return '<div class="neg-linha" style="color:'+cor+';font-weight:600">🔔 Retorno '+txt+'</div>';
+}
+
+// Dias desde o ultimo contato anotado (ou desde o cadastro, se nao houver
+// nenhum). So para negocio em aberto: e o que mostra quem esta esfriando.
+// Ideia aproveitada do CRM que o comercial usava antes (09/10/2026).
+function diasSemContato(o){
+  let ultimo=String(o.criadoEm||'');
+  (o.notas||[]).forEach(function(n){ if(String(n.ts||'')>ultimo) ultimo=String(n.ts); });
+  if(!ultimo) return null;
+  return Math.max(0,Math.floor((Date.now()-new Date(ultimo).getTime())/86400000));
+}
+function etiquetaSemContato(o){
+  if(tipoDe(o)!=='aberta') return '';
+  const d=diasSemContato(o);
+  if(d===null) return '';
+  const cor=d>=7?'var(--red)':(d>=3?'var(--amber)':'var(--gray-4)');
+  return '<div class="neg-linha" style="color:'+cor+'">⏱ '+(d===0?'contato hoje':'há '+d+' dia'+(d>1?'s':'')+' sem contato')+'</div>';
+}
+
+function htmlFunil(){
+  const lista=filtrados();
+  if(!ativos().length) return vazio('Nenhum negócio ainda','Clique em <b>Novo negócio</b> para cadastrar o primeiro cliente.');
+  // Fechados e perdidos acumulam para sempre: no funil ficam so os dos
+  // ultimos 60 dias. Os antigos continuam na Lista.
+  const corte=somaDias(hojeISO(),-60);
+  return '<div class="funil">'+etapas().map(function(e){
+    let doGrupo=lista.filter(function(o){ return o.etapa===e.id || (!etapaDe(o.etapa) && e.id===etapaInicial()); });
+    let escondidos=0;
+    if(e.tipo!=='aberta'){
+      const antes=doGrupo.length;
+      doGrupo=doGrupo.filter(function(o){ return String(o.fechadoEm||o.atualizadoEm||'')>=corte; });
+      escondidos=antes-doGrupo.length;
+    }
+    doGrupo.sort(function(a,b){ return String(b.atualizadoEm||'').localeCompare(String(a.atualizadoEm||'')); });
+    const soma=doGrupo.reduce(function(s,o){ return s+(Number(o.valor)||0); },0);
+    return '<div class="coluna" data-etapa="'+esc(e.id)+'">'+
+      '<div class="coluna-head" style="border-top-color:'+corDe(e.id)+'"><span>'+esc(e.nome)+'</span><span>'+doGrupo.length+'</span></div>'+
+      '<div class="coluna-soma">'+(soma?fmtMoeda(soma):'&nbsp;')+'</div>'+
+      '<div class="coluna-corpo">'+
+        (doGrupo.length?doGrupo.map(function(o){
+          return '<div class="neg" draggable="true" data-id="'+esc(o.id)+'" onclick="abrirFicha(\''+esc(o.id)+'\')">'+
+            '<div class="neg-nome">'+esc(o.cliente||'—')+'</div>'+
+            (o.valor?'<div class="neg-valor">'+fmtMoeda(o.valor)+'</div>':'')+
+            ((o.cidade||o.bairro)?'<div class="neg-linha">📍 '+esc([o.bairro,o.cidade].filter(Boolean).join(' · '))+'</div>':'')+
+            (e.tipo==='perdido'&&o.motivoPerda?'<div class="neg-linha">'+esc(o.motivoPerda)+'</div>':'')+
+            etiquetaRetorno(o)+etiquetaSemContato(o)+linhaDoVendedor(o)+
+          '</div>';
+        }).join(''):'<div class="coluna-vazia">Arraste um negócio para cá</div>')+
+        (escondidos?'<div class="coluna-vazia">+ '+escondidos+' mais antigo'+(escondidos>1?'s':'')+' (veja na Lista)</div>':'')+
+      '</div></div>';
+  }).join('')+'</div>'+
+  '<div style="font-size:11.5px;color:var(--gray-4);margin-top:6px">Arraste o cartão para mudar a etapa (no celular, abra o negócio e troque a etapa).</div>';
+}
+
+// Arrastar o cartao de uma coluna para outra muda a etapa. Para PERDIDO abre
+// a ficha, porque o motivo e obrigatorio.
+let _arrastando=null;
+function ligarArrastar(){
+  document.querySelectorAll('.neg[draggable="true"]').forEach(function(c){
+    c.addEventListener('dragstart',function(ev){ _arrastando=c.dataset.id; try{ ev.dataTransfer.setData('text/plain',_arrastando); }catch(e){} });
+    c.addEventListener('dragend',function(){ _arrastando=null; document.querySelectorAll('.coluna.solta-aqui').forEach(function(x){ x.classList.remove('solta-aqui'); }); });
+  });
+  document.querySelectorAll('.coluna').forEach(function(col){
+    col.addEventListener('dragover',function(ev){ if(_arrastando){ ev.preventDefault(); col.classList.add('solta-aqui'); } });
+    col.addEventListener('dragleave',function(){ col.classList.remove('solta-aqui'); });
+    col.addEventListener('drop',function(ev){
+      ev.preventDefault(); col.classList.remove('solta-aqui');
+      const id=_arrastando; _arrastando=null;
+      if(id) moverParaEtapa(id, col.dataset.etapa);
+    });
+  });
+}
+async function moverParaEtapa(id, etapaId){
+  const o=ativos().find(function(x){ return x.id===id; });
+  const e=etapaDe(etapaId);
+  if(!o||!e||o.etapa===etapaId) return;
+  if(e.tipo==='perdido'){
+    abrirFicha(id);
+    document.getElementById('o-etapa').value=etapaId;
+    mostrarMotivo();
+    setTimeout(function(){ document.getElementById('o-motivo').focus(); },80);
+    return;
+  }
+  const antes=etapaDe(o.etapa);
+  await alterar(function(base){
+    const alvo=(base.oportunidades||[]).find(function(x){ return x.id===id; });
+    if(!alvo) return false;
+    aplicarEtapa(alvo, etapaId);
+    alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario;
+  },{acao:'mudou a etapa', alvo:alvoDoNegocio(o), detalhe:(antes?antes.nome:'—')+' → '+e.nome});
+}
+// Ao entrar em fechado ou perdido, guarda a data (e dela que saem os numeros
+// do mes). Voltar para uma etapa aberta apaga a data e o motivo.
+function aplicarEtapa(alvo, etapaId){
+  const novo=etapaDe(etapaId);
+  const tipoAntes=tipoDe(alvo);
+  alvo.etapa=etapaId;
+  if(!novo) return;
+  if(novo.tipo==='aberta'){ alvo.fechadoEm=''; alvo.motivoPerda=''; }
+  else if(novo.tipo!==tipoAntes || !alvo.fechadoEm) alvo.fechadoEm=hojeISO();
+  if(novo.tipo!=='perdido') alvo.motivoPerda='';
+}
+
+function htmlLista(){
+  const sel=document.getElementById('f-etapa');
+  if(sel){
+    const atual=sel.value;
+    sel.innerHTML='<option value="">Todas as etapas</option>'+etapas().map(function(e){ return '<option value="'+esc(e.id)+'">'+esc(e.nome)+'</option>'; }).join('');
+    sel.value=atual;
+  }
+  const lista=filtrados().sort(function(a,b){ return String(b.atualizadoEm||'').localeCompare(String(a.atualizadoEm||'')); });
+  if(!lista.length) return vazio('Nada encontrado', ativos().length?'Mude a busca ou os filtros.':'Clique em <b>Novo negócio</b> para cadastrar o primeiro cliente.');
+  return '<div class="tabela-cx"><table class="tab"><thead><tr>'+
+    '<th>Cliente</th><th>Telefone</th><th>Cidade</th><th>Etapa</th><th>Valor</th><th>Retorno</th>'+
+    (podeGerenciar()?'<th>Vendedor</th>':'')+'<th>Atualizado</th></tr></thead><tbody>'+
+    lista.map(function(o){
+      return '<tr onclick="abrirFicha(\''+esc(o.id)+'\')">'+
+        '<td><b>'+esc(o.cliente||'—')+'</b>'+(o.origem?'<div class="neg-linha">'+esc(o.origem)+'</div>':'')+'</td>'+
+        '<td style="white-space:nowrap">'+esc(o.telefone||'')+'</td>'+
+        '<td>'+esc([o.bairro,o.cidade].filter(Boolean).join(' · '))+'</td>'+
+        '<td>'+pillDe(o.etapa)+(o.motivoPerda?'<div class="neg-linha">'+esc(o.motivoPerda)+'</div>':'')+'</td>'+
+        '<td style="white-space:nowrap">'+fmtMoeda(o.valor)+'</td>'+
+        '<td style="white-space:nowrap">'+(retornoPendente(o)?etiquetaRetorno(o):'')+'</td>'+
+        (podeGerenciar()?'<td>'+esc(o.vendedorNome||nomeDoVendedor(o.vendedor))+'</td>':'')+
+        '<td style="white-space:nowrap">'+fmtData(o.atualizadoEm)+'</td></tr>';
+    }).join('')+'</tbody></table></div>'+
+    '<div style="font-size:11.5px;color:var(--gray-4);margin-top:8px">'+lista.length+' negócio'+(lista.length>1?'s':'')+'.</div>';
+}
+
+function htmlRetornos(){
+  const hoje=hojeISO(), semana=somaDias(hoje,7);
+  const lista=filtrados().filter(retornoPendente).sort(function(a,b){ return a.retorno.localeCompare(b.retorno); });
+  const grupos=[
+    ['Atrasados', lista.filter(function(o){ return o.retorno<hoje; }), 'var(--red)'],
+    ['Hoje', lista.filter(function(o){ return o.retorno===hoje; }), 'var(--amber)'],
+    ['Próximos 7 dias', lista.filter(function(o){ return o.retorno>hoje && o.retorno<=semana; }), 'var(--teal-dark)'],
+    ['Mais adiante', lista.filter(function(o){ return o.retorno>semana; }), 'var(--gray-5)']
+  ];
+  if(!lista.length) return vazio('Nenhum retorno marcado','Na ficha do negócio, preencha <b>Próximo retorno</b> para o CRM lembrar você no dia.');
+  return grupos.filter(function(g){ return g[1].length; }).map(function(g){
+    return '<div class="bloco"><div class="bloco-head" style="color:'+g[2]+'"><span>'+g[0]+'</span><span>'+g[1].length+'</span></div><div class="bloco-body">'+
+      g[1].map(function(o){
+        return '<div class="linha-ret">'+
+          '<div class="quem" onclick="abrirFicha(\''+esc(o.id)+'\')"><span class="neg-nome">'+esc(o.cliente||'—')+'</span> '+pillDe(o.etapa)+
+            '<div class="neg-linha">'+fmtData(o.retorno)+(o.retornoOQue?' · '+esc(o.retornoOQue):'')+'</div>'+linhaDoVendedor(o)+'</div>'+
+          (numeroWhats(o.telefone)?'<button class="btn btn-whats btn-sm" onclick="whatsDoNegocio(ativos().find(function(x){return x.id===\''+esc(o.id)+'\';}))">WhatsApp</button>':'')+
+          '<button class="btn btn-outline btn-sm" onclick="retornoFeito(\''+esc(o.id)+'\')" title="Anota que o retorno foi feito e tira da lista">✓ Feito</button>'+
+        '</div>';
+      }).join('')+'</div></div>';
+  }).join('');
+}
+
+// "Feito": anota o contato e tira o retorno. Se precisar de outro, a pessoa
+// marca na ficha — perguntamos ja aqui, que e a hora em que ela sabe.
+async function retornoFeito(id){
+  const o=ativos().find(function(x){ return x.id===id; });
+  if(!o) return;
+  const como=prompt('Retorno feito com '+(o.cliente||'o cliente')+'.\n\nO que ficou combinado? (opcional)','');
+  if(como===null) return;
+  const prox=prompt('Marcar o próximo retorno?\n\nDigite a data (dd/mm/aaaa) ou deixe em branco para não marcar.','');
+  if(prox===null) return;
+  let proxISO='';
+  if(prox.trim()){
+    const m=prox.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if(!m){ aviso('Data não entendida','Use o formato dia/mês/ano, por exemplo 15/10/2026.'); return; }
+    const ano=m[3].length===2?'20'+m[3]:m[3];
+    proxISO=ano+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+  }
+  await alterar(function(base){
+    const alvo=(base.oportunidades||[]).find(function(x){ return x.id===id; });
+    if(!alvo) return false;
+    if(!Array.isArray(alvo.notas)) alvo.notas=[];
+    alvo.notas.push({id:novoId(), ts:agoraISO(), por:usuario,
+      texto:'Retorno feito'+(alvo.retornoOQue?' ('+alvo.retornoOQue+')':'')+(como.trim()?': '+como.trim():'.')});
+    alvo.retorno=proxISO; alvo.retornoOQue='';
+    alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario;
+  },{acao:'fez o retorno', alvo:alvoDoNegocio(o), detalhe:proxISO?'próximo: '+fmtData(proxISO):''});
+}
+
+function htmlLixeira(){
+  const lista=(dados.oportunidades||[]).filter(function(o){ return o.excluido; });
+  if(!lista.length) return vazio('Lixeira vazia','Negócios excluídos aparecem aqui e podem ser restaurados.');
+  return '<div class="tabela-cx"><table class="tab"><thead><tr><th>Cliente</th><th>Etapa</th><th>Vendedor</th><th>Excluído</th></tr></thead><tbody>'+
+    lista.map(function(o){
+      return '<tr onclick="abrirFicha(\''+esc(o.id)+'\')"><td><b>'+esc(o.cliente||'—')+'</b></td><td>'+pillDe(o.etapa)+'</td>'+
+        '<td>'+esc(o.vendedorNome||o.vendedor||'')+'</td><td>'+fmtData(o.excluidoEm)+' · '+esc(o.excluidoPor||'')+'</td></tr>';
+    }).join('')+'</tbody></table></div>';
+}
+function vazio(t,s){ return '<div class="vazio"><div class="vazio-t">'+t+'</div><div>'+s+'</div></div>'; }
+function preencherListaCidades(){
+  const dl=document.getElementById('lista-cidade'); if(!dl) return;
+  const vistos={}, l=[];
+  (dados.oportunidades||[]).forEach(function(o){ const c=String(o.cidade||'').trim(); if(c && !vistos[c.toUpperCase()]){ vistos[c.toUpperCase()]=1; l.push(c); } });
+  if(!vistos['PORTO VELHO']) l.unshift('Porto Velho');
+  dl.innerHTML=l.map(function(c){ return '<option value="'+esc(c)+'">'; }).join('');
+}
+
+// ================= FICHA =================
+function preencherSelectsFicha(o){
+  const et=document.getElementById('o-etapa');
+  et.innerHTML=etapas().map(function(e){ return '<option value="'+esc(e.id)+'">'+esc(e.nome)+'</option>'; }).join('');
+  const orig=(dados.origens||[]).slice();
+  if(o && o.origem && orig.indexOf(o.origem)<0) orig.push(o.origem);
+  document.getElementById('o-origem').innerHTML='<option value="">—</option>'+orig.map(function(x){ return '<option>'+esc(x)+'</option>'; }).join('');
+  const mot=(dados.motivosPerda||[]).slice();
+  if(o && o.motivoPerda && mot.indexOf(o.motivoPerda)<0) mot.push(o.motivoPerda);
+  document.getElementById('o-motivo').innerHTML='<option value="">— escolha —</option>'+mot.map(function(x){ return '<option>'+esc(x)+'</option>'; }).join('');
+  // Vendedor: o gerente escolhe; o vendedor ve so o proprio nome (o Worker
+  // nao deixa ele gravar negocio em nome de outra pessoa de qualquer jeito).
+  const sv=document.getElementById('o-vendedor');
+  const dica=document.getElementById('o-vendedor-dica');
+  if(podeGerenciar()){
+    const l=vendedoresConhecidos();
+    if(o && o.vendedor && !l.some(function(v){ return v.u===o.vendedor; })) l.push({u:o.vendedor,n:o.vendedorNome||o.vendedor});
+    sv.innerHTML=l.map(function(v){ return '<option value="'+esc(v.u)+'">'+esc(v.n)+'</option>'; }).join('');
+    sv.disabled=false;
+    dica.textContent=_vendedores.length?'':'Aparecem aqui as pessoas com o módulo CRM liberado.';
+  } else {
+    sv.innerHTML='<option value="'+esc(usuarioLogin)+'">'+esc(usuario)+'</option>';
+    sv.disabled=true;
+    dica.textContent='';
+  }
+}
+function mostrarMotivo(){
+  const e=etapaDe(document.getElementById('o-etapa').value);
+  document.getElementById('o-motivo-cx').style.display=(e&&e.tipo==='perdido')?'':'none';
+  const g=e&&e.tipo==='ganho';
+  document.getElementById('ficha-btn-obra').style.display=(g && fichaId && podeLevarParaObra())?'':'none';
+}
+function renderNotas(o){
+  const todas=((o&&o.notas)||[]).concat(_notasNovas).slice().sort(function(a,b){ return String(b.ts).localeCompare(String(a.ts)); });
+  const el=document.getElementById('o-notas');
+  if(!todas.length){ el.innerHTML='<div class="dica" style="font-size:12px;color:var(--gray-4)">Nenhum contato anotado ainda.</div>'; return; }
+  el.innerHTML=todas.map(function(n){
+    const nova=_notasNovas.indexOf(n)>=0;
+    let q=n.ts; try{ q=new Date(n.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){}
+    return '<div class="nota">'+esc(n.texto)+'<div class="nota-quem">'+esc(n.por||'')+' · '+esc(q)+(nova?' · <b style="color:var(--amber)">será salva ao clicar em Salvar</b>':'')+'</div></div>';
+  }).join('');
+}
+function anotar(){
+  const i=document.getElementById('o-nota');
+  const t=i.value.trim();
+  if(!t) return;
+  _notasNovas.push({id:novoId(), ts:agoraISO(), por:usuario, texto:t});
+  i.value='';
+  renderNotas((dados.oportunidades||[]).find(function(x){ return x.id===fichaId; }));
+}
+
+function novoNegocio(){
+  fichaId=null; _notasNovas=[];
+  preencherSelectsFicha(null);
+  const p=function(id,v){ document.getElementById(id).value=v; };
+  ['o-cliente','o-telefone','o-email','o-cidade','o-bairro','o-interesse','o-valor','o-retorno','o-retorno-oque','o-obs','o-nota']
+    .forEach(function(id){ p(id,''); });
+  p('o-origem',''); p('o-motivo','');
+  p('o-etapa',etapaInicial());
+  // Negocio novo ja nasce com retorno para daqui a 2 dias: e o habito que o
+  // CRM quer criar. Quem nao quiser apaga.
+  p('o-retorno',somaDias(hojeISO(),2));
+  p('o-retorno-oque','Primeiro retorno ao cliente');
+  document.getElementById('o-vendedor').value=usuarioLogin;
+  if(!document.getElementById('o-vendedor').value && document.getElementById('o-vendedor').options.length)
+    document.getElementById('o-vendedor').selectedIndex=0;
+  document.getElementById('o-autoriza').checked=false;
+  document.getElementById('o-autoriza-dica').textContent='Sem essa autorização, não mande propaganda — só fale do orçamento que ele pediu.';
+  document.getElementById('ficha-titulo').textContent='Novo negócio';
+  document.getElementById('o-quem').textContent='';
+  ['ficha-btn-excluir','ficha-btn-restaurar','ficha-btn-anonimizar','ficha-btn-obra'].forEach(function(id){ document.getElementById(id).style.display='none'; });
+  document.getElementById('ficha-btn-salvar').style.display='';
+  travarFicha(false);
+  renderNotas(null);
+  mostrarMotivo();
+  document.getElementById('ficha-ov').classList.add('open');
+  setTimeout(function(){ document.getElementById('o-cliente').focus(); },80);
+}
+
+function abrirFicha(id){
+  const o=(dados.oportunidades||[]).find(function(x){ return x.id===id; });
+  if(!o) return;
+  anotarAcesso('abriu o negócio', alvoDoNegocio(o));
+  fichaId=id; _notasNovas=[];
+  preencherSelectsFicha(o);
+  const p=function(cid,v){ document.getElementById(cid).value=(v==null?'':v); };
+  p('o-cliente',o.cliente); p('o-telefone',o.telefone); p('o-email',o.email);
+  p('o-cidade',o.cidade); p('o-bairro',o.bairro); p('o-origem',o.origem||'');
+  p('o-interesse',o.interesse); p('o-valor',fmtValorCampo(o.valor));
+  p('o-etapa',etapaDe(o.etapa)?o.etapa:etapaInicial()); p('o-motivo',o.motivoPerda||'');
+  p('o-retorno',o.retorno); p('o-retorno-oque',o.retornoOQue); p('o-obs',o.obs); p('o-nota','');
+  document.getElementById('o-vendedor').value=o.vendedor||'';
+  document.getElementById('o-autoriza').checked=!!o.autorizaContato;
+  document.getElementById('o-autoriza-dica').textContent=o.autorizaContato
+    ? 'Autorizado em '+fmtData(o.autorizaEm)+(o.autorizaPor?' (anotado por '+o.autorizaPor+')':'')+'.'
+    : 'Sem essa autorização, não mande propaganda — só fale do orçamento que ele pediu.';
+  document.getElementById('ficha-titulo').textContent=o.anonimizadoEm?'Negócio (dados pessoais apagados)':(o.cliente||'Negócio');
+  const quem=[];
+  if(o.criadoPor) quem.push('Cadastrado por '+o.criadoPor+(o.criadoEm?' em '+fmtData(o.criadoEm):''));
+  if(o.atualizadoPor) quem.push('última alteração de '+o.atualizadoPor+(o.atualizadoEm?' em '+fmtData(o.atualizadoEm):''));
+  if(o.enviadoObraEm) quem.push('levado à Obra em '+fmtData(o.enviadoObraEm)+' por '+(o.enviadoObraPor||'—'));
+  if(o.anonimizadoEm) quem.push('dados pessoais apagados em '+fmtData(o.anonimizadoEm)+' por '+(o.anonimizadoPor||'—'));
+  document.getElementById('o-quem').textContent=quem.join(' · ');
+  const gestor=podeGerenciar();
+  document.getElementById('ficha-btn-excluir').style.display=!o.excluido?'':'none';
+  document.getElementById('ficha-btn-restaurar').style.display=(gestor&&o.excluido)?'':'none';
+  document.getElementById('ficha-btn-anonimizar').style.display=(gestor&&!o.anonimizadoEm)?'':'none';
+  document.getElementById('ficha-btn-salvar').style.display=!o.excluido?'':'none';
+  travarFicha(!!o.excluido);
+  renderNotas(o);
+  mostrarMotivo();
+  document.getElementById('ficha-ov').classList.add('open');
+}
+// Negocio na lixeira so se le: para mexer, restaura antes.
+function travarFicha(travar){
+  document.querySelectorAll('#ficha-ov .modal-body input, #ficha-ov .modal-body select, #ficha-ov .modal-body textarea').forEach(function(el){
+    if(el.id==='o-vendedor' && !podeGerenciar()) { el.disabled=true; return; }
+    el.disabled=travar;
+  });
+}
+function fecharFicha(){
+  if(_notasNovas.length && !confirm('Há contato anotado que ainda não foi salvo.\n\nFechar e perder essa anotação?')) return;
+  document.getElementById('ficha-ov').classList.remove('open');
+  fichaId=null; _notasNovas=[];
+}
+
+function lerFicha(){
+  const v=function(id){ return String(document.getElementById(id).value||'').trim(); };
+  return {
+    cliente:v('o-cliente'), telefone:v('o-telefone'), email:v('o-email'),
+    cidade:v('o-cidade'), bairro:v('o-bairro'), origem:v('o-origem'),
+    interesse:document.getElementById('o-interesse').value.trim(),
+    valor:lerValor(v('o-valor')), etapa:v('o-etapa'), motivoPerda:v('o-motivo'),
+    retorno:v('o-retorno'), retornoOQue:v('o-retorno-oque'),
+    obs:document.getElementById('o-obs').value.trim(),
+    vendedor:podeGerenciar()?v('o-vendedor'):usuarioLogin,
+    autorizaContato:document.getElementById('o-autoriza').checked
+  };
+}
+
+async function salvarFicha(){
+  const f=lerFicha();
+  // A nota digitada e nao "anotada" ainda vai junto: era o que a pessoa queria.
+  if(document.getElementById('o-nota').value.trim()) anotar();
+  if(!f.cliente){ aviso('Falta o cliente','Preencha o nome do cliente ou da obra.'); document.getElementById('o-cliente').focus(); return; }
+  if(!f.vendedor){ aviso('Falta o vendedor','Escolha de quem é este negócio.'); return; }
+  if(f.telefone && !numeroWhats(f.telefone)){
+    if(!confirm('O telefone "'+f.telefone+'" parece incompleto (falta o DDD?).\n\nSalvar assim mesmo?')) return;
+  }
+  if(f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)){
+    aviso('E-mail inválido','Confira o e-mail digitado, ou deixe em branco.'); return;
+  }
+  const e=etapaDe(f.etapa);
+  if(e && e.tipo==='perdido' && !f.motivoPerda){ aviso('Falta o motivo','Escolha por que o negócio foi perdido — é isso que mostra onde melhorar.'); document.getElementById('o-motivo').focus(); return; }
+  // Guarda contra CPF digitado por engano (LGPD: o CRM nao guarda documento).
+  const juntos=[f.obs,f.interesse,f.cliente].concat(_notasNovas.map(function(n){ return n.texto; })).join(' ');
+  if(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(juntos)){
+    if(!confirm('Parece que há um CPF (ou outro documento) no texto.\n\nO CRM não deve guardar documento do cliente (LGPD) — o CPF entra só no contrato, na Obra.\n\nSalvar assim mesmo?')) return;
+  }
+  const id=fichaId||novoId();
+  const novo=!fichaId;
+  const antes=(dados.oportunidades||[]).find(function(x){ return x.id===id; })||{};
+  const notas=_notasNovas.slice();
+  const nomeVend=(f.vendedor===usuarioLogin)?usuario:nomeDoVendedor(f.vendedor);
+  const ok=await alterar(function(base){
+    let alvo=(base.oportunidades||[]).find(function(x){ return x.id===id; });
+    if(!alvo){
+      if(!novo){ aviso('Negócio não encontrado','Este negócio não está mais no servidor (pode ter sido passado para outro vendedor). Atualize a tela.'); return false; }
+      alvo={id:id, criadoEm:agoraISO(), criadoPor:usuario, notas:[]};
+      base.oportunidades.push(alvo);
+    }
+    const etapaNova=f.etapa;
+    const motivo=f.motivoPerda;
+    delete f.etapa; delete f.motivoPerda;
+    // Autorizacao: guarda QUANDO e QUEM anotou — e o que se precisa mostrar se
+    // um dia alguem perguntar "quando eu autorizei isso?".
+    if(f.autorizaContato && !alvo.autorizaContato){ alvo.autorizaEm=hojeISO(); alvo.autorizaPor=usuario; }
+    if(!f.autorizaContato){ alvo.autorizaEm=''; alvo.autorizaPor=''; }
+    Object.assign(alvo,f);
+    alvo.vendedorNome=nomeVend;
+    aplicarEtapa(alvo, etapaNova);
+    if(etapaDe(etapaNova) && etapaDe(etapaNova).tipo==='perdido') alvo.motivoPerda=motivo;
+    // Notas por juncao: as do servidor + as novas desta tela, sem repetir.
+    if(!Array.isArray(alvo.notas)) alvo.notas=[];
+    const tem={}; alvo.notas.forEach(function(n){ tem[n.id]=1; });
+    notas.forEach(function(n){ if(!tem[n.id]) alvo.notas.push(n); });
+    alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario;
+  }, function(){
+    const mud=[];
+    if(!novo && antes.etapa!==f.etapa){ const a=etapaDe(antes.etapa), b=etapaDe(f.etapa); mud.push((a?a.nome:'—')+' → '+(b?b.nome:'—')); }
+    if(!novo && antes.vendedor && antes.vendedor!==f.vendedor) mud.push('passou para '+nomeVend);
+    return {acao:novo?'cadastrou o negócio':'alterou o negócio', alvo:'CRM · '+f.cliente.slice(0,80), detalhe:mud.join(' · ')};
+  });
+  if(ok){
+    _notasNovas=[];
+    document.getElementById('ficha-ov').classList.remove('open');
+    fichaId=null;
+  }
+}
+
+async function excluirNegocio(){
+  const o=(dados.oportunidades||[]).find(function(x){ return x.id===fichaId; });
+  if(!o) return;
+  if(!confirm('Mandar "'+(o.cliente||'este negócio')+'" para a lixeira?\n\nO gerente consegue restaurar depois.')) return;
+  const ok=await alterar(function(base){
+    const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
+    if(!alvo) return false;
+    alvo.excluido=true; alvo.excluidoEm=agoraISO(); alvo.excluidoPor=usuario;
+    alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario;
+  },{acao:'excluiu o negócio', alvo:alvoDoNegocio(o)});
+  if(ok){ _notasNovas=[]; document.getElementById('ficha-ov').classList.remove('open'); fichaId=null; }
+}
+async function restaurarNegocio(){
+  if(!podeGerenciar()) return;
+  const o=(dados.oportunidades||[]).find(function(x){ return x.id===fichaId; });
+  if(!o) return;
+  const ok=await alterar(function(base){
+    const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
+    if(!alvo) return false;
+    alvo.excluido=false; alvo.excluidoEm=''; alvo.excluidoPor='';
+    alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario;
+  },{acao:'restaurou o negócio', alvo:alvoDoNegocio(o)});
+  if(ok){ document.getElementById('ficha-ov').classList.remove('open'); fichaId=null; }
+}
+
+// ---- APAGAR DADOS PESSOAIS (LGPD, direito de eliminacao) ----
+// O negocio continua existindo para os numeros (etapa, valor, origem, cidade,
+// datas), mas sem nada que identifique a pessoa: nome, telefone, e-mail,
+// bairro, o que ela queria, observacoes e contatos anotados. Nao tem volta.
+function anonimizar(alvo){
+  alvo.cliente='(dados apagados a pedido)';
+  alvo.telefone=''; alvo.email=''; alvo.bairro='';
+  alvo.interesse=''; alvo.obs=''; alvo.retornoOQue=''; alvo.retorno='';
+  alvo.notas=[];
+  alvo.autorizaContato=false; alvo.autorizaEm=''; alvo.autorizaPor='';
+  alvo.anonimizadoEm=agoraISO(); alvo.anonimizadoPor=usuario;
+  alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario;
+}
+async function apagarDadosPessoais(){
+  if(!podeGerenciar()) return;
+  const o=(dados.oportunidades||[]).find(function(x){ return x.id===fichaId; });
+  if(!o) return;
+  if(!confirm('Apagar os dados pessoais de "'+(o.cliente||'este negócio')+'"?\n\n'+
+    'Somem: nome, telefone, e-mail, bairro, o que o cliente queria, observações e contatos anotados.\n'+
+    'Ficam (sem identificar ninguém): etapa, valor, origem, cidade e datas — para os números de venda.\n\n'+
+    'Use quando o cliente pedir para ser esquecido. NÃO TEM VOLTA.')) return;
+  if(prompt('Para confirmar, digite APAGAR')!=='APAGAR') return;
+  const ok=await alterar(function(base){
+    const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
+    if(!alvo) return false;
+    anonimizar(alvo);
+  },{acao:'apagou os dados pessoais', alvo:'CRM · negócio '+o.id, detalhe:'a pedido do titular'});
+  if(ok){ _notasNovas=[]; document.getElementById('ficha-ov').classList.remove('open'); fichaId=null;
+    aviso('Dados apagados','Os dados pessoais deste negócio foram apagados do CRM.\n\nAtenção: as cópias de segurança automáticas do banco guardam a versão anterior por até 90 dias e depois somem sozinhas.'); }
+}
+
+// ---- GERAR CONTRATO NA OBRA ----
+// Nao grava direto na Obra: salvar um contrato la tambem o empurra para a
+// Fabrica e para o Compras, e essa regra mora na Obra. Entao o CRM deixa um
+// BILHETE no navegador e abre a Obra, que abre um contrato novo ja preenchido
+// para a pessoa conferir, completar (CT, CPF...) e salvar.
+async function levarParaObra(){
+  if(!podeLevarParaObra()){ aviso('Sem acesso à Obra','Só administrador ou gerente com o módulo Obra cadastra contrato.'); return; }
+  const o=(dados.oportunidades||[]).find(function(x){ return x.id===fichaId; });
+  if(!o) return;
+  if(o.enviadoObraEm && !confirm('Este negócio já foi levado à Obra em '+fmtData(o.enviadoObraEm)+'.\n\nAbrir outro contrato novo mesmo assim?')) return;
+  const ok=await alterar(function(base){
+    const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
+    if(!alvo) return false;
+    alvo.enviadoObraEm=agoraISO(); alvo.enviadoObraPor=usuario;
+  },{acao:'levou o negócio para a Obra', alvo:alvoDoNegocio(o)});
+  if(!ok) return;
+  try{
+    localStorage.setItem(PARA_OBRA_KEY, JSON.stringify({
+      ts:Date.now(), crmId:o.id,
+      cliente:o.cliente||'', telefone:o.telefone||'', email:o.email||'',
+      cidade:o.cidade||'', bairro:o.bairro||'', valor:o.valor===''?'':o.valor,
+      vendedor:o.vendedorNome||nomeDoVendedor(o.vendedor), interesse:o.interesse||'',
+      fechadoEm:o.fechadoEm||hojeISO()
+    }));
+  }catch(e){ aviso('Não consegui preparar','O navegador não deixou guardar os dados para a Obra.'); return; }
+  _notasNovas=[];
+  document.getElementById('ficha-ov').classList.remove('open');
+  location.href=OBRA_URL;
+}
+
+// ================= CADASTROS (admin e gerente) =================
+function abrirCadastros(){
+  if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente mexe nos cadastros.'); return; }
+  renderCadastros();
+  document.getElementById('cad-ov').classList.add('open');
+}
+function fecharCadastros(){ document.getElementById('cad-ov').classList.remove('open'); render(); }
+function emUso(etapaId){ return (dados.oportunidades||[]).filter(function(o){ return o.etapa===etapaId; }).length; }
+function paraLimpar(){
+  const corte=somaDias(hojeISO(),-30*MESES_GUARDAR_PERDIDO);
+  return (dados.oportunidades||[]).filter(function(o){
+    return tipoDe(o)==='perdido' && !o.autorizaContato && !o.anonimizadoEm &&
+      String(o.fechadoEm||o.atualizadoEm||'').slice(0,10)<corte;
+  });
+}
+function renderCadastros(){
+  const corOpts=function(sel){ return CORES.map(function(c){ return '<option value="'+c.id+'"'+(c.id===sel?' selected':'')+'>'+c.rotulo+'</option>'; }).join(''); };
+  const lst=etapas();
+  const limpar=paraLimpar();
+  document.getElementById('cad-corpo').innerHTML=
+    '<div class="secao">Etapas do funil</div>'+
+    '<div class="dica" style="font-size:12px;color:var(--gray-5);margin-bottom:6px">A ordem aqui é a ordem das colunas. <b>Fechado</b> e <b>Perdido</b> podem mudar de nome, mas não saem.</div>'+
+    lst.map(function(e,i){
+      const usa=emUso(e.id);
+      return '<div class="cad-linha">'+
+        '<input type="text" value="'+esc(e.nome)+'" onchange="renomearEtapa(\''+esc(e.id)+'\',this.value)">'+
+        '<select onchange="corEtapa(\''+esc(e.id)+'\',this.value)">'+corOpts(e.cor)+'</select>'+
+        '<span class="dica" style="font-size:11px;color:var(--gray-4);min-width:70px">'+(e.tipo==='ganho'?'fechado':e.tipo==='perdido'?'perdido':'em aberto')+' · '+usa+'</span>'+
+        '<button class="btn btn-outline btn-sm" '+(i===0?'disabled':'')+' onclick="moverEtapa(\''+esc(e.id)+'\',-1)" title="Subir">↑</button>'+
+        '<button class="btn btn-outline btn-sm" '+(i===lst.length-1?'disabled':'')+' onclick="moverEtapa(\''+esc(e.id)+'\',1)" title="Descer">↓</button>'+
+        (e.tipo==='aberta'?'<button class="btn btn-outline btn-sm" onclick="removerEtapa(\''+esc(e.id)+'\')" title="Remover">×</button>':'')+
+      '</div>';
+    }).join('')+
+    '<div style="display:flex;gap:6px;margin-top:8px"><input id="cad-nova-etapa" class="busca" placeholder="Nova etapa (ex.: Aguardando projeto)"><button class="btn btn-outline" onclick="addEtapa()">Acrescentar</button></div>'+
+
+    htmlListaSimples('Como o cliente chega até nós','origens','Nova origem (ex.: Feira)')+
+    htmlListaSimples('Motivos de perda','motivosPerda','Novo motivo')+
+
+    '<div class="secao">Limpeza de dados antigos (LGPD)</div>'+
+    '<div class="dica" style="font-size:12.5px;color:var(--gray-5);line-height:1.5;margin-bottom:8px">Negócio <b>perdido</b> há mais de '+MESES_GUARDAR_PERDIDO+' meses, de cliente que <b>não autorizou</b> receber novidades, não tem mais por que guardar nome e telefone. '+
+      'Apagar aqui tira só os dados pessoais: os números de venda continuam.</div>'+
+    (limpar.length
+      ? '<div class="aviso" style="margin:0">'+limpar.length+' negócio'+(limpar.length>1?'s':'')+' nessa situação. <button class="btn btn-red btn-sm" style="margin-left:8px" onclick="limparAntigos()">Apagar os dados pessoais deles</button></div>'
+      : '<div style="font-size:12.5px;color:var(--green)">✓ Nenhum negócio nessa situação agora.</div>');
+}
+function htmlListaSimples(titulo,campo,ph){
+  return '<div class="secao">'+titulo+'</div>'+
+    (dados[campo]||[]).map(function(x,i){
+      return '<div class="cad-linha"><span style="flex:1;font-size:13px">'+esc(x)+'</span>'+
+        '<button class="btn btn-outline btn-sm" onclick="removerDaLista(\''+campo+'\','+i+')" title="Remover">×</button></div>';
+    }).join('')+
+    '<div style="display:flex;gap:6px;margin-top:8px"><input id="cad-novo-'+campo+'" class="busca" placeholder="'+esc(ph)+'"><button class="btn btn-outline" onclick="addNaLista(\''+campo+'\')">Acrescentar</button></div>';
+}
+async function mexerCadastro(fn, registro){
+  if(!podeGerenciar()) return;
+  await alterar(fn, registro);
+  renderCadastros();
+}
+function renomearEtapa(id,nome){
+  nome=String(nome||'').trim();
+  if(!nome){ renderCadastros(); return; }
+  if(etapas().some(function(e){ return e.id!==id && normTexto(e.nome)===normTexto(nome); })){ aviso('Nome repetido','Já existe uma etapa com esse nome.'); renderCadastros(); return; }
+  mexerCadastro(function(base){ const e=base.etapas.find(function(x){ return x.id===id; }); if(!e) return false; e.nome=nome; },
+    {acao:'renomeou etapa', alvo:'CRM · etapa', detalhe:nome});
+}
+function corEtapa(id,cor){
+  mexerCadastro(function(base){ const e=base.etapas.find(function(x){ return x.id===id; }); if(!e) return false; e.cor=cor; });
+}
+function moverEtapa(id,dir){
+  mexerCadastro(function(base){
+    const i=base.etapas.findIndex(function(x){ return x.id===id; });
+    const j=i+dir;
+    if(i<0||j<0||j>=base.etapas.length) return false;
+    const t=base.etapas[i]; base.etapas[i]=base.etapas[j]; base.etapas[j]=t;
+  });
+}
+function addEtapa(){
+  const nome=document.getElementById('cad-nova-etapa').value.trim();
+  if(!nome) return;
+  if(etapas().some(function(e){ return normTexto(e.nome)===normTexto(nome); })){ aviso('Nome repetido','Já existe uma etapa com esse nome.'); return; }
+  mexerCadastro(function(base){
+    // Entra antes de Fechado/Perdido: e la que ficam as etapas em aberto.
+    const pos=base.etapas.findIndex(function(x){ return x.tipo!=='aberta'; });
+    const nova={id:'e'+novoId(), nome:nome, cor:'cinza', tipo:'aberta'};
+    if(pos<0) base.etapas.push(nova); else base.etapas.splice(pos,0,nova);
+  },{acao:'criou etapa', alvo:'CRM · etapa', detalhe:nome});
+}
+function removerEtapa(id){
+  const e=etapaDe(id); if(!e||e.tipo!=='aberta') return;
+  const usa=emUso(id);
+  if(usa){ aviso('Etapa em uso',usa+' negócio'+(usa>1?'s estão':' está')+' em "'+e.nome+'". Mude esses negócios de etapa antes de remover.'); return; }
+  if(etapas().filter(function(x){ return x.tipo==='aberta'; }).length<=1){ aviso('Última etapa','O funil precisa de pelo menos uma etapa em aberto.'); return; }
+  if(!confirm('Remover a etapa "'+e.nome+'"?')) return;
+  mexerCadastro(function(base){
+    if((base.oportunidades||[]).some(function(o){ return o.etapa===id; })){ aviso('Etapa em uso','Alguém acabou de colocar um negócio nesta etapa.'); return false; }
+    base.etapas=base.etapas.filter(function(x){ return x.id!==id; });
+  },{acao:'removeu etapa', alvo:'CRM · etapa', detalhe:e.nome});
+}
+function addNaLista(campo){
+  const el=document.getElementById('cad-novo-'+campo);
+  const t=el.value.trim(); if(!t) return;
+  if((dados[campo]||[]).some(function(x){ return normTexto(x)===normTexto(t); })){ aviso('Já existe','Esse item já está na lista.'); return; }
+  mexerCadastro(function(base){ base[campo].push(t); });
+}
+function removerDaLista(campo,i){
+  const x=(dados[campo]||[])[i]; if(x==null) return;
+  if((dados[campo]||[]).length<=1){ aviso('Último item','A lista precisa de pelo menos um item.'); return; }
+  if(!confirm('Remover "'+x+'" da lista?\n\nOs negócios que já usam continuam mostrando.')) return;
+  mexerCadastro(function(base){ base[campo]=base[campo].filter(function(y){ return y!==x; }); });
+}
+async function limparAntigos(){
+  const l=paraLimpar();
+  if(!l.length) return;
+  if(!confirm('Apagar os dados pessoais de '+l.length+' negócio(s) perdido(s) há mais de '+MESES_GUARDAR_PERDIDO+' meses?\n\nOs números de venda continuam. NÃO TEM VOLTA.')) return;
+  const ids={}; l.forEach(function(o){ ids[o.id]=1; });
+  await mexerCadastro(function(base){
+    let n=0;
+    (base.oportunidades||[]).forEach(function(o){ if(ids[o.id] && !o.anonimizadoEm){ anonimizar(o); n++; } });
+    if(!n) return false;
+  },{acao:'apagou dados pessoais antigos', alvo:'CRM · '+l.length+' negócio(s)', detalhe:'perdidos há mais de '+MESES_GUARDAR_PERDIDO+' meses, sem autorização'});
+}
+
+// ================= HISTÓRICO (só admin) =================
+function abrirHistorico(){
+  if(!soAdmin()) return;
+  const h=dados.historico||[];
+  document.getElementById('hist-corpo').innerHTML=h.length?
+    '<div class="tabela-cx"><table class="tab" style="min-width:600px"><thead><tr><th>Quando</th><th>Quem</th><th>O que fez</th><th>Onde</th></tr></thead><tbody>'+
+    h.map(function(x){
+      let q=x.ts; try{ q=new Date(x.ts).toLocaleString('pt-BR'); }catch(e){}
+      return '<tr style="cursor:default"><td style="white-space:nowrap">'+esc(q)+'</td><td>'+esc(x.user)+'</td><td>'+esc(x.acao)+(x.detalhe?'<div class="neg-linha">'+esc(x.detalhe)+'</div>':'')+'</td><td>'+esc(x.alvo)+'</td></tr>';
+    }).join('')+'</tbody></table></div>'
+    :'<p style="color:var(--gray-4)">Nada registrado ainda.</p>';
+  document.getElementById('hist-ov').classList.add('open');
+}
+function fecharHistorico(){ document.getElementById('hist-ov').classList.remove('open'); }
+
+// ================= PERMISSÕES =================
+function aplicarPermissoes(){
+  const gestor=podeGerenciar();
+  document.querySelectorAll('[data-so-gestor]').forEach(function(el){ el.style.display=gestor?'':'none'; });
+  const h=document.getElementById('btn-hist'); if(h) h.style.display=soAdmin()?'':'none';
+}
+
+// ================= INÍCIO =================
+function mostrarLogin(){
+  const cx=document.getElementById('bloqueio');
+  const inpUser=document.getElementById('login-user');
+  const inpPass=document.getElementById('login-pass');
+  const erro=document.getElementById('login-erro');
+  const btn=document.getElementById('login-btn');
+  cx.style.display='flex';
+  setTimeout(function(){ inpUser.focus(); },50);
+  document.getElementById('login-olho').addEventListener('click',function(){
+    inpPass.type=(inpPass.type==='password')?'text':'password';
+  });
+  function avisar(msg){ erro.textContent=msg; erro.style.display='block'; }
+  async function entrar(){
+    const u=inpUser.value.trim();
+    const s=inpPass.value;
+    erro.style.display='none';
+    if(!u||!s){ avisar('Preencha usuário e senha.'); return; }
+    btn.disabled=true; btn.textContent='Entrando...';
+    try{
+      const r=await fazerLogin(u,s);
+      const t=lerToken();
+      abrirApp(r.nome||r.username||u, r.role, (t&&t.dados&&t.dados.u)||u);
+    }catch(e){
+      if(e.status===429) avisar(e.message);
+      else if(e.status===401) avisar('Usuário ou senha inválidos.');
+      else avisar('Não consegui falar com o servidor ('+(e.message||'erro')+'). Tente de novo.');
+      btn.disabled=false; btn.textContent='Entrar';
+    }
+  }
+  btn.addEventListener('click',entrar);
+  [inpUser,inpPass].forEach(function(i){
+    i.addEventListener('keydown',function(ev){ if(ev.key==='Enter') entrar(); });
+  });
+}
+
+function abrirApp(nome,papelDoUsuario,login){
+  usuario=nome;
+  papel=String(papelDoUsuario||'').toLowerCase();
+  usuarioLogin=String(login||'').toLowerCase();
+  registrarSessaoCrm();
+  if(!_checkCrm) _checkCrm=setInterval(checkForceLogoutCrm,5000);
+  document.getElementById('bloqueio').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('btn-sair').style.display='';
+  aplicarPermissoes();
+  lerLocal();
+  try{ const v=localStorage.getItem('dalum-crm-view'); if(v) view=v; }catch(e){}
+  setView(view);
+  sincronizar();
+  carregarVendedores();
+
+  document.getElementById('aviso-ov').addEventListener('click',function(e){ if(e.target===this) fecharAviso(); });
+  document.getElementById('ficha-ov').addEventListener('click',function(e){ if(e.target===this) fecharFicha(); });
+  document.getElementById('cad-ov').addEventListener('click',function(e){ if(e.target===this) fecharCadastros(); });
+  document.getElementById('hist-ov').addEventListener('click',function(e){ if(e.target===this) fecharHistorico(); });
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape') return;
+    if(document.getElementById('aviso-ov').classList.contains('open')) fecharAviso();
+    else if(document.getElementById('hist-ov').classList.contains('open')) fecharHistorico();
+    else if(document.getElementById('cad-ov').classList.contains('open')) fecharCadastros();
+    else if(document.getElementById('ficha-ov').classList.contains('open')) fecharFicha();
+  });
+
+  setInterval(function(){ atualizarDoBanco(false); },60000);
+  document.addEventListener('visibilitychange',function(){
+    if(!document.hidden) atualizarDoBanco(false);
+  });
+}
+
+(function iniciar(){
+  // So com cracha: e dele que sai o LOGIN, que diz de quem e cada negocio.
+  const t=lerToken();
+  if(t){ abrirApp(t.dados.n||t.dados.u||'usuário', t.dados.r, t.dados.u); return; }
+  // Sem cracha: vai para o portal (o unico lugar que aplica a regra de um
+  // acesso por pessoa). window.top porque dentro do portal isto roda num quadro.
+  try{ (window.top||window).location.replace(PORTAL_URL); }
+  catch(e){ window.location.replace(PORTAL_URL); }
+})();
+</script>
+</body>
+</html>
