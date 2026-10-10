@@ -3783,6 +3783,49 @@ async function enviarArquivoPrivado(arquivo,pasta,tipoRecurso){
   marcar();
 })();
 
+// ---- CODIGO DO AUTENTICADOR NO CARTAO DE ENTRADA (admin, 10/10/2026) ----
+// Quando o Worker pede o codigo, aparece um campo logo abaixo da senha. Com os
+// 6 numeros digitados ele confirma sozinho (Enter tambem). Devolve o codigo,
+// ou vazio se a pessoa clicar em Cancelar.
+function pedirCodigoNoCartao(errado){
+  return new Promise(function(resolver){
+    let cx=document.getElementById('login-codigo-cx');
+    if(!cx){
+      const senha=document.getElementById('login-pass');
+      const depoisDe=(senha&&senha.closest('.pass-wrap'))||senha;
+      if(!depoisDe||!depoisDe.parentNode){ resolver(''); return; }
+      cx=document.createElement('div');
+      cx.id='login-codigo-cx';
+      cx.style.cssText='margin:10px 0 4px;text-align:left';
+      cx.innerHTML='<label class="login-label" for="login-codigo" style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#5A6370;margin-bottom:4px">C\u00f3digo do autenticador</label>'+
+        '<input class="login-input" id="login-codigo" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="000000" style="letter-spacing:.3em;font-weight:700;text-align:center">'+
+        '<div id="login-codigo-dica" style="font-size:12px;line-height:1.45;margin-top:4px"></div>'+
+        '<a href="#" id="login-codigo-cancelar" style="font-size:12px;color:#5A6370">Cancelar</a>';
+      depoisDe.parentNode.insertBefore(cx,depoisDe.nextSibling);
+    }
+    cx.style.display='';
+    const inp=document.getElementById('login-codigo');
+    const dica=document.getElementById('login-codigo-dica');
+    dica.style.color=errado?'#C0392B':'#5A6370';
+    dica.textContent=errado
+      ? 'C\u00f3digo errado. Confira no aplicativo e digite o n\u00famero que est\u00e1 aparecendo agora.'
+      : 'Digite os 6 n\u00fameros que o aplicativo autenticador do seu celular est\u00e1 mostrando.';
+    inp.value=''; inp.disabled=false;
+    setTimeout(function(){ inp.focus(); },30);
+    let foi=false;
+    function entregar(v){
+      if(foi) return; foi=true;
+      inp.oninput=null; inp.onkeydown=null;
+      if(v){ inp.disabled=true; dica.style.color='#5A6370'; dica.textContent='Conferindo...'; }
+      else cx.style.display='none';
+      resolver(v);
+    }
+    inp.oninput=function(){ const d=inp.value.replace(/\D/g,''); if(d.length===6) entregar(d); };
+    inp.onkeydown=function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); const d=inp.value.replace(/\D/g,''); if(d.length===6) entregar(d); } };
+    document.getElementById('login-codigo-cancelar').onclick=function(ev){ ev.preventDefault(); entregar(''); };
+  });
+}
+
 async function fazerLoginWorker(user,senha,codigo){
   const r=await fetch(WORKER_URL,{
     method:'POST',
@@ -3797,14 +3840,15 @@ async function fazerLoginWorker(user,senha,codigo){
   // Codigo errado volta a perguntar; depois de varios erros o proprio Worker
   // bloqueia (429), como faz com a senha.
   if(r.status===401 && j && j.precisaCodigo){
-    const c=String(prompt((j.codigoErrado?'C\u00f3digo errado. Confira no aplicativo e digite de novo.\n\n':'')+
-      'Digite o c\u00f3digo de 6 n\u00fameros do aplicativo autenticador do seu celular:','')||'').replace(/\D/g,'');
+    const c=await pedirCodigoNoCartao(!!j.codigoErrado);
     if(c) return fazerLoginWorker(user,senha,c);
     // Cancelou. Vai pelo caminho do aviso de bloqueio (429), que mostra a
     // mensagem como esta e NAO gasta tentativa — nao foi senha errada.
     const e=new Error('Entrada cancelada: o administrador precisa digitar o c\u00f3digo do aplicativo autenticador.');
     e.status=429; throw e;
   }
+  // Entrou (ou deu outro erro): o campo do codigo sai da tela.
+  { const cx=document.getElementById('login-codigo-cx'); if(cx) cx.style.display='none'; }
   // Manutencao no login tambem mostra a tela de aviso. Sem isto, quem chegasse
   // durante uma parada — que e a maioria, porque a pessoa chega para entrar —
   // via so uma mensagem vermelha de erro, sem entender que era programado.
