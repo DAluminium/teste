@@ -1338,7 +1338,11 @@ function renderModulos(modulos){
 // no lugar dele.
 // vendedor (09/10/2026): mesmo nivel dos demais. No CRM ve so os proprios
 // negocios — quem recorta e o Worker, pelo papel do cracha.
-const NIVEL={admin:3, gerente:2, compras:1, financeiro:1, consulta:1, vendedor:1};
+// funcionario (10/10/2026): o nome novo para quem lanca no dia a dia. Compras e
+// Financeiro continuam valendo para quem ja tem (mesmo poder), mas nao sao mais
+// oferecidos no cadastro. Consulta SO OLHA — quem trava e o Worker.
+const NIVEL={admin:3, gerente:2, funcionario:1, compras:1, financeiro:1, consulta:1, vendedor:1};
+const ROTULO_PAPEL={gerente:'Gerente',funcionario:'Funcionário',compras:'Compras',financeiro:'Financeiro',vendedor:'Vendedor',consulta:'Consulta (só olha)'};
 function nivelDe(role){ return NIVEL[String(role||'').toLowerCase()] || 1; }
 function meuNivel(){ return nivelDe(sessionStorage.getItem('portal-role')||''); }
 function meuUsuario(){ return String(sessionStorage.getItem('portal-admin-key')||'').toLowerCase(); }
@@ -1400,7 +1404,28 @@ function podeMexerEm(u){
 // Os papéis que EU posso conceder: só os de nível menor que o meu.
 function papeisQuePossoDar(){
   const meu=meuNivel();
-  return ['gerente','compras','financeiro','vendedor','consulta'].filter(function(r){ return nivelDe(r)<meu; });
+  return ['gerente','funcionario','vendedor','consulta'].filter(function(r){ return nivelDe(r)<meu; });
+}
+// Os modulos que EU posso dar (10/10/2026): o admin, todos; o gerente, so os
+// que ele mesmo tem. O Worker confere de novo ao gravar — aqui e so para a tela
+// nao oferecer o que vai ser recusado.
+function modulosQuePossoDar(){
+  if(souAdmin()) return MODULOS_DO_SISTEMA.slice();
+  const t=lerToken();
+  const meus=(t&&t.dados&&Array.isArray(t.dados.m))?t.dados.m.map(function(x){ return String(x).toLowerCase(); }):[];
+  return MODULOS_DO_SISTEMA.filter(function(m){ return meus.indexOf(m)>=0; });
+}
+function travarModulosQueNaoPossoDar(prefixo){
+  const pode=modulosQuePossoDar();
+  MODULOS_DO_SISTEMA.forEach(function(m){
+    const cx=document.getElementById(prefixo+m);
+    if(!cx) return;
+    const livre=pode.indexOf(m)>=0;
+    cx.disabled=!livre;
+    if(!livre && prefixo==='nu-mod-') cx.checked=false;
+    const rot=cx.closest('label');
+    if(rot){ rot.style.opacity=livre?'':'.45'; rot.title=livre?'':'Você não tem este módulo, então não pode liberá-lo.'; }
+  });
 }
 
 // O formulário só oferece o que a pessoa pode conceder. A trava de verdade
@@ -1410,9 +1435,10 @@ function ajustarPapeisDisponiveis(){
   if(faixa) faixa.style.display = souAdmin() ? '' : 'none';
   const sel=document.getElementById('nu-role');
   if(!sel) return;
-  const rot={gerente:'Gerente',compras:'Compras',financeiro:'Financeiro',vendedor:'Vendedor',consulta:'Consulta'};
   const podem=papeisQuePossoDar();
-  sel.innerHTML=podem.map(function(r){ return '<option value="'+r+'">'+rot[r]+'</option>'; }).join('');
+  sel.innerHTML=podem.map(function(r){ return '<option value="'+r+'">'+(ROTULO_PAPEL[r]||r)+'</option>'; }).join('');
+  sel.value=podem.indexOf('funcionario')>=0?'funcionario':(podem[0]||'');
+  travarModulosQueNaoPossoDar('nu-mod-');
 }
 
 // O cadastro de usuários é ÚNICO e mora em produção: o login do Worker sempre
@@ -1623,7 +1649,7 @@ function closeUsuarios(){ document.getElementById('usuarios-overlay').classList.
 
 function renderUserList(){
   const list=document.getElementById('user-list-portal');
-  const roleLabel={compras:'Compras',gerente:'Gerente',financeiro:'Financeiro',vendedor:'Vendedor',consulta:'Consulta'};
+  const roleLabel=ROTULO_PAPEL;
 
   // O gerente enxerga só quem ELE cadastrou; o admin enxerga todos.
   //
@@ -1681,6 +1707,11 @@ async function addUsuario(){
   if(ADMINS.find(a=>a.user===username)){ alert('Usuário reservado para administradores.'); return; }
   if(portalData.usuarios.find(u=>u.username===username)){ alert('Usuário já cadastrado.'); return; }
   if(!modulos.length){ alert('Selecione pelo menos 1 módulo.'); return; }
+  {
+    const pode=modulosQuePossoDar();
+    const fora=modulos.filter(function(m){ return pode.indexOf(m)<0; });
+    if(fora.length){ alert('Você não pode liberar: '+fora.join(', ')+'.\n\nSó dá para liberar os módulos que você mesmo tem.'); return; }
+  }
   // A trava fica aqui, e nao so na lista de opcoes: sem isto, bastaria
   // mexer na pagina para criar alguem do mesmo nivel ou acima.
   if(papeisQuePossoDar().indexOf(role)<0){
@@ -1735,7 +1766,7 @@ function editUsuario(idx){
   // A lista oferece só o que EU posso conceder. A função atual entra junto
   // mesmo que eu não pudesse concedê-la, para ela não sumir da tela sem a
   // pessoa perceber — quem barra de verdade é o salvar.
-  const rot={gerente:'Gerente',compras:'Compras',financeiro:'Financeiro',vendedor:'Vendedor',consulta:'Consulta'};
+  const rot=ROTULO_PAPEL;
   const podem=papeisQuePossoDar().slice();
   if(u.role && podem.indexOf(u.role)<0) podem.unshift(u.role);
   const sel=document.getElementById('eu-role');
@@ -1745,6 +1776,8 @@ function editUsuario(idx){
   MODULOS_DO_SISTEMA.forEach(function(m){
     document.getElementById('eu-mod-'+m).checked=mods.indexOf(m)>=0;
   });
+  // O que eu nao posso dar fica travado como esta (marcado ou nao).
+  travarModulosQueNaoPossoDar('eu-mod-');
   document.getElementById('edit-user-overlay').classList.add('open');
 }
 

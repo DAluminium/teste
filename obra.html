@@ -347,7 +347,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <!-- CONTRATO — o que os 4 modelos de contrato pedem e a carteira nao
            tinha. Fica na ficha da obra porque o "Nº do Pedido" impresso E o
            CT: 0073, 0006, 0023 nos contratos do Ander. -->
-      <div class="secao">Contrato</div>
+      <div class="secao" id="f-secao-contrato">Contrato</div>
       <div class="aviso" style="margin-bottom:10px">Preencha aqui os dados <strong>deste cliente</strong> e clique em <strong>Gerar contrato</strong>, no rodapé. O texto das cláusulas é o mesmo para todos e fica no botão <strong>Contrato</strong>, no topo da tela.</div>
       <div class="form-grid" id="f-grid-contrato">
         <div class="fg span2"><label>Modelo do contrato</label>
@@ -985,6 +985,57 @@ function loginGuardaApagar(chave){
 // comprovante) ficam: nao sao dado de ninguem.
 const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra','dalum-crm','dalum-crm-para-obra',
   'portal-admin-passes','dalum-admin-passes','fin-admin-passes'];
+// ---- PERMISSOES POR FUNCAO (pedido do Ander, 10/10/2026) ----
+// Admin: tudo. Gerente: tambem exclui e configura. Funcionario e Vendedor:
+// lancam e atualizam, nao excluem. Consulta: so olha. Quem trava de verdade e
+// o Worker; aqui a tela so evita que a pessoa tente e perca o que digitou.
+function papelDoCracha(){
+  try{ const t=lerToken(); return String((t&&t.dados&&t.dados.r)||'').toLowerCase(); }catch(e){ return ''; }
+}
+function podeExcluir(){ const p=papelDoCracha(); return p==='admin'||p==='gerente'; }
+function ehConsulta(){ return papelDoCracha()==='consulta'; }
+function recusarExcluir(){
+  if(podeExcluir()) return false;
+  alert('S\u00f3 o gerente ou o administrador pode excluir.\n\nPe\u00e7a a quem gerencia este m\u00f3dulo.');
+  return true;
+}
+// Na Consulta toda gravacao para aqui. O aviso aparece no maximo a cada
+// minuto: alguma gravacao automatica ao abrir nao pode virar enxurrada.
+let _avisouConsulta=0;
+function recusarSeConsulta(){
+  if(!ehConsulta()) return false;
+  if(Date.now()-_avisouConsulta>60000){
+    _avisouConsulta=Date.now();
+    alert('Voc\u00ea est\u00e1 no modo consulta: pode olhar, mas n\u00e3o alterar.\n\nA altera\u00e7\u00e3o n\u00e3o foi salva.');
+  }
+  return true;
+}
+// Botoes de excluir somem para quem nao e gerente; na Obra, a parte do
+// contrato (CPF, endereco, valor) tambem. A Consulta ganha uma faixa fixa.
+function aplicarFuncaoNaTela(){
+  const b=document.body; if(!b) return;
+  if(!document.getElementById('estilo-funcao')){
+    const s=document.createElement('style'); s.id='estilo-funcao';
+    s.textContent='body.sem-excluir .act-del,body.sem-excluir #ficha-btn-excluir,'+
+      'body.sem-excluir #f-grid-contrato,body.sem-excluir #f-secao-contrato{display:none!important}'+
+      'body.modo-consulta{padding-bottom:40px}';
+    (document.head||b).appendChild(s);
+  }
+  const papel=papelDoCracha();
+  b.classList.toggle('sem-excluir', !!papel && !podeExcluir());
+  b.classList.toggle('modo-consulta', ehConsulta());
+  let f=document.getElementById('faixa-consulta');
+  if(ehConsulta()&&!f){
+    f=document.createElement('div'); f.id='faixa-consulta';
+    f.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:9000;background:#E8F1FB;border-top:2px solid #1F5FA8;'+
+      'color:#1F3B63;font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;padding:8px 12px;text-align:center';
+    f.textContent='Modo consulta: voc\u00ea pode olhar, mas n\u00e3o alterar.';
+    b.appendChild(f);
+  } else if(!ehConsulta()&&f){ f.remove(); }
+}
+setInterval(aplicarFuncaoNaTela,2000);
+document.addEventListener('DOMContentLoaded',aplicarFuncaoNaTela);
+
 function apagarDadosLocais(){
   DADOS_LOCAIS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
 }
@@ -1456,6 +1507,7 @@ function logObra(base, acao, alvo, detalhe){
 // que está lá e só então grava. Evita que duas pessoas salvando ao mesmo tempo
 // apaguem o trabalho uma da outra.
 async function alterar(fn, registro){
+  if(recusarSeConsulta()) return false;
   _versaoLocal++;
   _gravando++;
   try{ return await gravarAlteracao(fn, registro); }

@@ -1121,6 +1121,7 @@ function saveEntry(){
 }
 function editEntry(type,idx){ openModal(type,idx); }
 function removeEntry(type,idx){
+  if(recusarExcluir()) return;
   const r=data[type][idx];
   const user=prompt('Seu nome (obrigatório para registrar a remoção):',lastBy||'');
   if(!user||!user.trim()){ alert('Nome obrigatório para registrar a remoção.'); return; }
@@ -1854,6 +1855,7 @@ function printAll(){
 }
 
 async function removeAttach(idx){
+  if(recusarExcluir()) return;
   if(!confirm('Remover este anexo?')) return;
   const r=data[attachType][attachIdx];
   const removido=r.attachments.splice(idx,1)[0];
@@ -2930,6 +2932,7 @@ async function saveManut(){
 }
 
 async function removeManut(idx){
+  if(recusarExcluir()) return;
   const r=data.manutencao[idx];
   const user=prompt('Seu nome (obrigatório para registrar a remoção):',lastBy||'');
   if(!user||!user.trim()){ alert('Nome obrigatório.'); return; }
@@ -3008,6 +3011,7 @@ async function restoreManut(idx){
 }
 
 async function removeConcluidaManut(idx){
+  if(recusarExcluir()) return;
   if(!confirm('Remover permanentemente este registro?')) return;
   data.manutComprada.splice(idx,1);
   await persist(); renderConcluidas();
@@ -3514,6 +3518,57 @@ function loginGuardaApagar(chave){
 // comprovante) ficam: nao sao dado de ninguem.
 const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra',
   'portal-admin-passes','dalum-admin-passes','fin-admin-passes'];
+// ---- PERMISSOES POR FUNCAO (pedido do Ander, 10/10/2026) ----
+// Admin: tudo. Gerente: tambem exclui e configura. Funcionario e Vendedor:
+// lancam e atualizam, nao excluem. Consulta: so olha. Quem trava de verdade e
+// o Worker; aqui a tela so evita que a pessoa tente e perca o que digitou.
+function papelDoCracha(){
+  try{ const t=lerToken(); return String((t&&t.dados&&t.dados.r)||'').toLowerCase(); }catch(e){ return ''; }
+}
+function podeExcluir(){ const p=papelDoCracha(); return p==='admin'||p==='gerente'; }
+function ehConsulta(){ return papelDoCracha()==='consulta'; }
+function recusarExcluir(){
+  if(podeExcluir()) return false;
+  alert('S\u00f3 o gerente ou o administrador pode excluir.\n\nPe\u00e7a a quem gerencia este m\u00f3dulo.');
+  return true;
+}
+// Na Consulta toda gravacao para aqui. O aviso aparece no maximo a cada
+// minuto: alguma gravacao automatica ao abrir nao pode virar enxurrada.
+let _avisouConsulta=0;
+function recusarSeConsulta(){
+  if(!ehConsulta()) return false;
+  if(Date.now()-_avisouConsulta>60000){
+    _avisouConsulta=Date.now();
+    alert('Voc\u00ea est\u00e1 no modo consulta: pode olhar, mas n\u00e3o alterar.\n\nA altera\u00e7\u00e3o n\u00e3o foi salva.');
+  }
+  return true;
+}
+// Botoes de excluir somem para quem nao e gerente; na Obra, a parte do
+// contrato (CPF, endereco, valor) tambem. A Consulta ganha uma faixa fixa.
+function aplicarFuncaoNaTela(){
+  const b=document.body; if(!b) return;
+  if(!document.getElementById('estilo-funcao')){
+    const s=document.createElement('style'); s.id='estilo-funcao';
+    s.textContent='body.sem-excluir .act-del,body.sem-excluir #ficha-btn-excluir,'+
+      'body.sem-excluir #f-grid-contrato,body.sem-excluir #f-secao-contrato{display:none!important}'+
+      'body.modo-consulta{padding-bottom:40px}';
+    (document.head||b).appendChild(s);
+  }
+  const papel=papelDoCracha();
+  b.classList.toggle('sem-excluir', !!papel && !podeExcluir());
+  b.classList.toggle('modo-consulta', ehConsulta());
+  let f=document.getElementById('faixa-consulta');
+  if(ehConsulta()&&!f){
+    f=document.createElement('div'); f.id='faixa-consulta';
+    f.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:9000;background:#E8F1FB;border-top:2px solid #1F5FA8;'+
+      'color:#1F3B63;font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;padding:8px 12px;text-align:center';
+    f.textContent='Modo consulta: voc\u00ea pode olhar, mas n\u00e3o alterar.';
+    b.appendChild(f);
+  } else if(!ehConsulta()&&f){ f.remove(); }
+}
+setInterval(aplicarFuncaoNaTela,2000);
+document.addEventListener('DOMContentLoaded',aplicarFuncaoNaTela);
+
 function apagarDadosLocais(){
   DADOS_LOCAIS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
 }
@@ -4187,6 +4242,7 @@ function juntarAlteracoes(servidor,minhas){
 // esta a caminho do servidor, e desmarca ao terminar — de qualquer jeito que
 // termine, inclusive com erro. Quem olha isso e a syncFromCloud.
 async function persist(){
+  if(recusarSeConsulta()) return false;
   _versaoLocal++;
   _gravando++;
   try{ return await gravarNoServidor(); }
