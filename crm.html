@@ -1411,7 +1411,8 @@ function abrirFicha(id){
   const gestor=podeGerenciar();
   document.getElementById('ficha-btn-excluir').style.display=!o.excluido?'':'none';
   document.getElementById('ficha-btn-restaurar').style.display=(gestor&&o.excluido)?'':'none';
-  document.getElementById('ficha-btn-anonimizar').style.display=(gestor&&!o.anonimizadoEm)?'':'none';
+  // Limpeza da LGPD e so do administrador (decisao do Ander, 10/10/2026).
+  document.getElementById('ficha-btn-anonimizar').style.display=(soAdmin()&&!o.anonimizadoEm)?'':'none';
   document.getElementById('ficha-btn-salvar').style.display=!o.excluido?'':'none';
   travarFicha(!!o.excluido);
   renderNotas(o);
@@ -1544,7 +1545,7 @@ function anonimizar(alvo){
   alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario;
 }
 async function apagarDadosPessoais(){
-  if(!podeGerenciar()) return;
+  if(!soAdmin()){ aviso('Só o administrador','Apagar dados pessoais a pedido do cliente é feito só pelo administrador.'); return; }
   const o=(dados.oportunidades||[]).find(function(x){ return x.id===fichaId; });
   if(!o) return;
   if(!confirm('Apagar os dados pessoais de "'+(o.cliente||'este negócio')+'"?\n\n'+
@@ -1629,12 +1630,14 @@ function renderCadastros(){
     htmlListaSimples('Como o cliente chega até nós','origens','Nova origem (ex.: Feira)')+
     htmlListaSimples('Motivos de perda','motivosPerda','Novo motivo')+
 
+    // Limpeza da LGPD: so o administrador ve e aciona (decisao do Ander, 10/10/2026).
+    (!soAdmin() ? '' :
     '<div class="secao">Limpeza de dados antigos (LGPD)</div>'+
     '<div class="dica" style="font-size:12.5px;color:var(--gray-5);line-height:1.5;margin-bottom:8px">Negócio <b>perdido</b> há mais de '+MESES_GUARDAR_PERDIDO+' meses, de cliente que <b>não autorizou</b> receber novidades, não tem mais por que guardar nome e telefone. '+
       'Apagar aqui tira só os dados pessoais: os números de venda continuam.</div>'+
     (limpar.length
       ? '<div class="aviso" style="margin:0">'+limpar.length+' negócio'+(limpar.length>1?'s':'')+' nessa situação. <button class="btn btn-red btn-sm" style="margin-left:8px" onclick="limparAntigos()">Apagar os dados pessoais deles</button></div>'
-      : '<div style="font-size:12.5px;color:var(--green)">✓ Nenhum negócio nessa situação agora.</div>');
+      : '<div style="font-size:12.5px;color:var(--green)">✓ Nenhum negócio nessa situação agora.</div>'));
 }
 function htmlListaSimples(titulo,campo,ph){
   return '<div class="secao">'+titulo+'</div>'+
@@ -1702,6 +1705,7 @@ function removerDaLista(campo,i){
   mexerCadastro(function(base){ base[campo]=base[campo].filter(function(y){ return y!==x; }); });
 }
 async function limparAntigos(){
+  if(!soAdmin()){ aviso('Só o administrador','A limpeza de dados antigos (LGPD) é feita só pelo administrador.'); return; }
   const l=paraLimpar();
   if(!l.length) return;
   if(!confirm('Apagar os dados pessoais de '+l.length+' negócio(s) perdido(s) há mais de '+MESES_GUARDAR_PERDIDO+' meses?\n\nOs números de venda continuam. NÃO TEM VOLTA.')) return;
