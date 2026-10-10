@@ -3783,15 +3783,28 @@ async function enviarArquivoPrivado(arquivo,pasta,tipoRecurso){
   marcar();
 })();
 
-async function fazerLoginWorker(user,senha){
+async function fazerLoginWorker(user,senha,codigo){
   const r=await fetch(WORKER_URL,{
     method:'POST',
     cache:'no-store',
     headers:{'Content-Type':'application/json','X-Action':'login'},
-    body:JSON.stringify({usuario:user,senha:senha})
+    body:JSON.stringify({usuario:user,senha:senha,codigo:codigo||''})
   });
   let j=null;
   try{ j=await r.json(); }catch(e){}
+  // CODIGO DO AUTENTICADOR (admin, 10/10/2026): a senha estava certa e o
+  // Worker pede tambem o codigo de 6 numeros do aplicativo do celular.
+  // Codigo errado volta a perguntar; depois de varios erros o proprio Worker
+  // bloqueia (429), como faz com a senha.
+  if(r.status===401 && j && j.precisaCodigo){
+    const c=String(prompt((j.codigoErrado?'C\u00f3digo errado. Confira no aplicativo e digite de novo.\n\n':'')+
+      'Digite o c\u00f3digo de 6 n\u00fameros do aplicativo autenticador do seu celular:','')||'').replace(/\D/g,'');
+    if(c) return fazerLoginWorker(user,senha,c);
+    // Cancelou. Vai pelo caminho do aviso de bloqueio (429), que mostra a
+    // mensagem como esta e NAO gasta tentativa — nao foi senha errada.
+    const e=new Error('Entrada cancelada: o administrador precisa digitar o c\u00f3digo do aplicativo autenticador.');
+    e.status=429; throw e;
+  }
   // Manutencao no login tambem mostra a tela de aviso. Sem isto, quem chegasse
   // durante uma parada — que e a maioria, porque a pessoa chega para entrar —
   // via so uma mensagem vermelha de erro, sem entender que era programado.
