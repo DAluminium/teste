@@ -602,7 +602,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <div class="modal-body">
       <div class="form-grid">
         <div class="form-group span2"><label>Descrição <span style="color:var(--red)">*</span></label><input id="p-desc" type="text" placeholder="Ex: Fatura energia elétrica"></div>
-        <div class="form-group span2"><label>Fornecedor / Beneficiário</label><input id="p-forn" type="text" placeholder="Ex: ENERGISA"></div>
+        <div class="form-group span2"><label>Fornecedor / Beneficiário</label><input id="p-forn" type="text" placeholder="Ex: ENERGISA" list="lista-forn-cad" autocomplete="off" oninput="aplicarFornecedorCad('p')" onchange="aplicarFornecedorCad('p')"><span id="p-forn-dica" class="note" style="display:none;margin-top:4px;font-size:11.5px;line-height:1.4"></span></div>
         <div class="form-group"><label>Categoria <span style="color:var(--red)">*</span></label>
           <select id="p-cat">
             <option value="energia">Energia</option>
@@ -1016,6 +1016,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
 </div>
 
 <input type="file" id="file-input" style="display:none">
+<datalist id="lista-forn-cad"></datalist>
 <script>
 
 // Restaurar sessão após atualização
@@ -3794,6 +3795,54 @@ function renderPagar(){
   document.getElementById('t-pagar-pago').textContent='R$ '+fmtBR(pago);
 }
 
+// ---- CADASTRO UNICO DE FORNECEDORES (13/10/2026) ----
+// O cadastro mora no portal (botao "Cadastros"), no registro 'cadastros'
+// (no teste, 'cadastros_teste'). Aqui ele so e LIDO: vira a lista de sugestoes
+// do campo Fornecedor e mostra o PIX e o banco para quem vai pagar.
+// Se a leitura falhar (Worker antigo, sem acesso), o campo continua sendo
+// texto livre, como sempre foi.
+let _fornCad = null;
+function cadSistema(){ return AMBIENTE==='teste' ? 'cadastros_teste' : 'cadastros'; }
+function normalizarNomeForn(t){
+  return String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9 ]+/g,' ')
+    .replace(/\b(ltda|me|epp|eireli|s ?a|cia|comercio|com)\b/g,' ')
+    .replace(/\s+/g,' ').trim();
+}
+async function carregarFornecedoresCad(){
+  try{
+    const r=await fetch(WORKER_URL+'?t='+Date.now(),{cache:'no-store',headers:cabecalhos(cadSistema())});
+    if(!r.ok) return;
+    const d=await r.json();
+    _fornCad=((d&&Array.isArray(d.fornecedores))?d.fornecedores:[])
+      .filter(function(f){ return f && (f.uso==='financeiro'||f.uso==='ambos'); });
+    const dl=document.getElementById('lista-forn-cad');
+    if(dl) dl.innerHTML=_fornCad.map(function(f){ return '<option value="'+escEnvio(f.nome)+'"></option>'; }).join('');
+  }catch(e){}
+}
+function acharFornecedorCad(nome){
+  const k=normalizarNomeForn(nome);
+  if(!k||!_fornCad) return null;
+  return _fornCad.find(function(f){ return normalizarNomeForn(f.nome)===k; })||null;
+}
+function aplicarFornecedorCad(px){
+  const dica=document.getElementById(px+'-forn-dica');
+  const ent=document.getElementById('p-forn');
+  if(!dica||!ent) return;
+  const nome=ent.value.trim();
+  if(!nome||_fornCad===null){ dica.style.display='none'; return; }
+  const f=acharFornecedorCad(nome);
+  dica.style.display='block';
+  if(!f){
+    dica.style.color='var(--gray-4)';
+    dica.innerHTML='Este fornecedor não está no cadastro. Para cadastrar: <strong>📇 Cadastros</strong>, no portal.';
+    return;
+  }
+  dica.style.color='var(--teal-dark)';
+  const pag=[f.pix?'PIX: '+f.pix:'',f.pixNome?'favorecido: '+f.pixNome:'',f.banco?f.banco:'',f.conta?'ag/conta: '+f.conta:''].filter(Boolean);
+  dica.innerHTML='✓ Fornecedor do cadastro'+(pag.length?' — '+escEnvio(pag.join(' · ')):' (sem dados de pagamento no cadastro)')+'.';
+}
+
 function openModalPagar(idx=null){
   pagarEditId=idx;
   _garanteCat();
@@ -3825,6 +3874,8 @@ function openModalPagar(idx=null){
     document.getElementById('pagar-title').textContent='Nova despesa';
   }
   document.getElementById('pagar-overlay').classList.add('open');
+  aplicarFornecedorCad('p');
+  carregarFornecedoresCad().then(function(){ aplicarFornecedorCad('p'); });
 }
 function closePagar(){ document.getElementById('pagar-overlay').classList.remove('open'); pagarEditId=null; }
 

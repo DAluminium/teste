@@ -261,6 +261,11 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
       <button class="btn btn-outline" style="font-size:12.5px;padding:7px 16px" onclick="openLembretes()">
         ⏰ Meus lembretes<span id="card-lembretes-conta"></span>
       </button>
+      <!-- Cadastro unico de fornecedores (13/10/2026). Aparece para quem tem
+           Compras ou Financeiro, e para o admin. Ver ajustarBotaoCadastros. -->
+      <button class="btn btn-outline" id="btn-cadastros" style="display:none;font-size:12.5px;padding:7px 16px;margin-left:6px" onclick="openCadastros()">
+        📇 Cadastros
+      </button>
     </div>
 
     <!-- ADMIN -->
@@ -360,6 +365,116 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
         </div>
       </div>
       <div id="lem-lista" style="margin-top:14px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- CADASTROS (13/10/2026) -->
+<div class="modal-overlay" id="cadastros-overlay">
+  <div class="modal" style="width:min(900px,100%)">
+    <div class="modal-header">
+      <div class="modal-title">📇 Cadastros</div>
+      <button class="btn btn-outline" style="padding:4px 10px;font-size:12px" onclick="fecharCadastros()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:6px;border-bottom:1px solid var(--gray-2);margin-bottom:14px">
+        <button class="btn btn-outline cad-aba" data-aba="fornecedores" onclick="abaCadastros('fornecedores')" style="font-size:12.5px;padding:6px 14px;border-radius:8px 8px 0 0">🏭 Fornecedores</button>
+        <button class="btn btn-outline cad-aba" data-aba="clientes" onclick="abaCadastros('clientes')" style="font-size:12.5px;padding:6px 14px;border-radius:8px 8px 0 0">👥 Clientes</button>
+        <button class="btn btn-outline cad-aba" data-aba="usuarios" id="cad-aba-usuarios" onclick="abaCadastros('usuarios')" style="font-size:12.5px;padding:6px 14px;border-radius:8px 8px 0 0">🔑 Usuários</button>
+      </div>
+
+      <div id="cad-painel-fornecedores" class="cad-painel">
+        <div style="background:var(--teal-light);border-radius:8px;padding:9px 13px;font-size:12px;color:var(--teal-dark);margin-bottom:12px;line-height:1.5">
+          ℹ️ Um cadastro só para o <strong>Compras</strong> e o <strong>Financeiro</strong>. Marque em cada fornecedor quem o usa: o Compras só sugere os de Compras e Ambos; o Financeiro, os de Financeiro e Ambos. Ao escolher o fornecedor numa compra, o PIX e o banco entram sozinhos.
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
+          <input id="cad-busca" type="text" placeholder="Buscar por nome, CNPJ, cidade, contato..." oninput="renderFornecedores()" style="width:auto;flex:1;min-width:200px;padding:7px 10px;border:1px solid var(--gray-3);border-radius:8px;font-family:inherit;font-size:13px">
+          <select id="cad-filtro" onchange="renderFornecedores()" style="width:auto;padding:7px 8px;border:1px solid var(--gray-3);border-radius:8px;font-family:inherit;font-size:12.5px">
+            <option value="">Todos</option>
+            <option value="compras">Compras</option>
+            <option value="financeiro">Financeiro</option>
+            <option value="ambos">Ambos</option>
+            <option value="incompleto">⚠️ Cadastro incompleto</option>
+          </select>
+          <button class="btn btn-teal" id="cad-btn-novo" style="font-size:12.5px;padding:7px 14px" onclick="openFornecedor(null)">+ Novo fornecedor</button>
+          <button class="btn btn-outline" id="cad-btn-importar" style="display:none;font-size:12.5px;padding:7px 14px" onclick="importarFornecedores()" title="Cria o cadastro com os nomes que já aparecem nas compras e nas contas a pagar">⤓ Puxar dos lançamentos</button>
+        </div>
+        <div id="cad-status" style="font-size:12px;color:var(--gray-5);margin-bottom:8px"></div>
+        <div id="cad-lista"></div>
+      </div>
+
+      <div id="cad-painel-clientes" class="cad-painel" style="display:none">
+        <div style="background:var(--gray-1);border-radius:8px;padding:14px;font-size:13px;color:var(--gray-5);line-height:1.6">
+          👥 O cadastro de clientes vem na <strong>etapa 2</strong>, ligado ao CRM e ao Gerenciamento de Obra, com a mesma regra do CRM: o vendedor vê só os clientes dele; gerente e administrador veem todos.
+        </div>
+      </div>
+
+      <div id="cad-painel-usuarios" class="cad-painel" style="display:none">
+        <div style="background:var(--gray-1);border-radius:8px;padding:14px;font-size:13px;color:var(--gray-5);line-height:1.6;margin-bottom:12px">
+          🔑 Os usuários continuam guardados no mesmo lugar de sempre — é de lá que o login lê. Aqui é só mais um caminho para a mesma tela: as regras não mudam (cada um cadastra só quem está abaixo dele; o gerente vê só quem ele cadastrou).
+        </div>
+        <button class="btn btn-teal" style="font-size:12.5px;padding:7px 14px" onclick="openUsuarios()">Abrir o cadastro de usuários</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="forn-overlay" style="z-index:210">
+  <div class="modal" style="width:min(680px,100%)">
+    <div class="modal-header">
+      <div class="modal-title" id="forn-titulo">Novo fornecedor</div>
+      <button class="btn btn-outline" style="padding:4px 10px;font-size:12px" onclick="fecharFornecedor()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div id="forn-aviso" style="display:none;background:#fdf6e3;border:1px solid #e8d9a8;border-radius:8px;padding:9px 13px;font-size:12px;color:#7d5a10;margin-bottom:12px;line-height:1.5"></div>
+      <div class="form-grid">
+        <div class="form-group span2"><label>Quem usa este fornecedor <span style="color:var(--red)">*</span></label>
+          <select id="fc-uso">
+            <option value="">— escolha —</option>
+            <option value="compras">Compras (material)</option>
+            <option value="financeiro">Financeiro (contas e serviços)</option>
+            <option value="ambos">Ambos</option>
+          </select>
+        </div>
+        <div style="grid-column:1/-1;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding-top:6px;border-top:1px solid var(--gray-2)">Básico (obrigatório)</div>
+        <div class="form-group span2"><label>Nome do fornecedor <span style="color:var(--red)">*</span></label><input id="fc-nome" type="text" placeholder="Como todo mundo chama — ex: Mirandex"></div>
+        <div class="form-group"><label>Telefone / WhatsApp <span style="color:var(--red)">*</span></label><input id="fc-telefone" type="text" placeholder="Ex: (69) 3222-0000"></div>
+        <div class="form-group"><label>Vendedor de contato <span style="color:var(--red)">*</span></label><input id="fc-contato" type="text" placeholder="Ex: Carlos"></div>
+        <div class="form-group span2"><label>Cidade / UF <span style="color:var(--red)">*</span></label><input id="fc-cidade" type="text" placeholder="Ex: Porto Velho/RO"></div>
+        <div style="grid-column:1/-1;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding-top:6px;border-top:1px solid var(--gray-2)">Dados da empresa (obrigatório)</div>
+        <div class="form-group"><label>CNPJ (ou CPF) <span style="color:var(--red)">*</span></label><input id="fc-documento" type="text" placeholder="00.000.000/0000-00"></div>
+        <div class="form-group"><label>E-mail <span style="color:var(--red)">*</span></label><input id="fc-email" type="text" placeholder="vendas@fornecedor.com.br"></div>
+        <div class="form-group span2"><label>Razão social (ou nome completo) <span style="color:var(--red)">*</span></label><input id="fc-razao" type="text" placeholder="Ex: Mirandex Comércio de Alumínio Ltda"></div>
+        <div class="form-group span2"><label>Endereço <span style="color:var(--red)">*</span></label><input id="fc-endereco" type="text" placeholder="Rua, número, bairro"></div>
+        <div style="grid-column:1/-1;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding-top:6px;border-top:1px solid var(--gray-2)">Dados para pagamento (opcional)</div>
+        <div class="form-group span2"><label>Chave PIX</label><input id="fc-pix" type="text" placeholder="CNPJ, e-mail, telefone ou chave aleatória"></div>
+        <div class="form-group span2"><label>Favorecido (nome na conta)</label><input id="fc-pix-nome" type="text" placeholder="Ex: Mirandex Comércio Ltda"></div>
+        <div class="form-group"><label>Banco</label><input id="fc-banco" type="text" placeholder="Ex: Sicredi"></div>
+        <div class="form-group"><label>Agência / Conta</label><input id="fc-conta" type="text" placeholder="Ex: 1234 / 56789-0"></div>
+        <div style="grid-column:1/-1;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding-top:6px;border-top:1px solid var(--gray-2)">O que vende (opcional)</div>
+        <div class="form-group span2">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px">
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="Perfil de alumínio"> Perfil de alumínio</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="Vidro"> Vidro</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="Ferragens e acessórios"> Ferragens e acessórios</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="ACM"> ACM</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="Silicone e vedação"> Silicone e vedação</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="Parafusos e fixação"> Parafusos e fixação</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="Ferramentas"> Ferramentas</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="Serviços"> Serviços</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="Outros"> Outros</label>
+          </div>
+        </div>
+        <div class="form-group span2"><label>Observação</label><input id="fc-obs" type="text" placeholder="Ex: entrega só às terças; prazo de 15 dias"></div>
+      </div>
+      <div id="forn-historico" style="margin-top:14px"></div>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:space-between;gap:8px;padding:12px 20px;border-top:1px solid var(--gray-2)">
+      <button class="btn btn-red" id="forn-btn-excluir" style="display:none" onclick="excluirFornecedor()">Excluir</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="btn btn-outline" onclick="fecharFornecedor()">Cancelar</button>
+        <button class="btn btn-teal" id="forn-btn-salvar" onclick="salvarFornecedor()">Salvar fornecedor</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1167,6 +1282,7 @@ async function sairDoSistema(){
   // quem entrar em seguida neste mesmo navegador.
   fecharPainelSessoes();
   fecharTempoUso();
+  fecharCadastros(true);
 }
 // Aqui existia telaEncerrada(), que trocava o conteúdo inteiro da página por
 // um aviso "Sessão encerrada com segurança". Ela apagava a tela de login junto
@@ -1277,6 +1393,7 @@ function showPortal(nome, modulos, isAdmin){
   registrarSessaoPortal(nome, sessionStorage.getItem('portal-admin-key')||nome);
   carregarAvisaveis();   // quem pode receber relato
   carregarLembretes();   // o que ficou marcado para hoje
+  ajustarBotaoCadastros();
   startSessionCheckPortal();
   renderModulos(modulos);
   // 1 módulo e não admin — entra direto
@@ -1328,6 +1445,388 @@ function renderModulos(modulos){
       fetch(mod.url+(mod.url.includes('?')?'&':'?')+'v='+FRAME_V).catch(function(){});
     });
   },400);
+}
+
+// ---- CADASTROS: FORNECEDORES (pedido do Ander, 13/10/2026) ----
+// Um cadastro so para o Compras e o Financeiro, no registro 'cadastros'
+// (no teste, 'cadastros_teste'). Antes o fornecedor era texto livre em cada
+// lancamento: o mesmo nome escrito de varios jeitos e o PIX redigitado toda vez.
+//
+// Quem ve: admin e quem tem Compras ou Financeiro (o Worker confere pelo
+// cracha). Quem cadastra e altera: todos esses, menos a Consulta. Quem exclui:
+// gerente e admin — e o Worker devolve o fornecedor se alguem abaixo tentar.
+//
+// Toda gravacao rele o servidor, aplica so a mudanca desta tela e confere o
+// carimbo depois: o Worker ja respondeu "ok" sem gravar (ver worker-nao-cria-registro).
+//
+// Obrigatorio: basico (nome, telefone, contato, cidade) e empresa (CNPJ ou
+// CPF, razao social, endereco, e-mail). Os puxados dos lancamentos antigos
+// entram sem isso e aparecem como "cadastro incompleto" ate alguem completar.
+const CAD_SISTEMA = ambienteDeTeste() ? 'cadastros_teste' : 'cadastros';
+const CAD_OBRIGATORIOS = [
+  ['nome', 'nome'], ['telefone', 'telefone'], ['contato', 'vendedor de contato'], ['cidade', 'cidade'],
+  ['documento', 'CNPJ/CPF'], ['razao', 'razão social'], ['endereco', 'endereço'], ['email', 'e-mail'], ['uso', 'quem usa']
+];
+const CAD_ROTULO_USO = { compras: 'Compras', financeiro: 'Financeiro', ambos: 'Ambos' };
+let _cad = { fornecedores: [], historico: [] };
+let _fornAberto = null;   // copia do fornecedor como estava ao abrir (para saber se outra pessoa mexeu)
+
+function modulosDoMeuCracha() {
+  const t = lerToken();
+  return (t && Array.isArray(t.dados.m) ? t.dados.m : []).map(function (x) { return String(x || '').toLowerCase(); });
+}
+function meuPapel() { return String(sessionStorage.getItem('portal-role') || '').toLowerCase(); }
+function podeVerCadastros() {
+  if (meuPapel() === 'admin') return true;
+  const m = modulosDoMeuCracha();
+  return m.indexOf('compras') >= 0 || m.indexOf('financeiro') >= 0;
+}
+function podeMexerCadastros() { return podeVerCadastros() && meuPapel() !== 'consulta'; }
+function podeExcluirCadastros() { return meuNivel() >= 2; }
+function ajustarBotaoCadastros() {
+  const b = document.getElementById('btn-cadastros');
+  if (b) b.style.display = podeVerCadastros() ? '' : 'none';
+}
+
+function normalizarNomeForn(t) {
+  return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\b(ltda|me|epp|eireli|s ?a|cia|comercio|com)\b/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+function soDigitos(t) { return String(t || '').replace(/\D/g, ''); }
+function cnpjValido(c) {
+  c = soDigitos(c);
+  if (c.length !== 14 || /^(\d)\1+$/.test(c)) return false;
+  const calc = function (n) {
+    const pesos = n === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    let s = 0; for (let i = 0; i < n; i++) s += Number(c[i]) * pesos[i];
+    const r = s % 11; return r < 2 ? 0 : 11 - r;
+  };
+  return calc(12) === Number(c[12]) && calc(13) === Number(c[13]);
+}
+function cpfValido(c) {
+  c = soDigitos(c);
+  if (c.length !== 11 || /^(\d)\1+$/.test(c)) return false;
+  const calc = function (n) {
+    let s = 0; for (let i = 0; i < n; i++) s += Number(c[i]) * (n + 1 - i);
+    const r = (s * 10) % 11; return r === 10 ? 0 : r;
+  };
+  return calc(9) === Number(c[9]) && calc(10) === Number(c[10]);
+}
+function formatarDocumento(d) {
+  const c = soDigitos(d);
+  if (c.length === 14) return c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+  if (c.length === 11) return c.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
+  return String(d || '').trim();
+}
+function faltandoNoForn(f) {
+  return CAD_OBRIGATORIOS.filter(function (o) { return !String((f && f[o[0]]) || '').trim(); })
+    .map(function (o) { return o[1]; });
+}
+
+async function lerCadastros() {
+  const r = await fetch(WORKER_URL + '?t=' + Date.now(), { cache: 'no-store', headers: cabecalhos(CAD_SISTEMA) });
+  if (!r.ok) {
+    let m = ''; try { m = (await r.json()).erro || ''; } catch (e) {}
+    throw new Error(m || ('Erro ' + r.status + ' no servidor.'));
+  }
+  const d = await r.json();
+  if (!d || typeof d !== 'object') throw new Error('O cadastro ainda não existe no banco.');
+  if (!Array.isArray(d.fornecedores)) d.fornecedores = [];
+  if (!Array.isArray(d.historico)) d.historico = [];
+  return d;
+}
+
+// Rele, aplica a mudanca, grava e confere. `mudar(dados)` altera `dados` e
+// devolve o que vai para o historico, ou false para desistir.
+async function gravarCadastros(mudar) {
+  let dados;
+  try { dados = await lerCadastros(); }
+  catch (e) { alert('NÃO foi salvo: não consegui ler o cadastro.\n\n' + e.message); return false; }
+  const hist = mudar(dados);
+  if (hist === false) return false;
+  const eu = sessionStorage.getItem('portal-user') || meuLogin();
+  (Array.isArray(hist) ? hist : [hist]).forEach(function (h) {
+    dados.historico.unshift(Object.assign({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), ts: new Date().toISOString(), user: eu }, h));
+  });
+  dados.historico = dados.historico.slice(0, 1000);
+  const carimbo = new Date().toISOString() + '-' + Math.random().toString(36).slice(2, 8);
+  dados.atualizadoEm = carimbo;
+  dados.atualizadoPor = eu;
+  try {
+    const resp = await fetch(WORKER_URL, { method: 'PATCH',
+      headers: cabecalhos(CAD_SISTEMA, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ data: dados }) });
+    if (!resp.ok) {
+      let m = ''; try { m = (await resp.json()).erro || ''; } catch (e) {}
+      alert('NÃO foi salvo.\n\n' + (m || ('Erro ' + resp.status + ' no servidor.')));
+      return false;
+    }
+    const conf = await lerCadastros();
+    if (conf.atualizadoEm !== carimbo) {
+      alert('O servidor respondeu, mas a gravação NÃO apareceu no banco.\n\nNada foi salvo. Avise o administrador.');
+      return false;
+    }
+    _cad = conf;
+  } catch (e) {
+    alert('NÃO foi salvo: não consegui falar com o servidor.\n\nConfira a internet e tente de novo.');
+    return false;
+  }
+  renderFornecedores();
+  return true;
+}
+
+async function openCadastros() {
+  if (!podeVerCadastros()) { alert('Seu acesso não inclui os cadastros.\n\nEles são de quem usa o Compras ou o Financeiro.'); return; }
+  document.getElementById('cadastros-overlay').classList.add('open');
+  const podeAdministrar = meuPapel() === 'admin' || meuPapel() === 'gerente';
+  document.getElementById('cad-aba-usuarios').style.display = podeAdministrar ? '' : 'none';
+  document.getElementById('cad-btn-novo').style.display = podeMexerCadastros() ? '' : 'none';
+  document.getElementById('cad-btn-importar').style.display = meuPapel() === 'admin' ? '' : 'none';
+  abaCadastros('fornecedores');
+  document.getElementById('cad-status').textContent = 'Carregando...';
+  document.getElementById('cad-lista').innerHTML = '';
+  try { _cad = await lerCadastros(); renderFornecedores(); }
+  catch (e) { document.getElementById('cad-status').textContent = '🔴 Não consegui ler o cadastro: ' + e.message; }
+}
+// Sair nao recarrega a pagina: esvazia o que ficou na memoria (tem PIX e conta).
+function fecharCadastros(limpar) {
+  document.getElementById('cadastros-overlay').classList.remove('open');
+  document.getElementById('forn-overlay').classList.remove('open');
+  if (limpar) {
+    _cad = { fornecedores: [], historico: [] }; _fornAberto = null;
+    document.getElementById('cad-lista').innerHTML = '';
+  }
+}
+function abaCadastros(aba) {
+  document.querySelectorAll('.cad-painel').forEach(function (el) { el.style.display = el.id === 'cad-painel-' + aba ? 'block' : 'none'; });
+  document.querySelectorAll('.cad-aba').forEach(function (b) {
+    const ativa = b.getAttribute('data-aba') === aba;
+    b.style.background = ativa ? 'var(--teal-light)' : '';
+    b.style.color = ativa ? 'var(--teal-dark)' : '';
+    b.style.borderColor = ativa ? 'var(--teal)' : '';
+  });
+}
+
+function renderFornecedores() {
+  const el = document.getElementById('cad-lista');
+  if (!el) return;
+  const busca = normalizarNomeForn(document.getElementById('cad-busca').value);
+  const buscaDig = soDigitos(document.getElementById('cad-busca').value);
+  const filtro = document.getElementById('cad-filtro').value;
+  const todos = _cad.fornecedores || [];
+  const lista = todos.filter(function (f) {
+    if (filtro === 'incompleto' && !faltandoNoForn(f).length) return false;
+    if (filtro && filtro !== 'incompleto' && f.uso !== filtro) return false;
+    if (!busca) return true;
+    const txt = normalizarNomeForn([f.nome, f.razao, f.cidade, f.contato, f.email, (f.categorias || []).join(' ')].join(' '));
+    return txt.indexOf(busca) >= 0 || (buscaDig.length >= 3 && soDigitos(f.documento).indexOf(buscaDig) >= 0);
+  }).sort(function (a, b) { return String(a.nome).localeCompare(String(b.nome), 'pt-BR'); });
+  const incompletos = todos.filter(function (f) { return faltandoNoForn(f).length; }).length;
+  document.getElementById('cad-status').textContent = todos.length + ' fornecedor(es) cadastrado(s)' +
+    (incompletos ? ' · ⚠️ ' + incompletos + ' com cadastro incompleto' : '') +
+    (lista.length !== todos.length ? ' · mostrando ' + lista.length : '');
+  if (!lista.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--gray-4);font-size:13px;padding:24px">' +
+      (todos.length ? 'Nenhum fornecedor com esse filtro.' : 'Nenhum fornecedor cadastrado ainda.') + '</div>';
+    return;
+  }
+  const corUso = { compras: '#0E8FA6', financeiro: '#1e7d4f', ambos: '#7B2D8B' };
+  el.innerHTML = lista.map(function (f) {
+    const falta = faltandoNoForn(f);
+    return '<div onclick="openFornecedor(\'' + escTexto(f.id) + '\')" style="cursor:pointer;border:1px solid var(--gray-2);border-radius:10px;padding:10px 14px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">' +
+      '<div style="flex:1;min-width:220px">' +
+        '<div style="font-weight:700;font-size:14px">' + escTexto(f.nome) +
+          (f.uso ? ' <span style="font-size:10.5px;font-weight:600;color:white;background:' + (corUso[f.uso] || '#888') + ';border-radius:10px;padding:1px 8px;margin-left:4px">' + CAD_ROTULO_USO[f.uso] + '</span>' : '') +
+        '</div>' +
+        '<div style="font-size:12px;color:var(--gray-5);margin-top:3px">' +
+          [f.razao, formatarDocumento(f.documento), f.cidade].filter(Boolean).map(escTexto).join(' · ') + '</div>' +
+        '<div style="font-size:12px;color:var(--gray-5);margin-top:2px">' +
+          [f.contato ? '👤 ' + f.contato : '', f.telefone ? '📞 ' + f.telefone : '', f.pix ? '💸 PIX cadastrado' : ''].filter(Boolean).map(escTexto).join(' · ') + '</div>' +
+        ((f.categorias || []).length ? '<div style="font-size:11.5px;color:var(--teal-dark);margin-top:3px">' + escTexto(f.categorias.join(', ')) + '</div>' : '') +
+      '</div>' +
+      (falta.length ? '<div style="font-size:11.5px;color:#7d5a10;background:#fdf6e3;border:1px solid #e8d9a8;border-radius:8px;padding:4px 9px;max-width:260px">⚠️ Cadastro incompleto — falta ' + escTexto(falta.join(', ')) + '</div>' : '') +
+    '</div>';
+  }).join('');
+}
+
+const CAD_CAMPOS = { nome: 'fc-nome', telefone: 'fc-telefone', contato: 'fc-contato', cidade: 'fc-cidade',
+  documento: 'fc-documento', razao: 'fc-razao', endereco: 'fc-endereco', email: 'fc-email',
+  pix: 'fc-pix', pixNome: 'fc-pix-nome', banco: 'fc-banco', conta: 'fc-conta', obs: 'fc-obs', uso: 'fc-uso' };
+const CAD_ROTULO_CAMPO = { nome: 'nome', telefone: 'telefone', contato: 'contato', cidade: 'cidade', documento: 'CNPJ/CPF',
+  razao: 'razão social', endereco: 'endereço', email: 'e-mail', pix: 'PIX', pixNome: 'favorecido', banco: 'banco',
+  conta: 'agência/conta', obs: 'observação', uso: 'quem usa', categorias: 'o que vende' };
+const CAD_CAMPOS_PAGAMENTO = ['pix', 'pixNome', 'banco', 'conta'];
+
+function openFornecedor(id) {
+  if (id === null && !podeMexerCadastros()) return;
+  const f = id ? (_cad.fornecedores || []).find(function (x) { return x.id === id; }) : null;
+  if (id && !f) { alert('Esse fornecedor não está mais no cadastro. A lista vai ser atualizada.'); openCadastros(); return; }
+  _fornAberto = f ? JSON.parse(JSON.stringify(f)) : null;
+  Object.keys(CAD_CAMPOS).forEach(function (k) { document.getElementById(CAD_CAMPOS[k]).value = f ? (f[k] || '') : ''; });
+  if (f) document.getElementById('fc-documento').value = formatarDocumento(f.documento);
+  document.querySelectorAll('.fc-cat').forEach(function (c) { c.checked = !!(f && (f.categorias || []).indexOf(c.value) >= 0); });
+  document.getElementById('forn-titulo').textContent = f ? f.nome : 'Novo fornecedor';
+  const falta = f ? faltandoNoForn(f) : [];
+  const aviso = document.getElementById('forn-aviso');
+  aviso.style.display = falta.length ? 'block' : 'none';
+  aviso.innerHTML = falta.length ? '⚠️ <strong>Cadastro incompleto.</strong> Para salvar, preencha: ' + escTexto(falta.join(', ')) + '.' : '';
+  const pode = podeMexerCadastros();
+  document.querySelectorAll('#forn-overlay input, #forn-overlay select').forEach(function (el) { el.disabled = !pode; });
+  document.getElementById('forn-btn-salvar').style.display = pode ? '' : 'none';
+  document.getElementById('forn-btn-excluir').style.display = (f && podeExcluirCadastros()) ? '' : 'none';
+  // Ultimas alteracoes deste fornecedor. Troca de PIX/conta e o que mais
+  // importa saber: e o caminho classico de golpe (trocar o PIX do fornecedor).
+  const hist = f ? (_cad.historico || []).filter(function (h) { return h.fornId === f.id; }).slice(0, 6) : [];
+  document.getElementById('forn-historico').innerHTML = hist.length ?
+    '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);margin-bottom:6px">Últimas alterações</div>' +
+    hist.map(function (h) {
+      return '<div style="font-size:12px;color:var(--gray-5);padding:3px 0;line-height:1.4">' + (h.pagamento ? '⚠️ ' : '') +
+        escTexto(new Date(h.ts).toLocaleString('pt-BR')) + ' — <strong>' + escTexto(h.user) + '</strong>: ' + escTexto(h.acao) +
+        (h.detalhe ? ' (' + escTexto(h.detalhe) + ')' : '') + '</div>';
+    }).join('') : '';
+  document.getElementById('forn-overlay').classList.add('open');
+  setTimeout(function () { document.getElementById(f ? 'fc-uso' : 'fc-uso').focus(); }, 100);
+}
+function fecharFornecedor() { document.getElementById('forn-overlay').classList.remove('open'); _fornAberto = null; }
+
+function lerFormFornecedor() {
+  const f = {};
+  Object.keys(CAD_CAMPOS).forEach(function (k) { f[k] = String(document.getElementById(CAD_CAMPOS[k]).value || '').trim(); });
+  f.documento = formatarDocumento(f.documento);
+  f.categorias = Array.prototype.slice.call(document.querySelectorAll('.fc-cat')).filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+  return f;
+}
+
+async function salvarFornecedor() {
+  if (!podeMexerCadastros()) { alert('Seu acesso só permite consultar.'); return; }
+  const novo = lerFormFornecedor();
+  const falta = faltandoNoForn(novo);
+  if (falta.length) { alert('Preencha os campos obrigatórios:\n\n• ' + falta.join('\n• ')); return; }
+  const dig = soDigitos(novo.documento);
+  if (!(dig.length === 14 ? cnpjValido(dig) : dig.length === 11 ? cpfValido(dig) : false)) {
+    alert('O CNPJ (ou CPF) não confere.\n\nCNPJ tem 14 números e CPF tem 11. Confira se não faltou ou trocou algum número.');
+    document.getElementById('fc-documento').focus(); return;
+  }
+  if (soDigitos(novo.telefone).length < 10) { alert('Telefone com DDD, por favor — ex: (69) 3222-0000.'); document.getElementById('fc-telefone').focus(); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(novo.email)) { alert('O e-mail não parece certo. Confira.'); document.getElementById('fc-email').focus(); return; }
+  const aberto = _fornAberto;
+  const id = aberto ? aberto.id : (Date.now().toString(36) + Math.random().toString(36).slice(2, 7));
+  const eu = sessionStorage.getItem('portal-user') || meuLogin();
+  const ok = await gravarCadastros(function (dados) {
+    const lista = dados.fornecedores;
+    // Mesmo fornecedor ja cadastrado? Pelo nome (sem acento, Ltda etc.) ou pelo CNPJ.
+    const repetido = lista.find(function (x) {
+      if (x.id === id) return false;
+      return normalizarNomeForn(x.nome) === normalizarNomeForn(novo.nome) || (soDigitos(x.documento) && soDigitos(x.documento) === dig);
+    });
+    if (repetido) {
+      alert('Já existe um fornecedor com esse nome ou CNPJ: "' + repetido.nome + '".\n\nAbra o que já existe e complete por lá.');
+      return false;
+    }
+    const i = lista.findIndex(function (x) { return x.id === id; });
+    if (aberto) {
+      if (i < 0) { alert('Este fornecedor foi excluído por outra pessoa enquanto você editava.\n\nNada foi salvo.'); return false; }
+      const noServidor = lista[i];
+      if ((noServidor.alteradoEm || '') !== (aberto.alteradoEm || '') &&
+          !confirm((noServidor.alteradoPor || 'Outra pessoa') + ' alterou este fornecedor enquanto você editava.\n\n' +
+                   'OK = gravar a sua versão por cima\nCancelar = não gravar (feche e abra de novo para ver a versão nova)')) return false;
+      const mudou = Object.keys(CAD_ROTULO_CAMPO).filter(function (k) {
+        return JSON.stringify(noServidor[k] || (k === 'categorias' ? [] : '')) !== JSON.stringify(novo[k] || (k === 'categorias' ? [] : ''));
+      });
+      if (!mudou.length) return false;
+      lista[i] = Object.assign({}, noServidor, novo, { alteradoPor: eu, alteradoEm: new Date().toISOString() });
+      const pagamento = mudou.some(function (k) { return CAD_CAMPOS_PAGAMENTO.indexOf(k) >= 0; });
+      return { acao: 'alterou ' + novo.nome, fornId: id, pagamento: pagamento,
+               detalhe: mudou.map(function (k) { return CAD_ROTULO_CAMPO[k]; }).join(', ') };
+    }
+    lista.push(Object.assign({ id: id }, novo, { criadoPor: eu, criadoEm: new Date().toISOString(), alteradoPor: eu, alteradoEm: new Date().toISOString() }));
+    return { acao: 'cadastrou ' + novo.nome, fornId: id };
+  });
+  if (ok) fecharFornecedor();
+}
+
+async function excluirFornecedor() {
+  if (!podeExcluirCadastros()) { alert('Só o gerente ou o administrador pode excluir.'); return; }
+  const f = _fornAberto;
+  if (!f) return;
+  if (!confirm('Excluir o fornecedor "' + f.nome + '" do cadastro?\n\nAs compras e contas já lançadas com ele continuam como estão.')) return;
+  const ok = await gravarCadastros(function (dados) {
+    const i = dados.fornecedores.findIndex(function (x) { return x.id === f.id; });
+    if (i < 0) return false;
+    dados.fornecedores.splice(i, 1);
+    return { acao: 'excluiu ' + f.nome, fornId: f.id, detalhe: formatarDocumento(f.documento) };
+  });
+  if (ok) fecharFornecedor();
+}
+
+// ---- PUXAR DOS LANCAMENTOS (so admin) ----
+// Le os nomes de fornecedor das compras (orcamentos e manutencao) e das contas
+// a pagar do Financeiro, junta os escritos de jeitos diferentes, aproveita o
+// PIX mais recente que ja estava lancado nas compras e cria cada um como
+// "cadastro incompleto". Quem ja esta no cadastro nao e criado de novo, entao
+// rodar outra vez so traz os nomes novos.
+async function importarFornecedores() {
+  if (meuPapel() !== 'admin') return;
+  const teste = ambienteDeTeste();
+  let compras, fin;
+  try {
+    const r1 = await fetch(WORKER_URL + '?t=' + Date.now(), { cache: 'no-store', headers: cabecalhos(teste ? 'compras_teste' : 'compras') });
+    const r2 = await fetch(WORKER_URL + '?t=' + Date.now(), { cache: 'no-store', headers: cabecalhos(teste ? 'financeiro_teste' : 'financeiro') });
+    if (!r1.ok || !r2.ok) throw new Error('Erro ' + (!r1.ok ? r1.status : r2.status));
+    compras = await r1.json() || {}; fin = await r2.json() || {};
+  } catch (e) { alert('Não consegui ler as compras e o Financeiro.\n\n' + e.message); return; }
+  const grupos = {};
+  const anotar = function (nome, origem, reg, quando) {
+    const nome0 = String(nome || '').trim();
+    const k = normalizarNomeForn(nome0);
+    if (!k || k.length < 2 || /^(a definir|definir|nao sei|sem fornecedor|diversos|varios)$/.test(k)) return;
+    const g = grupos[k] || (grupos[k] = { grafias: {}, origens: {}, pag: null, pagQuando: '' });
+    g.grafias[nome0] = (g.grafias[nome0] || 0) + 1;
+    g.origens[origem] = 1;
+    if (reg && (reg.pix || reg.banco || reg.conta) && String(quando || '') >= g.pagQuando) {
+      g.pag = { pix: reg.pix || '', pixNome: reg.pixNome || '', banco: reg.banco || '', conta: reg.conta || '' };
+      g.pagQuando = String(quando || '');
+    }
+  };
+  ['urgente', 'importante', 'pago'].forEach(function (L) {
+    (compras[L] || []).forEach(function (r) { anotar(r.fornecedor, 'compras', r, r.dataPag || r.dataOrc); });
+  });
+  ['manutencao', 'manutComprada'].forEach(function (L) {
+    (compras[L] || []).forEach(function (r) { anotar(r.fornecedor, 'compras', r, r.ts); });
+  });
+  (fin.pagar || []).forEach(function (r) { anotar(r.forn, 'financeiro', null, ''); });
+
+  const jaTem = {};
+  (_cad.fornecedores || []).forEach(function (f) { jaTem[normalizarNomeForn(f.nome)] = 1; });
+  const novos = Object.keys(grupos).filter(function (k) { return !jaTem[k]; }).map(function (k) {
+    const g = grupos[k];
+    const nome = Object.keys(g.grafias).sort(function (a, b) { return g.grafias[b] - g.grafias[a]; })[0];
+    const uso = g.origens.compras && g.origens.financeiro ? 'ambos' : g.origens.compras ? 'compras' : 'financeiro';
+    return Object.assign({ nome: nome, uso: uso }, g.pag || {});
+  }).sort(function (a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); });
+  if (!novos.length) { alert('Nenhum fornecedor novo nos lançamentos: todos já estão no cadastro.'); return; }
+  const conta = { compras: 0, financeiro: 0, ambos: 0 };
+  novos.forEach(function (n) { conta[n.uso]++; });
+  if (!confirm('Encontrei ' + novos.length + ' fornecedor(es) que ainda não estão no cadastro:\n\n' +
+      '• ' + conta.compras + ' só no Compras\n• ' + conta.financeiro + ' só no Financeiro\n• ' + conta.ambos + ' nos dois (entram como Ambos)\n' +
+      '• ' + novos.filter(function (n) { return n.pix; }).length + ' com PIX aproveitado das compras\n\n' +
+      'Exemplos: ' + novos.slice(0, 8).map(function (n) { return n.nome; }).join(', ') + (novos.length > 8 ? '…' : '') + '\n\n' +
+      'Todos entram como "cadastro incompleto", para alguém completar depois. Criar agora?')) return;
+  const eu = sessionStorage.getItem('portal-user') || meuLogin();
+  const agora = new Date().toISOString();
+  await gravarCadastros(function (dados) {
+    const tem = {};
+    dados.fornecedores.forEach(function (f) { tem[normalizarNomeForn(f.nome)] = 1; });
+    const entram = novos.filter(function (n) { return !tem[normalizarNomeForn(n.nome)]; });
+    if (!entram.length) return false;
+    entram.forEach(function (n) {
+      dados.fornecedores.push(Object.assign({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7) },
+        n, { origem: 'puxado dos lançamentos', criadoPor: eu, criadoEm: agora, alteradoPor: eu, alteradoEm: agora }));
+    });
+    return { acao: 'puxou ' + entram.length + ' fornecedor(es) dos lançamentos' };
+  });
 }
 
 // ---- USUÁRIOS ----
