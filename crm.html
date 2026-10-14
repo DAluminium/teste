@@ -1992,7 +1992,15 @@ async function enviarArquivoPrivado(arquivo,pasta,tipoRecurso){
   fd.append('signature',a.signature);
   fd.append('folder',a.folder);
   fd.append('type',a.type);
-  const up=await fetch('https://api.cloudinary.com/v1_1/'+a.conta+'/'+tipoRecurso+'/upload',{method:'POST',body:fd});
+  let up=await fetch('https://api.cloudinary.com/v1_1/'+a.conta+'/'+tipoRecurso+'/upload',{method:'POST',body:fd});
+  // Arquivo cujo nome nao bate com o conteudo (ex.: foto salva como ".mp4" —
+  // veio assim do Evoluti em 14/10/2026): o servico recusa pelo tipo. Vai
+  // entao como arquivo comum, do jeito que esta, igual ao PDF.
+  if(!up.ok && up.status===400 && tipoRecurso!=='raw'){
+    let t0=''; try{ t0=await up.clone().text(); }catch(e){}
+    if(/unsupported|invalid image|invalid video/i.test(t0))
+      up=await fetch('https://api.cloudinary.com/v1_1/'+a.conta+'/raw/upload',{method:'POST',body:fd});
+  }
   if(!up.ok){
     let t=''; try{ t=await up.text(); }catch(e){}
     throw new Error('Servidor de arquivos recusou ('+up.status+') '+t.slice(0,150));
