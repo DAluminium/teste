@@ -1727,10 +1727,15 @@ function updateSaldosBtn(){
   const role=sessionStorage.getItem('fin-role')||'';
   const btn=document.getElementById('saldos-btn');
   if(btn) btn.style.display=(role==='admin'||role==='gerente')?'flex':'none';
+  // Contas de despesa e Empresas: todos menos a Consulta (pedido do Ander,
+  // 14/10/2026). Saldos iniciais continua so com gerente e admin: mexe no
+  // saldo de todos os bancos de uma vez. A Consulta vem do cracha (o fin-role
+  // de quem entra pelo portal pode ser so 'user').
+  const lanca=!!role && !ehConsulta();
   const cb=document.getElementById('cat-btn');
-  if(cb) cb.style.display=(role==='admin'||role==='gerente')?'flex':'none';
+  if(cb) cb.style.display=lanca?'flex':'none';
   const eb=document.getElementById('emp-btn');
-  if(eb) eb.style.display=(role==='admin'||role==='gerente')?'flex':'none';
+  if(eb) eb.style.display=lanca?'flex':'none';
   const hb=document.getElementById('tab-hist-btn');
   if(hb) hb.style.display=(role==='admin')?'block':'none';
 }
@@ -2492,6 +2497,7 @@ async function toggleCategoria(i){
   await salvarCategorias();
 }
 async function removerCategoria(i){
+  if(recusarExcluir()) return;
   const cats=getCategorias();
   if(usoCategoria(cats[i].id)>0){ alert('Esta conta já tem lançamentos. Use Desativar.'); return; }
   if(!confirm(`Excluir a conta "${cats[i].label}"?`)) return;
@@ -4572,6 +4578,7 @@ function addEmpresa(){
 }
 
 function removerEmpresa(i){
+  if(recusarExcluir()) return;
   lerCamposEmpresas();
   if(empresasEdit.length<2){ alert('É preciso manter ao menos uma empresa — o comprovante sai com os dados dela.'); return; }
   if(!confirm('Remover '+(empresasEdit[i].marca||'esta empresa')+' do cadastro?')) return;
