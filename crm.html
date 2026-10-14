@@ -2150,6 +2150,105 @@ function abrirCadastros(){
   document.getElementById('cad-ov').classList.add('open');
 }
 function fecharCadastros(){ document.getElementById('cad-ov').classList.remove('open'); render(); }
+
+// ---- IMPORTAR DO EVOLUTI (14/10/2026, so o administrador) ----
+// Le a pasta "evoluti-anexos" (Downloads): o _importacao-evoluti.json (montado a
+// partir do relatorio, do historico e da lista de anexos) e os arquivos. Para
+// cada negocio: sobe os anexos (privados, pasta do CRM) e grava o negocio — um
+// por vez, para nao perder tudo se a internet cair. Id fixo ("ev" + numero do
+// Evoluti): rodar de novo PULA o que ja entrou. A opcao "so 3" serve para
+// conferir no ambiente de teste sem subir os 150 MB duas vezes.
+let _imp=null;
+function abrirImportacaoEvoluti(){
+  if(!soAdmin()){ aviso('Só o administrador','A importação é feita só pelo administrador.'); return; }
+  fecharImportacaoEvoluti();
+  const ov=document.createElement('div');
+  ov.id='imp-ov'; ov.className='overlay open'; ov.style.zIndex='270';
+  ov.innerHTML='<div class="modal" style="max-width:560px;height:auto"><div class="modal-head"><div class="modal-title">Importar do Evoluti</div>'+
+    '<button class="x" onclick="fecharImportacaoEvoluti()" title="Fechar">×</button></div><div class="modal-body">'+
+    '<div style="font-size:13px;line-height:1.5;margin-bottom:10px">1. Escolha a pasta <b>evoluti-anexos</b> (em Downloads).</div>'+
+    '<input type="file" id="imp-pasta" webkitdirectory directory multiple onchange="lerPastaEvoluti(event)">'+
+    '<div id="imp-resumo" style="margin-top:12px;font-size:13px;line-height:1.6"></div>'+
+    '<div id="imp-log" style="margin-top:10px;font-size:12px;max-height:260px;overflow:auto;background:var(--gray-1);border-radius:8px;padding:6px 8px;display:none"></div>'+
+    '</div><div class="modal-foot">'+
+    '<label class="marca" style="margin-right:auto;font-size:12.5px"><input type="checkbox" id="imp-so3"> Só 3 negócios (para conferir)</label>'+
+    '<button class="btn btn-outline" onclick="fecharImportacaoEvoluti()">Fechar</button>'+
+    '<button class="btn btn-teal" id="imp-btn" onclick="importarEvoluti()" disabled>Importar</button></div></div>';
+  document.body.appendChild(ov);
+}
+function fecharImportacaoEvoluti(){
+  if(_imp && _imp.rodando){ aviso('Importação em andamento','Espere terminar antes de fechar.'); return; }
+  const ov=document.getElementById('imp-ov'); if(ov) ov.remove();
+}
+async function lerPastaEvoluti(ev){
+  const arqs=[...(ev.target.files||[])];
+  const res=document.getElementById('imp-resumo');
+  const json=arqs.find(function(f){ return f.name==='_importacao-evoluti.json'; });
+  if(!json){ res.innerHTML='<span style="color:var(--red)">Não achei o arquivo <b>_importacao-evoluti.json</b> nesta pasta. Escolha a pasta <b>evoluti-anexos</b>.</span>'; return; }
+  let plano;
+  try{ plano=JSON.parse(await json.text()); }catch(e){ res.textContent='O arquivo de importação está ilegível.'; return; }
+  const porNome={}; arqs.forEach(function(f){ porNome[f.name]=f; });
+  const negocios=Array.isArray(plano.negocios)?plano.negocios:[];
+  const jaTem={}; (dados.oportunidades||[]).forEach(function(o){ jaTem[o.id]=1; });
+  const faltamArquivos=[];
+  negocios.forEach(function(n){ (n.arquivos||[]).forEach(function(a){ if(!porNome[a.arquivo]) faltamArquivos.push(a.arquivo); }); });
+  const novos=negocios.filter(function(n){ return !jaTem[n.id]; });
+  _imp={negocios:negocios, porNome:porNome, rodando:false};
+  res.innerHTML='<b>'+negocios.length+'</b> negócios no arquivo · <b>'+(negocios.length-novos.length)+'</b> já importados · <b>'+novos.length+'</b> a importar<br>'+
+    '<b>'+negocios.reduce(function(s,n){ return s+(n.arquivos||[]).length; },0)+'</b> anexos · <b>'+negocios.reduce(function(s,n){ return s+(n.notas||[]).length; },0)+'</b> registros de histórico'+
+    (faltamArquivos.length?'<br><span style="color:var(--red)">⚠ '+faltamArquivos.length+' arquivo(s) não estão na pasta: '+esc(faltamArquivos.slice(0,3).join(', '))+(faltamArquivos.length>3?'…':'')+'</span>':'');
+  document.getElementById('imp-btn').disabled=!novos.length || !!faltamArquivos.length;
+}
+function logImp(t,cor){
+  const el=document.getElementById('imp-log'); if(!el) return;
+  el.style.display='';
+  const d=document.createElement('div'); d.textContent=t; if(cor) d.style.color=cor;
+  el.appendChild(d); el.scrollTop=el.scrollHeight;
+}
+async function importarEvoluti(){
+  if(!soAdmin()||!_imp||_imp.rodando) return;
+  const jaTem={}; (dados.oportunidades||[]).forEach(function(o){ jaTem[o.id]=1; });
+  let fila=_imp.negocios.filter(function(n){ return !jaTem[n.id]; });
+  if(document.getElementById('imp-so3').checked) fila=fila.slice(0,3);
+  if(!fila.length) return;
+  if(!confirm('Importar '+fila.length+' negócio(s) do Evoluti?\n\nOs anexos sobem um por um; pode levar alguns minutos. Não feche esta tela.')) return;
+  _imp.rodando=true;
+  document.getElementById('imp-btn').disabled=true;
+  let feitos=0;
+  for(const n of fila){
+    try{
+      logImp('▶ '+n.cliente+' ('+(n.arquivos||[]).length+' anexo(s))...');
+      const docs=[];
+      for(const a of (n.arquivos||[])){
+        const f=_imp.porNome[a.arquivo];
+        const ehPdf=(f.type==='application/pdf')||/\.pdf$/i.test(a.nome);
+        const j=await enviarArquivoPrivado(f, PASTA_ARQUIVOS_CRM, ehPdf?'raw':'auto');
+        if(!j||!j.secure_url) throw new Error('o servidor não devolveu o endereço de '+a.nome);
+        docs.push({id:novoId(), nome:a.nome, url:j.secure_url, tamanho:a.tamanho, mime:f.type||'', quem:'Importação do Evoluti', quando:n.criadoEm||agoraISO()});
+      }
+      const ok=await alterar(function(base){
+        if((base.oportunidades||[]).some(function(o){ return o.id===n.id; })) return false;   // ja entrou
+        base.oportunidades.push({
+          id:n.id, evolutiId:n.evolutiId, cliente:n.cliente, vendedor:n.vendedor, vendedorNome:n.vendedorNome,
+          etapa:n.etapa, valor:n.valor, origem:n.origem, cidade:n.cidade, obs:n.obs,
+          telefone:'', email:'', bairro:'', interesse:'', retorno:'', retornoOQue:'',
+          criadoEm:n.criadoEm||agoraISO(), criadoPor:n.criadoPor||'Importação do Evoluti',
+          atualizadoEm:agoraISO(), atualizadoPor:usuario,
+          notas:n.notas||[], docs:docs, autorizaContato:false
+        });
+      },{acao:'importou do Evoluti', alvo:'CRM · '+String(n.cliente).slice(0,80), detalhe:'negócio nº '+n.evolutiId+' · '+docs.length+' anexo(s)'});
+      if(!ok) throw new Error('a gravação não foi confirmada');
+      feitos++;
+      logImp('  ✓ gravado', 'var(--green)');
+    }catch(e){
+      logImp('  ✗ parou aqui: '+e.message, 'var(--red)');
+      break;
+    }
+  }
+  _imp.rodando=false;
+  logImp('Fim: '+feitos+' de '+fila.length+' importado(s).', feitos===fila.length?'var(--green)':'var(--red)');
+  render();
+}
 function emUso(etapaId){ return (dados.oportunidades||[]).filter(function(o){ return o.etapa===etapaId; }).length; }
 function paraLimpar(){
   const corte=somaDias(hojeISO(),-30*MESES_GUARDAR_PERDIDO);
@@ -2190,6 +2289,12 @@ function renderCadastros(){
 
     htmlListaSimples('Como o cliente chega até nós','origens','Nova origem (ex.: Feira)')+
     htmlListaSimples('Motivos de perda','motivosPerda','Novo motivo')+
+
+    // Importacao do Evoluti: so o administrador (14/10/2026).
+    (!soAdmin() ? '' :
+    '<div class="secao">Importar do Evoluti</div>'+
+    '<div class="dica" style="font-size:12.5px;color:var(--gray-5);line-height:1.5;margin-bottom:8px">Traz os negócios, o histórico e os anexos do sistema antigo. Escolha a pasta <b>evoluti-anexos</b> (fica em Downloads). Negócio que já foi importado é pulado.</div>'+
+    '<button class="btn btn-outline btn-sm" onclick="abrirImportacaoEvoluti()">📥 Importar do Evoluti</button>')+
 
     // Limpeza da LGPD: so o administrador ve e aciona (decisao do Ander, 10/10/2026).
     (!soAdmin() ? '' :
