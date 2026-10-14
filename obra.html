@@ -4533,9 +4533,10 @@ function preencherTiposDoc(){
   const el=document.getElementById('f-doc-tipo');
   if(!el) return;
   const antes=el.value;
-  // Contrato e Proposta tem dados do cliente: so o gerente anexa (o Worker
-  // descarta esses tipos vindos de quem nao e gerente).
-  const tipos=tiposDoc().filter(function(t){ return podeGerenciar() || ['contrato','proposta'].indexOf(String(t).toLowerCase())<0; });
+  // Rotulo com a palavra 'contrato' (Contrato, Contrato Assinado...) tem dados
+  // do cliente: so o gerente anexa — o Worker descarta e nao entrega esses
+  // anexos a quem nao e gerente. Proposta e liberada (Ander, 14/10/2026).
+  const tipos=tiposDoc().filter(function(t){ return podeGerenciar() || !/contrato/i.test(String(t)); });
   el.innerHTML=tipos.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
   if(tipos.indexOf(antes)>=0) el.value=antes;
 }
