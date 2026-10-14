@@ -2188,7 +2188,10 @@ function abrirFicha(id){
   document.getElementById('ficha-btn-excluir').style.display=!o.excluido?'':'none';
   document.getElementById('ficha-btn-restaurar').style.display=(gestor&&o.excluido)?'':'none';
   // Limpeza da LGPD e so do administrador (decisao do Ander, 10/10/2026).
-  document.getElementById('ficha-btn-anonimizar').style.display=(soAdmin()&&!o.anonimizadoEm)?'':'none';
+  // "Apagar dados pessoais" saiu da ficha a pedido do Ander (14/10/2026): o
+  // controle dos dados e da empresa, com o cofre. Se um cliente pedir a
+  // exclusao pela LGPD, o Ander avisa e a funcao (apagarDadosPessoais) volta.
+  document.getElementById('ficha-btn-anonimizar').style.display='none';
   document.getElementById('ficha-btn-salvar').style.display=!o.excluido?'':'none';
   travarFicha(!!o.excluido);
   ajustarFichaAoFunil(o);
