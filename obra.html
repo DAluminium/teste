@@ -2170,10 +2170,27 @@ function filtrarStatus(s){
   setView('carteira');
 }
 
+// O que a busca do topo acha no historico. Numero sozinho ("10", "CT 0010")
+// procura o CONTRATO: compara o CT da linha sem os zeros, senao "10" acharia
+// tambem o 0100, o 0210 e qualquer cliente com 10 no nome. Texto procura em
+// quem, o que e em qual contrato.
+function historicoBate(x, busca){
+  if(!busca) return true;
+  const linha=[x.user,x.acao,x.alvo,x.detalhe].join(' ');
+  if(/^\s*(ct)?[\s.-]*\d+\s*$/i.test(busca)){
+    const quero=ctNormal(busca);
+    const achados=linha.match(/CT\s+[0-9A-Za-z-]+/g)||[];
+    return achados.some(function(t){ return ctNormal(t)===quero; });
+  }
+  return linha.toLowerCase().indexOf(busca.toLowerCase())>=0;
+}
 function htmlHistorico(){
-  const h=(dados.historico||[]);
-  if(!h.length) return '<div class="vazio"><div class="vazio-t">Sem histórico</div>Nada foi alterado ainda.</div>';
-  return '<div class="bloco"><div class="bloco-head">Histórico de alterações</div><div class="bloco-body">'+
+  const busca=((document.getElementById('busca')||{}).value||'').trim();
+  const todos=(dados.historico||[]);
+  if(!todos.length) return '<div class="vazio"><div class="vazio-t">Sem histórico</div>Nada foi alterado ainda.</div>';
+  const h=todos.filter(function(x){ return historicoBate(x,busca); });
+  if(!h.length) return '<div class="vazio"><div class="vazio-t">Nada encontrado</div>Nenhuma alteração com "'+esc(busca)+'" no histórico.</div>';
+  return '<div class="bloco"><div class="bloco-head">Histórico de alterações'+(busca?' · '+h.length+' encontrada(s)':'')+'</div><div class="bloco-body">'+
     h.slice(0,300).map(function(x){
       const d=new Date(x.ts);
       const quando=isNaN(d)?'':d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -3310,7 +3327,11 @@ async function salvarClausulaDoContrato(){
     if(!alvo.contrato) alvo.contrato={};
     if(!alvo.contrato.clausulas) alvo.contrato.clausulas={};
     alvo.contrato.clausulas[id]={titulo:titulo, texto:texto};
-  }, {acao:'mudou uma cláusula só deste contrato', alvo:titulo});
+  }, {acao:'mudou uma cláusula só deste contrato', alvo:titulo,
+      // Sem o CT, a linha do historico nao dizia de QUAL contrato era e a
+      // busca pelo numero nao a achava.
+      detalhe:(function(){ const c=(dados.contratos||[]).find(function(x){ return x.id===_contratoId; });
+        return c?'CT '+ctFormatado(c.ct)+' · '+(c.cliente||''):''; })()});
   if(!ok) return;
   fecharClausulaDoContrato();
   montarContrato();
