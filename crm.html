@@ -1156,8 +1156,12 @@ async function carregarVendedores(){
       headers:Object.assign(cabecalhos({}),{'X-Sistema':SISTEMA_USUARIOS})});
     if(!r.ok) return;
     const d=await r.json();
+    // O admin fica de fora (pedido do Ander, 14/10/2026): ele ve tudo e nao
+    // vende. So volta a aparecer se algum negocio estiver em nome dele (ver
+    // vendedoresConhecidos), senao esses negocios sumiriam do filtro.
     _vendedores=((d&&d.usuarios)||[]).filter(function(u){
-      return u && u.active!==false && u.username && Array.isArray(u.modulos) && u.modulos.indexOf('crm')>=0;
+      return u && u.active!==false && u.username && Array.isArray(u.modulos) && u.modulos.indexOf('crm')>=0 &&
+        String(u.role||'').toLowerCase()!=='admin';
     }).map(function(u){ return {u:String(u.username).toLowerCase(), n:u.name||u.username, w:u.whatsapp||''}; });
   }catch(e){}
   preencherFiltroVendedor();
@@ -1172,7 +1176,7 @@ function vendedoresConhecidos(){
   const mapa={};
   _vendedores.forEach(function(v){ mapa[v.u]=v.n; });
   (dados.oportunidades||[]).forEach(function(o){ if(o.vendedor && !mapa[o.vendedor]) mapa[o.vendedor]=o.vendedorNome||o.vendedor; });
-  if(usuarioLogin && !mapa[usuarioLogin]) mapa[usuarioLogin]=usuario;
+  if(usuarioLogin && !mapa[usuarioLogin] && !soAdmin()) mapa[usuarioLogin]=usuario;
   return Object.keys(mapa).map(function(k){ return {u:k,n:mapa[k]}; })
     .sort(function(a,b){ return a.n.localeCompare(b.n,'pt-BR'); });
 }
@@ -1852,7 +1856,10 @@ function preencherSelectsFicha(o){
   if(podeGerenciar()||ehOrcamentista()){
     const l=vendedoresConhecidos().filter(function(v){ return !ehOrcamentista() || v.u!==usuarioLogin; });
     if(o && o.vendedor && !l.some(function(v){ return v.u===o.vendedor; })) l.push({u:o.vendedor,n:o.vendedorNome||o.vendedor});
-    sv.innerHTML=(ehOrcamentista()&&!o?'<option value="">— escolha o vendedor —</option>':'')+
+    // Negocio novo de quem nao esta na lista (o admin): comeca sem vendedor,
+    // para nao cair em nome do primeiro da lista sem ninguem perceber.
+    const semMim=!l.some(function(v){ return v.u===usuarioLogin; });
+    sv.innerHTML=((ehOrcamentista()||semMim)&&!o?'<option value="">— escolha o vendedor —</option>':'')+
       l.map(function(v){ return '<option value="'+esc(v.u)+'">'+esc(v.n)+'</option>'; }).join('');
     // Quem orca escolhe o vendedor so ao cadastrar; depois, nao troca o dono.
     sv.disabled=ehOrcamentista() && !!o;
