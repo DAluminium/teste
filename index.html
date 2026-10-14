@@ -304,13 +304,11 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
           <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           Proteger anexos antigos
         </div>
-        <div class="admin-card" data-so-admin onclick="openSessoes()">
-          <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-          Sessões ativas
-        </div>
-        <div class="admin-card" data-so-admin onclick="openTempoUso()">
-          <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          Tempo de uso
+        <!-- Auditoria (14/10/2026): Sessoes ativas e Tempo de uso foram para la,
+             junto com o caderno de acessos, as senhas erradas e os backups. -->
+        <div class="admin-card" data-so-admin onclick="abrirAuditoria()">
+          <svg class="icon" style="width:18px;height:18px" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Auditoria
         </div>
       </div>
 
@@ -922,7 +920,11 @@ async function fazerLoginWorker(user,senha,codigo){
   const r=await fetch(WORKER_URL,{
     method:'POST',
     cache:'no-store',
-    headers:{'Content-Type':'application/json','X-Action':'login'},
+    // X-Sistema so diz ao Worker o AMBIENTE, para o caderno de acessos anotar
+    // a entrada (ou a senha errada) no lado certo. A lista de usuarios e a
+    // mesma nos dois.
+    headers:{'Content-Type':'application/json','X-Action':'login',
+      'X-Sistema':ambienteDeTeste()?'compras_teste':'compras'},
     body:JSON.stringify({usuario:user,senha:senha,codigo:codigo||''})
   });
   let j=null;
@@ -2405,6 +2407,14 @@ function openManual(){
   document.getElementById('manual-overlay').classList.add('open');
 }
 function closeManual(){ document.getElementById('manual-overlay').classList.remove('open'); }
+
+// ---- AUDITORIA (14/10/2026) ----
+// So o admin ve o cartao, e o Worker confere de novo cada leitura la dentro.
+function abrirAuditoria(){
+  if(recusarSeNaoForAdmin('A auditoria mostra o que cada pessoa fez no sistema.')) return;
+  abrirModulo(ambienteDeTeste() ? 'https://daluminium.github.io/teste/auditoria.html'
+                                : 'https://daluminium.github.io/portal/auditoria.html', 'Auditoria');
+}
 
 let _sessoesRelogio=null;
 function openSessoes(){

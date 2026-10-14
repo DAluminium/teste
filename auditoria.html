@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Auditoria · Daluminium</title>
+<style>
+:root{--teal:#1FB6CF;--teal-dark:#0E8FA6;--teal-light:#E6F8FB;--red:#C0392B;--red-light:#FDF0EE;--amber:#B9770E;--amber-light:#FEF7E6;--amber-mid:#F5D98A;--green:#1A7A45;--green-light:#EDFAF3;--blue:#1F5FA8;--blue-light:#E8F1FB;--gray-1:#F7F8F9;--gray-2:#EEF0F2;--gray-3:#DEE1E5;--gray-4:#9AA1AB;--gray-5:#5A6370;--gray-6:#23282F;--radius:8px;--shadow:0 1px 4px rgba(0,0,0,0.07),0 0 0 0.5px rgba(0,0,0,0.05)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--gray-1);color:var(--gray-6);font-size:14px;min-height:100vh}
+.topbar{background:#3B4A5A;color:white;padding:0 1rem;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:50;box-shadow:0 1px 6px rgba(0,0,0,0.15)}
+.topbar-logo{font-size:16px;font-weight:600;letter-spacing:.04em;display:flex;align-items:center;gap:10px}
+.topbar-logo span{opacity:.75;font-weight:400;font-size:13px}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 14px;border-radius:var(--radius);border:1px solid transparent;font-size:13px;font-family:inherit;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn-ghost{background:rgba(255,255,255,.15);color:white;border-color:rgba(255,255,255,.25)}.btn-ghost:hover{background:rgba(255,255,255,.25)}
+.btn-outline{background:white;color:var(--gray-6);border-color:var(--gray-3)}.btn-outline:hover{background:var(--gray-1)}
+.btn-red{background:var(--red);color:white;border-color:var(--red)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.main{max-width:1200px;margin:0 auto;padding:1rem 1rem 4rem}
+.abas{display:flex;gap:4px;flex-wrap:wrap;background:white;border-radius:10px;padding:4px;box-shadow:var(--shadow);margin-bottom:1rem}
+.aba{padding:8px 12px;border:none;background:transparent;border-radius:7px;font-family:inherit;font-size:13px;cursor:pointer;color:var(--gray-5);font-weight:500}
+.aba.ativa{background:#3B4A5A;color:white}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:1rem}
+.card{background:white;border-radius:10px;box-shadow:var(--shadow);padding:13px 14px;border-left:4px solid var(--gray-3);cursor:pointer}
+.card.ok{border-left-color:var(--green)}.card.alerta{border-left-color:var(--red);background:var(--red-light)}.card.atencao{border-left-color:var(--amber);background:var(--amber-light)}
+.card-n{font-size:22px;font-weight:700;line-height:1.15}
+.card-t{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-5);font-weight:700;margin-top:3px}
+.card-s{font-size:12px;color:var(--gray-5);margin-top:3px;line-height:1.4}
+.caixa{background:white;border-radius:10px;box-shadow:var(--shadow);padding:14px}
+.caixa h2{font-size:15px;margin-bottom:4px}
+.explica{font-size:12.5px;color:var(--gray-5);line-height:1.5;margin-bottom:12px}
+.filtros{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:12.5px}
+.campo{padding:7px 10px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:13px;background:white}
+.busca{flex:1;min-width:200px}
+.tabela-cx{overflow-x:auto}
+table.tab{border-collapse:collapse;width:100%;min-width:640px;font-size:12.5px}
+table.tab th{background:var(--gray-1);text-align:left;padding:8px 10px;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-5);font-weight:700;border-bottom:2px solid var(--gray-3);white-space:nowrap}
+table.tab td{padding:8px 10px;border-bottom:1px solid var(--gray-2);vertical-align:top}
+.rodape{font-size:11.5px;color:var(--gray-4);margin-top:8px}
+.vazio{font-size:13px;color:var(--gray-4);text-align:center;padding:18px 0}
+.erro{font-size:13px;color:var(--red);background:var(--red-light);border-radius:8px;padding:10px 12px}
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap}
+.pill-vermelho{background:var(--red-light);color:var(--red)}.pill-verde{background:var(--green-light);color:var(--green)}.pill-ambar{background:var(--amber-light);color:var(--amber)}.pill-cinza{background:var(--gray-2);color:var(--gray-5)}
+.pessoa{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--gray-1);border-radius:8px;border:1px solid var(--gray-2);margin-bottom:6px}
+.bolinha{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.sub{font-size:11px;color:var(--gray-4)}
+.bloqueio{position:fixed;inset:0;background:white;display:flex;align-items:center;justify-content:center;padding:24px;z-index:200;text-align:center}
+@media (max-width:640px){ .topbar-logo span{display:none} .aba{flex:1 1 45%} }
+</style>
+<script>
+// Marca que esta tela esta aberta DENTRO do portal, para esconder a faixa duplicada.
+try{ if(window.self!==window.top) document.documentElement.classList.add('dentro-do-portal'); }
+catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
+</script>
+</head>
+<body>
+<!-- ================================================================
+     AVISO DE AMBIENTE DE TESTE
+     Este bloco existe SOMENTE nos arquivos de teste. Ao levar um
+     arquivo daqui para producao, ELE PRECISA SAIR — junto com a troca
+     do identificador do sistema.
+     ================================================================ -->
+<div id="faixa-teste">Ambiente de teste &middot; o que voce lancar aqui nao vale</div>
+<style>
+  #faixa-teste{position:fixed;top:0;left:0;right:0;height:30px;z-index:100000;
+    background:repeating-linear-gradient(45deg,#B9770E 0 14px,#8a5a0a 14px 28px);
+    color:#fff;font:700 12px/30px system-ui,-apple-system,"Segoe UI",sans-serif;
+    letter-spacing:.08em;text-align:center;text-transform:uppercase;
+    box-shadow:0 1px 6px rgba(0,0,0,.3);pointer-events:none}
+  body{padding-top:30px}
+  .topbar{top:30px !important;background:#B9770E !important}
+  html.dentro-do-portal #faixa-teste{display:none}
+  html.dentro-do-portal body{padding-top:0}
+  html.dentro-do-portal .topbar{top:0 !important}
+</style>
+
+<div class="bloqueio" id="so-admin" style="display:none">
+  <div style="max-width:420px">
+    <div style="font-size:42px;margin-bottom:12px">&#128274;</div>
+    <h1 style="font-size:19px;margin-bottom:10px">Só o administrador</h1>
+    <p style="font-size:14px;color:var(--gray-5);line-height:1.6;margin-bottom:18px">Esta tela mostra o que cada pessoa fez no sistema.</p>
+    <button class="btn btn-outline" onclick="voltarAoPortal()">Voltar ao portal</button>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="topbar">
+    <div class="topbar-logo">🔎 Auditoria <span id="quem"></span></div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost btn-sm" onclick="voltarAoPortal()">← Portal</button>
+      <button class="btn btn-ghost btn-sm" onclick="sairDaAuditoria()">Sair</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="abas" id="abas">
+      <button class="aba ativa" data-aba="resumo" onclick="irPara('resumo')">Resumo</button>
+      <button class="aba" data-aba="agora" onclick="irPara('agora')">Agora no sistema</button>
+      <button class="aba" data-aba="tempo" onclick="irPara('tempo')">Tempo de uso</button>
+      <button class="aba" data-aba="entradas" onclick="irPara('entradas')">Entradas</button>
+      <button class="aba" data-aba="senhas" onclick="irPara('senhas')">Senhas erradas</button>
+      <button class="aba" data-aba="acessos" onclick="irPara('acessos')">Quem abriu o quê</button>
+      <button class="aba" data-aba="backups" onclick="irPara('backups')">Backups</button>
+      <button class="aba" data-aba="vistoria" onclick="irPara('vistoria')">Vistoria</button>
+    </div>
+
+    <!-- RESUMO -->
+    <section id="v-resumo">
+      <div class="cards" id="resumo-cards"><div class="vazio">Carregando...</div></div>
+      <div class="caixa">
+        <h2>Como ler esta tela</h2>
+        <p class="explica" style="margin:0">
+          O <b>caderno</b> guarda por 5 anos quem entrou, quem errou a senha e quem abriu contrato ou negócio.
+          Ninguém consegue apagar nem alterar o que está nele, nem o administrador.
+          Os <b>backups</b> são as cópias de segurança do banco, guardadas por 90 dias.
+          Cartão vermelho quer dizer que vale olhar.
+        </p>
+      </div>
+    </section>
+
+    <!-- AGORA NO SISTEMA (veio do portal, 14/10/2026) -->
+    <section id="v-agora" style="display:none">
+      <div class="caixa">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
+          <h2>Quem está no sistema agora</h2>
+          <button class="btn btn-outline btn-sm" onclick="carregarAgora()">Atualizar</button>
+        </div>
+        <p class="explica">Atualiza sozinha a cada 10 segundos enquanto esta aba estiver aberta. Bolinha verde: mexeu nos últimos 10 minutos. Quem fica 1 hora sem mexer sai da lista sozinho.</p>
+        <div id="agora-lista" class="vazio">Carregando...</div>
+      </div>
+    </section>
+
+    <!-- TEMPO DE USO (veio do portal, 14/10/2026) -->
+    <section id="v-tempo" style="display:none">
+      <div class="caixa">
+        <h2>Tempo de uso</h2>
+        <p class="explica">Quanto tempo cada pessoa passou em cada módulo. Guarda as últimas 500 sessões encerradas.</p>
+        <div class="filtros">
+          <select id="tempo-periodo" class="campo" onchange="carregarTempo()">
+            <option value="hoje">Hoje</option>
+            <option value="7" selected>Últimos 7 dias</option>
+            <option value="30">Últimos 30 dias</option>
+            <option value="tudo">Tudo o que está guardado</option>
+          </select>
+          <button class="btn btn-outline btn-sm" onclick="carregarTempo()">Atualizar</button>
+        </div>
+        <div id="tempo-lista" class="vazio">Carregando...</div>
+      </div>
+    </section>
+
+    <!-- AS TRES VISTAS DO CADERNO: entradas, senhas erradas, quem abriu o que -->
+    <section id="v-caderno" style="display:none">
+      <div class="caixa">
+        <h2 id="cad-titulo"></h2>
+        <p class="explica" id="cad-explica"></p>
+        <div class="filtros">
+          <label>De <input type="date" id="cad-de" class="campo"></label>
+          <label>Até <input type="date" id="cad-ate" class="campo"></label>
+          <button class="btn btn-outline btn-sm" onclick="carregarCaderno()">Buscar no período</button>
+          <button class="btn btn-outline btn-sm" onclick="limparDatas()">Limpar datas</button>
+        </div>
+        <div class="filtros">
+          <input id="cad-busca" class="campo busca" placeholder="Filtrar por pessoa, contrato, negócio..." oninput="desenharCaderno()">
+        </div>
+        <div id="cad-lista" class="vazio">Carregando...</div>
+      </div>
+    </section>
+
+    <!-- BACKUPS -->
+    <section id="v-backups" style="display:none">
+      <div class="caixa">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
+          <h2>Backups</h2>
+          <button class="btn btn-outline btn-sm" onclick="carregarBackups(true)">Atualizar</button>
+        </div>
+        <p class="explica">Cada linha é uma rodada de backup: quando foi, por que, e quantos registros copiou. Aqui só aparece a lista; o conteúdo dos backups não sai do banco.</p>
+        <div id="bk-situacao"></div>
+        <div id="bk-lista" class="vazio">Carregando...</div>
+      </div>
+    </section>
+
+    <!-- VISTORIA (a mesma da rotina semanal, feita na hora pelo navegador) -->
+    <section id="v-vistoria" style="display:none">
+      <div class="caixa">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+          <h2>Vistoria de segurança e LGPD</h2>
+          <button class="btn btn-outline btn-sm" id="vis-btn" onclick="rodarVistoria()">Fazer a vistoria agora</button>
+        </div>
+        <p class="explica">
+          Confere, de fora e <b>sem login</b>, se o sistema entrega algum dado a quem não entrou; procura CPF, CNPJ,
+          telefone, e-mail e senha nos arquivos públicos do GitHub; e confere se cada módulo apaga os dados do computador ao sair.
+          Só olha, não altera nada. Leva cerca de um minuto.
+          A rotina de toda semana faz o mesmo e ainda olha o que foi publicado nos últimos 8 dias.
+        </p>
+        <div id="vis-resultado"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+// ================= CONFIG =================
+const WORKER='https://daluminium-api.daluminium2.workers.dev';
+// Esta tela nao tem registro proprio: o nome so diz ao Worker em que AMBIENTE
+// ela esta (o caderno separa teste de producao pelo final '_teste').
+// ATENCAO: ao levar para producao muda para 'compras'.
+const SUPA_SISTEMA='compras_teste';
+const PORTAL_URL='https://daluminium.github.io/teste/';
+const AMBIENTE=/_teste$/.test(SUPA_SISTEMA) ? 'teste' : 'producao';
+const TOKEN_KEY='dalum-token';
+
+// ---- ONDE O CRACHA FICA GUARDADO ----
+// O cracha do ADMIN fica so na ABA; o dos demais, no navegador. Igual aos modulos.
+function loginGuardaLer(chave){
+  try{ const v=sessionStorage.getItem(chave); if(v!==null) return v; }catch(e){}
+  try{ return localStorage.getItem(chave); }catch(e){ return null; }
+}
+function loginGuardaApagar(chave){
+  let meu=null;
+  try{ meu=sessionStorage.getItem(chave); }catch(e){}
+  try{ sessionStorage.removeItem(chave); }catch(e){}
+  try{
+    if(meu===null || localStorage.getItem(chave)===meu) localStorage.removeItem(chave);
+  }catch(e){}
+}
+
+// LGPD: ao sair, apaga a copia dos dados guardada no navegador — de TODOS os
+// modulos, porque todos dividem o mesmo armazenamento.
+const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra','dalum-crm','dalum-crm-para-obra',
+  'portal-admin-passes','dalum-admin-passes','fin-admin-passes'];
+function apagarDadosLocais(){
+  DADOS_LOCAIS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+}
+
+function b64urlParaTexto(s){
+  const b64=s.replace(/-/g,'+').replace(/_/g,'/');
+  const bin=atob(b64+'==='.slice((b64.length+3)%4));
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+function lerToken(){
+  try{
+    const t=loginGuardaLer(TOKEN_KEY);
+    if(!t) return null;
+    const partes=t.split('.');
+    if(partes.length!==2) return null;
+    const d=JSON.parse(b64urlParaTexto(partes[0]));
+    if(!d||!d.exp||Date.now()>=d.exp) return null;
+    return {token:t,dados:d};
+  }catch(e){ return null; }
+}
+function cabecalhos(sistema, extra){
+  const h=Object.assign({'X-Sistema':sistema||SUPA_SISTEMA,'Content-Type':'application/json'},extra||{});
+  const t=lerToken();
+  if(t) h['Authorization']='Bearer '+t.token;
+  return h;
+}
+
+// Todas as leituras desta tela passam por aqui. O Worker confere de novo se
+// e o admin: esconder a tela nao e fechadura.
+async function pedir(acao, corpo, sistema){
+  const r=await fetch(WORKER,{method:'POST',cache:'no-store',
+    headers:cabecalhos(sistema,{'X-Action':acao}),body:JSON.stringify(corpo||{})});
+  let j=null; try{ j=await r.json(); }catch(e){}
+  if(r.status===401){ sessaoExpirada(); throw new Error('O acesso venceu'); }
+  // O Worker publicado ainda nao conhece esta acao (ela entra junto com esta tela).
+  if(r.status===405) throw new Error('esta parte ainda não está no Worker publicado no Cloudflare');
+  if(!r.ok) throw new Error((j&&(j.erro||j.mensagem))||('erro '+r.status));
+  return j||{};
+}
+
+function sessaoExpirada(){
+  if(window.__expirou) return; window.__expirou=true;
+  loginGuardaApagar(TOKEN_KEY); loginGuardaApagar('dalum-sso'); apagarDadosLocais();
+  alert('O acesso vale 8 horas e o seu venceu. Vamos voltar para a tela de entrada.');
+  if(window.self!==window.top){ try{ window.parent.postMessage('logout','*'); }catch(e){} return; }
+  location.replace(PORTAL_URL);
+}
+function voltarAoPortal(){
+  if(window.self!==window.top){ window.parent.postMessage('voltarPortal','*'); return; }
+  location.href=PORTAL_URL;
+}
+function sairDaAuditoria(){
+  if(!confirm('Deseja sair do sistema?')) return;
+  loginGuardaApagar(TOKEN_KEY); loginGuardaApagar('dalum-sso'); apagarDadosLocais();
+  if(window.self!==window.top){ window.parent.postMessage('logout','*'); return; }
+  location.replace(PORTAL_URL);
+}
+
+// ---- AVISO DE VERSAO NOVA (igual aos modulos) ----
+let _versaoQuandoAbriu=null, _avisouVersao=false;
+async function conferirVersao(){
+  if(_avisouVersao) return;
+  const base=(AMBIENTE==='teste')?'https://daluminium.github.io/teste/versao.json':'https://daluminium.github.io/portal/versao.json';
+  let v=null;
+  try{ const r=await fetch(base+'?t='+Date.now(),{cache:'no-store'}); if(!r.ok) return; v=(await r.json()).versao; }catch(e){ return; }
+  if(!v) return;
+  if(_versaoQuandoAbriu===null){ _versaoQuandoAbriu=v; return; }
+  if(v===_versaoQuandoAbriu) return;
+  _avisouVersao=true;
+  if(confirm('Saiu uma versão nova do sistema. Atualizar agora?')){
+    if(window.self!==window.top){ window.parent.postMessage('atualizar-versao','*'); return; }
+    location.replace(location.pathname+'?v='+encodeURIComponent(v));
+  }
+}
+setTimeout(conferirVersao,1500);
+setInterval(conferirVersao,5*60*1000);
+
+// ================= AJUDAS =================
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function dataHora(t){ try{ return new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return String(t||''); } }
+function hora(t){ return new Date(t).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+function diaCurto(t){ return new Date(t).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}); }
+// AAAA-MM-DD de hoje menos n dias, no relogio de quem esta olhando.
+function diaISO(menosDias){
+  const d=new Date(Date.now()-(menosDias||0)*86400000);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+// "3h12" em vez de "192 minutos".
+function duracaoTexto(minutos){
+  const m=Math.max(0,Math.round(minutos||0));
+  if(m<1) return 'menos de 1 min';
+  if(m<60) return m+' min';
+  const h=Math.floor(m/60), r=m%60;
+  return h+'h'+(r?String(r).padStart(2,'0'):'');
+}
+const MODULO_ROTULO={compras:'🛒 Compras',financeiro:'💰 Financeiro',portal:'🏠 Portal',fabrica:'🏭 Fábrica',obra:'📋 Obra',crm:'🤝 CRM'};
+// Os nomes que o Worker grava no caderno, sem acento, e como aparecem aqui.
+const ACAO_ROTULO={
+  'entrou no sistema':'Entrou no sistema',
+  'senha errada':'Senha errada',
+  'codigo do autenticador errado':'Código do autenticador errado',
+  'barrado por muitas tentativas':'Barrado: muitas tentativas'
+};
+function rotuloDaAcao(a){ return ACAO_ROTULO[a]||a||'—'; }
+
+// ================= ABAS =================
+let abaAtual='resumo', _relogioAgora=null;
+const CADERNO_VISTAS={
+  entradas:{titulo:'Entradas no sistema',grupo:'entradas',
+    explica:'Cada vez que alguém entrou com usuário e senha. O "endereço" é a internet de onde a pessoa entrou, embaralhado: não mostra onde ela está, mas dá para ver se duas entradas vieram do mesmo lugar.'},
+  senhas:{titulo:'Senhas erradas',grupo:'senhas',
+    explica:'Tentativas de entrar que falharam. Quando o nome digitado não é de ninguém cadastrado, ele não fica anotado, porque pode ser a senha digitada no lugar errado. Muitas falhas seguidas do mesmo endereço podem ser alguém tentando adivinhar.'},
+  acessos:{titulo:'Quem abriu o quê',grupo:'acessos',
+    explica:'Quem abriu a ficha de um contrato, gerou ou baixou o contrato, abriu um negócio do CRM ou baixou a planilha do relatório.'}
+};
+function irPara(aba){
+  abaAtual=aba;
+  document.querySelectorAll('.aba').forEach(function(b){ b.classList.toggle('ativa',b.dataset.aba===aba); });
+  ['resumo','agora','tempo','caderno','backups','vistoria'].forEach(function(v){
+    const el=document.getElementById('v-'+v);
+    if(el) el.style.display=(v===aba||(v==='caderno'&&CADERNO_VISTAS[aba]))?'':'none';
+  });
+  if(_relogioAgora){ clearInterval(_relogioAgora); _relogioAgora=null; }
+  if(aba==='resumo') carregarResumo();
+  if(aba==='agora'){ carregarAgora(); _relogioAgora=setInterval(carregarAgora,10000); }
+  if(aba==='tempo') carregarTempo();
+  if(aba==='backups') carregarBackups(false);
+  if(aba==='vistoria' && !document.getElementById('vis-resultado').innerHTML)
+    document.getElementById('vis-resultado').innerHTML='<div class="vazio">Clique em "Fazer a vistoria agora".</div>';
+  if(CADERNO_VISTAS[aba]){
+    const v=CADERNO_VISTAS[aba];
+    document.getElementById('cad-titulo').textContent=v.titulo;
+    document.getElementById('cad-explica').textContent=v.explica;
+    document.getElementById('cad-busca').value='';
+    carregarCaderno();
+  }
+}
+
+// ================= O CADERNO =================
+let _caderno={lista:[],total:0,caderno:false};
+// Sem a marca 'caderno', quem respondeu foi o Worker antigo, com a lista de
+// 4.000 misturada: as vistas mostrariam a mesma coisa com titulo errado.
+async function lerDoCaderno(corpo){
+  const j=await pedir('ler-acessos',corpo);
+  if(!j.caderno) throw new Error('o caderno de acessos ainda não está ligado no Worker publicado no Cloudflare');
+  return j;
+}
+function limparDatas(){ document.getElementById('cad-de').value=''; document.getElementById('cad-ate').value=''; carregarCaderno(); }
+async function carregarCaderno(){
+  const v=CADERNO_VISTAS[abaAtual]; if(!v) return;
+  const alvo=document.getElementById('cad-lista');
+  alvo.className='vazio'; alvo.textContent='Carregando...';
+  try{
+    const j=await lerDoCaderno({quantos:2000,grupo:v.grupo,
+      de:document.getElementById('cad-de').value||'',ate:document.getElementById('cad-ate').value||''});
+    _caderno={lista:Array.isArray(j.lista)?j.lista:[],total:j.total||0,caderno:true};
+    desenharCaderno();
+  }catch(e){ mostrarErro(alvo,e); }
+}
+function desenharCaderno(){
+  const v=CADERNO_VISTAS[abaAtual]; if(!v) return;
+  const alvo=document.getElementById('cad-lista');
+  const busca=String(document.getElementById('cad-busca').value||'').toLowerCase().trim();
+  const lista=_caderno.lista.filter(function(x){
+    if(!busca) return true;
+    return [x.n,x.u,x.a,rotuloDaAcao(x.a),x.alvo].join(' ').toLowerCase().indexOf(busca)>=0;
+  });
+  if(!lista.length){
+    alvo.className='vazio';
+    alvo.textContent='Nada anotado'+(busca?' com esse filtro':' neste período')+'.';
+    return;
+  }
+  const corDaAcao=function(a){
+    if(a==='entrou no sistema') return 'pill-verde';
+    if(a==='barrado por muitas tentativas') return 'pill-vermelho';
+    if(a==='senha errada'||a==='codigo do autenticador errado') return 'pill-ambar';
+    return 'pill-cinza';
+  };
+  alvo.className='';
+  alvo.innerHTML='<div class="tabela-cx"><table class="tab"><thead><tr><th>Quando</th><th>Quem</th><th>O que</th><th>Onde</th></tr></thead><tbody>'+
+    lista.map(function(x){
+      return '<tr><td style="white-space:nowrap">'+esc(dataHora(x.t))+'</td>'+
+        '<td>'+esc(x.n||'')+(x.u&&x.u!==x.n?' <span class="sub">('+esc(x.u)+')</span>':'')+(!x.n&&!x.u?'—':'')+'</td>'+
+        '<td><span class="pill '+corDaAcao(x.a)+'">'+esc(rotuloDaAcao(x.a))+'</span>'+(x.antiga?' <span class="sub">(lista antiga)</span>':'')+'</td>'+
+        '<td>'+esc(x.alvo||'—')+'</td></tr>';
+    }).join('')+'</tbody></table></div>'+
+    '<div class="rodape">'+lista.length+' de '+_caderno.lista.length+' mostrados'+
+      (_caderno.total?' · '+_caderno.total+' no total para esta busca':'')+
+      (_caderno.lista.length<_caderno.total?' · mostra os 2.000 mais recentes; para ver os mais antigos, use as datas':'')+'.</div>';
+}
+
+// ================= AGORA NO SISTEMA =================
+// A lista de sessoes e UMA SO para teste e producao; cada sessao diz o ambiente.
+let _sessoes=null;
+async function lerSessoes(){
+  _sessoes=await pedir('sessao-lista',{ambiente:AMBIENTE},'sessions');
+  return _sessoes;
+}
+async function carregarAgora(){
+  const alvo=document.getElementById('agora-lista');
+  try{
+    const d=await lerSessoes();
+    const ativas=(d.ativas||[]).filter(function(s){ return Date.now()-s.ts<60*60*1000; });
+    if(!ativas.length){ alvo.className='vazio'; alvo.textContent='Ninguém no sistema agora.'; return; }
+    // Uma linha por pessoa (pelo nome) e ambiente, com o ultimo lugar onde ela deu sinal.
+    const porPessoa={};
+    ativas.forEach(function(s){
+      const amb=s.ambiente||'producao';
+      const chave=(s.nome||s.username||'').toLowerCase().replace(/\s+/g,' ').trim()+'|'+amb;
+      const g=porPessoa[chave]||(porPessoa[chave]={ultima:s,inicio:s.inicio||s.ts,ids:[],ambiente:amb});
+      if(s.ts>g.ultima.ts) g.ultima=s;
+      g.inicio=Math.min(g.inicio,s.inicio||s.ts);
+      if(g.ids.indexOf(s.sessionId)<0) g.ids.push(s.sessionId);
+    });
+    const pessoas=Object.values(porPessoa).sort(function(a,b){ return b.ultima.ts-a.ultima.ts; });
+    alvo.className='';
+    alvo.innerHTML=pessoas.map(function(g,i){
+      const s=g.ultima;
+      const min=Math.floor((Date.now()-s.ts)/60000);
+      const recente=min<=10;
+      const tempo=min<1?'agora mesmo':(min===1?'há 1 minuto':'há '+min+' minutos');
+      return '<div class="pessoa"><div class="bolinha" style="background:'+(recente?'var(--green)':'var(--amber)')+'"></div>'+
+        '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px">'+esc(s.nome||s.username)+'</div>'+
+        '<div class="sub">'+esc(MODULO_ROTULO[s.sistema]||s.sistema||'')+' · '+(recente?'ativo '+tempo:'<span style="color:var(--amber)">sem sinal '+tempo+'</span>')+
+          (g.ambiente==='teste'?' · <span style="color:var(--amber)">ambiente de teste</span>':'')+'</div>'+
+        '<div class="sub">Operando há <b>'+duracaoTexto((Date.now()-g.inicio)/60000)+'</b> · entrou às '+hora(g.inicio)+'</div></div>'+
+        '<button class="btn btn-red btn-sm" data-i="'+i+'">Deslogar</button></div>';
+    }).join('');
+    alvo.querySelectorAll('button[data-i]').forEach(function(b){
+      const g=pessoas[Number(b.dataset.i)];
+      b.onclick=function(){ deslogar(g.ids, g.ultima.nome||g.ultima.username); };
+    });
+  }catch(e){ mostrarErro(alvo,e); }
+}
+async function deslogar(ids, nome){
+  if(!confirm('Deslogar '+nome+'? A pessoa volta para a tela de entrada.')) return;
+  try{
+    await pedir('sessao-derrubar',{ambiente:AMBIENTE,ids:ids},'sessions');
+    alert(nome+' vai ser desconectado(a) assim que a tela der sinal, em poucos segundos.\n\n'+
+      'Se o computador estiver suspenso ou o navegador fechado, acontece quando ele voltar.');
+    setTimeout(carregarAgora,2000);
+  }catch(e){ alert('Não consegui deslogar: '+e.message); }
+}
+
+// ================= TEMPO DE USO =================
+function motivoTexto(motivo){
+  if(motivo==='parou') return '<span style="color:var(--amber)">• parou de usar</span>';
+  if(motivo==='deslogado') return '<span style="color:var(--red)">• deslogado</span>';
+  if(motivo==='outro-login') return '<span style="color:var(--red)">• entrou em outro lugar</span>';
+  return '';
+}
+async function carregarTempo(){
+  const alvo=document.getElementById('tempo-lista');
+  alvo.className='vazio'; alvo.textContent='Carregando...';
+  try{
+    const d=await lerSessoes();
+    const periodo=document.getElementById('tempo-periodo').value;
+    let desde=0;
+    if(periodo==='hoje'){ const h=new Date(); h.setHours(0,0,0,0); desde=h.getTime(); }
+    else if(periodo==='7') desde=Date.now()-7*86400000;
+    else if(periodo==='30') desde=Date.now()-30*86400000;
+    const agora=Date.now();
+    const periodos=[]
+      .concat((d.encerradas||[]).map(function(s){ return {nome:s.nome,sistema:s.sistema,inicio:s.inicio,fim:s.fim,minutos:s.minutos,motivo:s.motivo,aberta:false}; }))
+      .concat((d.ativas||[]).map(function(s){ return {nome:s.nome,sistema:s.sistema,inicio:s.inicio||s.ts,fim:agora,minutos:Math.round((agora-(s.inicio||s.ts))/60000),motivo:'',aberta:true}; }))
+      .filter(function(p){ return p.inicio>=desde; });
+    if(!periodos.length){ alvo.className='vazio'; alvo.textContent='Nada registrado neste período.'; return; }
+    const porPessoa={};
+    periodos.forEach(function(p){
+      const n=p.nome||'—';
+      const g=porPessoa[n]||(porPessoa[n]={total:0,modulos:{},periodos:[]});
+      g.total+=p.minutos||0;
+      g.modulos[p.sistema]=(g.modulos[p.sistema]||0)+(p.minutos||0);
+      g.periodos.push(p);
+    });
+    const nomes=Object.keys(porPessoa).sort(function(a,b){ return porPessoa[b].total-porPessoa[a].total; });
+    alvo.className='';
+    alvo.innerHTML=nomes.map(function(n){
+      const p=porPessoa[n];
+      const mods=Object.keys(p.modulos).sort(function(a,b){ return p.modulos[b]-p.modulos[a]; })
+        .map(function(m){ return '<span class="pill pill-cinza">'+esc(MODULO_ROTULO[m]||m)+' '+duracaoTexto(p.modulos[m])+'</span>'; }).join(' ');
+      const linhas=p.periodos.sort(function(a,b){ return b.inicio-a.inicio; }).map(function(x){
+        return '<div class="sub" style="padding:2px 0">'+diaCurto(x.inicio)+' · '+hora(x.inicio)+' → '+(x.aberta?'agora':hora(x.fim))+' · '+
+          esc(MODULO_ROTULO[x.sistema]||x.sistema)+' · <b>'+duracaoTexto(x.minutos)+'</b> '+
+          (x.aberta?'<span style="color:var(--green)">• em andamento</span>':motivoTexto(x.motivo))+'</div>';
+      }).join('');
+      return '<div class="pessoa" style="display:block"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
+        '<b style="font-size:13px">'+esc(n)+'</b><b style="color:var(--green)">'+duracaoTexto(p.total)+'</b></div>'+
+        '<div style="margin:6px 0;display:flex;gap:5px;flex-wrap:wrap">'+mods+'</div>'+
+        '<details><summary class="sub" style="cursor:pointer">ver os '+p.periodos.length+' período(s)</summary>'+linhas+'</details></div>';
+    }).join('')+'<div class="rodape">'+periodos.length+' período(s).</div>';
+  }catch(e){ mostrarErro(alvo,e); }
+}
+
+// ================= BACKUPS =================
+let _backups=null;
+// Junta as linhas da mesma rodada: mesma origem, no mesmo minuto.
+function rodadasDeBackup(lista){
+  const rodadas=[];
+  lista.forEach(function(b){
+    const t=new Date(b.created_at).getTime();
+    const r=rodadas.find(function(x){ return x.origem===b.origem && Math.abs(x.t-t)<60000; });
+    if(r) r.registros.push(b.sistema);
+    else rodadas.push({t:t,origem:b.origem||'',registros:[b.sistema]});
+  });
+  return rodadas.sort(function(a,b){ return b.t-a.t; });
+}
+async function lerBackups(forcar){
+  if(_backups&&!forcar) return _backups;
+  _backups=await pedir('ler-backups',{});
+  return _backups;
+}
+async function carregarBackups(forcar){
+  const alvo=document.getElementById('bk-lista'), sit=document.getElementById('bk-situacao');
+  alvo.className='vazio'; alvo.textContent='Carregando...'; sit.innerHTML='';
+  try{
+    const d=await lerBackups(forcar);
+    const rodadas=rodadasDeBackup(d.lista||[]);
+    const s=situacaoDoBackup(rodadas);
+    sit.innerHTML='<div class="cards" style="margin-bottom:12px">'+
+      '<div class="card '+s.classe+'" style="cursor:default"><div class="card-n">'+esc(s.titulo)+'</div><div class="card-t">Último backup</div><div class="card-s">'+esc(s.texto)+'</div></div>'+
+      '<div class="card" style="cursor:default"><div class="card-n">'+(d.total!=null?d.total:'—')+'</div><div class="card-t">Cópias guardadas</div><div class="card-s">'+
+        (d.maisAntigo?'A mais antiga é de '+esc(dataHora(d.maisAntigo))+'.':'')+' Guarda 90 dias.</div></div></div>';
+    if(!rodadas.length){ alvo.className='vazio'; alvo.textContent='Nenhum backup encontrado.'; return; }
+    alvo.className='';
+    alvo.innerHTML='<div class="tabela-cx"><table class="tab"><thead><tr><th>Quando</th><th>Por quê</th><th>Registros copiados</th></tr></thead><tbody>'+
+      rodadas.map(function(r){
+        return '<tr><td style="white-space:nowrap">'+esc(dataHora(r.t))+'</td><td>'+esc(r.origem||'—')+'</td>'+
+          '<td><b>'+r.registros.length+'</b> <span class="sub">'+esc(r.registros.slice().sort().join(', '))+'</span></td></tr>';
+      }).join('')+'</tbody></table></div>'+
+      '<div class="rodape">Mostra as rodadas dos últimos dias (até 600 cópias).</div>';
+  }catch(e){ mostrarErro(alvo,e); }
+}
+// Backup automatico roda 2 ou 3 vezes por dia: mais de 14 horas sem nenhum
+// e sinal de que parou (como em 14/10/2026, quando parou em silencio).
+function situacaoDoBackup(rodadas){
+  if(!rodadas.length) return {classe:'alerta',titulo:'Nenhum',texto:'Não achei nenhum backup. Peça ao Claude para investigar.'};
+  const ultimo=rodadas[0];
+  const horas=(Date.now()-ultimo.t)/3600000;
+  const quando=dataHora(ultimo.t)+' ('+(ultimo.origem||'sem motivo')+', '+ultimo.registros.length+' registros)';
+  if(horas>14) return {classe:'alerta',titulo:'Há '+Math.floor(horas)+' horas',texto:'O último foi em '+quando+'. Parece que o backup automático parou. Peça ao Claude para investigar.'};
+  return {classe:'ok',titulo:'Há '+(horas<1?'menos de 1 hora':Math.floor(horas)+'h'),texto:'Em '+quando+'.'};
+}
+
+// ================= RESUMO =================
+async function carregarResumo(){
+  const alvo=document.getElementById('resumo-cards');
+  alvo.innerHTML='<div class="vazio">Carregando...</div>';
+  const cartao=function(classe,n,t,s,aba){
+    return '<div class="card '+classe+'" onclick="irPara(\''+aba+'\')"><div class="card-n">'+esc(n)+'</div><div class="card-t">'+esc(t)+'</div><div class="card-s">'+esc(s)+'</div></div>';
+  };
+  const partes=await Promise.all([
+    lerBackups(true).then(function(d){
+      const s=situacaoDoBackup(rodadasDeBackup(d.lista||[]));
+      return cartao(s.classe,s.titulo,'Último backup',s.texto,'backups');
+    }).catch(function(e){ return cartao('alerta','?','Último backup','Não consegui ler: '+e.message,'backups'); }),
+    lerDoCaderno({quantos:2000,grupo:'senhas',de:diaISO(7)}).then(function(j){
+      const lista=j.lista||[];
+      const barrados=lista.filter(function(x){ return x.a==='barrado por muitas tentativas'; }).length;
+      const n=j.total||lista.length;
+      return cartao(barrados?'alerta':(n>=10?'atencao':'ok'),String(n),'Senhas erradas · 7 dias',
+        barrados?barrados+' vez(es) alguém foi barrado por errar demais.':(n?'Confira se foi engano de quem trabalha aqui.':'Nenhuma.'),'senhas');
+    }).catch(function(e){ return cartao('alerta','?','Senhas erradas',e.message,'senhas'); }),
+    lerDoCaderno({quantos:2000,grupo:'entradas',de:diaISO(0)}).then(function(j){
+      const pessoas={}; (j.lista||[]).forEach(function(x){ pessoas[x.u||x.n]=1; });
+      return cartao('','' + (j.total||0),'Entradas hoje',Object.keys(pessoas).length+' pessoa(s) diferente(s).','entradas');
+    }).catch(function(e){ return cartao('alerta','?','Entradas hoje',e.message,'entradas'); }),
+    lerSessoes().then(function(d){
+      const n=(d.ativas||[]).filter(function(s){ return Date.now()-s.ts<10*60*1000; })
+        .reduce(function(acc,s){ acc[(s.nome||s.username||'')+'|'+(s.ambiente||'producao')]=1; return acc; },{});
+      return cartao('',String(Object.keys(n).length),'No sistema agora','Mexeram nos últimos 10 minutos.','agora');
+    }).catch(function(e){ return cartao('alerta','?','No sistema agora',e.message,'agora'); }),
+    lerDoCaderno({quantos:2000,grupo:'acessos',de:diaISO(7)}).then(function(j){
+      const baixou=(j.lista||[]).filter(function(x){ return /baixou/.test(x.a||''); }).length;
+      return cartao('',String(j.total||0),'Aberturas · 7 dias',baixou+' download(s) de contrato ou planilha.','acessos');
+    }).catch(function(e){ return cartao('alerta','?','Quem abriu o quê',e.message,'acessos'); })
+  ]);
+  alvo.innerHTML=partes.join('');
+}
+
+// ================= VISTORIA =================
+// A mesma conferencia da rotina semanal (vistoria-semanal-seguranca), feita
+// pelo navegador. NUNCA manda cracha: o ponto e ver o que sai sem login.
+// Os textos procurados sao montados em pedacos para esta propria pagina, que
+// tambem e publica, nao acusar a si mesma.
+const VIS_ORG='DAluminium';
+const VIS_REPOS=['portal','gestaodecompras','financeiro','obra','fabrica','crm','teste'];
+const VIS_COM_CRACHA=['compras','financeiro','fabrica','obra','crm','cadastros','compras_teste','financeiro_teste',
+  'fabrica_teste','obra_teste','crm_teste','cadastros_teste','sessions','lembretes','lembretes_teste'];
+const VIS_RECUSADOS=['senhas','senhas_teste','login_bloqueio','acessos','crm_teste&select=data','CRM','cadastro_teste','nome_inventado'];
+// As acoes do Worker (fora o login). Acao nova no Worker: acrescentar aqui.
+const VIS_ACOES=['definir-senha','anotar-acesso','ler-acessos','ler-backups','sessao-entrar','sessao-sinal','sessao-sair',
+  'sessao-outras','sessao-lista','sessao-derrubar','assinar-envio','abrir-anexo','proteger-anexos','varrer-anexos','excluir-anexo'];
+// Ja conhecidos e aceitos: exemplos de campo, CNPJ e e-mail das proprias empresas.
+const VIS_ACEITOS=['69 99999-9999','69999999999','000.000.000-00','00.000.000/0000-00','17.183.753/0001-82','22.714.305/0001-06',
+  'financeirodaluminio@gmail.com','cliente@email.com','vendas@fornecedor.com.br'];
+// Arquivos que ja existem de proposito e nao sao alerta.
+const VIS_ARQUIVOS_OK=['teste/criar-fabrica-teste.sql','teste/dar-id-aos-registros-compras.sql','portal/versao.json','teste/versao.json'];
+const VIS_TIPOS_PERIGOSOS=/\.(sql|csv|xlsx|xls|pdf|txt|json|env)$/i;
+function visPadroes(){
+  const segredos=['sb_'+'secret_','sk_'+'live','eyJhbGci'+'Oi','-----'+'BEGIN','api_'+'secret'];
+  const constantes=['SUPA_SECRET','TOKEN_SECRET','SENHA_PIMENTA','ADMIN_TOTP','ADMIN_ANDER','ADMIN_ARETUSA','CHAVE_COFRE'];
+  return [
+    {tipo:'CPF',re:new RegExp('[0-9]{3}\\.[0-9]{3}\\.[0-9]{3}-[0-9]{2}','g')},
+    {tipo:'CNPJ',re:new RegExp('[0-9]{2}\\.[0-9]{3}\\.[0-9]{3}/[0-9]{4}-[0-9]{2}','g')},
+    {tipo:'Celular',re:new RegExp('\\(?[0-9]{2}\\)?[ .-]?9[0-9]{4}[ .-]?[0-9]{4}','g')},
+    {tipo:'E-mail',re:new RegExp('[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}','g')},
+    {tipo:'Sinal de senha ou chave',re:new RegExp(segredos.map(function(s){ return s.replace(/[.*+?^${}()|[\]\\-]/g,'\\$&'); }).join('|'),'g')},
+    {tipo:'Senha escrita no código',re:new RegExp('('+constantes.join('|')+')\\s*[:=]\\s*["\'`][^"\'`]','g')}
+  ];
+}
+// Nunca mostra o dado inteiro: troca os digitos por # e esconde o meio do e-mail.
+function visMascara(tipo, s){
+  if(tipo==='E-mail'){ const p=s.split('@'); return p[0].slice(0,2)+'***@'+p[1]; }
+  if(tipo==='Sinal de senha ou chave'||tipo==='Senha escrita no código') return s.slice(0,12)+'…';
+  return s.replace(/[0-9]/g,'#');
+}
+async function visStatus(url, opcoes){
+  try{ const r=await fetch(url,Object.assign({cache:'no-store'},opcoes||{})); return r.status; }
+  catch(e){ return 0; }
+}
+function visAleatorio(){ return Date.now()+''+Math.floor(Math.random()*1e6); }
+
+async function rodarVistoria(){
+  const btn=document.getElementById('vis-btn'), alvo=document.getElementById('vis-resultado');
+  btn.disabled=true; btn.textContent='Vistoriando...';
+  const linhas=[], alertas=[];
+  const anota=function(passo,oque,esperado,deu,ok,naoTestou){
+    linhas.push({passo:passo,oque:oque,esperado:esperado,deu:deu,ok:ok,naoTestou:!!naoTestou});
+  };
+  const progresso=function(t){ alvo.innerHTML='<div class="vazio">'+esc(t)+'</div>'; };
+  try{
+    // ---- PASSO 1: o Worker, sem login ----
+    progresso('Conferindo o Worker sem login...');
+    const semCracha=async function(lista, esperado, metodo, corpo, acao){
+      const res=await Promise.all(lista.map(function(s){
+        const h={'X-Sistema':acao?'crm_teste':s};
+        if(acao) h['X-Action']=s;
+        if(corpo) h['Content-Type']='application/json';
+        return visStatus(WORKER+'?t='+visAleatorio(),{method:metodo||'GET',headers:h,body:corpo||undefined})
+          .then(function(st){ return {s:s,st:st}; });
+      }));
+      return res;
+    };
+    const blocos=[
+      {oque:'Ler os registros sem crachá ('+VIS_COM_CRACHA.length+')',esperado:'401',lista:VIS_COM_CRACHA,esp:401},
+      {oque:'Ler registros internos e nomes estranhos ('+VIS_RECUSADOS.length+')',esperado:'400',lista:VIS_RECUSADOS,esp:400},
+      {oque:'Gravar por cima sem crachá (crm_teste, crm, cadastros)',esperado:'401',lista:['crm_teste','crm','cadastros'],esp:401,metodo:'PATCH',corpo:'{"data":{}}'},
+      {oque:'Ações do Worker sem crachá ('+VIS_ACOES.length+')',esperado:'401',lista:VIS_ACOES,esp:401,metodo:'POST',corpo:'{}',acao:true}
+    ];
+    for(const b of blocos){
+      const res=await semCracha(b.lista,b.esp,b.metodo,b.corpo,b.acao);
+      const semResposta=res.filter(function(x){ return x.st===0; });
+      const errados=res.filter(function(x){ return x.st!==0 && x.st!==b.esp; });
+      const vazou=res.filter(function(x){ return x.st>=200 && x.st<300; });
+      if(vazou.length) alertas.push({grave:true,titulo:'O Worker respondeu sem login: '+vazou.map(function(x){ return x.s; }).join(', '),
+        porque:'Pode haver dado saindo para quem não entrou no sistema.',fazer:'Peça ao Claude para investigar o Worker agora.'});
+      else if(errados.length) alertas.push({titulo:'Resposta diferente do esperado: '+errados.map(function(x){ return x.s+' → '+x.st; }).join(', '),
+        porque:'Não é vazamento, mas o Worker não está respondendo como deveria.',fazer:'Peça ao Claude para conferir.'});
+      anota(1,b.oque,b.esperado,
+        semResposta.length===res.length?'não consegui testar':
+          (errados.length?errados.map(function(x){ return x.s+' → '+x.st; }).join(', '):b.esperado+' em todos'+(semResposta.length?' (sem resposta: '+semResposta.length+')':'')),
+        !errados.length, semResposta.length===res.length);
+    }
+    const stAnexo=await visStatus(WORKER+'/anexo/qualquer.pdf?t=falso');
+    if(stAnexo>=200&&stAnexo<300) alertas.push({grave:true,titulo:'Um anexo abriu com bilhete falso',porque:'Arquivos de clientes podem estar abrindo sem login.',fazer:'Peça ao Claude para investigar os anexos.'});
+    anota(1,'Abrir anexo com bilhete falso','403',stAnexo?String(stAnexo):'não consegui testar',stAnexo===403||stAnexo===0,stAnexo===0);
+    anota(1,'Pedido vindo de site estranho','só daluminium.github.io','só a rotina semanal testa (o navegador não deixa fingir outro site)',true,true);
+
+    // ---- PASSO 2: os repositorios publicos ----
+    const P=visPadroes();
+    const conteudos={};
+    for(const repo of VIS_REPOS){
+      progresso('Olhando o repositório '+repo+'...');
+      let arquivos=null;
+      try{
+        const r=await fetch('https://api.github.com/repos/'+VIS_ORG+'/'+repo+'/git/trees/main?recursive=1',{cache:'no-store'});
+        if(r.ok){ const j=await r.json(); arquivos=(j.tree||[]).filter(function(x){ return x.type==='blob'; }).map(function(x){ return x.path; }); }
+      }catch(e){}
+      if(!arquivos){ anota(2,repo+': arquivos publicados','sem arquivo de dados','não consegui testar',true,true); continue; }
+      const novos=arquivos.filter(function(a){ return VIS_TIPOS_PERIGOSOS.test(a) && VIS_ARQUIVOS_OK.indexOf(repo+'/'+a)<0; });
+      if(novos.length) alertas.push({grave:true,titulo:'Arquivo novo de dados em '+repo+': '+novos.join(', '),
+        porque:'Pode ser uma exportação ou planilha com dado de cliente, aberta para qualquer pessoa na internet.',fazer:'Peça ao Claude para investigar o arquivo e tirá-lo do repositório.'});
+      anota(2,repo+': arquivos publicados ('+arquivos.length+')','nenhum arquivo de dados novo',novos.length?novos.join(', '):'só os esperados',!novos.length);
+
+      const achados=[];
+      for(const arq of arquivos){
+        if(!/\.(html|md|json|sql|txt|js|csv)$/i.test(arq)) continue;
+        let texto='';
+        try{
+          const r=await fetch('https://raw.githubusercontent.com/'+VIS_ORG+'/'+repo+'/main/'+arq+'?t='+visAleatorio(),{cache:'no-store'});
+          if(!r.ok) continue;
+          texto=await r.text();
+        }catch(e){ continue; }
+        conteudos[repo+'/'+arq]=texto;
+        const linhasArq=texto.split('\n');
+        linhasArq.forEach(function(l,i){
+          P.forEach(function(p){
+            p.re.lastIndex=0;
+            let m;
+            while((m=p.re.exec(l))){
+              if(VIS_ACEITOS.indexOf(m[0].trim())>=0) continue;
+              achados.push({tipo:p.tipo,onde:arq+', linha '+(i+1),dado:visMascara(p.tipo,m[0].trim())});
+            }
+          });
+        });
+      }
+      achados.forEach(function(a){
+        alertas.push({grave:/senha/i.test(a.tipo),titulo:a.tipo+' em '+repo+' ('+a.onde+'): '+a.dado,
+          porque:'O repositório é público: qualquer pessoa na internet consegue ler.',fazer:'Peça ao Claude para investigar e tirar o dado do repositório.'});
+      });
+      anota(2,repo+': CPF, CNPJ, celular, e-mail e senhas','só os conhecidos',achados.length?achados.length+' achado(s)':'só os conhecidos',!achados.length);
+    }
+
+    // ---- PASSO 3: a copia que fica no navegador ----
+    progresso('Conferindo a limpeza ao sair...');
+    const telas=['portal/index.html','gestaodecompras/index.html','financeiro/index.html','fabrica/index.html','obra/index.html','crm/index.html',
+      'teste/index.html','teste/compras.html','teste/financeiro.html','teste/fabrica.html','teste/obra.html','teste/crm.html','teste/auditoria.html'];
+    telas.forEach(function(t){
+      const c=conteudos[t];
+      if(c===undefined){ anota(3,t,'apaga ao sair','não consegui testar',true,true); return; }
+      const i=c.indexOf('const DADOS_LOCAIS');
+      const lista=i>=0?c.slice(i,i+400):'';
+      const ok=i>=0 && lista.indexOf("'dalum-crm'")>=0 && lista.indexOf("'dalum-crm-para-obra'")>=0 && c.indexOf('apagarDadosLocais()')>=0;
+      if(!ok) alertas.push({titulo:t+' pode não apagar os dados do computador ao sair',
+        porque:'Quem usar o mesmo computador depois pode encontrar dados de clientes.',fazer:'Peça ao Claude para conferir a lista DADOS_LOCAIS desse arquivo.'});
+      anota(3,t,'apaga ao sair',ok?'apaga':'faltando',ok);
+    });
+  }catch(e){
+    alertas.push({titulo:'A vistoria parou no meio: '+e.message,porque:'Parte das conferências não foi feita.',fazer:'Tente de novo; se repetir, avise o Claude.'});
+  }
+  btn.disabled=false; btn.textContent='Fazer a vistoria agora';
+  desenharVistoria(alertas,linhas);
+}
+function desenharVistoria(alertas, linhas){
+  const alvo=document.getElementById('vis-resultado');
+  const n=alertas.length;
+  const faixa=n
+    ?'<div style="background:var(--red);color:#fff;border-radius:10px;padding:16px;text-align:center;margin-bottom:12px"><div style="font-size:20px;font-weight:800">ATENÇÃO: '+n+' ponto(s) para olhar</div></div>'
+    :'<div style="background:var(--green);color:#fff;border-radius:10px;padding:16px;text-align:center;margin-bottom:12px"><div style="font-size:20px;font-weight:800">Tudo certo</div></div>';
+  const lista=alertas.map(function(a){
+    return '<div class="erro" style="margin-bottom:8px;line-height:1.5"><b>'+(a.grave?'GRAVE · ':'')+esc(a.titulo)+'</b><br>'+
+      'Por que importa: '+esc(a.porque)+'<br>O que fazer: '+esc(a.fazer)+'</div>';
+  }).join('');
+  const nomesPasso={1:'Worker sem login',2:'Repositórios públicos',3:'Limpeza ao sair'};
+  const tabela='<div class="tabela-cx" style="margin-top:12px"><table class="tab"><thead><tr><th>Passo</th><th>O que foi testado</th><th>Esperado</th><th>O que deu</th><th></th></tr></thead><tbody>'+
+    linhas.map(function(l){
+      const marca=l.naoTestou?'<span class="pill pill-cinza">não testado</span>':(l.ok?'<span style="color:var(--green);font-weight:700">✓</span>':'<span style="color:var(--red);font-weight:700">✗</span>');
+      return '<tr><td>'+esc(nomesPasso[l.passo])+'</td><td>'+esc(l.oque)+'</td><td>'+esc(l.esperado)+'</td><td>'+esc(l.deu)+'</td><td>'+marca+'</td></tr>';
+    }).join('')+'</tbody></table></div>';
+  alvo.innerHTML=faixa+lista+tabela+
+    '<div class="rodape">Vistoria feita em '+esc(dataHora(Date.now()))+'. Esta vistoria só olhou o sistema. Nada foi alterado.</div>';
+}
+
+function mostrarErro(alvo,e){
+  alvo.className='';
+  let msg=e&&e.message||'erro';
+  if(/caderno de acessos ainda nao foi criado/i.test(msg))
+    msg='O caderno ainda não foi criado no banco. Falta rodar o criar-caderno-de-acessos.sql no Supabase.';
+  alvo.innerHTML='<div class="erro">Não consegui carregar: '+esc(msg)+'</div>';
+}
+
+// ================= ENTRADA =================
+(function(){
+  const t=lerToken();
+  if(!t){
+    // Sem cracha: vai para o portal, a unica porta de entrada.
+    try{ (window.top||window).location.replace(PORTAL_URL); }catch(e){ location.replace(PORTAL_URL); }
+    return;
+  }
+  if(String(t.dados.r||'').toLowerCase()!=='admin'){
+    document.getElementById('so-admin').style.display='flex';
+    return;
+  }
+  document.getElementById('quem').textContent='· '+(t.dados.n||t.dados.u||'');
+  document.getElementById('app').style.display='';
+  irPara('resumo');
+})();
+</script>
+</body>
+</html>
