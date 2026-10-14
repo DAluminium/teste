@@ -147,6 +147,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <!-- RESUMO -->
     <section id="v-resumo">
       <div class="cards" id="resumo-cards"><div class="vazio">Carregando...</div></div>
+      <div id="resumo-cadastros"></div>
       <div class="caixa">
         <h2>Como ler esta tela</h2>
         <p class="explica" style="margin:0">
@@ -778,6 +779,40 @@ function situacaoDoBackup(rodadas){
   return {classe:'ok',titulo:'Há '+(horas<1?'menos de 1 hora':Math.floor(horas)+'h'),texto:'Em '+quando+'.'};
 }
 
+// ================= CADASTROS FEITOS POR OUTRA PESSOA =================
+// Veio do aviso amarelo da Administracao do portal (14/10/2026). A lista de
+// usuarios do sistema inteiro mora no registro do Compras de PRODUCAO, em
+// qualquer ambiente. Um cadastro a mais permite lancar despesa e recebimento
+// em outro nome, entao vale conferir quem cadastrou quem.
+const SISTEMA_USUARIOS='compras';
+const DIAS_CADASTROS=7;
+async function cadastrosDeOutros(){
+  const r=await fetch(WORKER+'?t='+Date.now(),{cache:'no-store',headers:cabecalhos(SISTEMA_USUARIOS)});
+  if(r.status===401){ sessaoExpirada(); throw new Error('O acesso venceu'); }
+  if(!r.ok) throw new Error('erro '+r.status);
+  const d=await r.json();
+  const eu=String(((lerToken()||{}).dados||{}).u||'').toLowerCase();
+  return ((d&&d.usuarios)||[]).filter(function(u){
+    if(!u||!u.criadoPor||!u.criadoEm) return false;
+    if(String(u.criadoPor).toLowerCase()===eu) return false;
+    const dias=(Date.now()-new Date(u.criadoEm).getTime())/86400000;
+    return dias>=0 && dias<=DIAS_CADASTROS;
+  }).sort(function(a,b){ return new Date(b.criadoEm)-new Date(a.criadoEm); });
+}
+function desenharCadastrosDeOutros(lista){
+  const alvo=document.getElementById('resumo-cadastros');
+  if(!lista.length){ alvo.innerHTML=''; return; }
+  alvo.innerHTML='<div class="caixa" style="margin-bottom:1rem;background:#fdf6e3;border:1px solid #e8d9a8">'+
+    '<h2>⚠️ Usuários cadastrados por outra pessoa · últimos '+DIAS_CADASTROS+' dias</h2>'+
+    '<p class="explica">Vale conferir se são funcionários de verdade: um cadastro a mais permite lançar despesa e recebimento em outro nome. '+
+    'Para corrigir, use <b>Gerenciar usuários</b>, no portal.</p>'+
+    '<div class="tabela-cx"><table class="tab"><thead><tr><th>Quem foi cadastrado</th><th>Login</th><th>Função</th><th>Cadastrado por</th><th>Quando</th></tr></thead><tbody>'+
+    lista.map(function(u){
+      return '<tr><td>'+esc(u.name||'—')+(u.active===false?' <span class="pill pill-cinza">inativo</span>':'')+'</td><td>'+esc(u.username||'—')+
+        '</td><td>'+esc(u.role||'—')+'</td><td><b>'+esc(u.criadoPor)+'</b></td><td style="white-space:nowrap">'+esc(dataHora(u.criadoEm))+'</td></tr>';
+    }).join('')+'</tbody></table></div></div>';
+}
+
 // ================= RESUMO =================
 async function carregarResumo(){
   const alvo=document.getElementById('resumo-cards');
@@ -809,7 +844,14 @@ async function carregarResumo(){
     lerDoCaderno({quantos:2000,grupo:'acessos',de:diaISO(7)}).then(function(j){
       const baixou=(j.lista||[]).filter(function(x){ return /baixou/.test(x.a||''); }).length;
       return cartao('',String(j.total||0),'Aberturas · 7 dias',baixou+' download(s) de contrato ou planilha.','acessos');
-    }).catch(function(e){ return cartao('alerta','?','Quem abriu o quê',e.message,'acessos'); })
+    }).catch(function(e){ return cartao('alerta','?','Quem abriu o quê',e.message,'acessos'); }),
+    cadastrosDeOutros().then(function(lista){
+      desenharCadastrosDeOutros(lista);
+      const quem={}; lista.forEach(function(u){ quem[u.criadoPor]=(quem[u.criadoPor]||0)+1; });
+      const porQuem=Object.keys(quem).map(function(k){ return k+' ('+quem[k]+')'; }).join(', ');
+      return cartao(lista.length?'atencao':'ok',String(lista.length),'Cadastros por outra pessoa · 7 dias',
+        lista.length?'Por '+porQuem+'. Veja a lista abaixo.':'Nenhum.','resumo');
+    }).catch(function(e){ return cartao('alerta','?','Cadastros por outra pessoa',e.message,'resumo'); })
   ]);
   alvo.innerHTML=partes.join('');
 }
