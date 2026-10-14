@@ -291,10 +291,21 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
 
       <div class="secao">Contatos feitos</div>
       <div id="o-notas"></div>
-      <div style="display:flex;gap:6px;margin-top:8px">
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <select id="o-nota-tipo" class="filtro" title="Como foi este contato"></select>
         <input id="o-nota" class="busca" placeholder="Ex.: Liguei, pediu desconto de 5%" maxlength="400" onkeydown="if(event.key==='Enter'){event.preventDefault();anotar();}">
         <button type="button" class="btn btn-outline" onclick="anotar()">Anotar</button>
       </div>
+
+      <div class="secao">Anexos</div>
+      <div id="o-docs"></div>
+      <div id="o-docs-acoes" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center">
+        <label class="btn btn-outline btn-sm" for="o-doc-arquivo" id="o-doc-btn" style="cursor:pointer">📎 Anexar arquivo</label>
+        <input type="file" id="o-doc-arquivo" style="display:none" onchange="anexarArquivoCrm(event)">
+        <button type="button" class="btn btn-outline btn-sm" onclick="anexarLinkCrm()">🔗 Anexar link</button>
+        <span id="o-doc-status" class="dica" style="font-size:12px;color:var(--gray-5)"></span>
+      </div>
+      <div class="dica" id="o-docs-dica" style="font-size:11.5px;color:var(--gray-4);margin-top:4px">Arquivo até 10 MB. Para arquivo maior (um projeto pesado, por exemplo), guarde no Drive ou no WeTransfer e use <b>Anexar link</b>.</div>
 
       <div class="secao">Observações e autorização</div>
       <div class="form-grid">
@@ -1535,6 +1546,7 @@ function preencherListaCidades(){
 
 // ================= FICHA =================
 function preencherSelectsFicha(o){
+  preencherTiposDeContato();
   const et=document.getElementById('o-etapa');
   // Negocio que ja existe: so as etapas do funil dele (trocar de funil e pelo
   // "Enviar para"). Negocio novo: as dos funis que a pessoa pode usar.
@@ -1609,17 +1621,213 @@ function renderNotas(o){
   if(!todas.length){ el.innerHTML='<div class="dica" style="font-size:12px;color:var(--gray-4)">Nenhum contato anotado ainda.</div>'; return; }
   el.innerHTML=todas.map(function(n){
     const nova=_notasNovas.indexOf(n)>=0;
+    const tp=tipoDeContato(n.tipo);
     let q=n.ts; try{ q=new Date(n.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){}
-    return '<div class="nota">'+esc(n.texto)+'<div class="nota-quem">'+esc(n.por||'')+' · '+esc(q)+(nova?' · <b style="color:var(--amber)">será salva ao clicar em Salvar</b>':'')+'</div></div>';
+    return '<div class="nota"><span title="'+esc(tp.nome)+'">'+tp.icone+'</span> '+(n.tipo?'<b style="font-size:11.5px;color:var(--gray-5)">'+esc(tp.nome)+':</b> ':'')+esc(n.texto)+
+      '<div class="nota-quem">'+esc(n.por||'')+' · '+esc(q)+(nova?' · <b style="color:var(--amber)">será salva ao clicar em Salvar</b>':'')+'</div></div>';
   }).join('');
+}
+// ---- TIPO DO CONTATO (ideia trazida do Evoluti, 14/10/2026) ----
+// Mostra COMO foi cada contato. Os ultimos tipos sao gravados pelo proprio
+// sistema (mudanca de etapa, anexo, criacao) — inclusive os que vieram da
+// importacao do Evoluti.
+const TIPOS_DE_CONTATO=[
+  {id:'nota',     nome:'Nota',      icone:'📝', escolhe:true},
+  {id:'ligacao',  nome:'Ligação',   icone:'📞', escolhe:true},
+  {id:'whatsapp', nome:'WhatsApp',  icone:'💬', escolhe:true},
+  {id:'email',    nome:'E-mail',    icone:'✉️', escolhe:true},
+  {id:'reuniao',  nome:'Reunião',   icone:'👥', escolhe:true},
+  {id:'visita',   nome:'Visita',    icone:'📍', escolhe:true},
+  {id:'etapa',    nome:'Mudança de etapa', icone:'➡️'},
+  {id:'anexo',    nome:'Anexo',     icone:'📎'},
+  {id:'criacao',  nome:'Criação',   icone:'✨'}
+];
+function tipoDeContato(id){
+  return TIPOS_DE_CONTATO.find(function(t){ return t.id===id; }) || {id:'', nome:'Nota', icone:'📝'};
+}
+function preencherTiposDeContato(){
+  const sel=document.getElementById('o-nota-tipo');
+  if(!sel || sel.options.length) return;
+  sel.innerHTML=TIPOS_DE_CONTATO.filter(function(t){ return t.escolhe; })
+    .map(function(t){ return '<option value="'+t.id+'">'+t.icone+' '+esc(t.nome)+'</option>'; }).join('');
 }
 function anotar(){
   const i=document.getElementById('o-nota');
   const t=i.value.trim();
   if(!t) return;
-  _notasNovas.push({id:novoId(), ts:agoraISO(), por:usuario, texto:t});
+  const tipo=(document.getElementById('o-nota-tipo')||{}).value||'nota';
+  _notasNovas.push({id:novoId(), ts:agoraISO(), por:usuario, texto:t, tipo:tipo});
   i.value='';
   renderNotas((dados.oportunidades||[]).find(function(x){ return x.id===fichaId; }));
+}
+
+// ---- ANEXOS DO NEGOCIO (14/10/2026; anexo por link: ideia do Evoluti) ----
+// Arquivo: sobe PRIVADO pelo Worker (igual a Obra) e so abre com login, por um
+// link que vale 1 minuto. Link: endereco de Drive/WeTransfer, para arquivo
+// grande. Os anexos ficam dentro do cofre do CRM (nome e link costumam ter o
+// nome do cliente). Anexar: quem pode editar o negocio. Tirar: so o gerente.
+const PASTA_ARQUIVOS_CRM='daluminium_crm';
+const MAX_ARQUIVO_CRM=10*1024*1024;
+function fmtTamanho(b){
+  b=Number(b)||0;
+  if(b>=1048576) return (b/1048576).toFixed(1).replace('.',',')+' MB';
+  if(b>=1024) return Math.round(b/1024)+' KB';
+  return b+' B';
+}
+async function linkDoAnexo(url,nome){
+  const r=await fetch(WORKER,{method:'POST',cache:'no-store',
+    headers:cabecalhos({'Content-Type':'application/json','X-Action':'abrir-anexo'}),
+    body:JSON.stringify({url:url,nome:nome||''})});
+  let j=null; try{ j=await r.json(); }catch(e){}
+  if(!r.ok||!j||!j.url) throw new Error((j&&j.erro)||('erro '+r.status+' no servidor'));
+  return j.abrir||j.url;
+}
+// A aba abre JA no clique e recebe o endereco depois: aberta depois de esperar
+// o Worker, o navegador a bloquearia como propaganda.
+async function abrirAnexo(url,nome){
+  const aba=window.open('','_blank');
+  try{
+    const u=await linkDoAnexo(url,nome);
+    if(aba){ aba.opener=null; aba.location.href=u; } else location.href=u;
+  }catch(e){
+    if(aba) aba.close();
+    aviso('Não consegui abrir o anexo', e.message);
+  }
+}
+async function enviarArquivoPrivado(arquivo,pasta,tipoRecurso){
+  const r=await fetch(WORKER,{method:'POST',cache:'no-store',
+    headers:cabecalhos({'Content-Type':'application/json','X-Action':'assinar-envio'}),
+    body:JSON.stringify({pasta:pasta})});
+  let a=null; try{ a=await r.json(); }catch(e){}
+  if(!r.ok||!a||!a.signature) throw new Error((a&&a.erro)||('o servidor não autorizou o envio ('+r.status+')'));
+  const fd=new FormData();
+  fd.append('file',arquivo);
+  fd.append('api_key',a.api_key);
+  fd.append('timestamp',a.timestamp);
+  fd.append('signature',a.signature);
+  fd.append('folder',a.folder);
+  fd.append('type',a.type);
+  const up=await fetch('https://api.cloudinary.com/v1_1/'+a.conta+'/'+tipoRecurso+'/upload',{method:'POST',body:fd});
+  if(!up.ok){
+    let t=''; try{ t=await up.text(); }catch(e){}
+    throw new Error('Servidor de arquivos recusou ('+up.status+') '+t.slice(0,150));
+  }
+  const j=await up.json();
+  // O endereco devolvido traz uma assinatura (s--...--) que abre o arquivo para
+  // sempre, sem login. Guardado sem ela; quem abre e o Worker.
+  ['secure_url','url'].forEach(function(k){
+    if(j && typeof j[k]==='string') j[k]=j[k].replace(/\/s--[^\/]+--\//,'/');
+  });
+  return j;
+}
+async function excluirArquivoDoAnexo(url){
+  if(!url) return;
+  try{
+    await fetch(WORKER,{method:'POST',cache:'no-store',
+      headers:cabecalhos({'Content-Type':'application/json','X-Action':'excluir-anexo'}),
+      body:JSON.stringify({url:url})});
+  }catch(e){ console.warn('Não consegui apagar o arquivo no servidor de arquivos:',e); }
+}
+function negocioDaFicha(){ return (dados.oportunidades||[]).find(function(x){ return x.id===fichaId; })||null; }
+function renderDocsCrm(o){
+  const el=document.getElementById('o-docs');
+  const docs=(o&&Array.isArray(o.docs))?o.docs:[];
+  el.innerHTML=docs.length?docs.map(function(d){
+    let q=d.quando||''; try{ if(q) q=new Date(q).toLocaleDateString('pt-BR'); }catch(e){}
+    return '<div class="nota" style="display:flex;gap:8px;align-items:center">'+
+      '<span>'+(d.link?'🔗':'📄')+'</span>'+
+      '<a href="#" style="flex:1;min-width:0;word-break:break-word;color:var(--teal-dark);font-weight:600" onclick="event.preventDefault();abrirDocCrm(\''+esc(d.id)+'\')">'+esc(d.nome||'arquivo')+'</a>'+
+      '<span class="nota-quem" style="white-space:nowrap">'+(d.tamanho?fmtTamanho(d.tamanho)+' · ':'')+esc(d.quem||'')+(q?' · '+esc(q):'')+'</span>'+
+      (podeGerenciar()?'<button type="button" class="btn btn-outline btn-sm" title="Tirar este anexo" onclick="removerDocCrm(\''+esc(d.id)+'\')">×</button>':'')+
+    '</div>';
+  }).join(''):'<div class="dica" style="font-size:12px;color:var(--gray-4)">Nenhum anexo.</div>';
+  const podeAnexar=!!o && !o.excluido && podeEditarNegocio(o) && !ehConsulta();
+  document.getElementById('o-docs-acoes').style.display=podeAnexar?'flex':'none';
+  document.getElementById('o-docs-dica').innerHTML=!o
+    ? 'Salve o negócio primeiro; depois dá para anexar arquivos e links.'
+    : 'Arquivo até 10 MB. Para arquivo maior (um projeto pesado, por exemplo), guarde no Drive ou no WeTransfer e use <b>Anexar link</b>.';
+}
+function abrirDocCrm(id){
+  const o=negocioDaFicha(); if(!o) return;
+  const d=(o.docs||[]).find(function(x){ return x.id===id; }); if(!d) return;
+  if(d.link){
+    const w=window.open(d.link,'_blank');
+    if(w){ try{ w.opener=null; }catch(e){} }
+    return;
+  }
+  abrirAnexo(d.url, d.nome);
+}
+// Grava o anexo no negocio na hora (sem esperar o Salvar), juntando com o que
+// esta no servidor — se um colega anexou outra coisa ao mesmo tempo, os dois ficam.
+async function gravarDocCrm(doc, detalhe){
+  const o=negocioDaFicha(); if(!o) return false;
+  const ok=await alterar(function(base){
+    const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
+    if(!alvo) return false;
+    if(!Array.isArray(alvo.docs)) alvo.docs=[];
+    if(alvo.docs.some(function(x){ return (doc.url && x.url===doc.url) || (doc.link && x.link===doc.link); })) return false;
+    alvo.docs.push(doc);
+    if(!Array.isArray(alvo.notas)) alvo.notas=[];
+    alvo.notas.push({id:novoId(), ts:agoraISO(), por:usuario, tipo:'anexo', texto:'Anexou '+(doc.link?'o link':'o arquivo')+' "'+doc.nome+'".'});
+    alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario;
+  },{acao:'anexou', alvo:alvoDoNegocio(o), detalhe:detalhe});
+  const novo=negocioDaFicha();
+  renderDocsCrm(novo); renderNotas(novo);
+  return ok;
+}
+async function anexarArquivoCrm(ev){
+  const arq=ev.target.files && ev.target.files[0];
+  ev.target.value='';
+  if(!arq) return;
+  const o=negocioDaFicha();
+  if(!o){ aviso('Salve antes','Salve o negócio primeiro; depois dá para anexar.'); return; }
+  if(!podeEditarNegocio(o) || ehConsulta()){ aviso('Sem permissão','Você não pode anexar neste negócio.'); return; }
+  if(arq.size>MAX_ARQUIVO_CRM){
+    aviso('Arquivo muito grande','O arquivo tem '+fmtTamanho(arq.size)+'. O limite é 10 MB.\n\n'+
+      'Guarde no Drive ou no WeTransfer e use "Anexar link".');
+    return;
+  }
+  const st=document.getElementById('o-doc-status');
+  st.textContent='Enviando '+arq.name+'...';
+  try{
+    const ehPdf=arq.type==='application/pdf';
+    const j=await enviarArquivoPrivado(arq, PASTA_ARQUIVOS_CRM, ehPdf?'raw':'auto');
+    if(!j||!j.secure_url) throw new Error('o servidor não devolveu o endereço do arquivo');
+    st.textContent='Salvando...';
+    const ok=await gravarDocCrm({id:novoId(), nome:arq.name, url:j.secure_url, tamanho:arq.size, mime:arq.type||'', quem:usuario, quando:agoraISO()}, arq.name);
+    st.textContent=ok?'':'';
+  }catch(e){
+    st.textContent='';
+    aviso('Não consegui anexar', e.message);
+  }
+}
+async function anexarLinkCrm(){
+  const o=negocioDaFicha();
+  if(!o){ aviso('Salve antes','Salve o negócio primeiro; depois dá para anexar.'); return; }
+  if(!podeEditarNegocio(o) || ehConsulta()){ aviso('Sem permissão','Você não pode anexar neste negócio.'); return; }
+  const link=String(prompt('Cole o link do arquivo (Drive, WeTransfer, Dropbox...):','')||'').trim();
+  if(!link) return;
+  if(!/^https:\/\/\S+$/i.test(link)){ aviso('Link inválido','O link precisa começar com https://'); return; }
+  const nome=String(prompt('Nome para aparecer no negócio (ex.: Projeto da fachada):','')||'').trim()||link.replace(/^https:\/\//,'').slice(0,60);
+  await gravarDocCrm({id:novoId(), nome:nome, link:link, quem:usuario, quando:agoraISO()}, nome);
+}
+async function removerDocCrm(id){
+  if(recusarExcluir()) return;
+  const o=negocioDaFicha(); if(!o) return;
+  const d=(o.docs||[]).find(function(x){ return x.id===id; }); if(!d) return;
+  if(!confirm('Tirar "'+(d.nome||'este anexo')+'" deste negócio?')) return;
+  const ok=await alterar(function(base){
+    const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
+    if(!alvo) return false;
+    alvo.docs=(alvo.docs||[]).filter(function(x){ return x.id!==id; });
+    if(!Array.isArray(alvo.notas)) alvo.notas=[];
+    alvo.notas.push({id:novoId(), ts:agoraISO(), por:usuario, tipo:'anexo', texto:'Tirou o anexo "'+(d.nome||'')+'".'});
+    alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario;
+  },{acao:'tirou anexo', alvo:alvoDoNegocio(o), detalhe:d.nome||''});
+  const novo=negocioDaFicha();
+  renderDocsCrm(novo); renderNotas(novo);
+  // Gravado sem o anexo: agora apaga o arquivo (o link de Drive nao e nosso).
+  if(ok && d.url && !d.link) excluirArquivoDoAnexo(d.url);
 }
 
 function novoNegocio(){
@@ -1648,6 +1856,7 @@ function novoNegocio(){
   travarFicha(false);
   ajustarFichaAoFunil(null);
   renderNotas(null);
+  renderDocsCrm(null);
   mostrarMotivo();
   document.getElementById('ficha-ov').classList.add('open');
   setTimeout(function(){ document.getElementById('o-cliente').focus(); },80);
@@ -1686,6 +1895,7 @@ function abrirFicha(id){
   travarFicha(!!o.excluido);
   ajustarFichaAoFunil(o);
   renderNotas(o);
+  renderDocsCrm(o);
   mostrarMotivo();
   document.getElementById('ficha-ov').classList.add('open');
 }
