@@ -2526,7 +2526,10 @@ async function importarEvoluti(){
       const ok=await alterar(function(base){
         if((base.oportunidades||[]).some(function(o){ return o.id===n.id; })) return false;   // ja entrou
         base.oportunidades.push({
-          id:n.id, evolutiId:n.evolutiId, cliente:n.cliente, vendedor:n.vendedor, vendedorNome:n.vendedorNome,
+          // O nome vem do cadastro de usuarios (o nome completo de hoje); o do
+          // arquivo e so o que estava no Evoluti.
+          id:n.id, evolutiId:n.evolutiId, cliente:n.cliente, vendedor:n.vendedor,
+          vendedorNome:(_vendedores.find(function(v){ return v.u===n.vendedor; })||{}).n||n.vendedorNome,
           etapa:n.etapa, valor:n.valor, origem:n.origem, cidade:n.cidade, obs:n.obs,
           temperatura:temperaturaDe(n.temperatura)?n.temperatura:'',
           telefone:n.telefone||'', email:n.email||'', bairro:'', interesse:'', retorno:'', retornoOQue:'',
