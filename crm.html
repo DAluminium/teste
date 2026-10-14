@@ -2529,7 +2529,7 @@ async function importarEvoluti(){
           id:n.id, evolutiId:n.evolutiId, cliente:n.cliente, vendedor:n.vendedor, vendedorNome:n.vendedorNome,
           etapa:n.etapa, valor:n.valor, origem:n.origem, cidade:n.cidade, obs:n.obs,
           temperatura:temperaturaDe(n.temperatura)?n.temperatura:'',
-          telefone:'', email:'', bairro:'', interesse:'', retorno:'', retornoOQue:'',
+          telefone:n.telefone||'', email:n.email||'', bairro:'', interesse:'', retorno:'', retornoOQue:'',
           criadoEm:n.criadoEm||agoraISO(), criadoPor:n.criadoPor||'Importação do Evoluti',
           atualizadoEm:agoraISO(), atualizadoPor:usuario,
           notas:n.notas||[], docs:docs, autorizaContato:false
