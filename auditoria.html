@@ -47,6 +47,25 @@ table.tab td{padding:8px 10px;border-bottom:1px solid var(--gray-2);vertical-ali
 .bolinha{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .sub{font-size:11px;color:var(--gray-4)}
 .bloqueio{position:fixed;inset:0;background:white;display:flex;align-items:center;justify-content:center;padding:24px;z-index:200;text-align:center}
+/* MANUAL DE EMERGENCIA */
+.man{font-size:13px;line-height:1.55}
+.man-intro{color:var(--gray-5);margin-bottom:12px}
+.man-box{border:1px solid var(--gray-2);border-radius:8px;padding:12px 14px;margin-bottom:10px}
+.man-alerta{background:var(--red-light);border-color:#f2c9c3}
+.man-nota{background:var(--blue-light);border-color:#c7dbf2}
+.man-h{font-weight:700;font-size:13.5px;margin-bottom:6px}
+.man p{margin:6px 0}
+.man ul,.man ol{margin:6px 0 6px 20px}
+.man li{margin:3px 0}
+.man code{display:block;background:var(--gray-6);color:#e8eaed;border-radius:6px;padding:9px 11px;margin:6px 0;font-size:12px;white-space:pre-wrap;word-break:break-word}
+/* Imprimir = so o manual */
+@media print{
+  body *{visibility:hidden}
+  #manual,#manual *{visibility:visible}
+  #manual{position:absolute;left:0;top:0;width:100%;box-shadow:none}
+  #manual button{display:none}
+  #faixa-teste{display:none}
+}
 @media (max-width:640px){ .topbar-logo span{display:none} .aba{flex:1 1 45%} }
 </style>
 <script>
@@ -104,6 +123,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="aba" data-aba="acessos" onclick="irPara('acessos')">Quem abriu o quê</button>
       <button class="aba" data-aba="backups" onclick="irPara('backups')">Backups</button>
       <button class="aba" data-aba="vistoria" onclick="irPara('vistoria')">Vistoria</button>
+      <button class="aba" data-aba="emergencia" onclick="irPara('emergencia')">Emergência</button>
     </div>
 
     <!-- RESUMO -->
@@ -195,6 +215,149 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           A rotina de toda semana faz o mesmo e ainda olha o que foi publicado nos últimos 8 dias.
         </p>
         <div id="vis-resultado"></div>
+      </div>
+    </section>
+
+    <!-- EMERGENCIA (14/10/2026): o manual e a varredura dos anexos vieram do portal -->
+    <section id="v-emergencia" style="display:none">
+      <div class="caixa" style="margin-bottom:12px">
+        <h2>Varrer os anexos</h2>
+        <p class="explica">
+          Procura na conta de arquivos (Cloudinary) qualquer anexo que ainda abra por link, sem login, inclusive os que
+          foram excluídos das fichas, e tranca. Nada é apagado: depois disso o arquivo só abre pelo sistema.
+          Use de vez em quando, como conferência, ou se desconfiar que um link de anexo foi parar onde não devia.
+        </p>
+        <button class="btn btn-outline btn-sm" id="varrer-btn" onclick="varrerAnexos()">Varrer agora</button>
+        <div id="varrer-status" class="explica" style="margin:10px 0 0;white-space:pre-wrap"></div>
+      </div>
+
+      <div class="caixa" id="manual">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
+          <h2>📖 Manual de emergência</h2>
+          <button class="btn btn-outline btn-sm" onclick="window.print()">Imprimir</button>
+        </div>
+        <div class="man">
+<p class="man-intro">Guia para resolver problemas sem depender de ninguém. Leia o item do seu caso.
+Os comandos SQL rodam no <b>SQL Editor do Supabase</b> (é preciso estar logado lá). Atualizado em 14/10/2026.
+<b>Imprima e guarde uma cópia</b>: se o sistema inteiro cair, esta tela também não abre.</p>
+
+<div class="man-box man-alerta">
+  <div class="man-h">🚨 Regra de ouro</div>
+  <p>Antes de qualquer alteração no banco, tire um backup:</p>
+  <code>SELECT fazer_backup('manual');</code>
+  <p>Leva 1 segundo e é o que permite desfazer qualquer coisa.</p>
+</div>
+
+<div class="man-box">
+  <div class="man-h">1. O sistema abriu em branco ou sumiram os dados</div>
+  <p><b>Não cadastre nada e não salve nada.</b> Quase sempre os dados estão no banco e o problema é só na tela.</p>
+  <p><b>Passo 1, confirme se os dados estão lá.</b> Cada registro deve ter um tamanho grande e uma data recente:</p>
+  <code>SELECT id, length(data::text) AS tamanho,<br>
+  to_char(updated_at at time zone 'America/Porto_Velho','DD/MM HH24:MI') AS gravado<br>
+FROM app_data ORDER BY id;</code>
+  <p>Se os tamanhos estiverem normais, siga para o passo 2. Se um deles estiver muito pequeno, vá para o item 2 (voltar um backup).</p>
+  <p><b>Passo 2, limpe a cópia do computador:</b> clique em <b>Sair</b> e entre de novo. O Sair apaga a cópia guardada no navegador, e o sistema baixa tudo do banco outra vez.</p>
+</div>
+
+<div class="man-box">
+  <div class="man-h">2. Voltar um backup</div>
+  <p>O banco faz backup sozinho <b>3 vezes por dia</b> (duas automáticas e uma às 20h) e guarda <b>90 dias</b>.
+  Entram Compras, Financeiro, Fábrica, Obra, CRM, Cadastros (com os de teste), as senhas e os lembretes.
+  A aba <b>Backups</b> desta Auditoria mostra quando foi o último.</p>
+  <p><b>Passo 1, veja os backups do registro que quer voltar</b> (troque <i>obra</i> pelo nome certo):</p>
+  <code>SELECT id, sistema, origem,<br>
+  to_char(created_at at time zone 'America/Porto_Velho','DD/MM HH24:MI') AS quando<br>
+FROM app_backups WHERE sistema = 'obra'<br>
+ORDER BY created_at DESC LIMIT 20;</code>
+  <p><b>Passo 2, volte pelo número da coluna id:</b></p>
+  <code>SELECT restaurar_backup(123);</code>
+  <p>Cada backup é de <b>um registro só</b>: para voltar dois, rode duas vezes. Antes de sobrescrever, a restauração guarda o estado atual, então dá para desfazer.</p>
+  <p>O <b>caderno de acessos</b> (Entradas, Senhas erradas, Quem abriu o quê) não entra no backup e não precisa: ninguém consegue apagar nem alterar o que está nele.</p>
+</div>
+
+<div class="man-box">
+  <div class="man-h">3. Alguém não consegue entrar</div>
+  <ul>
+    <li><b>Errou a senha 5 vezes</b>: aquele usuário fica bloqueado por <b>15 minutos</b>, em qualquer computador. É só esperar. A aba <b>Senhas erradas</b> mostra as tentativas.</li>
+    <li><b>Esqueceu a senha</b>: em <i>Gerenciar usuários</i>, defina uma senha nova e marque como temporária. A pessoa troca no primeiro acesso.</li>
+    <li><b>Perdeu o celular do código do admin</b>: no Cloudflare, apague o segredo <b>ADMIN_TOTP</b> e clique em <b>Implantar</b>. O admin volta a entrar só com a senha. Depois cadastre o código de novo no celular novo.</li>
+    <li><b>Tela travada ou em branco</b>: peça um <b>Ctrl+Shift+R</b>. Se continuar, veja o item 5.</li>
+  </ul>
+</div>
+
+<div class="man-box">
+  <div class="man-h">4. Tirar alguém do sistema agora</div>
+  <p>Na aba <b>Agora no sistema</b> desta Auditoria, clique em <b>Deslogar</b>. A pessoa cai em poucos segundos.
+  Se a desconfiança for de senha descoberta, troque também a senha dela em <i>Gerenciar usuários</i>.</p>
+</div>
+
+<div class="man-box">
+  <div class="man-h">5. Publiquei uma alteração e o sistema quebrou</div>
+  <p><b>Se foi uma tela</b> (portal, Compras, Financeiro, Fábrica, Obra, CRM), cada uma tem o seu repositório no GitHub:</p>
+  <ol>
+    <li>Abra o repositório do módulo que quebrou e clique no arquivo <b>index.html</b></li>
+    <li>Clique em <b>History</b> e escolha a última versão que funcionava</li>
+    <li>Abra o arquivo naquela versão e publique por cima (três pontos → <b>Revert</b>, ou copie e cole)</li>
+    <li>Espere 2 a 3 minutos e recarregue com <b>Ctrl+Shift+R</b></li>
+  </ol>
+  <p><b>Se foi o Worker</b> (todos os módulos param de uma vez): no Cloudflare, abra <i>daluminium-api → Implantações</i>,
+  escolha a versão anterior e mande implantar. Volta em segundos.</p>
+</div>
+
+<div class="man-box">
+  <div class="man-h">6. Parar o sistema para mexer no banco</div>
+  <p>No Cloudflare, em <i>daluminium-api → Settings → Variables and Secrets</i>, crie a variável <b>MANUTENCAO</b> com um recado
+  (por exemplo, "Voltamos às 14h") e clique em <b>Implantar</b>. Todo mundo vê o recado e ninguém grava nada.
+  Para liberar, apague a variável e implante de novo.</p>
+</div>
+
+<div class="man-box">
+  <div class="man-h">7. Alterei algo e não vejo diferença</div>
+  <p>Quase sempre é a memória do navegador. Nesta ordem: <b>Ctrl+Shift+R</b>; espere 3 minutos (a publicação demora);
+  se aparecer a barra amarela "Saiu uma versão nova", clique em <b>Atualizar agora</b>.</p>
+</div>
+
+<div class="man-box">
+  <div class="man-h">8. Testar sem risco</div>
+  <p>O ambiente de teste (daluminium.github.io/teste) é uma cópia do sistema com dados próprios. Para trazer os dados atuais da produção:</p>
+  <code>SELECT copiar_producao_para_teste();</code>
+  <p>É só de ida e <b>substitui tudo o que está no teste</b> (antes, guarda uma cópia do teste nos backups). Pergunte antes se alguém está trabalhando lá.</p>
+</div>
+
+<div class="man-box">
+  <div class="man-h">9. Chaves secretas do Cloudflare</div>
+  <p>Ficam em <i>Cloudflare → daluminium-api → Settings → Variables and Secrets</i>. Nenhuma aparece no código, e nenhuma pode ser lida depois de salva. Depois de mexer em qualquer uma, clique em <b>Implantar</b>.</p>
+  <ul>
+    <li><b>SENHA_PIMENTA</b>: protege a senha de todos. <b>Nunca apague nem troque.</b> Se sumir, ninguém entra com a própria senha: entre com a senha de reserva do admin e defina senha nova para cada pessoa em <i>Gerenciar usuários</i>.</li>
+    <li><b>CHAVE_COFRE</b>: tranca os dados pessoais do CRM e dos contratos (CPF, telefone, endereço). <b>Nunca apague nem troque.</b> Sem ela esses dados não abrem mais. Existe uma cópia no seu cofre de senhas, onde você guardou quando ela foi criada: se ela sumir do Cloudflare, crie de novo com o mesmo nome e o mesmo valor.</li>
+    <li><b>TOKEN_SECRET</b>: assina o acesso de quem está logado. Trocar derruba todo mundo, que entra de novo com a própria senha. Não perde nada.</li>
+    <li><b>ADMIN_ANDER</b> e <b>ADMIN_ARETUSA</b>: senhas de reserva dos administradores. Funcionam mesmo se o resto falhar.</li>
+    <li><b>ADMIN_TOTP</b>: o código do celular do admin (ver item 3).</li>
+    <li><b>SUPA_SECRET</b>: a chave do banco. Apagar para o sistema inteiro. Só se troca junto com a chave no Supabase.</li>
+    <li><b>CLOUDINARY_API_KEY</b> e <b>CLOUDINARY_API_SECRET</b>: a conta dos anexos. Sem elas, os anexos não abrem nem sobem.</li>
+  </ul>
+</div>
+
+<div class="man-box">
+  <div class="man-h">10. Como o sistema é organizado</div>
+  <ul>
+    <li><b>Portal</b>: a porta de entrada, onde se faz o login e o cadastro de usuários</li>
+    <li><b>Módulos</b>: CRM, Obra, Financeiro, Compras e Fábrica, mais os Cadastros de fornecedores e esta Auditoria</li>
+    <li><b>Teste</b>: cópia completa para experimentar, com a faixa laranja listrada no topo</li>
+    <li><b>Worker (Cloudflare)</b>: o porteiro. Todo pedido passa por ele, que confere o login e o que cada pessoa pode ver</li>
+    <li><b>Banco (Supabase)</b>: guarda tudo, trancado. Só o Worker entra</li>
+    <li><b>Anexos (Cloudinary)</b>: privados, só abrem pelo sistema, com um bilhete que vale 1 minuto</li>
+    <li><b>Backups</b>: 3 por dia, por 90 dias. <b>Caderno de acessos</b>: 5 anos, sem como apagar</li>
+    <li><b>Trava do banco</b>: recusa gravar um registro vazio por cima de um que tem dados</li>
+  </ul>
+</div>
+
+<div class="man-box man-nota">
+  <div class="man-h">Se nada disso resolver</div>
+  <p>Os dados quase certamente estão a salvo: a trava e os backups existem para isso. Anote o que apareceu na tela,
+  tire foto do erro e não force alterações até entender a causa. Depois chame o Claude com a foto.</p>
+</div>
+        </div>
       </div>
     </section>
   </div>
@@ -350,7 +513,7 @@ const CADERNO_VISTAS={
 function irPara(aba){
   abaAtual=aba;
   document.querySelectorAll('.aba').forEach(function(b){ b.classList.toggle('ativa',b.dataset.aba===aba); });
-  ['resumo','agora','tempo','caderno','backups','vistoria'].forEach(function(v){
+  ['resumo','agora','tempo','caderno','backups','vistoria','emergencia'].forEach(function(v){
     const el=document.getElementById('v-'+v);
     if(el) el.style.display=(v===aba||(v==='caderno'&&CADERNO_VISTAS[aba]))?'':'none';
   });
@@ -784,6 +947,32 @@ function desenharVistoria(alertas, linhas){
     }).join('')+'</tbody></table></div>';
   alvo.innerHTML=faixa+lista+tabela+
     '<div class="rodape">Vistoria feita em '+esc(dataHora(Date.now()))+'. Esta vistoria só olhou o sistema. Nada foi alterado.</div>';
+}
+
+// ================= VARRER OS ANEXOS =================
+// Veio do botao "Proteger anexos antigos" do portal (passo 4). A conta de
+// arquivos e UMA so para teste e producao, entao isto vale para os dois.
+// Cada rodada tranca um lote; repete enquanto houver arquivo aberto.
+async function varrerAnexos(){
+  if(!confirm('Trancar todo anexo que ainda abre por link, inclusive os excluídos das fichas?\n\nNada é apagado. Vale para o teste e para a produção.')) return;
+  const st=document.getElementById('varrer-status'), b=document.getElementById('varrer-btn');
+  b.disabled=true;
+  let rodada=0, prot=0, falhas=[], j;
+  try{
+    do{
+      rodada++;
+      st.textContent='Varrendo... rodada '+rodada+' ('+prot+' trancados até agora)';
+      j=await pedir('varrer-anexos',{});
+      prot+=j.protegidos||0; falhas=j.falhas||[];
+    }while(j.restam && j.protegidos>0 && rodada<200);
+    st.textContent='Varredura terminada: '+prot+' arquivo(s) trancado(s) agora.'+
+      (falhas.length?'\n\n'+falhas.length+' não deu para trancar (continuam como estavam). Mande uma foto disto ao Claude:\n'+
+        falhas.slice(0,5).map(function(f){ return '• '+f.id+' ('+(f.status||'')+')'; }).join('\n')
+        :'\n\nNenhum arquivo aberto na conta.');
+  }catch(e){
+    st.textContent='Parou: '+e.message+'\n\nO que já foi trancado continua trancado. Pode tentar de novo.';
+  }
+  b.disabled=false;
 }
 
 function mostrarErro(alvo,e){
