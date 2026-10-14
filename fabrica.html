@@ -242,7 +242,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="btn btn-ghost btn-sm" onclick="openTipos()" title="Cadastrar etapas do fluxo, tipos de obra e tipos de documento">
         <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Cadastros
       </button>
-      <button class="btn btn-ghost btn-sm" data-so-gestor onclick="novaObra()">
+      <button class="btn btn-ghost btn-sm" data-nao-consulta onclick="novaObra()">
         <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nova
       </button>
       <button class="btn btn-ghost btn-sm" id="btn-sair" onclick="sairDaFabrica()" style="display:none" title="Encerrar a sessão neste módulo">
@@ -3150,7 +3150,7 @@ function render(){
   if(!verExcluidas && !ativas().length){
     alvo.innerHTML='<div class="vazio"><div class="vazio-t">Nenhuma obra cadastrada</div>'+
       '<p style="font-size:13px;margin-bottom:16px">Comece adicionando as obras que ainda estão para entregar.</p>'+
-      (podeGerenciar()?'<button class="btn btn-teal" onclick="novaObra()">Cadastrar primeira obra</button>':'<p style="font-size:12.5px;color:var(--gray-4)">Quem cadastra obra é o administrador ou o gerente.</p>')+'</div>';
+      (!ehConsulta()?'<button class="btn btn-teal" onclick="novaObra()">Cadastrar primeira obra</button>':'<p style="font-size:12.5px;color:var(--gray-4)">No modo consulta não dá para cadastrar obra.</p>')+'</div>';
     return;
   }
   alvo.innerHTML = view==='quadro' ? htmlQuadro(lista) : htmlLista(lista);
@@ -3488,6 +3488,10 @@ function aplicarPermissoes(){
   document.querySelectorAll("[data-so-gestor]").forEach(function(el){
     el.style.display = pode ? "" : "none";
   });
+  // Cadastrar obra nova: todos menos a Consulta (pedido do Ander, 14/10/2026).
+  document.querySelectorAll("[data-nao-consulta]").forEach(function(el){
+    el.style.display = ehConsulta() ? "none" : "";
+  });
 }
 
 function renderEtapas(){
@@ -3534,11 +3538,12 @@ function preencherSelectEtapas(etapaAtualDaFicha){
 }
 
 function novaObra(){
-  // A trava de verdade fica aqui, nao no botao escondido.
-  if(!podeGerenciar()){
-    aviso('Só administrador ou gerente',
-          'Cadastrar obra é coisa do administrador ou do gerente.\n\n' +
-          'Você pode consultar e movimentar as obras que já existem.');
+  // A trava fica aqui, nao no botao escondido. Desde 14/10/2026 (pedido do
+  // Ander) o funcionario tambem cadastra obra; so a Consulta nao — e o Worker
+  // recusa gravacao da Consulta de qualquer jeito.
+  if(ehConsulta()){
+    aviso('Modo consulta',
+          'Você está no modo consulta: pode olhar, mas não cadastrar obra.');
     return;
   }
   fichaId=null;
