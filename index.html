@@ -443,7 +443,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
         <div class="form-group span2"><label>Cidade / UF <span style="color:var(--red)">*</span></label><input id="fc-cidade" type="text" placeholder="Ex: Porto Velho/RO"></div>
         <div style="grid-column:1/-1;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding-top:6px;border-top:1px solid var(--gray-2)">Dados da empresa (obrigatório)</div>
         <div class="form-group"><label>CNPJ (ou CPF) <span style="color:var(--red)">*</span></label><input id="fc-documento" type="text" placeholder="00.000.000/0000-00"></div>
-        <div class="form-group"><label>E-mail <span style="color:var(--red)">*</span></label><input id="fc-email" type="text" placeholder="vendas@fornecedor.com.br"></div>
+        <div class="form-group"><label>E-mail <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label><input id="fc-email" type="text" placeholder="vendas@fornecedor.com.br"></div>
         <div class="form-group span2"><label>Razão social (ou nome completo) <span style="color:var(--red)">*</span></label><input id="fc-razao" type="text" placeholder="Ex: Mirandex Comércio de Alumínio Ltda"></div>
         <div class="form-group span2"><label>Endereço <span style="color:var(--red)">*</span></label><input id="fc-endereco" type="text" placeholder="Rua, número, bairro"></div>
         <div style="grid-column:1/-1;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding-top:6px;border-top:1px solid var(--gray-2)">Dados para pagamento (opcional)</div>
@@ -1460,12 +1460,12 @@ function renderModulos(modulos){
 // carimbo depois: o Worker ja respondeu "ok" sem gravar (ver worker-nao-cria-registro).
 //
 // Obrigatorio: basico (nome, telefone, contato, cidade) e empresa (CNPJ ou
-// CPF, razao social, endereco, e-mail). Os puxados dos lancamentos antigos
+// CPF, razao social, endereco; e-mail opcional). Os puxados dos lancamentos antigos
 // entram sem isso e aparecem como "cadastro incompleto" ate alguem completar.
 const CAD_SISTEMA = ambienteDeTeste() ? 'cadastros_teste' : 'cadastros';
 const CAD_OBRIGATORIOS = [
   ['nome', 'nome'], ['telefone', 'telefone'], ['contato', 'vendedor de contato'], ['cidade', 'cidade'],
-  ['documento', 'CNPJ/CPF'], ['razao', 'razão social'], ['endereco', 'endereço'], ['email', 'e-mail'], ['uso', 'quem usa']
+  ['documento', 'CNPJ/CPF'], ['razao', 'razão social'], ['endereco', 'endereço'], ['uso', 'quem usa']
 ];
 const CAD_ROTULO_USO = { compras: 'Compras', financeiro: 'Financeiro', ambos: 'Ambos' };
 let _cad = { fornecedores: [], historico: [] };
@@ -1710,7 +1710,7 @@ async function salvarFornecedor() {
     document.getElementById('fc-documento').focus(); return;
   }
   if (soDigitos(novo.telefone).length < 10) { alert('Telefone com DDD, por favor — ex: (69) 3222-0000.'); document.getElementById('fc-telefone').focus(); return; }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(novo.email)) { alert('O e-mail não parece certo. Confira.'); document.getElementById('fc-email').focus(); return; }
+  if (novo.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(novo.email)) { alert('O e-mail não parece certo. Confira.'); document.getElementById('fc-email').focus(); return; }
   const aberto = _fornAberto;
   const id = aberto ? aberto.id : (Date.now().toString(36) + Math.random().toString(36).slice(2, 7));
   const eu = sessionStorage.getItem('portal-user') || meuLogin();
