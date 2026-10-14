@@ -193,7 +193,10 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div class="caixa">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
           <h2>Backups</h2>
-          <button class="btn btn-outline btn-sm" onclick="carregarBackups(true)">Atualizar</button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" id="bk-agora" onclick="fazerBackupAgora()">💾 Fazer backup agora</button>
+            <button class="btn btn-outline btn-sm" onclick="carregarBackups(true)">Atualizar</button>
+          </div>
         </div>
         <p class="explica">Cada linha é uma rodada de backup: quando foi, por que, e quantos registros copiou. Aqui só aparece a lista; o conteúdo dos backups não sai do banco.</p>
         <div id="bk-situacao"></div>
@@ -728,6 +731,20 @@ async function carregarBackups(forcar){
       '<div class="rodape">Mostra as rodadas dos últimos dias (até 600 cópias).</div>';
   }catch(e){ mostrarErro(alvo,e); }
 }
+// O mesmo SELECT fazer_backup('manual') do manual, sem abrir o Supabase.
+// Copia todos os registros (teste e producao) e guarda 90 dias.
+async function fazerBackupAgora(){
+  if(!confirm('Fazer um backup de todo o sistema agora?\n\nLeva poucos segundos e não mexe em nada: só guarda uma cópia.')) return;
+  const b=document.getElementById('bk-agora');
+  b.disabled=true; b.textContent='Fazendo backup...';
+  try{
+    const j=await pedir('fazer-backup',{});
+    alert('Backup feito: '+(j.resultado||'ok')+'.');
+    carregarBackups(true);
+  }catch(e){ alert('O backup não foi feito: '+e.message); }
+  b.disabled=false; b.textContent='💾 Fazer backup agora';
+}
+
 // Backup automatico roda 2 ou 3 vezes por dia: mais de 14 horas sem nenhum
 // e sinal de que parou (como em 14/10/2026, quando parou em silencio).
 function situacaoDoBackup(rodadas){
@@ -786,7 +803,7 @@ const VIS_COM_CRACHA=['compras','financeiro','fabrica','obra','crm','cadastros',
   'fabrica_teste','obra_teste','crm_teste','cadastros_teste','sessions','lembretes','lembretes_teste'];
 const VIS_RECUSADOS=['senhas','senhas_teste','login_bloqueio','acessos','crm_teste&select=data','CRM','cadastro_teste','nome_inventado'];
 // As acoes do Worker (fora o login). Acao nova no Worker: acrescentar aqui.
-const VIS_ACOES=['definir-senha','anotar-acesso','ler-acessos','ler-backups','sessao-entrar','sessao-sinal','sessao-sair',
+const VIS_ACOES=['definir-senha','anotar-acesso','ler-acessos','ler-backups','fazer-backup','sessao-entrar','sessao-sinal','sessao-sair',
   'sessao-outras','sessao-lista','sessao-derrubar','assinar-envio','abrir-anexo','proteger-anexos','varrer-anexos','excluir-anexo'];
 // Ja conhecidos e aceitos: exemplos de campo, CNPJ e e-mail das proprias empresas.
 const VIS_ACEITOS=['69 99999-9999','69999999999','000.000.000-00','00.000.000/0000-00','17.183.753/0001-82','22.714.305/0001-06',
