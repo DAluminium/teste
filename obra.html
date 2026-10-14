@@ -262,7 +262,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="btn btn-ghost btn-sm" data-so-gestor onclick="abrirContratosCadastro()" title="Modelos de contrato, cláusulas e empresas que assinam">
         <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>Contrato
       </button>
-      <button class="btn btn-ghost btn-sm" data-so-gestor onclick="novoContrato()">
+      <button class="btn btn-ghost btn-sm" data-nao-consulta onclick="novoContrato()">
         <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Novo
       </button>
       <button class="btn btn-ghost btn-sm" id="btn-acessos" onclick="abrirAcessos()" style="display:none" title="Quem abriu cada contrato, gerou o PDF ou abriu um anexo">
@@ -837,6 +837,10 @@ let usuario='';
 // Papel de quem entrou: admin, gerente, compras, financeiro ou consulta.
 let papel='';
 function podeGerenciar(){ return papel==='admin' || papel==='gerente'; }
+// Cadastrar e editar obra: todos com o modulo, menos a Consulta (pedido do
+// Ander, 14/10/2026). O contrato com CPF, excluir e os cadastros continuam do
+// gerente — e o Worker nao entrega nem aceita o contrato de quem nao e gerente.
+function podeLancar(){ return !!papel && papel!=='consulta'; }
 // O registro de historico e SO do admin. Gerente cadastra e altera, mas nao
 // ve quem fez o que — decisao do Ander em 11/09/2026.
 function soAdmin(){ return papel==='admin'; }
@@ -2214,7 +2218,7 @@ function preencherSelects(){
 }
 
 function novoContrato(){
-  if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente cadastra contrato.'); return; }
+  if(!podeLancar()){ aviso('Modo consulta','Você está no modo consulta: pode olhar, mas não cadastrar.'); return; }
   fichaId=null;
   _manual={};
   fichaDocs=[]; docsApagados={};
@@ -2273,7 +2277,7 @@ function abrirFicha(id){
   const gestor=podeGerenciar();
   document.getElementById('ficha-btn-excluir').style.display=(gestor&&!c.excluido)?'':'none';
   document.getElementById('ficha-btn-restaurar').style.display=(gestor&&c.excluido)?'':'none';
-  document.getElementById('ficha-btn-salvar').style.display=(gestor&&!c.excluido)?'':'none';
+  document.getElementById('ficha-btn-salvar').style.display=(podeLancar()&&!c.excluido)?'':'none';
   document.getElementById('ficha-btn-contrato').style.display=(gestor&&!c.excluido)?'':'none';
   const quem=[];
   if(c.criadoPor) quem.push('Cadastrado por '+c.criadoPor+(c.criadoEm?' em '+fmtData(c.criadoEm.slice(0,10)):''));
@@ -2303,7 +2307,7 @@ function fecharFicha(){
 // sem mandar nada para a Fábrica — anexar arquivo não é a pessoa terminando o
 // cadastro. Devolve se gravou, para o anexo saber se precisa avisar.
 async function salvarFicha(manterAberta){
-  if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente altera contrato.'); return false; }
+  if(!podeLancar()){ aviso('Modo consulta','Você está no modo consulta: pode olhar, mas não alterar.'); return false; }
   const c=lerFicha();
   if(!c.ct){ aviso('Falta o contrato','Preencha o número do contrato (CT).'); document.getElementById('f-ct').focus(); return false; }
   if(!c.ano){ aviso('Falta o ano','Preencha o ano do contrato.'); document.getElementById('f-ano').focus(); return false; }
@@ -4529,8 +4533,11 @@ function preencherTiposDoc(){
   const el=document.getElementById('f-doc-tipo');
   if(!el) return;
   const antes=el.value;
-  el.innerHTML=tiposDoc().map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
-  if(tiposDoc().indexOf(antes)>=0) el.value=antes;
+  // Contrato e Proposta tem dados do cliente: so o gerente anexa (o Worker
+  // descarta esses tipos vindos de quem nao e gerente).
+  const tipos=tiposDoc().filter(function(t){ return podeGerenciar() || ['contrato','proposta'].indexOf(String(t).toLowerCase())<0; });
+  el.innerHTML=tipos.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
+  if(tipos.indexOf(antes)>=0) el.value=antes;
 }
 
 // Nenhum documento entra duas vezes. O mesmo endereço de arquivo aparecendo
@@ -4845,7 +4852,7 @@ async function anexarDoc(ev){
   const arq=ev.target.files && ev.target.files[0];
   ev.target.value='';           // permite anexar o mesmo arquivo de novo
   if(!arq) return;
-  if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente anexa arquivo.'); return; }
+  if(!podeLancar()){ aviso('Modo consulta','Você está no modo consulta: pode olhar, mas não anexar.'); return; }
 
   // Avisar antes é melhor do que deixar a pessoa esperar o envio para levar
   // erro no fim.
@@ -4900,6 +4907,7 @@ async function anexarDoc(ev){
 }
 
 async function removerDoc(id){
+  if(recusarExcluir()) return;
   const d=fichaDocs.find(function(x){ return x.id===id; });
   if(!d) return;
   if(!confirm('Remover "'+d.nome+'" deste contrato?')) return;
@@ -6304,6 +6312,10 @@ function aplicarPermissoes(){
   const gestor=podeGerenciar();
   document.querySelectorAll('[data-so-gestor]').forEach(function(el){
     el.style.display=gestor?'':'none';
+  });
+  // Novo contrato: todos menos a Consulta (pedido do Ander, 14/10/2026).
+  document.querySelectorAll('[data-nao-consulta]').forEach(function(el){
+    el.style.display=podeLancar()?'':'none';
   });
   const h=document.getElementById('vb-hist');
   if(h) h.style.display=soAdmin()?'':'none';
