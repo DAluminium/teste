@@ -224,8 +224,12 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <div class="cards" id="numeros"></div>
 
     <div class="toolbar">
+      <div class="view-switch" id="troca-funil" title="Qual funil mostrar">
+        <button class="view-btn" id="fb-orcamentos" onclick="setFunil('orcamentos')">📐 Orçamentos</button>
+        <button class="view-btn" id="fb-vendas" onclick="setFunil('vendas')">🤝 Vendas</button>
+      </div>
       <div class="view-switch">
-        <button class="view-btn" id="vb-funil" onclick="setView('funil')">Funil</button>
+        <button class="view-btn" id="vb-funil" onclick="setView('funil')">Quadro</button>
         <button class="view-btn" id="vb-lista" onclick="setView('lista')">Lista</button>
         <button class="view-btn" id="vb-retornos" onclick="setView('retornos')">Retornos<span id="conta-retornos"></span></button>
         <button class="view-btn" id="vb-lixeira" data-so-gestor onclick="setView('lixeira')">Lixeira</button>
@@ -247,6 +251,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="x" onclick="fecharFicha()" title="Fechar">×</button>
     </div>
     <div class="modal-body">
+      <div class="aviso" id="o-aviso-funil" style="display:none"></div>
       <div class="lgpd"><b>Proteção de dados (LGPD):</b> anote só o que serve para a venda. <b>Não</b> guarde aqui CPF, RG, dados bancários, de saúde ou da família do cliente — o CPF entra só no contrato, quando o negócio fecha.</div>
 
       <div class="secao">Cliente</div>
@@ -266,6 +271,11 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div class="secao">Negócio</div>
       <div class="form-grid">
         <div class="fg span2"><label for="o-interesse">O que o cliente quer</label><textarea id="o-interesse" placeholder="Ex.: 6 janelas de correr pretas e porta de entrada pivotante"></textarea></div>
+        <div class="fg span2"><label>Funil</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span id="o-funil-nome" class="pill pill-azul" style="font-size:12px;padding:4px 10px"></span>
+            <button type="button" class="btn btn-outline btn-sm" id="o-enviar" onclick="enviarParaOutroFunil()" title="Tira deste funil e coloca no outro">Enviar para…</button>
+          </div></div>
         <div class="fg"><label for="o-etapa">Etapa</label><select id="o-etapa" onchange="mostrarMotivo()"></select></div>
         <div class="fg"><label for="o-valor">Valor (R$)</label><input id="o-valor" inputmode="decimal" placeholder="0,00"></div>
         <div class="fg span2" id="o-motivo-cx" style="display:none"><label for="o-motivo">Por que perdemos *</label><select id="o-motivo"></select></div>
@@ -376,13 +386,32 @@ const CORES=[
   {id:'vermelho', rotulo:'Vermelho',   pill:'pill-vermelho', cor:'var(--red)'},
   {id:'cinza',    rotulo:'Cinza',      pill:'pill-cinza',    cor:'var(--gray-3)'}
 ];
+// ---- DOIS FUNIS (pedido do Ander, 13/10/2026, com o video do Evoluti) ----
+// ORCAMENTOS: o vendedor cadastra a demanda com as informacoes do projeto e
+// quem orca trabalha ate o orcamento ficar pronto; dai "Enviar para" Vendas.
+// VENDAS: o vendedor acompanha os seus clientes ate fechar ou perder; se o
+// cliente pedir mudanca, "Enviar para" Orcamentos (Revisao/alteracao).
+// Cada etapa diz de qual funil e (`funil`). Etapa antiga sem funil = Vendas.
+// `vendedorCompleta`: a etapa em que falta informacao — o vendedor e avisado e
+// pode completar os dados (nas outras etapas de Orcamentos ele so olha).
+// As ids das etapas padrao de Orcamentos sao conhecidas tambem pelo Worker.
+const FUNIS=[
+  {id:'orcamentos', nome:'Orçamentos'},
+  {id:'vendas',     nome:'Vendas'}
+];
+const ETAPAS_ORCAMENTO_PADRAO=[
+  {id:'espera',    nome:'Em espera',            cor:'ambar',    tipo:'aberta', funil:'orcamentos'},
+  {id:'faltainfo', nome:'Falta informação',     cor:'vermelho', tipo:'aberta', funil:'orcamentos', vendedorCompleta:true},
+  {id:'orcando',   nome:'Orçando',              cor:'azul',     tipo:'aberta', funil:'orcamentos'},
+  {id:'revisao',   nome:'Revisão / alteração',  cor:'roxo',     tipo:'aberta', funil:'orcamentos'}
+];
 const ETAPAS_PADRAO=[
-  {id:'contato',    nome:'Primeiro contato',  cor:'ambar',    tipo:'aberta'},
-  {id:'visita',     nome:'Visita / medição',  cor:'azul',     tipo:'aberta'},
-  {id:'orcamento',  nome:'Orçamento enviado', cor:'roxo',     tipo:'aberta'},
-  {id:'negociacao', nome:'Negociação',        cor:'teal',     tipo:'aberta'},
-  {id:'ganho',      nome:'Fechado',           cor:'verde',    tipo:'ganho'},
-  {id:'perdido',    nome:'Perdido',           cor:'vermelho', tipo:'perdido'}
+  {id:'contato',    nome:'Primeiro contato',  cor:'ambar',    tipo:'aberta',  funil:'vendas'},
+  {id:'visita',     nome:'Visita / medição',  cor:'azul',     tipo:'aberta',  funil:'vendas'},
+  {id:'orcamento',  nome:'Orçamento enviado', cor:'roxo',     tipo:'aberta',  funil:'vendas'},
+  {id:'negociacao', nome:'Negociação',        cor:'teal',     tipo:'aberta',  funil:'vendas'},
+  {id:'ganho',      nome:'Fechado',           cor:'verde',    tipo:'ganho',   funil:'vendas'},
+  {id:'perdido',    nome:'Perdido',           cor:'vermelho', tipo:'perdido', funil:'vendas'}
 ];
 const ORIGENS_PADRAO=['Indicação','Instagram','WhatsApp','Site','Loja / showroom',
   'Construtora / arquiteto','Cliente antigo','Outro'];
@@ -414,6 +443,11 @@ let view='funil';
 let fichaId=null;
 let _notasNovas=[];
 let _vendedores=[];   // quem tem o modulo CRM (para o gerente atribuir)
+// Funcao Orcamentista (13/10/2026): ve e mexe em TODO o funil de Orcamentos,
+// de qualquer vendedor; nao ve o funil de Vendas. Quem corta e o Worker.
+function ehOrcamentista(){ return papel==='orcamentista'; }
+// Qual funil o quadro esta mostrando.
+let funilAtual='vendas';
 
 // ================= SESSÃO =================
 function lerSSO(){
@@ -702,12 +736,18 @@ function alvoDoNegocio(o){
 }
 
 // ================= DADOS =================
-function etapasPadraoNovas(){ return ETAPAS_PADRAO.map(function(e){ return Object.assign({},e); }); }
+function etapasPadraoNovas(){ return ETAPAS_ORCAMENTO_PADRAO.concat(ETAPAS_PADRAO).map(function(e){ return Object.assign({},e); }); }
 function arrumar(d){
   if(!d||typeof d!=='object') d={};
   if(!Array.isArray(d.oportunidades)) d.oportunidades=[];
   if(!Array.isArray(d.historico)) d.historico=[];
   if(!Array.isArray(d.etapas)||!d.etapas.length) d.etapas=etapasPadraoNovas();
+  // Etapas de antes dos dois funis eram todas de Vendas. Se ainda nao existe
+  // nenhuma de Orcamentos, entram as padrao (gravadas quando o gerente salvar).
+  d.etapas.forEach(function(e){ if(e && !e.funil) e.funil='vendas'; });
+  if(!d.etapas.some(function(e){ return e && e.funil==='orcamentos'; })){
+    d.etapas=ETAPAS_ORCAMENTO_PADRAO.map(function(e){ return Object.assign({},e); }).concat(d.etapas);
+  }
   if(!Array.isArray(d.origens)||!d.origens.length) d.origens=ORIGENS_PADRAO.slice();
   if(!Array.isArray(d.motivosPerda)||!d.motivosPerda.length) d.motivosPerda=MOTIVOS_PADRAO.slice();
   return d;
@@ -960,6 +1000,41 @@ function etapas(){ return dados.etapas||[]; }
 function etapaDe(id){ return etapas().find(function(e){ return e.id===id; })||null; }
 function etapaInicial(){ const e=etapas().find(function(x){ return x.tipo==='aberta'; }); return e?e.id:(etapas()[0]||{}).id; }
 function tipoDe(o){ const e=etapaDe(o.etapa); return e?e.tipo:'aberta'; }
+// ---- OS DOIS FUNIS ----
+function funilDe(etapaId){
+  const e=etapaDe(etapaId);
+  if(e) return e.funil==='orcamentos'?'orcamentos':'vendas';
+  return ETAPAS_ORCAMENTO_PADRAO.some(function(x){ return x.id===etapaId; })?'orcamentos':'vendas';
+}
+function funilDoNegocio(o){ return funilDe(o&&o.etapa); }
+function etapasDoFunil(f){ return etapas().filter(function(e){ return (e.funil||'vendas')===f; }); }
+function etapaInicialDoFunil(f){
+  const l=etapasDoFunil(f);
+  const e=l.find(function(x){ return x.tipo==='aberta'; })||l[0];
+  return e?e.id:etapaInicial();
+}
+function nomeDoFunil(f){ const x=FUNIS.find(function(y){ return y.id===f; }); return x?x.nome:f; }
+function funisQueVejo(){ return ehOrcamentista()?['orcamentos']:['orcamentos','vendas']; }
+function vendedorCompletaNaEtapa(etapaId){
+  const e=etapaDe(etapaId);
+  return e?!!e.vendedorCompleta:etapaId==='faltainfo';
+}
+// O que esta pessoa pode fazer com o negocio. Espelha a trava do Worker: a
+// tela so evita a pessoa tentar e perder o que digitou.
+function podeMoverNoFunil(o){
+  if(podeGerenciar()) return true;
+  if(funilDoNegocio(o)==='orcamentos') return ehOrcamentista();
+  return o.vendedor===usuarioLogin;
+}
+function podeEditarNegocio(o){
+  if(podeGerenciar()) return true;
+  if(funilDoNegocio(o)==='orcamentos'){
+    if(ehOrcamentista()) return true;
+    return o.vendedor===usuarioLogin && vendedorCompletaNaEtapa(o.etapa);
+  }
+  return o.vendedor===usuarioLogin;
+}
+function podeEnviarParaOutroFunil(o){ return podeMoverNoFunil(o); }
 function pillDe(id){
   const e=etapaDe(id);
   const c=e?CORES.find(function(x){ return x.id===e.cor; }):null;
@@ -1042,7 +1117,7 @@ async function carregarVendedores(){
     const d=await r.json();
     _vendedores=((d&&d.usuarios)||[]).filter(function(u){
       return u && u.active!==false && u.username && Array.isArray(u.modulos) && u.modulos.indexOf('crm')>=0;
-    }).map(function(u){ return {u:String(u.username).toLowerCase(), n:u.name||u.username}; });
+    }).map(function(u){ return {u:String(u.username).toLowerCase(), n:u.name||u.username, w:u.whatsapp||''}; });
   }catch(e){}
   preencherFiltroVendedor();
 }
@@ -1074,9 +1149,12 @@ function preencherFiltroVendedor(){
 function ativos(){ return (dados.oportunidades||[]).filter(function(o){ return !o.excluido; }); }
 function filtrados(){
   const busca=normTexto((document.getElementById('busca')||{}).value||'').trim();
-  const vend=podeGerenciar()?((document.getElementById('f-vendedor')||{}).value||''):'';
+  const vend=(podeGerenciar()||ehOrcamentista())?((document.getElementById('f-vendedor')||{}).value||''):'';
   const etapa=(view==='lista')?((document.getElementById('f-etapa')||{}).value||''):'';
+  // Quadro e Lista mostram um funil por vez; Retornos e Lixeira, os dois.
+  const soDoFunil=(view==='funil'||view==='lista');
   return ativos().filter(function(o){
+    if(soDoFunil && funilDoNegocio(o)!==funilAtual) return false;
     if(vend && o.vendedor!==vend) return false;
     if(etapa && o.etapa!==etapa) return false;
     if(!busca) return true;
@@ -1086,6 +1164,17 @@ function filtrados(){
 // Retorno combinado e ainda aberto (negocio ganho ou perdido nao cobra).
 function retornoPendente(o){ return !!(o.retorno && tipoDe(o)==='aberta'); }
 
+function setFunil(f){
+  if(funisQueVejo().indexOf(f)<0) f=funisQueVejo()[0];
+  funilAtual=f;
+  try{ localStorage.setItem('dalum-crm-funil',f); }catch(e){}
+  FUNIS.forEach(function(x){
+    const b=document.getElementById('fb-'+x.id);
+    if(b){ b.classList.toggle('active',x.id===f); b.style.display=funisQueVejo().indexOf(x.id)>=0?'':'none'; }
+  });
+  const sel=document.getElementById('f-etapa'); if(sel) sel.value='';
+  render();
+}
 function setView(v){
   if(v==='lixeira' && !podeGerenciar()) v='funil';
   view=v;
@@ -1110,10 +1199,25 @@ function render(){
 }
 
 function renderNumeros(){
-  const vend=podeGerenciar()?((document.getElementById('f-vendedor')||{}).value||''):'';
+  const vend=(podeGerenciar()||ehOrcamentista())?((document.getElementById('f-vendedor')||{}).value||''):'';
   const lista=ativos().filter(function(o){ return !vend || o.vendedor===vend; });
   const hoje=hojeISO(), mes=hoje.slice(0,7);
-  const abertos=lista.filter(function(o){ return tipoDe(o)==='aberta'; });
+  const emOrcamento=lista.filter(function(o){ return funilDoNegocio(o)==='orcamentos'; });
+  const faltaInfo=emOrcamento.filter(function(o){ return vendedorCompletaNaEtapa(o.etapa); });
+  // Quem orca so ve o funil de Orcamentos: os numeros dele sao o trabalho dele.
+  if(ehOrcamentista()){
+    const somaOrc=emOrcamento.reduce(function(s,o){ return s+(Number(o.valor)||0); },0);
+    document.getElementById('numeros').innerHTML=
+      card('var(--blue)',emOrcamento.length,'Em orçamento',fmtMoeda(somaOrc)||'','setFunil(\'orcamentos\')')+
+      card(faltaInfo.length?'var(--red)':'var(--gray-3)',faltaInfo.length,'Esperando o vendedor','falta informação','')+
+      etapasDoFunil('orcamentos').filter(function(e){ return !e.vendedorCompleta; }).map(function(e){
+        const n=emOrcamento.filter(function(o){ return o.etapa===e.id; }).length;
+        return card(corDe(e.id),n,e.nome,'','');
+      }).join('');
+    const c0=document.getElementById('conta-retornos'); if(c0) c0.innerHTML='';
+    return;
+  }
+  const abertos=lista.filter(function(o){ return tipoDe(o)==='aberta' && funilDoNegocio(o)==='vendas'; });
   const somaAbertos=abertos.reduce(function(s,o){ return s+(Number(o.valor)||0); },0);
   const ganhosMes=lista.filter(function(o){ return tipoDe(o)==='ganho' && String(o.fechadoEm||'').slice(0,7)===mes; });
   const somaGanhos=ganhosMes.reduce(function(s,o){ return s+(Number(o.valor)||0); },0);
@@ -1125,7 +1229,8 @@ function renderNumeros(){
   const p90=lista.filter(function(o){ return tipoDe(o)==='perdido' && String(o.fechadoEm||'')>=desde; }).length;
   const taxa=(g90+p90)?Math.round(100*g90/(g90+p90))+'%':'—';
   document.getElementById('numeros').innerHTML=
-    card('var(--teal)',abertos.length,'Em negociação',fmtMoeda(somaAbertos)||'sem valor informado',"setView('funil')")+
+    card('var(--blue)',emOrcamento.length,'Em orçamento',faltaInfo.length?faltaInfo.length+' com falta de informação':'',"setFunil('orcamentos')")+
+    card('var(--teal)',abertos.length,'Em negociação',fmtMoeda(somaAbertos)||'sem valor informado',"setFunil('vendas')")+
     card(venc.length?'var(--red)':'var(--gray-3)',venc.length,'Retornos para hoje',venc.length?'incluindo atrasados':'nada pendente',"setView('retornos')")+
     card('var(--green)',ganhosMes.length,'Fechados no mês',fmtMoeda(somaGanhos)||'—','')+
     card('var(--red)',perdidosMes.length,'Perdidos no mês','','')+
@@ -1144,15 +1249,25 @@ function renderLembrete(){
   const el=document.getElementById('lembrete-retornos');
   if(!el) return;
   const hoje=hojeISO();
+  let html='';
+  // Orcamento parado esperando o vendedor completar a informacao.
+  const faltam=ativos().filter(function(o){ return o.vendedor===usuarioLogin && funilDoNegocio(o)==='orcamentos' && vendedorCompletaNaEtapa(o.etapa); });
+  if(faltam.length && !ehOrcamentista()){
+    html+='<div class="lembrete" style="background:var(--red-light);border-color:#f2b8b0" onclick="setView(\'funil\');setFunil(\'orcamentos\')">📐 <span><b>'+
+      (faltam.length===1?'1 orçamento está':faltam.length+' orçamentos estão')+' esperando informação sua.</b> Abra, complete os dados e salve.</span>'+
+      '<span style="margin-left:auto;color:var(--teal-dark);font-weight:600">Ver →</span></div>';
+  }
   const meus=ativos().filter(function(o){ return o.vendedor===usuarioLogin && retornoPendente(o) && o.retorno<=hoje; });
-  if(!meus.length || view==='retornos'){ el.innerHTML=''; return; }
-  const atras=meus.filter(function(o){ return o.retorno<hoje; }).length;
-  el.innerHTML='<div class="lembrete" onclick="setView(\'retornos\')">🔔 <span><b>Você tem '+meus.length+' retorno'+(meus.length>1?'s':'')+' para fazer'+
-    '</b>'+(atras?' — '+atras+' atrasado'+(atras>1?'s':''):'')+'.</span><span style="margin-left:auto;color:var(--teal-dark);font-weight:600">Ver retornos →</span></div>';
+  if(meus.length && view!=='retornos'){
+    const atras=meus.filter(function(o){ return o.retorno<hoje; }).length;
+    html+='<div class="lembrete" onclick="setView(\'retornos\')">🔔 <span><b>Você tem '+meus.length+' retorno'+(meus.length>1?'s':'')+' para fazer'+
+      '</b>'+(atras?' — '+atras+' atrasado'+(atras>1?'s':''):'')+'.</span><span style="margin-left:auto;color:var(--teal-dark);font-weight:600">Ver retornos →</span></div>';
+  }
+  el.innerHTML=html;
 }
 
 function linhaDoVendedor(o){
-  return podeGerenciar()?'<div class="neg-linha">👤 '+esc(o.vendedorNome||nomeDoVendedor(o.vendedor))+'</div>':'';
+  return (podeGerenciar()||ehOrcamentista())?'<div class="neg-linha">👤 '+esc(o.vendedorNome||nomeDoVendedor(o.vendedor))+'</div>':'';
 }
 function etiquetaRetorno(o){
   if(!retornoPendente(o)) return '';
@@ -1185,8 +1300,9 @@ function htmlFunil(){
   // Fechados e perdidos acumulam para sempre: no funil ficam so os dos
   // ultimos 60 dias. Os antigos continuam na Lista.
   const corte=somaDias(hojeISO(),-60);
-  return '<div class="funil">'+etapas().map(function(e){
-    let doGrupo=lista.filter(function(o){ return o.etapa===e.id || (!etapaDe(o.etapa) && e.id===etapaInicial()); });
+  const inicial=etapaInicialDoFunil(funilAtual);
+  return '<div class="funil">'+etapasDoFunil(funilAtual).map(function(e){
+    let doGrupo=lista.filter(function(o){ return o.etapa===e.id || (!etapaDe(o.etapa) && e.id===inicial); });
     let escondidos=0;
     if(e.tipo!=='aberta'){
       const antes=doGrupo.length;
@@ -1200,18 +1316,20 @@ function htmlFunil(){
       '<div class="coluna-soma">'+(soma?fmtMoeda(soma):'&nbsp;')+'</div>'+
       '<div class="coluna-corpo">'+
         (doGrupo.length?doGrupo.map(function(o){
-          return '<div class="neg" draggable="true" data-id="'+esc(o.id)+'" onclick="abrirFicha(\''+esc(o.id)+'\')">'+
+          return '<div class="neg" draggable="'+(podeMoverNoFunil(o)?'true':'false')+'" data-id="'+esc(o.id)+'" onclick="abrirFicha(\''+esc(o.id)+'\')">'+
             '<div class="neg-nome">'+esc(o.cliente||'—')+'</div>'+
             (o.valor?'<div class="neg-valor">'+fmtMoeda(o.valor)+'</div>':'')+
             ((o.cidade||o.bairro)?'<div class="neg-linha">📍 '+esc([o.bairro,o.cidade].filter(Boolean).join(' · '))+'</div>':'')+
             (e.tipo==='perdido'&&o.motivoPerda?'<div class="neg-linha">'+esc(o.motivoPerda)+'</div>':'')+
-            etiquetaRetorno(o)+etiquetaSemContato(o)+linhaDoVendedor(o)+
+            etiquetaFaltaInfo(o)+etiquetaRetorno(o)+etiquetaSemContato(o)+linhaDoVendedor(o)+
           '</div>';
         }).join(''):'<div class="coluna-vazia">Arraste um negócio para cá</div>')+
         (escondidos?'<div class="coluna-vazia">+ '+escondidos+' mais antigo'+(escondidos>1?'s':'')+' (veja na Lista)</div>':'')+
       '</div></div>';
   }).join('')+'</div>'+
-  '<div style="font-size:11.5px;color:var(--gray-4);margin-top:6px">Arraste o cartão para mudar a etapa (no celular, abra o negócio e troque a etapa).</div>';
+  '<div style="font-size:11.5px;color:var(--gray-4);margin-top:6px">Arraste o cartão para mudar de coluna (no celular, abra o negócio e troque a etapa). '+
+    'Para passar para o funil de '+(funilAtual==='orcamentos'?'Vendas':'Orçamentos')+', abra o negócio e use <b>Enviar para</b>.'+
+    (funilAtual==='orcamentos' && !podeGerenciar() && !ehOrcamentista()?' Aqui você acompanha os seus orçamentos: quem mexe é quem orça.':'')+'</div>';
 }
 
 // Arrastar o cartao de uma coluna para outra muda a etapa. Para PERDIDO abre
@@ -1236,6 +1354,13 @@ async function moverParaEtapa(id, etapaId){
   const o=ativos().find(function(x){ return x.id===id; });
   const e=etapaDe(etapaId);
   if(!o||!e||o.etapa===etapaId) return;
+  if(!podeMoverNoFunil(o)){
+    aviso('Sem permissão', funilDoNegocio(o)==='orcamentos'
+      ? 'No funil de Orçamentos quem move o cartão é quem orça. Você acompanha por aqui.'
+      : 'Só o vendedor do negócio ou o gerente move este cartão.');
+    return;
+  }
+  if(e.vendedorCompleta){ await mandarParaFaltaInformacao(o, etapaId); return; }
   if(e.tipo==='perdido'){
     abrirFicha(id);
     document.getElementById('o-etapa').value=etapaId;
@@ -1251,6 +1376,56 @@ async function moverParaEtapa(id, etapaId){
     alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario;
   },{acao:'mudou a etapa', alvo:alvoDoNegocio(o), detalhe:(antes?antes.nome:'—')+' → '+e.nome});
 }
+// ---- FALTA INFORMACAO (13/10/2026) ----
+// Quem orca diz o que falta; fica anotado no negocio e o vendedor e avisado
+// pelo WhatsApp (mensagem pronta; quem envia e a pessoa — ver "WhatsApp: chamar
+// o aplicativo"). O vendedor completa na ficha e salva: o cartao mostra que ele
+// completou, e quem orca segue.
+function perguntarOQueFalta(o){
+  const nome=(o.vendedorNome||nomeDoVendedor(o.vendedor)||'o vendedor');
+  const t=prompt('O que está faltando para orçar "'+(o.cliente||'este negócio')+'"?\n\n'+
+    nome+' vai receber esta mensagem pelo WhatsApp.','');
+  if(t===null) return null;
+  return t.trim()||'(não especificado)';
+}
+function marcarFaltaInformacao(alvo, falta){
+  alvo.faltaInfo=falta; alvo.faltaInfoEm=agoraISO(); alvo.faltaInfoPor=usuario;
+  alvo.infoCompletadaEm=''; alvo.infoCompletadaPor='';
+  if(!Array.isArray(alvo.notas)) alvo.notas=[];
+  alvo.notas.push({id:novoId(), ts:agoraISO(), por:usuario, texto:'Falta informação: '+falta});
+}
+async function mandarParaFaltaInformacao(o, etapaId){
+  const falta=perguntarOQueFalta(o);
+  if(falta===null) return;
+  const e=etapaDe(etapaId);
+  const ok=await alterar(function(base){
+    const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
+    if(!alvo) return false;
+    aplicarEtapa(alvo, etapaId);
+    marcarFaltaInformacao(alvo, falta);
+    alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario;
+  },{acao:'pediu informação ao vendedor', alvo:alvoDoNegocio(o), detalhe:(e?e.nome+': ':'')+falta});
+  if(ok) avisarVendedorFaltaInfo(o, falta);
+}
+function avisarVendedorFaltaInfo(o, falta){
+  const v=_vendedores.find(function(x){ return x.u===o.vendedor; });
+  const num=numeroWhats(v&&v.w);
+  const nome=(v&&v.n)||o.vendedorNome||o.vendedor||'vendedor';
+  if(!num){
+    aviso('Anotado no negócio','Ficou registrado o que falta, e '+nome+' vê o aviso ao abrir o CRM.\n\n'+
+      'Não abri o WhatsApp porque '+nome+' não tem número cadastrado. Para cadastrar: portal → Gerenciar usuários.');
+    return;
+  }
+  const msg='Olá, '+String(nome).split(' ')[0]+'! No orçamento de '+(o.cliente||'um cliente')+' está faltando: '+falta+
+    '\n\nComplete no CRM (funil de Orçamentos) e salve: '+PORTAL_URL;
+  abrirWhats('https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg));
+}
+function etiquetaFaltaInfo(o){
+  if(funilDoNegocio(o)!=='orcamentos' || !vendedorCompletaNaEtapa(o.etapa)) return '';
+  if(o.infoCompletadaEm) return '<div class="neg-linha" style="color:var(--green);font-weight:600">✓ Vendedor completou em '+fmtData(o.infoCompletadaEm)+'</div>';
+  return o.faltaInfo?'<div class="neg-linha" style="color:var(--red);font-weight:600">❗ Falta: '+esc(String(o.faltaInfo).slice(0,80))+'</div>':'';
+}
+
 // Ao entrar em fechado ou perdido, guarda a data (e dela que saem os numeros
 // do mes). Voltar para uma etapa aberta apaga a data e o motivo.
 function aplicarEtapa(alvo, etapaId){
@@ -1267,14 +1442,14 @@ function htmlLista(){
   const sel=document.getElementById('f-etapa');
   if(sel){
     const atual=sel.value;
-    sel.innerHTML='<option value="">Todas as etapas</option>'+etapas().map(function(e){ return '<option value="'+esc(e.id)+'">'+esc(e.nome)+'</option>'; }).join('');
+    sel.innerHTML='<option value="">Todas as etapas</option>'+etapasDoFunil(funilAtual).map(function(e){ return '<option value="'+esc(e.id)+'">'+esc(e.nome)+'</option>'; }).join('');
     sel.value=atual;
   }
   const lista=filtrados().sort(function(a,b){ return String(b.atualizadoEm||'').localeCompare(String(a.atualizadoEm||'')); });
   if(!lista.length) return vazio('Nada encontrado', ativos().length?'Mude a busca ou os filtros.':'Clique em <b>Novo negócio</b> para cadastrar o primeiro cliente.');
   return '<div class="tabela-cx"><table class="tab"><thead><tr>'+
     '<th>Cliente</th><th>Telefone</th><th>Cidade</th><th>Etapa</th><th>Valor</th><th>Retorno</th>'+
-    (podeGerenciar()?'<th>Vendedor</th>':'')+'<th>Atualizado</th></tr></thead><tbody>'+
+    ((podeGerenciar()||ehOrcamentista())?'<th>Vendedor</th>':'')+'<th>Atualizado</th></tr></thead><tbody>'+
     lista.map(function(o){
       return '<tr onclick="abrirFicha(\''+esc(o.id)+'\')">'+
         '<td><b>'+esc(o.cliente||'—')+'</b>'+(o.origem?'<div class="neg-linha">'+esc(o.origem)+'</div>':'')+'</td>'+
@@ -1283,7 +1458,7 @@ function htmlLista(){
         '<td>'+pillDe(o.etapa)+(o.motivoPerda?'<div class="neg-linha">'+esc(o.motivoPerda)+'</div>':'')+'</td>'+
         '<td style="white-space:nowrap">'+fmtMoeda(o.valor)+'</td>'+
         '<td style="white-space:nowrap">'+(retornoPendente(o)?etiquetaRetorno(o):'')+'</td>'+
-        (podeGerenciar()?'<td>'+esc(o.vendedorNome||nomeDoVendedor(o.vendedor))+'</td>':'')+
+        ((podeGerenciar()||ehOrcamentista())?'<td>'+esc(o.vendedorNome||nomeDoVendedor(o.vendedor))+'</td>':'')+
         '<td style="white-space:nowrap">'+fmtData(o.atualizadoEm)+'</td></tr>';
     }).join('')+'</tbody></table></div>'+
     '<div style="font-size:11.5px;color:var(--gray-4);margin-top:8px">'+lista.length+' negócio'+(lista.length>1?'s':'')+'.</div>';
@@ -1360,7 +1535,12 @@ function preencherListaCidades(){
 // ================= FICHA =================
 function preencherSelectsFicha(o){
   const et=document.getElementById('o-etapa');
-  et.innerHTML=etapas().map(function(e){ return '<option value="'+esc(e.id)+'">'+esc(e.nome)+'</option>'; }).join('');
+  // Negocio que ja existe: so as etapas do funil dele (trocar de funil e pelo
+  // "Enviar para"). Negocio novo: as dos funis que a pessoa pode usar.
+  const opcoes=function(f){ return etapasDoFunil(f).map(function(e){ return '<option value="'+esc(e.id)+'">'+esc(e.nome)+'</option>'; }).join(''); };
+  et.innerHTML = o
+    ? opcoes(funilDoNegocio(o))
+    : funisQueVejo().map(function(f){ return '<optgroup label="Funil de '+esc(nomeDoFunil(f))+'">'+opcoes(f)+'</optgroup>'; }).join('');
   const orig=(dados.origens||[]).slice();
   if(o && o.origem && orig.indexOf(o.origem)<0) orig.push(o.origem);
   document.getElementById('o-origem').innerHTML='<option value="">—</option>'+orig.map(function(x){ return '<option>'+esc(x)+'</option>'; }).join('');
@@ -1371,11 +1551,13 @@ function preencherSelectsFicha(o){
   // nao deixa ele gravar negocio em nome de outra pessoa de qualquer jeito).
   const sv=document.getElementById('o-vendedor');
   const dica=document.getElementById('o-vendedor-dica');
-  if(podeGerenciar()){
-    const l=vendedoresConhecidos();
+  if(podeGerenciar()||ehOrcamentista()){
+    const l=vendedoresConhecidos().filter(function(v){ return !ehOrcamentista() || v.u!==usuarioLogin; });
     if(o && o.vendedor && !l.some(function(v){ return v.u===o.vendedor; })) l.push({u:o.vendedor,n:o.vendedorNome||o.vendedor});
-    sv.innerHTML=l.map(function(v){ return '<option value="'+esc(v.u)+'">'+esc(v.n)+'</option>'; }).join('');
-    sv.disabled=false;
+    sv.innerHTML=(ehOrcamentista()&&!o?'<option value="">— escolha o vendedor —</option>':'')+
+      l.map(function(v){ return '<option value="'+esc(v.u)+'">'+esc(v.n)+'</option>'; }).join('');
+    // Quem orca escolhe o vendedor so ao cadastrar; depois, nao troca o dono.
+    sv.disabled=ehOrcamentista() && !!o;
     dica.textContent=_vendedores.length?'':'Aparecem aqui as pessoas com o módulo CRM liberado.';
   } else {
     sv.innerHTML='<option value="'+esc(usuarioLogin)+'">'+esc(usuario)+'</option>';
@@ -1388,6 +1570,37 @@ function mostrarMotivo(){
   document.getElementById('o-motivo-cx').style.display=(e&&e.tipo==='perdido')?'':'none';
   const g=e&&e.tipo==='ganho';
   document.getElementById('ficha-btn-obra').style.display=(g && fichaId && podeLevarParaObra())?'':'none';
+  // O nome do funil acompanha a etapa escolhida (no negocio novo, ela decide).
+  const fn=document.getElementById('o-funil-nome');
+  if(fn) fn.textContent=nomeDoFunil(funilDe(document.getElementById('o-etapa').value));
+}
+// O que a pessoa pode fazer nesta ficha, conforme o funil e a funcao.
+function ajustarFichaAoFunil(o){
+  const av=document.getElementById('o-aviso-funil');
+  const env=document.getElementById('o-enviar');
+  av.style.display='none'; av.innerHTML=''; av.style.background='';
+  env.style.display=(o && !o.excluido && podeEnviarParaOutroFunil(o))?'':'none';
+  if(o){ env.textContent='Enviar para '+(funilDoNegocio(o)==='orcamentos'?'Vendas':'Orçamentos')+'…'; }
+  if(!o || o.excluido) return;
+  const et=document.getElementById('o-etapa');
+  if(!podeEditarNegocio(o)){
+    travarFicha(true);
+    document.getElementById('ficha-btn-salvar').style.display='none';
+    av.style.display='';
+    av.innerHTML='📐 <b>Este orçamento está com quem orça</b> (etapa: '+esc((etapaDe(o.etapa)||{}).nome||'—')+'). '+
+      'Você acompanha por aqui. Se faltar alguma informação, você será avisado e poderá completar.';
+    return;
+  }
+  // Vendedor completando a informacao: mexe nos dados, nao muda a etapa.
+  if(funilDoNegocio(o)==='orcamentos' && !podeGerenciar() && !ehOrcamentista()){
+    et.disabled=true;
+    av.style.display='';
+    av.style.background='var(--red-light)';
+    av.innerHTML='❗ <b>Falta informação para orçar:</b> '+esc(o.faltaInfo||'(veja as anotações)')+
+      '<br>Complete os dados abaixo e clique em <b>Salvar</b>. Quem orça verá que você completou.';
+    return;
+  }
+  av.style.background='';
 }
 function renderNotas(o){
   const todas=((o&&o.notas)||[]).concat(_notasNovas).slice().sort(function(a,b){ return String(b.ts).localeCompare(String(a.ts)); });
@@ -1415,7 +1628,9 @@ function novoNegocio(){
   ['o-cliente','o-telefone','o-email','o-cidade','o-bairro','o-interesse','o-valor','o-retorno','o-retorno-oque','o-obs','o-nota']
     .forEach(function(id){ p(id,''); });
   p('o-origem',''); p('o-motivo','');
-  p('o-etapa',etapaInicial());
+  // O negocio novo comeca no funil de Orcamentos (a demanda que o vendedor
+  // cadastra). Quem esta olhando o funil de Vendas comeca la.
+  p('o-etapa',etapaInicialDoFunil(funisQueVejo().indexOf(funilAtual)>=0?funilAtual:'orcamentos'));
   // Negocio novo ja nasce com retorno para daqui a 2 dias: e o habito que o
   // CRM quer criar. Quem nao quiser apaga.
   p('o-retorno',somaDias(hojeISO(),2));
@@ -1430,6 +1645,7 @@ function novoNegocio(){
   ['ficha-btn-excluir','ficha-btn-restaurar','ficha-btn-anonimizar','ficha-btn-obra'].forEach(function(id){ document.getElementById(id).style.display='none'; });
   document.getElementById('ficha-btn-salvar').style.display='';
   travarFicha(false);
+  ajustarFichaAoFunil(null);
   renderNotas(null);
   mostrarMotivo();
   document.getElementById('ficha-ov').classList.add('open');
@@ -1446,7 +1662,7 @@ function abrirFicha(id){
   p('o-cliente',o.cliente); p('o-telefone',o.telefone); p('o-email',o.email);
   p('o-cidade',o.cidade); p('o-bairro',o.bairro); p('o-origem',o.origem||'');
   p('o-interesse',o.interesse); p('o-valor',fmtValorCampo(o.valor));
-  p('o-etapa',etapaDe(o.etapa)?o.etapa:etapaInicial()); p('o-motivo',o.motivoPerda||'');
+  p('o-etapa',etapaDe(o.etapa)?o.etapa:etapaInicialDoFunil(funilDoNegocio(o))); p('o-motivo',o.motivoPerda||'');
   p('o-retorno',o.retorno); p('o-retorno-oque',o.retornoOQue); p('o-obs',o.obs); p('o-nota','');
   document.getElementById('o-vendedor').value=o.vendedor||'';
   document.getElementById('o-autoriza').checked=!!o.autorizaContato;
@@ -1467,6 +1683,7 @@ function abrirFicha(id){
   document.getElementById('ficha-btn-anonimizar').style.display=(soAdmin()&&!o.anonimizadoEm)?'':'none';
   document.getElementById('ficha-btn-salvar').style.display=!o.excluido?'':'none';
   travarFicha(!!o.excluido);
+  ajustarFichaAoFunil(o);
   renderNotas(o);
   mostrarMotivo();
   document.getElementById('ficha-ov').classList.add('open');
@@ -1474,7 +1691,7 @@ function abrirFicha(id){
 // Negocio na lixeira so se le: para mexer, restaura antes.
 function travarFicha(travar){
   document.querySelectorAll('#ficha-ov .modal-body input, #ficha-ov .modal-body select, #ficha-ov .modal-body textarea').forEach(function(el){
-    if(el.id==='o-vendedor' && !podeGerenciar()) { el.disabled=true; return; }
+    if(el.id==='o-vendedor' && !podeGerenciar() && !(ehOrcamentista() && !fichaId)) { el.disabled=true; return; }
     el.disabled=travar;
   });
 }
@@ -1493,7 +1710,7 @@ function lerFicha(){
     valor:lerValor(v('o-valor')), etapa:v('o-etapa'), motivoPerda:v('o-motivo'),
     retorno:v('o-retorno'), retornoOQue:v('o-retorno-oque'),
     obs:document.getElementById('o-obs').value.trim(),
-    vendedor:podeGerenciar()?v('o-vendedor'):usuarioLogin,
+    vendedor:(podeGerenciar()||ehOrcamentista())?v('o-vendedor'):usuarioLogin,
     autorizaContato:document.getElementById('o-autoriza').checked
   };
 }
@@ -1520,6 +1737,16 @@ async function salvarFicha(){
   const id=fichaId||novoId();
   const novo=!fichaId;
   const antes=(dados.oportunidades||[]).find(function(x){ return x.id===id; })||{};
+  // Quem orca mudou a etapa para "Falta informacao" pela ficha: pergunta o que
+  // falta, como no arrastar, e avisa o vendedor depois de salvar.
+  let faltaPedida=null;
+  if(!novo && antes.etapa!==f.etapa && vendedorCompletaNaEtapa(f.etapa) && (ehOrcamentista()||podeGerenciar())){
+    faltaPedida=perguntarOQueFalta(antes);
+    if(faltaPedida===null) return;
+  }
+  // Vendedor salvando na etapa em que falta informacao = completou.
+  const vendedorCompletou=!novo && !podeGerenciar() && !ehOrcamentista() &&
+    funilDoNegocio(antes)==='orcamentos' && vendedorCompletaNaEtapa(antes.etapa);
   const notas=_notasNovas.slice();
   const nomeVend=(f.vendedor===usuarioLogin)?usuario:nomeDoVendedor(f.vendedor);
   const ok=await alterar(function(base){
@@ -1544,6 +1771,11 @@ async function salvarFicha(){
     if(!Array.isArray(alvo.notas)) alvo.notas=[];
     const tem={}; alvo.notas.forEach(function(n){ tem[n.id]=1; });
     notas.forEach(function(n){ if(!tem[n.id]) alvo.notas.push(n); });
+    if(faltaPedida) marcarFaltaInformacao(alvo, faltaPedida);
+    if(vendedorCompletou){
+      alvo.infoCompletadaEm=agoraISO(); alvo.infoCompletadaPor=usuario;
+      alvo.notas.push({id:novoId(), ts:agoraISO(), por:usuario, texto:'Vendedor completou a informação que faltava.'});
+    }
     alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario;
   }, function(){
     const mud=[];
@@ -1555,7 +1787,62 @@ async function salvarFicha(){
     _notasNovas=[];
     document.getElementById('ficha-ov').classList.remove('open');
     fichaId=null;
+    if(faltaPedida) avisarVendedorFaltaInfo(antes, faltaPedida);
   }
+}
+
+// ---- ENVIAR PARA O OUTRO FUNIL (13/10/2026) ----
+// Arrastar e so dentro do mesmo funil. Para passar de Orcamentos para Vendas
+// (orcamento pronto) ou de Vendas para Orcamentos (cliente pediu revisao), a
+// pessoa escolhe a coluna de destino numa lista.
+function enviarParaOutroFunil(){
+  const o=(dados.oportunidades||[]).find(function(x){ return x.id===fichaId; });
+  if(!o) return;
+  if(!podeEnviarParaOutroFunil(o)){ aviso('Sem permissão','Você não pode enviar este negócio para o outro funil.'); return; }
+  if(_notasNovas.length && !confirm('Há contato anotado que ainda não foi salvo.\n\nEnviar mesmo assim e perder essa anotação?')) return;
+  const destino=funilDoNegocio(o)==='orcamentos'?'vendas':'orcamentos';
+  const lista=etapasDoFunil(destino).filter(function(e){ return e.tipo==='aberta'; });
+  if(!lista.length){ aviso('Funil sem etapas','O funil de '+nomeDoFunil(destino)+' não tem etapas. Peça ao gerente para cadastrar em Cadastros.'); return; }
+  // Volta para Orcamentos normalmente e para revisar.
+  const sugerida=(destino==='orcamentos' && lista.find(function(e){ return e.id==='revisao'; })) || lista[0];
+  fecharEnvioFunil();
+  const ov=document.createElement('div');
+  ov.id='envio-funil-ov';
+  ov.className='overlay open';
+  ov.style.zIndex='260';
+  ov.onclick=function(ev){ if(ev.target===ov) fecharEnvioFunil(); };
+  ov.innerHTML='<div class="modal" style="max-width:420px;height:auto"><div class="modal-head"><div class="modal-title">Enviar para '+esc(nomeDoFunil(destino))+'</div>'+
+    '<button class="x" onclick="fecharEnvioFunil()" title="Fechar">×</button></div><div class="modal-body">'+
+    '<div style="font-size:13px;margin-bottom:10px"><b>'+esc(o.cliente||'Negócio')+'</b> sai do funil de '+esc(nomeDoFunil(funilDoNegocio(o)))+
+      ' e vai para o funil de '+esc(nomeDoFunil(destino))+'. Em qual coluna?</div>'+
+    lista.map(function(e){
+      return '<label class="marca" style="padding:6px 0"><input type="radio" name="envio-etapa" value="'+esc(e.id)+'"'+(e.id===sugerida.id?' checked':'')+'> '+pillDe(e.id)+'</label>';
+    }).join('')+
+    '</div><div class="modal-foot"><button class="btn btn-outline" onclick="fecharEnvioFunil()">Cancelar</button>'+
+    '<button class="btn btn-teal" onclick="confirmarEnvioFunil()">Enviar</button></div></div>';
+  document.body.appendChild(ov);
+}
+function fecharEnvioFunil(){ const ov=document.getElementById('envio-funil-ov'); if(ov) ov.remove(); }
+async function confirmarEnvioFunil(){
+  const o=(dados.oportunidades||[]).find(function(x){ return x.id===fichaId; });
+  const marcada=document.querySelector('input[name="envio-etapa"]:checked');
+  if(!o||!marcada) return;
+  const etapaId=marcada.value;
+  const e=etapaDe(etapaId);
+  fecharEnvioFunil();
+  _notasNovas=[];
+  document.getElementById('ficha-ov').classList.remove('open');
+  fichaId=null;
+  if(e && e.vendedorCompleta){ await mandarParaFaltaInformacao(o, etapaId); return; }
+  const de=nomeDoFunil(funilDoNegocio(o)), para=nomeDoFunil(funilDe(etapaId));
+  await alterar(function(base){
+    const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
+    if(!alvo) return false;
+    aplicarEtapa(alvo, etapaId);
+    if(!Array.isArray(alvo.notas)) alvo.notas=[];
+    alvo.notas.push({id:novoId(), ts:agoraISO(), por:usuario, texto:'Enviado do funil de '+de+' para '+para+' ('+(e?e.nome:'—')+').'});
+    alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario;
+  },{acao:'enviou para o funil de '+para, alvo:alvoDoNegocio(o), detalhe:de+' → '+para+(e?' ('+e.nome+')':'')});
 }
 
 async function excluirNegocio(){
@@ -1662,23 +1949,33 @@ function paraLimpar(){
 }
 function renderCadastros(){
   const corOpts=function(sel){ return CORES.map(function(c){ return '<option value="'+c.id+'"'+(c.id===sel?' selected':'')+'>'+c.rotulo+'</option>'; }).join(''); };
-  const lst=etapas();
   const limpar=paraLimpar();
+  // Cada funil tem as suas colunas (pedido do Ander, 13/10/2026).
+  const htmlEtapasDoFunil=function(f){
+    const lst=etapasDoFunil(f);
+    return '<div class="secao">Colunas do funil de '+esc(nomeDoFunil(f))+'</div>'+
+      '<div class="dica" style="font-size:12px;color:var(--gray-5);margin-bottom:6px">'+
+        (f==='vendas'
+          ? 'A ordem aqui é a ordem das colunas. <b>Fechado</b> e <b>Perdido</b> podem mudar de nome, mas não saem.'
+          : 'A ordem aqui é a ordem das colunas. Marque <b>“avisa o vendedor”</b> na coluna em que falta informação: ao colocar um negócio nela, quem orça diz o que falta e o vendedor é avisado pelo WhatsApp.')+'</div>'+
+      lst.map(function(e,i){
+        const usa=emUso(e.id);
+        return '<div class="cad-linha">'+
+          '<input type="text" value="'+esc(e.nome)+'" onchange="renomearEtapa(\''+esc(e.id)+'\',this.value)">'+
+          '<select onchange="corEtapa(\''+esc(e.id)+'\',this.value)">'+corOpts(e.cor)+'</select>'+
+          (f==='orcamentos'
+            ? '<label class="marca" style="font-size:11.5px;min-width:120px"><input type="checkbox" '+(e.vendedorCompleta?'checked':'')+' onchange="marcarVendedorCompleta(\''+esc(e.id)+'\',this.checked)"> avisa o vendedor</label>'
+            : '')+
+          '<span class="dica" style="font-size:11px;color:var(--gray-4);min-width:70px">'+(e.tipo==='ganho'?'fechado':e.tipo==='perdido'?'perdido':'em aberto')+' · '+usa+'</span>'+
+          '<button class="btn btn-outline btn-sm" '+(i===0?'disabled':'')+' onclick="moverEtapa(\''+esc(e.id)+'\',-1)" title="Subir">↑</button>'+
+          '<button class="btn btn-outline btn-sm" '+(i===lst.length-1?'disabled':'')+' onclick="moverEtapa(\''+esc(e.id)+'\',1)" title="Descer">↓</button>'+
+          (e.tipo==='aberta'?'<button class="btn btn-outline btn-sm" onclick="removerEtapa(\''+esc(e.id)+'\')" title="Remover">×</button>':'')+
+        '</div>';
+      }).join('')+
+      '<div style="display:flex;gap:6px;margin-top:8px"><input id="cad-nova-etapa-'+f+'" class="busca" placeholder="Nova coluna (ex.: '+(f==='vendas'?'Aguardando projeto':'Aguardando medida')+')"><button class="btn btn-outline" onclick="addEtapa(\''+f+'\')">Acrescentar</button></div>';
+  };
   document.getElementById('cad-corpo').innerHTML=
-    '<div class="secao">Etapas do funil</div>'+
-    '<div class="dica" style="font-size:12px;color:var(--gray-5);margin-bottom:6px">A ordem aqui é a ordem das colunas. <b>Fechado</b> e <b>Perdido</b> podem mudar de nome, mas não saem.</div>'+
-    lst.map(function(e,i){
-      const usa=emUso(e.id);
-      return '<div class="cad-linha">'+
-        '<input type="text" value="'+esc(e.nome)+'" onchange="renomearEtapa(\''+esc(e.id)+'\',this.value)">'+
-        '<select onchange="corEtapa(\''+esc(e.id)+'\',this.value)">'+corOpts(e.cor)+'</select>'+
-        '<span class="dica" style="font-size:11px;color:var(--gray-4);min-width:70px">'+(e.tipo==='ganho'?'fechado':e.tipo==='perdido'?'perdido':'em aberto')+' · '+usa+'</span>'+
-        '<button class="btn btn-outline btn-sm" '+(i===0?'disabled':'')+' onclick="moverEtapa(\''+esc(e.id)+'\',-1)" title="Subir">↑</button>'+
-        '<button class="btn btn-outline btn-sm" '+(i===lst.length-1?'disabled':'')+' onclick="moverEtapa(\''+esc(e.id)+'\',1)" title="Descer">↓</button>'+
-        (e.tipo==='aberta'?'<button class="btn btn-outline btn-sm" onclick="removerEtapa(\''+esc(e.id)+'\')" title="Remover">×</button>':'')+
-      '</div>';
-    }).join('')+
-    '<div style="display:flex;gap:6px;margin-top:8px"><input id="cad-nova-etapa" class="busca" placeholder="Nova etapa (ex.: Aguardando projeto)"><button class="btn btn-outline" onclick="addEtapa()">Acrescentar</button></div>'+
+    FUNIS.map(function(x){ return htmlEtapasDoFunil(x.id); }).join('')+
 
     htmlListaSimples('Como o cliente chega até nós','origens','Nova origem (ex.: Feira)')+
     htmlListaSimples('Motivos de perda','motivosPerda','Novo motivo')+
@@ -1715,30 +2012,42 @@ function renomearEtapa(id,nome){
 function corEtapa(id,cor){
   mexerCadastro(function(base){ const e=base.etapas.find(function(x){ return x.id===id; }); if(!e) return false; e.cor=cor; });
 }
+// Sobe ou desce DENTRO do funil da etapa: troca com a vizinha do mesmo funil.
 function moverEtapa(id,dir){
   mexerCadastro(function(base){
     const i=base.etapas.findIndex(function(x){ return x.id===id; });
-    const j=i+dir;
-    if(i<0||j<0||j>=base.etapas.length) return false;
+    if(i<0) return false;
+    const f=base.etapas[i].funil||'vendas';
+    let j=i+dir;
+    while(j>=0 && j<base.etapas.length && (base.etapas[j].funil||'vendas')!==f) j+=dir;
+    if(j<0||j>=base.etapas.length) return false;
     const t=base.etapas[i]; base.etapas[i]=base.etapas[j]; base.etapas[j]=t;
   });
 }
-function addEtapa(){
-  const nome=document.getElementById('cad-nova-etapa').value.trim();
+function marcarVendedorCompleta(id,valor){
+  mexerCadastro(function(base){ const e=base.etapas.find(function(x){ return x.id===id; }); if(!e) return false; e.vendedorCompleta=!!valor; },
+    {acao:valor?'marcou coluna que avisa o vendedor':'desmarcou coluna que avisa o vendedor', alvo:'CRM · etapa', detalhe:(etapaDe(id)||{}).nome||id});
+}
+function addEtapa(funil){
+  funil=funil==='orcamentos'?'orcamentos':'vendas';
+  const campo=document.getElementById('cad-nova-etapa-'+funil);
+  const nome=campo?campo.value.trim():'';
   if(!nome) return;
   if(etapas().some(function(e){ return normTexto(e.nome)===normTexto(nome); })){ aviso('Nome repetido','Já existe uma etapa com esse nome.'); return; }
   mexerCadastro(function(base){
-    // Entra antes de Fechado/Perdido: e la que ficam as etapas em aberto.
-    const pos=base.etapas.findIndex(function(x){ return x.tipo!=='aberta'; });
-    const nova={id:'e'+novoId(), nome:nome, cor:'cinza', tipo:'aberta'};
+    const nova={id:'e'+novoId(), nome:nome, cor:'cinza', tipo:'aberta', funil:funil};
+    // Em Vendas entra antes de Fechado/Perdido; em Orcamentos, no fim do funil.
+    let pos=-1;
+    if(funil==='vendas') pos=base.etapas.findIndex(function(x){ return (x.funil||'vendas')==='vendas' && x.tipo!=='aberta'; });
+    else { base.etapas.forEach(function(x,k){ if(x.funil==='orcamentos') pos=k+1; }); }
     if(pos<0) base.etapas.push(nova); else base.etapas.splice(pos,0,nova);
-  },{acao:'criou etapa', alvo:'CRM · etapa', detalhe:nome});
+  },{acao:'criou etapa', alvo:'CRM · etapa', detalhe:nomeDoFunil(funil)+': '+nome});
 }
 function removerEtapa(id){
   const e=etapaDe(id); if(!e||e.tipo!=='aberta') return;
   const usa=emUso(id);
   if(usa){ aviso('Etapa em uso',usa+' negócio'+(usa>1?'s estão':' está')+' em "'+e.nome+'". Mude esses negócios de etapa antes de remover.'); return; }
-  if(etapas().filter(function(x){ return x.tipo==='aberta'; }).length<=1){ aviso('Última etapa','O funil precisa de pelo menos uma etapa em aberto.'); return; }
+  if(etapasDoFunil(e.funil||'vendas').filter(function(x){ return x.tipo==='aberta'; }).length<=1){ aviso('Última etapa','O funil precisa de pelo menos uma coluna em aberto.'); return; }
   if(!confirm('Remover a etapa "'+e.nome+'"?')) return;
   mexerCadastro(function(base){
     if((base.oportunidades||[]).some(function(o){ return o.etapa===id; })){ aviso('Etapa em uso','Alguém acabou de colocar um negócio nesta etapa.'); return false; }
@@ -1790,6 +2099,8 @@ function aplicarPermissoes(){
   const gestor=podeGerenciar();
   document.querySelectorAll('[data-so-gestor]').forEach(function(el){ el.style.display=gestor?'':'none'; });
   const h=document.getElementById('btn-hist'); if(h) h.style.display=soAdmin()?'':'none';
+  // Quem orca ve as demandas de todos os vendedores: o filtro serve para ele tambem.
+  const fv=document.getElementById('f-vendedor'); if(fv) fv.style.display=(gestor||ehOrcamentista())?'':'none';
 }
 
 // ================= INÍCIO =================
@@ -1840,6 +2151,9 @@ function abrirApp(nome,papelDoUsuario,login){
   aplicarPermissoes();
   lerLocal();
   try{ const v=localStorage.getItem('dalum-crm-view'); if(v) view=v; }catch(e){}
+  try{ const fz=localStorage.getItem('dalum-crm-funil'); if(fz) funilAtual=fz; }catch(e){}
+  if(ehOrcamentista()) funilAtual='orcamentos';
+  setFunil(funilAtual);
   setView(view);
   sincronizar();
   carregarVendedores();
