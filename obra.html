@@ -6307,7 +6307,8 @@ async function abrirAcessos(){
   try{
     const r=await fetch(WORKER,{method:'POST',cache:'no-store',
       headers:cabecalhos({'Content-Type':'application/json','X-Action':'ler-acessos'}),
-      body:JSON.stringify({quantos:500,
+      // grupo 'acessos': so as aberturas. Entradas e senhas erradas ficam na Auditoria.
+      body:JSON.stringify({quantos:500,grupo:'acessos',
         de:String((document.getElementById('acs-de')||{}).value||''),
         ate:String((document.getElementById('acs-ate')||{}).value||'')})});
     const j=await r.json();
