@@ -1037,6 +1037,7 @@ function pedirCodigo(aviso){
 }
 async function abrirComCodigo(){
   const campo=document.getElementById('codigo-campo'), erro=document.getElementById('codigo-erro'), btn=document.getElementById('codigo-btn');
+  if(btn.disabled) return;   // ja conferindo (Enter junto com o automatico)
   const codigo=String(campo.value||'').replace(/\D/g,'');
   if(codigo.length!==6){ erro.textContent='O código tem 6 números.'; campo.focus(); return; }
   btn.disabled=true; btn.textContent='Conferindo...'; erro.textContent='';
@@ -1064,6 +1065,16 @@ async function abrirComCodigo(){
 }
 document.addEventListener('keydown',function(e){
   if(e.key==='Enter' && document.getElementById('codigo-tela').style.display!=='none') abrirComCodigo();
+});
+// Igual ao codigo do login: completou os 6 numeros, confere sozinho.
+let _conferindoCodigo=false;
+document.getElementById('codigo-campo').addEventListener('input',async function(){
+  const so=String(this.value||'').replace(/\D/g,'').slice(0,6);
+  if(so!==this.value) this.value=so;
+  if(so.length===6 && !_conferindoCodigo){
+    _conferindoCodigo=true;
+    try{ await abrirComCodigo(); }finally{ _conferindoCodigo=false; }
+  }
 });
 
 // ================= ENTRADA =================
