@@ -104,6 +104,24 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
   </div>
 </div>
 
+<!-- CODIGO DO AUTENTICADOR (14/10/2026): pedido a cada abertura. O Worker
+     confere e devolve um bilhete de 1 hora; sem ele as leituras sao recusadas. -->
+<div class="bloqueio" id="codigo-tela" style="display:none">
+  <div style="max-width:360px;width:100%">
+    <div style="font-size:42px;margin-bottom:10px">🔐</div>
+    <h1 style="font-size:19px;margin-bottom:8px">Auditoria</h1>
+    <p id="codigo-texto" style="font-size:14px;color:var(--gray-5);line-height:1.6;margin-bottom:16px">
+      Digite o código de 6 números do aplicativo autenticador do seu celular.</p>
+    <input id="codigo-campo" class="campo" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+      placeholder="000000" style="width:100%;font-size:22px;letter-spacing:.3em;text-align:center;margin-bottom:10px">
+    <div id="codigo-erro" style="color:var(--red);font-size:13px;min-height:18px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button class="btn btn-outline" onclick="voltarAoPortal()">Voltar</button>
+      <button class="btn btn-red" id="codigo-btn" style="background:#3B4A5A;border-color:#3B4A5A" onclick="abrirComCodigo()">Abrir</button>
+    </div>
+  </div>
+</div>
+
 <div id="app" style="display:none">
   <div class="topbar">
     <div class="topbar-logo">🔎 Auditoria <span id="quem"></span></div>
@@ -428,10 +446,12 @@ function cabecalhos(sistema, extra){
 // Todas as leituras desta tela passam por aqui. O Worker confere de novo se
 // e o admin: esconder a tela nao e fechadura.
 async function pedir(acao, corpo, sistema){
+  // O bilhete do codigo vai em todo pedido; o Worker so confere nos da Auditoria.
   const r=await fetch(WORKER,{method:'POST',cache:'no-store',
-    headers:cabecalhos(sistema,{'X-Action':acao}),body:JSON.stringify(corpo||{})});
+    headers:cabecalhos(sistema,{'X-Action':acao}),body:JSON.stringify(Object.assign({},corpo||{},{bilhete:_bilhete}))});
   let j=null; try{ j=await r.json(); }catch(e){}
   if(r.status===401){ sessaoExpirada(); throw new Error('O acesso venceu'); }
+  if(r.status===403 && j && j.precisaCodigo){ pedirCodigo('A hora do código acabou. Digite um código novo.'); throw new Error('falta o código do autenticador'); }
   // O Worker publicado ainda nao conhece esta acao (ela entra junto com esta tela).
   if(r.status===405) throw new Error('esta parte ainda não está no Worker publicado no Cloudflare');
   if(!r.ok) throw new Error((j&&(j.erro||j.mensagem))||('erro '+r.status));
@@ -499,7 +519,9 @@ const ACAO_ROTULO={
   'entrou no sistema':'Entrou no sistema',
   'senha errada':'Senha errada',
   'codigo do autenticador errado':'Código do autenticador errado',
-  'barrado por muitas tentativas':'Barrado: muitas tentativas'
+  'barrado por muitas tentativas':'Barrado: muitas tentativas',
+  'codigo da auditoria errado':'Código errado na Auditoria',
+  'abriu a auditoria':'Abriu a Auditoria'
 };
 function rotuloDaAcao(a){ return ACAO_ROTULO[a]||a||'—'; }
 
@@ -573,7 +595,7 @@ function desenharCaderno(){
   const corDaAcao=function(a){
     if(a==='entrou no sistema') return 'pill-verde';
     if(a==='barrado por muitas tentativas') return 'pill-vermelho';
-    if(a==='senha errada'||a==='codigo do autenticador errado') return 'pill-ambar';
+    if(a==='senha errada'||a==='codigo do autenticador errado'||a==='codigo da auditoria errado') return 'pill-ambar';
     return 'pill-cinza';
   };
   alvo.className='';
@@ -803,7 +825,7 @@ const VIS_COM_CRACHA=['compras','financeiro','fabrica','obra','crm','cadastros',
   'fabrica_teste','obra_teste','crm_teste','cadastros_teste','sessions','lembretes','lembretes_teste'];
 const VIS_RECUSADOS=['senhas','senhas_teste','login_bloqueio','acessos','crm_teste&select=data','CRM','cadastro_teste','nome_inventado'];
 // As acoes do Worker (fora o login). Acao nova no Worker: acrescentar aqui.
-const VIS_ACOES=['definir-senha','anotar-acesso','ler-acessos','ler-backups','fazer-backup','sessao-entrar','sessao-sinal','sessao-sair',
+const VIS_ACOES=['definir-senha','anotar-acesso','ler-acessos','ler-backups','fazer-backup','auditoria-abrir','sessao-entrar','sessao-sinal','sessao-sair',
   'sessao-outras','sessao-lista','sessao-derrubar','assinar-envio','abrir-anexo','proteger-anexos','varrer-anexos','excluir-anexo'];
 // Ja conhecidos e aceitos: exemplos de campo, CNPJ e e-mail das proprias empresas.
 const VIS_ACEITOS=['69 99999-9999','69999999999','000.000.000-00','00.000.000/0000-00','17.183.753/0001-82','22.714.305/0001-06',
@@ -1001,6 +1023,49 @@ function mostrarErro(alvo,e){
   alvo.innerHTML='<div class="erro">Não consegui carregar: '+esc(msg)+'</div>';
 }
 
+// ================= CODIGO DO AUTENTICADOR =================
+// O bilhete fica so na memoria desta tela: recarregou, pede o codigo de novo.
+let _bilhete='', _relogioBilhete=null;
+function pedirCodigo(aviso){
+  _bilhete='';
+  if(_relogioAgora){ clearInterval(_relogioAgora); _relogioAgora=null; }
+  if(_relogioBilhete){ clearTimeout(_relogioBilhete); _relogioBilhete=null; }
+  document.getElementById('app').style.display='none';
+  document.getElementById('codigo-tela').style.display='flex';
+  document.getElementById('codigo-erro').textContent=aviso||'';
+  const c=document.getElementById('codigo-campo'); c.value=''; setTimeout(function(){ c.focus(); },50);
+}
+async function abrirComCodigo(){
+  const campo=document.getElementById('codigo-campo'), erro=document.getElementById('codigo-erro'), btn=document.getElementById('codigo-btn');
+  const codigo=String(campo.value||'').replace(/\D/g,'');
+  if(codigo.length!==6){ erro.textContent='O código tem 6 números.'; campo.focus(); return; }
+  btn.disabled=true; btn.textContent='Conferindo...'; erro.textContent='';
+  try{
+    const r=await fetch(WORKER,{method:'POST',cache:'no-store',
+      headers:cabecalhos(null,{'X-Action':'auditoria-abrir'}),body:JSON.stringify({codigo:codigo})});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(r.status===401){ sessaoExpirada(); return; }
+    if(!r.ok||!j||!j.bilhete){
+      erro.textContent=(j&&j.codigoErrado)?'Código errado. Confira no celular e digite o número que está aparecendo agora.'
+        :(r.status===405?'Esta parte ainda não está no Worker publicado no Cloudflare.'
+        :((j&&j.erro)||('Não consegui conferir (erro '+r.status+').')));
+      campo.value=''; campo.focus();
+      return;
+    }
+    _bilhete=j.bilhete;
+    // Um pouco antes de vencer, pede o codigo de novo (em vez de deixar falhar no meio).
+    _relogioBilhete=setTimeout(function(){ pedirCodigo('A hora do código acabou. Digite um código novo.'); },
+      Math.max(60000,(j.validoAte||0)-Date.now()-30000));
+    document.getElementById('codigo-tela').style.display='none';
+    document.getElementById('app').style.display='';
+    irPara(abaAtual||'resumo');
+  }catch(e){ erro.textContent='Não consegui falar com o servidor. Confira a internet e tente de novo.'; }
+  finally{ btn.disabled=false; btn.textContent='Abrir'; }
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Enter' && document.getElementById('codigo-tela').style.display!=='none') abrirComCodigo();
+});
+
 // ================= ENTRADA =================
 (function(){
   const t=lerToken();
@@ -1014,8 +1079,7 @@ function mostrarErro(alvo,e){
     return;
   }
   document.getElementById('quem').textContent='· '+(t.dados.n||t.dados.u||'');
-  document.getElementById('app').style.display='';
-  irPara('resumo');
+  pedirCodigo('');
 })();
 </script>
 </body>
