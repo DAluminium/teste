@@ -991,34 +991,68 @@ function acharFornecedorCad(nome){
   if(!k||!_fornCad) return null;
   return _fornCad.find(function(f){ return normalizarNomeForn(f.nome)===k; })||null;
 }
+// Os dados de pagamento acompanham o FORNECEDOR. Ate 13/10/2026 so se
+// preenchia campo vazio: trocar a Mirandex pelo Projeto Aluminio deixava o PIX
+// da Mirandex na compra, com "✓ Fornecedor do cadastro" embaixo (o Ander
+// achou no teste). Agora a tela lembra o que estava ao abrir (`orig`) e o que
+// ela mesma colocou (`ultimo`). Campo que ainda mostra um desses valores e do
+// sistema: troca junto com o fornecedor — ou fica vazio, se o novo nao tiver
+// o dado. Voltando ao fornecedor do inicio, volta o que estava gravado.
+// Campo que a PESSOA digitou nunca e apagado: so recebe aviso.
+const CAMPOS_PAG_FORN=['pix','pixNome','banco','conta'];
+const _pagForn={};
+function campoPagForn(px,k){ return document.getElementById(px+'-'+{pix:'pix',pixNome:'pix-nome',banco:'banco',conta:'conta'}[k]); }
+function iniciarFornecedorCad(px){
+  const ent=document.getElementById(px+'-fornecedor');
+  const orig={};
+  CAMPOS_PAG_FORN.forEach(function(k){ const el=campoPagForn(px,k); orig[k]=el?el.value:''; });
+  _pagForn[px]={nomeOrig:ent?ent.value:'', orig:orig, ultimo:Object.assign({},orig)};
+}
 function aplicarFornecedorCad(px){
   const dica=document.getElementById(px+'-forn-dica');
   const ent=document.getElementById(px+'-fornecedor');
   if(!dica||!ent) return;
+  if(!_pagForn[px]) iniciarFornecedorCad(px);
+  const st=_pagForn[px];
   const nome=ent.value.trim();
+  const doInicio=normalizarNomeForn(nome)===normalizarNomeForn(st.nomeOrig);
+  const f=(_fornCad===null)?null:acharFornecedorCad(nome);
+  const trocou=[], diferente=[];
+  CAMPOS_PAG_FORN.forEach(function(k){
+    const el=campoPagForn(px,k);
+    if(!el) return;
+    if(el.value===(st.ultimo[k]||'')){
+      // Do sistema: segue o fornecedor. Sem cadastro carregado, so mexe
+      // para voltar ao que estava gravado.
+      let novo;
+      if(doInicio) novo=st.orig[k]||'';
+      else if(_fornCad===null) return;
+      else novo=f?(f[k]||''):'';
+      // Gravado na compra e igual ao do inicio: nao conta como troca.
+      if(doInicio && f && f[k] && novo && String(novo).trim()!==String(f[k]).trim()) diferente.push(k);
+      if(el.value!==novo){ el.value=novo; trocou.push(k); }
+      st.ultimo[k]=novo;
+    }else if(f && el.value.trim() && String(f[k]||'').trim()!==el.value.trim()){
+      diferente.push(k);   // digitado pela pessoa e diferente do cadastro
+    }
+  });
   if(!nome||_fornCad===null){ dica.style.display='none'; return; }
-  const f=acharFornecedorCad(nome);
   dica.style.display='block';
   if(!f){
     dica.style.color='var(--gray-4)';
-    dica.innerHTML='Este fornecedor não está no cadastro. Para cadastrar: <strong>📇 Cadastros</strong>, no portal.';
+    dica.innerHTML='Este fornecedor não está no cadastro. Para cadastrar: <strong>📇 Cadastros</strong>, no portal.'+
+      (trocou.length?' Os dados de pagamento do fornecedor anterior foram tirados.':'');
     return;
   }
-  const campos={pix:px+'-pix',pixNome:px+'-pix-nome',banco:px+'-banco',conta:px+'-conta'};
-  const preencheu=[], diferente=[];
-  Object.keys(campos).forEach(function(k){
-    const el=document.getElementById(campos[k]);
-    if(!el||!f[k]) return;
-    if(!el.value.trim()){ el.value=f[k]; preencheu.push(k); }
-    else if(el.value.trim()!==String(f[k]).trim()) diferente.push(k);
-  });
   if(diferente.length){
     dica.style.color='var(--red)';
-    dica.innerHTML='⚠️ Os dados de pagamento desta compra são <strong>diferentes do cadastro</strong>'+
-      (f.pix?' (PIX do cadastro: '+escHtml(f.pix)+')':'')+'. Confira com o fornecedor antes de pagar.';
+    dica.innerHTML='⚠️ Os dados de pagamento desta compra são <strong>diferentes do cadastro</strong> deste fornecedor'+
+      (f.pix?' (PIX do cadastro: '+escHtml(f.pix)+')':' (o cadastro dele não tem PIX)')+'. Confira com o fornecedor antes de pagar.';
   }else{
+    const temPag=CAMPOS_PAG_FORN.some(function(k){ return f[k]; });
     dica.style.color='var(--teal-dark)';
-    dica.innerHTML='✓ Fornecedor do cadastro'+(preencheu.length?' — dados de pagamento preenchidos':'')+'.';
+    dica.innerHTML='✓ Fornecedor do cadastro'+
+      (!temPag?' — sem dados de pagamento no cadastro.':trocou.length?' — dados de pagamento preenchidos.':'.');
   }
 }
 
@@ -1076,6 +1110,7 @@ function openModal(type,idx=null){
   }
   document.getElementById('modal-overlay').classList.add('open');
   setTimeout(()=>document.getElementById('f-obra').focus(),100);
+  iniciarFornecedorCad('f');
   aplicarFornecedorCad('f');
   carregarFornecedoresCad().then(function(){ aplicarFornecedorCad('f'); });
 }
@@ -2963,6 +2998,7 @@ function openModalManut(idx=null){
   calcManutTotal();
   document.getElementById('manut-overlay').classList.add('open');
   setTimeout(()=>document.getElementById('m-obra').focus(),100);
+  iniciarFornecedorCad('m');
   aplicarFornecedorCad('m');
   carregarFornecedoresCad().then(function(){ aplicarFornecedorCad('m'); });
 }
