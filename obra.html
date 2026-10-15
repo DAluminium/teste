@@ -1733,8 +1733,16 @@ function contasDe(c){
     // Prazo em branco NAO e zero: sem ele a conta nao existe. Sem esta
     // trava, Number('') daria 0 e a tela mostraria a propria data da
     // medicao como se fosse a resposta (pego no teste em 15/10/2026).
+    //
+    // Sem medicao prevista, cai no fechamento contando PARA A FRENTE — a
+    // conta antiga (pedido do Ander em 15/10/2026). Para tras nao serve:
+    // daria uma data anterior ao proprio contrato. Repare que o numero
+    // muda de significado nesse caso, e a dica da ficha avisa: com medicao
+    // e quando COMECAR a compra; sem medicao e quando o material CHEGA.
     limiteMaterial: (String(c.prazoMaterial==null?'':c.prazoMaterial).trim()==='')
-      ? '' : voltaDiasUteis(c.medicao, c.prazoMaterial),
+      ? ''
+      : (c.medicao ? voltaDiasUteis(c.medicao, c.prazoMaterial)
+                   : somaDiasUteis(c.fechamento, c.prazoMaterial)),
     projEntrada:    somaDiasUteis(c.medicao, c.diasProd),
     entrega:        somaDiasUteis(c.projEntrada || somaDiasUteis(c.medicao, c.diasProd), c.diasInst)
   };
@@ -1771,7 +1779,8 @@ function recalcular(){
 
   // A data pode cair no passado quando a medição está perto e o prazo é
   // longo. Mostrar a data seca ali seria confuso; o aviso é o que interessa.
-  if(r.limiteMaterial){
+  if(r.limiteMaterial && c.medicao){
+    // Com medição: a data é o PRAZO PARA COMEÇAR a compra.
     const atrasado = r.limiteMaterial < hojeISO();
     d('d-limite',
       (atrasado?'⚠️ ':'')+'Começar a compra até <b>'+fmtData(r.limiteMaterial)+'</b>'+
@@ -1779,8 +1788,15 @@ function recalcular(){
       (atrasado?' <b>Essa data já passou</b>: para medir em '+fmtData(c.medicao)+
                 ', a compra já deveria ter começado.':''),
       atrasado?'var(--red)':'');
-  } else if(!c.medicao){
-    d('d-limite','Preencha a <b>medição prevista</b> e o prazo para ver até quando dá para começar a compra.');
+  } else if(r.limiteMaterial){
+    // Sem medição: caiu no fechamento, e aí a data quer dizer outra coisa —
+    // quando o material CHEGA. É provisório, então o texto diz isso.
+    d('d-limite',
+      'Sem medição prevista: contando do fechamento, o material chegaria em <b>'+
+      fmtData(r.limiteMaterial)+'</b>. <b>Preencha a medição</b> para saber até quando começar a compra.',
+      'var(--amber)');
+  } else if(!c.fechamento && !c.medicao){
+    d('d-limite','Preencha a <b>medição prevista</b> (ou ao menos o fechamento) e o prazo para ver a data da compra.');
   } else {
     d('d-limite','Preencha o prazo de material para ver até quando dá para começar a compra.');
   }
