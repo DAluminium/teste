@@ -323,7 +323,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div class="secao">Prazos</div>
       <div class="form-grid" id="f-grid-prazos">
         <div class="fg"><label>Fechamento</label><input type="date" id="f-fechamento" onchange="recalcular()"></div>
-        <div class="fg"><label>Prazo de material (dias úteis)</label><input type="number" min="0" id="f-prazomat" oninput="recalcular()" placeholder="Ex.: 30">
+        <div class="fg"><label>Prazo de material (dias úteis para chegar)</label><input type="number" min="0" id="f-prazomat" oninput="recalcular()" placeholder="Ex.: 30">
           <span class="dica" id="d-limite"></span></div>
         <div class="fg"><label>Medição prevista</label><input type="date" id="f-medicao" onchange="recalcular()"></div>
         <div class="fg"><label>Dias de produção (úteis)</label><input type="number" min="0" id="f-diasprod" oninput="recalcular()" placeholder="Ex.: 30"></div>
@@ -1678,6 +1678,27 @@ function ehDiaUtil(iso){
   if(s===0||s===6) return false;
   return !nomeDoFeriado(iso);
 }
+// Volta N dias úteis a partir de uma data — o contrário da somaDiasUteis.
+// Serve para o "Comprar até": a medição é o ponto de chegada, e a gente
+// anda para trás o tempo que o material leva. Mesmas regras: o dia de
+// partida não conta e o resultado nunca cai em sábado, domingo ou feriado.
+function voltaDiasUteis(iso, n){
+  if(!iso||!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+  const qtd=Number(n);
+  if(!isFinite(qtd)||qtd<0) return '';
+  let ms=Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10));
+  let faltam=Math.round(qtd);
+  if(faltam===0) return iso;
+  // Mesma trava de segurança da somaDiasUteis: uma lista de feriados maluca
+  // não pode fazer isto rodar para sempre.
+  let voltas=0;
+  while(faltam>0 && voltas<2000){
+    ms-=86400000; voltas++;
+    if(ehDiaUtil(isoDeUTC(ms))) faltam--;
+  }
+  return isoDeUTC(ms);
+}
+
 // Soma N dias úteis a uma data, como o WORKDAY do Excel: o dia de partida não
 // conta, e o resultado nunca cai em sábado, domingo ou feriado.
 function somaDiasUteis(iso, n){
@@ -1698,12 +1719,22 @@ function somaDiasUteis(iso, n){
 }
 
 // ================= AS CONTAS DA FICHA =================
-// Limite de compra do material = fechamento + prazo de material
+// Comprar até                  = medição prevista − prazo de material
 // Projeção de entrada na obra  = medição prevista + dias de produção
 // Entrega                      = projeção de entrada + dias de instalação
+//
+// O "Comprar até" conta PARA TRÁS a partir da medição (pedido da Hyllary em
+// 15/10/2026). Antes contava para a frente, a partir do fechamento, e dava
+// uma data que não queria dizer nada: o fechamento não manda no prazo da
+// compra. O que manda é quando o material precisa estar aqui — a medição —
+// menos o tempo que ele leva para chegar.
 function contasDe(c){
   return {
-    limiteMaterial: somaDiasUteis(c.fechamento, c.prazoMaterial),
+    // Prazo em branco NAO e zero: sem ele a conta nao existe. Sem esta
+    // trava, Number('') daria 0 e a tela mostraria a propria data da
+    // medicao como se fosse a resposta (pego no teste em 15/10/2026).
+    limiteMaterial: (String(c.prazoMaterial==null?'':c.prazoMaterial).trim()==='')
+      ? '' : voltaDiasUteis(c.medicao, c.prazoMaterial),
     projEntrada:    somaDiasUteis(c.medicao, c.diasProd),
     entrega:        somaDiasUteis(c.projEntrada || somaDiasUteis(c.medicao, c.diasProd), c.diasInst)
   };
@@ -1738,9 +1769,21 @@ function recalcular(){
   const r=contasDe(c);
   const d=(id,txt,cor)=>{ const e=document.getElementById(id); if(e){ e.innerHTML=txt; e.style.color=cor||''; } };
 
-  d('d-limite', r.limiteMaterial
-    ? 'Comprar até <b>'+fmtData(r.limiteMaterial)+'</b> (dias úteis a partir do fechamento).'
-    : 'Preencha fechamento e prazo para ver até quando dá para comprar.');
+  // A data pode cair no passado quando a medição está perto e o prazo é
+  // longo. Mostrar a data seca ali seria confuso; o aviso é o que interessa.
+  if(r.limiteMaterial){
+    const atrasado = r.limiteMaterial < hojeISO();
+    d('d-limite',
+      (atrasado?'⚠️ ':'')+'Começar a compra até <b>'+fmtData(r.limiteMaterial)+'</b>'+
+      ' — '+(Number(c.prazoMaterial)||0)+' dias úteis antes da medição.'+
+      (atrasado?' <b>Essa data já passou</b>: para medir em '+fmtData(c.medicao)+
+                ', a compra já deveria ter começado.':''),
+      atrasado?'var(--red)':'');
+  } else if(!c.medicao){
+    d('d-limite','Preencha a <b>medição prevista</b> e o prazo para ver até quando dá para começar a compra.');
+  } else {
+    d('d-limite','Preencha o prazo de material para ver até quando dá para começar a compra.');
+  }
 
   if(r.projEntrada && !_manual.projEntrada){
     document.getElementById('f-projentrada').value=r.projEntrada;
