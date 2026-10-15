@@ -817,8 +817,11 @@ function vaiParaProducao(nome){
   const s=statusDe(nome);
   return !!(s && s.fabrica!==false);
 }
-const REVISAO_LISTA=['OK','PARCIAL','PENDENTE'];
-const REVISAO_COR={'OK':'pill-verde','PARCIAL':'pill-ambar','PENDENTE':'pill-vermelho','':'pill-cinza'};
+// "NÃO NECESSÁRIA" é para obra que não precisa de revisão de projeto.
+// Fica em verde-água, e não em cinza: cinza é a cor do campo vazio, e as
+// duas coisas ficariam iguais na carteira.
+const REVISAO_LISTA=['OK','PARCIAL','PENDENTE','NÃO NECESSÁRIA'];
+const REVISAO_COR={'OK':'pill-verde','PARCIAL':'pill-ambar','PENDENTE':'pill-vermelho','NÃO NECESSÁRIA':'pill-teal','':'pill-cinza'};
 
 // Serviço de arquivos dos anexos — o mesmo que a Fábrica usa. Só o endereço
 // do arquivo fica guardado no banco; o arquivo em si vive lá.
