@@ -316,7 +316,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div id="o-docs"></div>
       <div id="o-docs-acoes" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center">
         <label class="btn btn-outline btn-sm" for="o-doc-arquivo" id="o-doc-btn" style="cursor:pointer">📎 Anexar arquivo</label>
-        <input type="file" id="o-doc-arquivo" style="display:none" onchange="anexarArquivoCrm(event)">
+        <input type="file" id="o-doc-arquivo" multiple style="display:none" onchange="anexarArquivoCrm(event)">
         <button type="button" class="btn btn-outline btn-sm" onclick="anexarLinkCrm()">🔗 Anexar link</button>
         <span id="o-doc-status" class="dica" style="font-size:12px;color:var(--gray-5)"></span>
       </div>
@@ -2031,7 +2031,21 @@ async function excluirArquivoDoAnexo(url){
 function negocioDaFicha(){ return (dados.oportunidades||[]).find(function(x){ return x.id===fichaId; })||null; }
 function renderDocsCrm(o){
   const el=document.getElementById('o-docs');
-  const docs=(o&&Array.isArray(o.docs))?o.docs:[];
+  if(!o){
+    // Negocio novo: a lista de espera, que sobe ao salvar.
+    el.innerHTML=_anexosPendentes.length?_anexosPendentes.map(function(p){
+      return '<div class="nota" style="display:flex;gap:8px;align-items:center">'+
+        '<span>'+(p.link?'🔗':'📄')+'</span>'+
+        '<span style="flex:1;min-width:0;word-break:break-word;font-weight:600">'+esc(p.link?p.nome:p.file.name)+'</span>'+
+        '<span class="nota-quem" style="white-space:nowrap">'+(p.file?fmtTamanho(p.file.size)+' · ':'')+'<b style="color:var(--amber)">'+(p.doc?'enviado · falta salvar':'sobe ao salvar')+'</b></span>'+
+        '<button type="button" class="btn btn-outline btn-sm" title="Tirar da lista" onclick="tirarPendente(\''+esc(p.id)+'\')">×</button>'+
+      '</div>';
+    }).join(''):'<div class="dica" style="font-size:12px;color:var(--gray-4)">Nenhum anexo.</div>';
+    document.getElementById('o-docs-acoes').style.display=ehConsulta()?'none':'flex';
+    document.getElementById('o-docs-dica').innerHTML='Pode escolher <b>vários arquivos de uma vez</b>. Eles sobem quando você clicar em <b>Salvar</b>. Até 10 MB cada; arquivo maior, guarde no Drive ou no WeTransfer e use <b>Anexar link</b>.';
+    return;
+  }
+  const docs=Array.isArray(o.docs)?o.docs:[];
   el.innerHTML=docs.length?docs.map(function(d){
     let q=d.quando||''; try{ if(q) q=new Date(q).toLocaleDateString('pt-BR'); }catch(e){}
     return '<div class="nota" style="display:flex;gap:8px;align-items:center">'+
@@ -2043,9 +2057,7 @@ function renderDocsCrm(o){
   }).join(''):'<div class="dica" style="font-size:12px;color:var(--gray-4)">Nenhum anexo.</div>';
   const podeAnexar=!!o && !o.excluido && podeEditarNegocio(o) && !ehConsulta();
   document.getElementById('o-docs-acoes').style.display=podeAnexar?'flex':'none';
-  document.getElementById('o-docs-dica').innerHTML=!o
-    ? 'Salve o negócio primeiro; depois dá para anexar arquivos e links.'
-    : 'Arquivo até 10 MB. Para arquivo maior (um projeto pesado, por exemplo), guarde no Drive ou no WeTransfer e use <b>Anexar link</b>.';
+  document.getElementById('o-docs-dica').innerHTML='Pode escolher <b>vários arquivos de uma vez</b>. Até 10 MB cada; para arquivo maior (um projeto pesado, por exemplo), guarde no Drive ou no WeTransfer e use <b>Anexar link</b>.';
 }
 function abrirDocCrm(id){
   const o=negocioDaFicha(); if(!o) return;
@@ -2059,57 +2071,99 @@ function abrirDocCrm(id){
 }
 // Grava o anexo no negocio na hora (sem esperar o Salvar), juntando com o que
 // esta no servidor — se um colega anexou outra coisa ao mesmo tempo, os dois ficam.
-async function gravarDocCrm(doc, detalhe){
-  const o=negocioDaFicha(); if(!o) return false;
+// Grava um ou VARIOS anexos de uma vez (uma gravacao so, uma linha de
+// historico por anexo).
+async function gravarDocsCrm(docs){
+  const o=negocioDaFicha(); if(!o||!docs.length) return false;
   const ok=await alterar(function(base){
     const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
     if(!alvo) return false;
-    if(!Array.isArray(alvo.docs)) alvo.docs=[];
-    if(alvo.docs.some(function(x){ return (doc.url && x.url===doc.url) || (doc.link && x.link===doc.link); })) return false;
-    alvo.docs.push(doc);
-    if(!Array.isArray(alvo.notas)) alvo.notas=[];
-    alvo.notas.push({id:novoId(), ts:agoraISO(), por:usuario, tipo:'anexo', texto:'Anexou '+(doc.link?'o link':'o arquivo')+' "'+doc.nome+'".'});
+    juntarDocsNoNegocio(alvo, docs);
     alvo.atualizadoEm=agoraISO(); alvo.atualizadoPor=usuario;
-  },{acao:'anexou', alvo:alvoDoNegocio(o), detalhe:detalhe});
+  },{acao:'anexou', alvo:alvoDoNegocio(o), detalhe:docs.map(function(d){ return d.nome; }).join(', ').slice(0,200)});
   const novo=negocioDaFicha();
   renderDocsCrm(novo); renderNotas(novo);
   return ok;
 }
+function juntarDocsNoNegocio(alvo, docs){
+  if(!Array.isArray(alvo.docs)) alvo.docs=[];
+  if(!Array.isArray(alvo.notas)) alvo.notas=[];
+  docs.forEach(function(doc){
+    if(alvo.docs.some(function(x){ return (doc.url && x.url===doc.url) || (doc.link && x.link===doc.link); })) return;
+    alvo.docs.push(doc);
+    alvo.notas.push({id:novoId(), ts:agoraISO(), por:usuario, tipo:'anexo', texto:'Anexou '+(doc.link?'o link':'o arquivo')+' "'+doc.nome+'".'});
+  });
+}
+// ---- VARIOS ARQUIVOS E ANEXO NO NEGOCIO NOVO (pedido da Francimara, 15/10/2026) ----
+// No negocio novo os anexos ficam numa lista de espera e sobem ao clicar em
+// Salvar — assim ninguem esquece de anexar por ter de salvar, reabrir e
+// anexar. Em qualquer negocio da para escolher varios arquivos de uma vez.
+let _anexosPendentes=[];   // {id, file} ou {id, nome, link}
+function separarGrandes(arqs){
+  const grandes=arqs.filter(function(a){ return a.size>MAX_ARQUIVO_CRM; });
+  if(grandes.length){
+    aviso(grandes.length===1?'Arquivo muito grande':'Arquivos muito grandes',
+      grandes.map(function(a){ return '• '+a.name+' ('+fmtTamanho(a.size)+')'; }).join('\n')+
+      '\n\nO limite é 10 MB por arquivo'+(arqs.length>grandes.length?'; os outros seguem normalmente':'')+'.\n'+
+      'Guarde o arquivo grande no Drive ou no WeTransfer e use "Anexar link".');
+  }
+  return arqs.filter(function(a){ return a.size<=MAX_ARQUIVO_CRM; });
+}
+// Sobe os arquivos um por um. Devolve os anexos prontos e os que falharam.
+async function enviarVariosArquivos(arqs){
+  const st=document.getElementById('o-doc-status');
+  const docs=[], falhas=[];
+  for(let i=0;i<arqs.length;i++){
+    const arq=arqs[i];
+    st.textContent='Enviando '+(arqs.length>1?(i+1)+' de '+arqs.length+': ':'')+arq.name+'...';
+    try{
+      const ehPdf=arq.type==='application/pdf';
+      const j=await enviarArquivoPrivado(arq, PASTA_ARQUIVOS_CRM, ehPdf?'raw':'auto');
+      if(!j||!j.secure_url) throw new Error('o servidor não devolveu o endereço do arquivo');
+      docs.push({id:novoId(), nome:arq.name, url:j.secure_url, tamanho:arq.size, mime:arq.type||'', quem:usuario, quando:agoraISO()});
+    }catch(e){ falhas.push(arq.name+': '+e.message); }
+  }
+  st.textContent='';
+  return {docs:docs, falhas:falhas};
+}
 async function anexarArquivoCrm(ev){
-  const arq=ev.target.files && ev.target.files[0];
+  let arqs=Array.from((ev.target.files)||[]);
   ev.target.value='';
-  if(!arq) return;
+  if(!arqs.length) return;
+  if(ehConsulta()){ aviso('Sem permissão','Você não pode anexar.'); return; }
   const o=negocioDaFicha();
-  if(!o){ aviso('Salve antes','Salve o negócio primeiro; depois dá para anexar.'); return; }
-  if(!podeEditarNegocio(o) || ehConsulta()){ aviso('Sem permissão','Você não pode anexar neste negócio.'); return; }
-  if(arq.size>MAX_ARQUIVO_CRM){
-    aviso('Arquivo muito grande','O arquivo tem '+fmtTamanho(arq.size)+'. O limite é 10 MB.\n\n'+
-      'Guarde no Drive ou no WeTransfer e use "Anexar link".');
+  if(o && !podeEditarNegocio(o)){ aviso('Sem permissão','Você não pode anexar neste negócio.'); return; }
+  arqs=separarGrandes(arqs);
+  if(!arqs.length) return;
+  if(!o){
+    // Negocio novo: espera o Salvar.
+    arqs.forEach(function(a){ _anexosPendentes.push({id:novoId(), file:a}); });
+    renderDocsCrm(null);
     return;
   }
-  const st=document.getElementById('o-doc-status');
-  st.textContent='Enviando '+arq.name+'...';
-  try{
-    const ehPdf=arq.type==='application/pdf';
-    const j=await enviarArquivoPrivado(arq, PASTA_ARQUIVOS_CRM, ehPdf?'raw':'auto');
-    if(!j||!j.secure_url) throw new Error('o servidor não devolveu o endereço do arquivo');
-    st.textContent='Salvando...';
-    const ok=await gravarDocCrm({id:novoId(), nome:arq.name, url:j.secure_url, tamanho:arq.size, mime:arq.type||'', quem:usuario, quando:agoraISO()}, arq.name);
-    st.textContent=ok?'':'';
-  }catch(e){
-    st.textContent='';
-    aviso('Não consegui anexar', e.message);
+  const r=await enviarVariosArquivos(arqs);
+  if(r.docs.length){
+    document.getElementById('o-doc-status').textContent='Salvando...';
+    await gravarDocsCrm(r.docs);
+    document.getElementById('o-doc-status').textContent='';
   }
+  if(r.falhas.length) aviso('Não consegui anexar '+(r.falhas.length===1?'um arquivo':r.falhas.length+' arquivos'), r.falhas.join('\n')+
+    (r.docs.length?'\n\nOs outros foram anexados.':''));
 }
 async function anexarLinkCrm(){
+  if(ehConsulta()){ aviso('Sem permissão','Você não pode anexar.'); return; }
   const o=negocioDaFicha();
-  if(!o){ aviso('Salve antes','Salve o negócio primeiro; depois dá para anexar.'); return; }
-  if(!podeEditarNegocio(o) || ehConsulta()){ aviso('Sem permissão','Você não pode anexar neste negócio.'); return; }
+  if(o && !podeEditarNegocio(o)){ aviso('Sem permissão','Você não pode anexar neste negócio.'); return; }
   const link=String(prompt('Cole o link do arquivo (Drive, WeTransfer, Dropbox...):','')||'').trim();
   if(!link) return;
   if(!/^https:\/\/\S+$/i.test(link)){ aviso('Link inválido','O link precisa começar com https://'); return; }
   const nome=String(prompt('Nome para aparecer no negócio (ex.: Projeto da fachada):','')||'').trim()||link.replace(/^https:\/\//,'').slice(0,60);
-  await gravarDocCrm({id:novoId(), nome:nome, link:link, quem:usuario, quando:agoraISO()}, nome);
+  if(!o){ _anexosPendentes.push({id:novoId(), nome:nome, link:link}); renderDocsCrm(null); return; }
+  await gravarDocsCrm([{id:novoId(), nome:nome, link:link, quem:usuario, quando:agoraISO()}]);
+}
+function tirarPendente(id){
+  _anexosPendentes=_anexosPendentes.filter(function(p){ return p.id!==id; });
+  renderDocsCrm(null);
 }
 async function removerDocCrm(id){
   if(recusarExcluir()) return;
@@ -2131,7 +2185,7 @@ async function removerDocCrm(id){
 }
 
 function novoNegocio(){
-  fichaId=null; _notasNovas=[];
+  fichaId=null; _notasNovas=[]; _anexosPendentes=[];
   preencherSelectsFicha(null);
   const p=function(id,v){ document.getElementById(id).value=v; };
   ['o-cliente','o-telefone','o-email','o-cidade','o-bairro','o-interesse','o-valor','o-retorno','o-retorno-oque','o-obs','o-nota',
@@ -2167,6 +2221,7 @@ function abrirFicha(id){
   const o=(dados.oportunidades||[]).find(function(x){ return x.id===id; });
   if(!o) return;
   anotarAcesso('abriu o negócio', alvoDoNegocio(o));
+  _anexosPendentes=[];
   fichaId=id; _notasNovas=[];
   preencherSelectsFicha(o);
   const p=function(cid,v){ document.getElementById(cid).value=(v==null?'':v); };
@@ -2216,8 +2271,9 @@ function travarFicha(travar){
 }
 function fecharFicha(){
   if(_notasNovas.length && !confirm('Há contato anotado que ainda não foi salvo.\n\nFechar e perder essa anotação?')) return;
+  if(_anexosPendentes.length && !confirm('Há '+(_anexosPendentes.length===1?'1 anexo':_anexosPendentes.length+' anexos')+' esperando o Salvar.\n\nFechar sem salvar e perder os anexos?')) return;
   document.getElementById('ficha-ov').classList.remove('open');
-  fichaId=null; _notasNovas=[];
+  fichaId=null; _notasNovas=[]; _anexosPendentes=[];
 }
 
 function lerFicha(){
@@ -2277,6 +2333,31 @@ async function salvarFicha(){
     funilDoNegocio(antes)==='orcamentos' && vendedorCompletaNaEtapa(antes.etapa);
   const notas=_notasNovas.slice();
   const nomeVend=(f.vendedor===usuarioLogin)?usuario:nomeDoVendedor(f.vendedor);
+  // Negocio novo com anexos esperando: sobem ANTES de gravar. O que ja subiu
+  // fica guardado no item; se algum falhar, nada e gravado e o Salvar de novo
+  // so manda os que faltam.
+  let docsNovos=[];
+  if(novo && _anexosPendentes.length){
+    const btn=document.getElementById('ficha-btn-salvar');
+    btn.disabled=true;
+    const falhas=[];
+    for(const p of _anexosPendentes){
+      if(p.file && !p.doc){
+        const r=await enviarVariosArquivos([p.file]);
+        if(r.docs.length) p.doc=r.docs[0]; else falhas.push(r.falhas[0]||p.file.name);
+      }
+    }
+    btn.disabled=false;
+    renderDocsCrm(null);
+    if(falhas.length){
+      aviso('O negócio ainda não foi salvo', 'Não consegui enviar:\n'+falhas.join('\n')+
+        '\n\nTire esse arquivo da lista (×) ou clique em Salvar de novo para tentar outra vez. Os que já subiram não sobem de novo.');
+      return;
+    }
+    docsNovos=_anexosPendentes.map(function(p){
+      return p.doc || {id:novoId(), nome:p.nome, link:p.link, quem:usuario, quando:agoraISO()};
+    });
+  }
   const ok=await alterar(function(base){
     let alvo=(base.oportunidades||[]).find(function(x){ return x.id===id; });
     if(!alvo){
@@ -2300,6 +2381,7 @@ async function salvarFicha(){
     const tem={}; alvo.notas.forEach(function(n){ tem[n.id]=1; });
     notas.forEach(function(n){ if(!tem[n.id]) alvo.notas.push(n); });
     if(faltaPedida) marcarFaltaInformacao(alvo, faltaPedida);
+    if(docsNovos.length) juntarDocsNoNegocio(alvo, docsNovos);
     if(vendedorCompletou){
       alvo.infoCompletadaEm=agoraISO(); alvo.infoCompletadaPor=usuario;
       alvo.notas.push({id:novoId(), ts:agoraISO(), por:usuario, texto:'Vendedor completou a informação que faltava.'});
@@ -2312,7 +2394,7 @@ async function salvarFicha(){
     return {acao:novo?'cadastrou o negócio':'alterou o negócio', alvo:'CRM · '+f.cliente.slice(0,80), detalhe:mud.join(' · ')};
   });
   if(ok){
-    _notasNovas=[];
+    _notasNovas=[]; _anexosPendentes=[];
     document.getElementById('ficha-ov').classList.remove('open');
     fichaId=null;
     if(faltaPedida) avisarVendedorFaltaInfo(antes, faltaPedida);
