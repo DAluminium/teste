@@ -1879,7 +1879,10 @@ function valorParaOrdenar(col, c){
     const bruto=valorCampoFicha(col.ficha, c);
     const t=String(bruto==null?'':bruto).trim();
     if(!t) return {vazio:true, v:''};
-    if(col.ficha.tipo==='numero'){
+    // 'dinheiro' junto com 'numero': sem isto a coluna de valor ordenaria
+    // como texto e R$ 9.000,00 cairia depois de R$ 59.000,00. O ramo dos
+    // campos extras, logo abaixo, ja fazia assim.
+    if(col.ficha.tipo==='numero'||col.ficha.tipo==='dinheiro'){
       const n=Number(t.replace(',','.'));
       return {vazio:false, v:isFinite(n)?n:0, numero:true};
     }
@@ -3899,7 +3902,12 @@ const CAMPOS_FICHA_TABELA=[
   {campo:'projEntrada',    rotulo:'Projeção de entrada', tipo:'data'},
   {campo:'diasInst',       rotulo:'Dias de instalação',  tipo:'numero'},
   {campo:'cores',          rotulo:'Cores',               tipo:'texto'},
-  {campo:'vidros',         rotulo:'Vidros',              tipo:'texto'}
+  {campo:'vidros',         rotulo:'Vidros',              tipo:'texto'},
+  // Este mora na parte CONTRATO da ficha (c.contrato.valor), e nao solto no
+  // contrato como os de cima — por isso precisa do acessor. E o mesmo campo
+  // "Valor total (R$)" que sai escrito no contrato do cliente.
+  {campo:'contratoValor',  rotulo:'Valor do contrato',   tipo:'dinheiro',
+    valor:function(c){ return (c.contrato||{}).valor; }}
 ];
 function colunasFicha(){
   return (Array.isArray(dados.colunasFicha)?dados.colunasFicha:[]).filter(function(x){
