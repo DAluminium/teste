@@ -143,6 +143,19 @@ table.tab tbody tr:hover{background:var(--teal-light)}
 }
 </style>
 <script>
+// ---- MODO ESPELHO ("Ver como", pedido do Ander, 16/10/2026) ----
+// Na aba em que o admin ve o sistema como outra pessoa, nada le, grava nem
+// apaga o armazenamento que as abas dividem (a copia dos dados, o cracha):
+// a aba do admin fica intacta, e esta nao mostra dado do admin como se fosse
+// da pessoa. O que esta aba usa fica so nela (sessionStorage).
+try{ if(sessionStorage.getItem('dalum-espelho')){ (function(){
+  const L=window.localStorage, P=Storage.prototype, ler=P.getItem, gravar=P.setItem, tirar=P.removeItem, limpar=P.clear;
+  P.getItem=function(k){ return this===L?null:ler.call(this,k); };
+  P.setItem=function(k,v){ if(this!==L) return gravar.call(this,k,v); };
+  P.removeItem=function(k){ if(this!==L) return tirar.call(this,k); };
+  P.clear=function(){ if(this!==L) return limpar.call(this); };
+})(); } }catch(e){}
+
 // Marca que este modulo esta aberto DENTRO do portal, para o CSS esconder
 // a faixa duplicada. Se a leitura falhar por ser outro dominio, e porque
 // estamos num quadro — entao vale a mesma regra.
@@ -610,6 +623,12 @@ function recusarExcluir(){
 // minuto: alguma gravacao automatica ao abrir nao pode virar enxurrada.
 let _avisouConsulta=0;
 function recusarSeConsulta(){
+  // Espelho ("Ver como", 16/10/2026): a tela mostra os botoes da pessoa, mas
+  // nada grava. Avisa aqui, antes de ir ao Worker (que recusaria do mesmo jeito).
+  try{ if(sessionStorage.getItem('dalum-espelho')){
+    alert('\u{1F441} Modo espelho: voc\u00ea est\u00e1 vendo o sistema como outra pessoa, s\u00f3 para olhar.\n\nNada foi gravado.');
+    return true;
+  } }catch(e){}
   if(!ehConsulta()) return false;
   if(Date.now()-_avisouConsulta>60000){
     _avisouConsulta=Date.now();
