@@ -1517,6 +1517,7 @@ function formatarDocumento(d) {
   if (c.length === 11) return c.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
   return String(d || '').trim();
 }
+function cadastroRapidoForn() { return meuPapel() === 'admin'; }
 function faltandoNoForn(f) {
   return CAD_OBRIGATORIOS.filter(function (o) { return !String((f && f[o[0]]) || '').trim(); })
     .map(function (o) { return o[1]; });
@@ -1667,8 +1668,12 @@ function openFornecedor(id) {
   document.getElementById('forn-titulo').textContent = f ? f.nome : 'Novo fornecedor';
   const falta = f ? faltandoNoForn(f) : [];
   const aviso = document.getElementById('forn-aviso');
-  aviso.style.display = falta.length ? 'block' : 'none';
-  aviso.innerHTML = falta.length ? '⚠️ <strong>Cadastro incompleto.</strong> Para salvar, preencha: ' + escTexto(falta.join(', ')) + '.' : '';
+  const rapido = cadastroRapidoForn();
+  aviso.style.display = (falta.length || (rapido && !f)) ? 'block' : 'none';
+  aviso.innerHTML = rapido
+    ? (falta.length ? '⚠️ <strong>Cadastro incompleto</strong> — falta ' + escTexto(falta.join(', ')) + '. ' : '') +
+      'Como administrador, você pode salvar só com <strong>nome e telefone</strong>; a equipe completa o resto depois.'
+    : (falta.length ? '⚠️ <strong>Cadastro incompleto.</strong> Para salvar, preencha: ' + escTexto(falta.join(', ')) + '.' : '');
   const pode = podeMexerCadastros();
   document.querySelectorAll('#forn-overlay input, #forn-overlay select').forEach(function (el) { el.disabled = !pode; });
   document.getElementById('forn-btn-salvar').style.display = pode ? '' : 'none';
@@ -1699,10 +1704,18 @@ function lerFormFornecedor() {
 async function salvarFornecedor() {
   if (!podeMexerCadastros()) { alert('Seu acesso só permite consultar.'); return; }
   const novo = lerFormFornecedor();
-  const falta = faltandoNoForn(novo);
+  // Cadastro rapido (pedido do Ander, 16/10/2026): o administrador salva so
+  // com nome e telefone, e a equipe completa depois. Quem usa fica "Ambos" se
+  // ninguem escolher, para o fornecedor aparecer nos dois modulos. Para os
+  // demais, continua valendo tudo o que e obrigatorio.
+  const rapido = cadastroRapidoForn();
+  if (rapido && !novo.uso) novo.uso = 'ambos';
+  const falta = rapido
+    ? [['nome', 'nome'], ['telefone', 'telefone']].filter(function (o) { return !novo[o[0]]; }).map(function (o) { return o[1]; })
+    : faltandoNoForn(novo);
   if (falta.length) { alert('Preencha os campos obrigatórios:\n\n• ' + falta.join('\n• ')); return; }
   const dig = soDigitos(novo.documento);
-  if (!(dig.length === 14 ? cnpjValido(dig) : dig.length === 11 ? cpfValido(dig) : false)) {
+  if ((dig || !rapido) && !(dig.length === 14 ? cnpjValido(dig) : dig.length === 11 ? cpfValido(dig) : false)) {
     alert('O CNPJ (ou CPF) não confere.\n\nCNPJ tem 14 números e CPF tem 11. Confira se não faltou ou trocou algum número.');
     document.getElementById('fc-documento').focus(); return;
   }
