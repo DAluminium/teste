@@ -4757,6 +4757,37 @@ function juntarDoc(novo){
   return true;
 }
 
+
+// ---- QUANDO O ANEXO FOI ANEXADO ----
+// Anexo novo guarda a data em `quando`. Anexo antigo nao guarda — mas o
+// endereco do arquivo carrega a versao do Cloudinary (.../v1760000000/...),
+// que e o instante do envio em segundos. Entao da para recuperar a data de
+// verdade dos que ja existem, em vez de deixar tudo sem data.
+function quandoDoAnexo(a){
+  if(a && a.quando) return a.quando;
+  const m=String((a&&a.url)||'').match(/\/v(\d{9,13})\//);
+  if(!m) return '';
+  const ms=Number(m[1])*1000;
+  return isFinite(ms) ? new Date(ms).toISOString() : '';
+}
+// So o dia, que e o que cabe na linha.
+function dataDoAnexo(a){
+  const iso=quandoDoAnexo(a);
+  if(!iso) return '';
+  const d=new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleDateString('pt-BR');
+}
+// A hora (e quem anexou, onde isso e guardado) ficam no passar do mouse.
+function tituloDoAnexo(a){
+  const iso=quandoDoAnexo(a);
+  if(!iso) return 'Data do anexo não registrada';
+  const d=new Date(iso);
+  if(isNaN(d)) return 'Data do anexo não registrada';
+  return 'Anexado em '+d.toLocaleDateString('pt-BR')+' às '+
+    d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+
+    ((a&&a.quem)?(' por '+a.quem):'');
+}
+
 function renderDocs(){
   const el=document.getElementById('ficha-docs');
   if(!el) return;
@@ -4774,6 +4805,8 @@ function renderDocs(){
         'style="flex:1;min-width:140px;font-size:12px;color:var(--gray-6);text-decoration:none;overflow:hidden;'+
         'text-overflow:ellipsis;white-space:nowrap" title="'+esc(d.nome)+'">'+esc(d.nome)+'</a>'+
       '<span style="font-size:10.5px;color:var(--gray-4);white-space:nowrap">'+fmtTamanho(d.tamanho||0)+'</span>'+
+      '<span style="font-size:10.5px;color:var(--gray-4);white-space:nowrap" title="'+esc(tituloDoAnexo(d))+'">'+
+        (dataDoAnexo(d)||'—')+'</span>'+
       botoesDoAnexo(d)+
       '<button type="button" data-anexo="'+esc(d.url)+'" data-nome="'+esc(d.nome)+'" onclick="enviarAnexo(this.dataset.anexo,this.dataset.nome)" title="Enviar pelo WhatsApp" '+
         'style="border:1px solid #b9c6cc;background:#fff;color:#2c3e50;border-radius:6px;font-size:11px;padding:2px 8px;cursor:pointer;white-space:nowrap;font-family:inherit">Enviar</button>'+

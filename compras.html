@@ -789,7 +789,10 @@ async function uploadToCloudinary(file){
   const isPdf = file.type === 'application/pdf';
   const resourceType = isPdf ? 'raw' : 'image';
   const j = await enviarArquivoPrivado(file, 'daluminium_orcamentos', resourceType);
-  return { id: j.public_id, url: j.secure_url, name: file.name, type: file.type, size: file.size };
+  // quando: a data do anexo. Os antigos nao tem, e para eles a data sai
+  // da versao no proprio endereco (ver quandoDoAnexo).
+  return { id: j.public_id, url: j.secure_url, name: file.name, type: file.type, size: file.size,
+           quando: new Date().toISOString() };
 }
 
 // ---- HELPERS ----
@@ -1276,6 +1279,37 @@ function openAttach(type,idx){
 }
 function closeAttach(){ document.getElementById('attach-overlay').classList.remove('open'); }
 
+
+// ---- QUANDO O ANEXO FOI ANEXADO ----
+// Anexo novo guarda a data em `quando`. Anexo antigo nao guarda — mas o
+// endereco do arquivo carrega a versao do Cloudinary (.../v1760000000/...),
+// que e o instante do envio em segundos. Entao da para recuperar a data de
+// verdade dos que ja existem, em vez de deixar tudo sem data.
+function quandoDoAnexo(a){
+  if(a && a.quando) return a.quando;
+  const m=String((a&&a.url)||'').match(/\/v(\d{9,13})\//);
+  if(!m) return '';
+  const ms=Number(m[1])*1000;
+  return isFinite(ms) ? new Date(ms).toISOString() : '';
+}
+// So o dia, que e o que cabe na linha.
+function dataDoAnexo(a){
+  const iso=quandoDoAnexo(a);
+  if(!iso) return '';
+  const d=new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleDateString('pt-BR');
+}
+// A hora (e quem anexou, onde isso e guardado) ficam no passar do mouse.
+function tituloDoAnexo(a){
+  const iso=quandoDoAnexo(a);
+  if(!iso) return 'Data do anexo não registrada';
+  const d=new Date(iso);
+  if(isNaN(d)) return 'Data do anexo não registrada';
+  return 'Anexado em '+d.toLocaleDateString('pt-BR')+' às '+
+    d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+
+    ((a&&a.quem)?(' por '+a.quem):'');
+}
+
 function renderAttachList(){
   const r=data[attachType][attachIdx];
   const list=document.getElementById('attach-file-list');
@@ -1292,7 +1326,7 @@ function renderAttachList(){
       <div class="file-icon ${iconClass}">${iconLabel}</div>
       <div class="file-info">
         <div class="file-name">${a.name}${isOld?' ⚠️':''}</div>
-        <div class="file-size">${isOld?'<span style="color:#B9770E">Re-anexar necessário</span>':fmtSize(a.size)}</div>
+        <div class="file-size" title="${tituloDoAnexo(a)}">${isOld?'<span style="color:#B9770E">Re-anexar necessário</span>':fmtSize(a.size)}${dataDoAnexo(a)?' · '+dataDoAnexo(a):''}</div>
       </div>
       <div class="file-actions">
         ${isOld?'':`<button class="btn btn-outline btn-sm" onclick="viewFile('${a.id}','${a.type}','${a.name}','${a.url}')">Ver</button>`}

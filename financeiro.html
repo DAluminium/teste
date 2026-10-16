@@ -2717,6 +2717,37 @@ function openAttach(type,idx){
 }
 function closeAttach(){ document.getElementById('attach-overlay').classList.remove('open'); attachType=null; attachIdx=null; }
 
+
+// ---- QUANDO O ANEXO FOI ANEXADO ----
+// Anexo novo guarda a data em `quando`. Anexo antigo nao guarda — mas o
+// endereco do arquivo carrega a versao do Cloudinary (.../v1760000000/...),
+// que e o instante do envio em segundos. Entao da para recuperar a data de
+// verdade dos que ja existem, em vez de deixar tudo sem data.
+function quandoDoAnexo(a){
+  if(a && a.quando) return a.quando;
+  const m=String((a&&a.url)||'').match(/\/v(\d{9,13})\//);
+  if(!m) return '';
+  const ms=Number(m[1])*1000;
+  return isFinite(ms) ? new Date(ms).toISOString() : '';
+}
+// So o dia, que e o que cabe na linha.
+function dataDoAnexo(a){
+  const iso=quandoDoAnexo(a);
+  if(!iso) return '';
+  const d=new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleDateString('pt-BR');
+}
+// A hora (e quem anexou, onde isso e guardado) ficam no passar do mouse.
+function tituloDoAnexo(a){
+  const iso=quandoDoAnexo(a);
+  if(!iso) return 'Data do anexo não registrada';
+  const d=new Date(iso);
+  if(isNaN(d)) return 'Data do anexo não registrada';
+  return 'Anexado em '+d.toLocaleDateString('pt-BR')+' às '+
+    d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+
+    ((a&&a.quem)?(' por '+a.quem):'');
+}
+
 function renderAttachList(){
   const r=attachType==='pagar'?data.pagar[attachIdx]:data.receber[attachIdx];
   const list=document.getElementById('attach-list');
@@ -2728,6 +2759,7 @@ function renderAttachList(){
     return`<div class="attach-item">
       ${isImg?`<svg style="width:16px;height:16px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`:`<svg style="width:16px;height:16px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`}
       <a href="#" data-anexo="${a.url}" data-nome="${a.name}" onclick="abrirAnexo(this.dataset.anexo,this.dataset.nome);return false;" title="${a.name}">${a.name}</a>
+      <span style="font-size:11px;color:var(--gray-4);white-space:nowrap" title="${tituloDoAnexo(a)}">${dataDoAnexo(a)||'—'}</span>
       <button class="btn btn-outline btn-sm" data-anexo="${a.url}" data-nome="${String(a.name||'').replace(/"/g,'&quot;')}" onclick="enviarAnexo(this.dataset.anexo,this.dataset.nome)" title="Enviar pelo WhatsApp">Enviar</button>
       <button class="act act-del" onclick="removeAttach(${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
     </div>`;
@@ -3296,7 +3328,8 @@ async function uploadAttach(event){
     const j=await enviarArquivoPrivado(file,'daluminium-financeiro','auto');
     const r2=attachType==='pagar'?data.pagar[attachIdx]:data.receber[attachIdx];
     if(!r2.attachments) r2.attachments=[];
-    r2.attachments.push({name:file.name,url:j.secure_url,public_id:j.public_id});
+    r2.attachments.push({name:file.name,url:j.secure_url,public_id:j.public_id,
+      quando:new Date().toISOString()});
     await persist(); render(); renderAttachList();
     prog.style.display='none';
   }catch(e){ prog.textContent='❌ Erro ao enviar. Tente novamente.'; }
