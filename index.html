@@ -376,15 +376,15 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
 
       <div id="cad-painel-fornecedores" class="cad-painel">
         <div style="background:var(--teal-light);border-radius:8px;padding:9px 13px;font-size:12px;color:var(--teal-dark);margin-bottom:12px;line-height:1.5">
-          ℹ️ Um cadastro só para o <strong>Compras</strong> e o <strong>Financeiro</strong>. Marque em cada fornecedor quem o usa: o Compras só sugere os de Compras e Ambos; o Financeiro, os de Financeiro e Ambos. Ao escolher o fornecedor numa compra, o PIX e o banco entram sozinhos.
+          ℹ️ Um cadastro só para o <strong>Compras</strong> e o <strong>Financeiro</strong>. Marque em cada fornecedor quem o usa — Compras, Financeiro ou os dois: cada módulo só sugere os marcados para ele. Ao escolher o fornecedor numa compra, o PIX e o banco entram sozinhos. Clique no telefone para abrir o WhatsApp.
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
           <input id="cad-busca" type="text" placeholder="Buscar por nome, CNPJ, cidade, contato..." oninput="renderFornecedores()" style="width:auto;flex:1;min-width:200px;padding:7px 10px;border:1px solid var(--gray-3);border-radius:8px;font-family:inherit;font-size:13px">
           <select id="cad-filtro" onchange="renderFornecedores()" style="width:auto;padding:7px 8px;border:1px solid var(--gray-3);border-radius:8px;font-family:inherit;font-size:12.5px">
             <option value="">Todos</option>
-            <option value="compras">Compras</option>
-            <option value="financeiro">Financeiro</option>
-            <option value="ambos">Ambos</option>
+            <option value="compras">Usados no Compras</option>
+            <option value="financeiro">Usados no Financeiro</option>
+            <option value="ambos">Nos dois</option>
             <option value="incompleto">⚠️ Cadastro incompleto</option>
           </select>
           <button class="btn btn-teal" id="cad-btn-novo" style="font-size:12.5px;padding:7px 14px" onclick="openFornecedor(null)">+ Novo fornecedor</button>
@@ -423,16 +423,16 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
       <div id="forn-aviso" style="display:none;background:#fdf6e3;border:1px solid #e8d9a8;border-radius:8px;padding:9px 13px;font-size:12px;color:#7d5a10;margin-bottom:12px;line-height:1.5"></div>
       <div class="form-grid">
         <div class="form-group span2"><label>Quem usa este fornecedor <span style="color:var(--red)">*</span></label>
-          <select id="fc-uso">
-            <option value="">— escolha —</option>
-            <option value="compras">Compras (material)</option>
-            <option value="financeiro">Financeiro (contas e serviços)</option>
-            <option value="ambos">Ambos</option>
-          </select>
+          <input type="hidden" id="fc-uso">
+          <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:4px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--gray-6);cursor:pointer"><input type="checkbox" id="fc-uso-compras" onchange="caixasParaUso()"> Compras <span style="font-weight:400;color:var(--gray-4)">(compra o material)</span></label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--gray-6);cursor:pointer"><input type="checkbox" id="fc-uso-financeiro" onchange="caixasParaUso()"> Financeiro <span style="font-weight:400;color:var(--gray-4)">(faz o pagamento)</span></label>
+          </div>
+          <span style="font-size:11.5px;color:var(--gray-4);margin-top:2px">Marque os dois quando o Compras compra e o Financeiro paga.</span>
         </div>
         <div style="grid-column:1/-1;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding-top:6px;border-top:1px solid var(--gray-2)">Básico (obrigatório)</div>
         <div class="form-group span2"><label>Nome do fornecedor <span style="color:var(--red)">*</span></label><input id="fc-nome" type="text" placeholder="Como todo mundo chama — ex: Mirandex"></div>
-        <div class="form-group"><label>Telefone / WhatsApp <span style="color:var(--red)">*</span></label><input id="fc-telefone" type="text" placeholder="Ex: (69) 3222-0000"></div>
+        <div class="form-group"><label>Telefone / WhatsApp <span style="color:var(--red)">*</span></label><div style="display:flex;gap:6px"><input id="fc-telefone" type="text" placeholder="Ex: (69) 3222-0000" style="flex:1;min-width:0"><button type="button" onclick="falarNoWhatsCad(document.getElementById('fc-telefone').value)" title="Abrir conversa no WhatsApp" style="background:#25D366;color:#fff;border:none;border-radius:8px;padding:0 12px;font-weight:600;font-size:12.5px;cursor:pointer;font-family:inherit">WhatsApp</button></div></div>
         <div class="form-group"><label>Vendedor de contato <span style="color:var(--red)">*</span></label><input id="fc-contato" type="text" placeholder="Ex: Carlos"></div>
         <div class="form-group span2"><label>Cidade / UF <span style="color:var(--red)">*</span></label><input id="fc-cidade" type="text" placeholder="Ex: Porto Velho/RO"></div>
         <div style="grid-column:1/-1;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding-top:6px;border-top:1px solid var(--gray-2)">Dados da empresa (obrigatório)</div>
@@ -1467,7 +1467,33 @@ const CAD_OBRIGATORIOS = [
   ['nome', 'nome'], ['telefone', 'telefone'], ['contato', 'vendedor de contato'], ['cidade', 'cidade'],
   ['documento', 'CNPJ/CPF'], ['razao', 'razão social'], ['endereco', 'endereço'], ['uso', 'quem usa']
 ];
-const CAD_ROTULO_USO = { compras: 'Compras', financeiro: 'Financeiro', ambos: 'Ambos' };
+const CAD_ROTULO_USO = { compras: 'Compras', financeiro: 'Financeiro', ambos: 'Compras + Financeiro' };
+// "Quem usa" na tela e em caixas; gravado como antes, num campo escondido.
+function usoParaCaixas() {
+  const u = document.getElementById('fc-uso').value;
+  document.getElementById('fc-uso-compras').checked = u === 'compras' || u === 'ambos';
+  document.getElementById('fc-uso-financeiro').checked = u === 'financeiro' || u === 'ambos';
+}
+function caixasParaUso() {
+  const c = document.getElementById('fc-uso-compras').checked, f = document.getElementById('fc-uso-financeiro').checked;
+  document.getElementById('fc-uso').value = c && f ? 'ambos' : c ? 'compras' : f ? 'financeiro' : '';
+}
+// O telefone chama o APLICATIVO do WhatsApp (abrirWhats, o mesmo do relato e
+// dos lembretes). Nada e enviado: abre a conversa e a pessoa escreve.
+function numeroWhatsCad(t) {
+  const so = soDigitos(t);
+  if (so.length === 10 || so.length === 11) return '55' + so;
+  return so.length >= 12 ? so : '';
+}
+function falarNoWhatsCad(t) {
+  const n = numeroWhatsCad(t);
+  if (!n) { alert('Esse telefone está incompleto.\n\nPara o WhatsApp é preciso o DDD e o número — ex: (69) 99999-0000.'); return; }
+  abrirWhats('https://api.whatsapp.com/send?phone=' + n);
+}
+function botaoWhatsCad(t) {
+  return '<button type="button" data-tel="' + escTexto(t) + '" onclick="event.stopPropagation();falarNoWhatsCad(this.dataset.tel)" title="Abrir conversa no WhatsApp" ' +
+    'style="background:#25D366;color:#fff;border:none;border-radius:12px;padding:1px 9px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit">📞 ' + escTexto(t) + '</button>';
+}
 let _cad = { fornecedores: [], historico: [] };
 let _fornAberto = null;   // copia do fornecedor como estava ao abrir (para saber se outra pessoa mexeu)
 
@@ -1633,7 +1659,8 @@ function renderFornecedores() {
   const todos = _cad.fornecedores || [];
   const lista = todos.filter(function (f) {
     if (filtro === 'incompleto' && !faltandoNoForn(f).length) return false;
-    if (filtro && filtro !== 'incompleto' && f.uso !== filtro) return false;
+    if (filtro === 'ambos' && f.uso !== 'ambos') return false;
+    if ((filtro === 'compras' || filtro === 'financeiro') && f.uso !== filtro && f.uso !== 'ambos') return false;
     if (!busca) return true;
     const txt = normalizarNomeForn([f.nome, f.razao, f.cidade, f.contato, f.email, (f.categorias || []).join(' ')].join(' '));
     return txt.indexOf(busca) >= 0 || (buscaDig.length >= 3 && soDigitos(f.documento).indexOf(buscaDig) >= 0);
@@ -1658,7 +1685,7 @@ function renderFornecedores() {
         '<div style="font-size:12px;color:var(--gray-5);margin-top:3px">' +
           [f.razao, formatarDocumento(f.documento), f.cidade].filter(Boolean).map(escTexto).join(' · ') + '</div>' +
         '<div style="font-size:12px;color:var(--gray-5);margin-top:2px">' +
-          [f.contato ? '👤 ' + f.contato : '', f.telefone ? '📞 ' + f.telefone : '', f.pix ? '💸 PIX cadastrado' : ''].filter(Boolean).map(escTexto).join(' · ') + '</div>' +
+          [f.contato ? '👤 ' + escTexto(f.contato) : '', f.telefone ? botaoWhatsCad(f.telefone) : '', f.pix ? '💸 PIX cadastrado' : ''].filter(Boolean).join(' · ') + '</div>' +
         ((f.categorias || []).length ? '<div style="font-size:11.5px;color:var(--teal-dark);margin-top:3px">' + escTexto(f.categorias.join(', ')) + '</div>' : '') +
       '</div>' +
       (falta.length ? '<div style="font-size:11.5px;color:#7d5a10;background:#fdf6e3;border:1px solid #e8d9a8;border-radius:8px;padding:4px 9px;max-width:260px">⚠️ Cadastro incompleto — falta ' + escTexto(falta.join(', ')) + '</div>' : '') +
@@ -1682,6 +1709,7 @@ function openFornecedor(id) {
   Object.keys(CAD_CAMPOS).forEach(function (k) { document.getElementById(CAD_CAMPOS[k]).value = f ? (f[k] || '') : ''; });
   if (f) document.getElementById('fc-documento').value = formatarDocumento(f.documento);
   document.querySelectorAll('.fc-cat').forEach(function (c) { c.checked = !!(f && (f.categorias || []).indexOf(c.value) >= 0); });
+  usoParaCaixas();
   document.getElementById('forn-titulo').textContent = f ? f.nome : 'Novo fornecedor';
   const falta = f ? faltandoNoForn(f) : [];
   const aviso = document.getElementById('forn-aviso');
@@ -1706,11 +1734,12 @@ function openFornecedor(id) {
         (h.detalhe ? ' (' + escTexto(h.detalhe) + ')' : '') + '</div>';
     }).join('') : '';
   document.getElementById('forn-overlay').classList.add('open');
-  setTimeout(function () { document.getElementById(f ? 'fc-uso' : 'fc-uso').focus(); }, 100);
+  setTimeout(function () { document.getElementById('fc-nome').focus(); }, 100);
 }
 function fecharFornecedor() { document.getElementById('forn-overlay').classList.remove('open'); _fornAberto = null; }
 
 function lerFormFornecedor() {
+  caixasParaUso();
   const f = {};
   Object.keys(CAD_CAMPOS).forEach(function (k) { f[k] = String(document.getElementById(CAD_CAMPOS[k]).value || '').trim(); });
   f.documento = formatarDocumento(f.documento);
@@ -1889,8 +1918,8 @@ function renderClientes() {
       '<div style="font-weight:700;font-size:14px">' + escTexto(c.nome) +
         (c.outrosNomes.length ? ' <span style="font-weight:400;font-size:11.5px;color:var(--gray-4)">(também: ' + escTexto(c.outrosNomes.join(', ')) + ')</span>' : '') + '</div>' +
       '<div style="font-size:12px;color:var(--gray-5);margin-top:3px">' +
-        [c.telefone ? '📞 ' + c.telefone : '', c.cidade ? '📍 ' + c.cidade : '', c.vendedores.length ? '👤 ' + c.vendedores.join(', ') : '']
-          .filter(Boolean).map(escTexto).join(' · ') + '</div>' +
+        [c.telefone ? botaoWhatsCad(c.telefone) : '', c.cidade ? '📍 ' + escTexto(c.cidade) : '', c.vendedores.length ? '👤 ' + escTexto(c.vendedores.join(', ')) : '']
+          .filter(Boolean).join(' · ') + '</div>' +
       '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">' +
         c.negocios.map(function (n) {
           return '<button class="btn btn-outline" style="font-size:11.5px;padding:3px 9px" onclick="abrirNegocioNoCrm(\'' + escTexto(n.id) + '\')" title="Abrir este negócio no CRM">🤝 ' +
