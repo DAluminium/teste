@@ -642,7 +642,7 @@ function aplicarFuncaoNaTela(){
   const b=document.body; if(!b) return;
   if(!document.getElementById('estilo-funcao')){
     const s=document.createElement('style'); s.id='estilo-funcao';
-    s.textContent='body.sem-excluir .act-del,body.sem-excluir #ficha-btn-excluir,'+
+    s.textContent='body.sem-excluir .act-del,'+
       'body.sem-excluir #f-grid-contrato,body.sem-excluir #f-secao-contrato{display:none!important}'+
       'body.modo-consulta{padding-bottom:40px}';
     (document.head||b).appendChild(s);
@@ -1090,9 +1090,9 @@ function podeMoverNoFunil(o){
 }
 function podeEditarNegocio(o){
   if(podeGerenciar() || ehOrcamentista()) return true;
-  if(funilDoNegocio(o)==='orcamentos'){
-    return o.vendedor===usuarioLogin && vendedorCompletaNaEtapa(o.etapa);
-  }
+  // Vendedora no funil de Orcamentos (16/10/2026, autorizado pela responsavel):
+  // completa dados e anexos do negocio DELA em qualquer coluna; a etapa e de quem orca.
+  if(funilDoNegocio(o)==='orcamentos') return o.vendedor===usuarioLogin;
   return o.vendedor===usuarioLogin;
 }
 function podeEnviarParaOutroFunil(o){ return podeMoverNoFunil(o); }
@@ -1909,9 +1909,14 @@ function ajustarFichaAoFunil(o){
   if(funilDoNegocio(o)==='orcamentos' && !podeGerenciar() && !ehOrcamentista()){
     et.disabled=true;
     av.style.display='';
-    av.style.background='var(--red-light)';
-    av.innerHTML='❗ <b>Falta informação para orçar:</b> '+esc(o.faltaInfo||'(veja as anotações)')+
-      '<br>Complete os dados abaixo e clique em <b>Salvar</b>. Quem orça verá que você completou.';
+    if(vendedorCompletaNaEtapa(o.etapa)){
+      av.style.background='var(--red-light)';
+      av.innerHTML='❗ <b>Falta informação para orçar:</b> '+esc(o.faltaInfo||'(veja as anotações)')+
+        '<br>Complete os dados abaixo e clique em <b>Salvar</b>. Quem orça verá que você completou.';
+    } else {
+      av.innerHTML='📐 <b>Este orçamento está com quem orça</b> (etapa: '+esc((etapaDe(o.etapa)||{}).nome||'—')+'). '+
+        'Você pode completar os dados e os anexos e clicar em <b>Salvar</b>; a etapa quem muda é quem orça.';
+    }
     return;
   }
   av.style.background='';
@@ -1924,9 +1929,53 @@ function renderNotas(o){
     const nova=_notasNovas.indexOf(n)>=0;
     const tp=tipoDeContato(n.tipo);
     let q=n.ts; try{ q=new Date(n.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){}
+    const mexe=!nova && o && notaEditavel(n);
     return '<div class="nota"><span title="'+esc(tp.nome)+'">'+tp.icone+'</span> '+(n.tipo?'<b style="font-size:11.5px;color:var(--gray-5)">'+esc(tp.nome)+':</b> ':'')+esc(n.texto)+
-      '<div class="nota-quem">'+esc(n.por||'')+' · '+esc(q)+(nova?' · <b style="color:var(--amber)">será salva ao clicar em Salvar</b>':'')+'</div></div>';
+      '<div class="nota-quem">'+esc(n.por||'')+' · '+esc(q)+(n.editadaEm?' · corrigida':'')+(nova?' · <b style="color:var(--amber)">será salva ao clicar em Salvar</b>':'')+
+      (mexe?' · <a href="#" onclick="event.preventDefault();corrigirNota(\''+esc(n.id)+'\')" title="Corrigir (só hoje)">✏️ corrigir</a>'+
+            ' · <a href="#" onclick="event.preventDefault();apagarNota(\''+esc(n.id)+'\')" title="Apagar (só hoje)">🗑 apagar</a>':'')+
+      '</div></div>';
   }).join('');
+}
+// ---- CORRIGIR / APAGAR ANOTACAO (autorizado pela responsavel, 16/10/2026) ----
+// Quem escreveu corrige ou apaga a PROPRIA anotacao ate o fim do dia (erro de
+// digitacao). No dia seguinte vira historico fixo: para retificar, anota de
+// novo. A anotacao automatica (etapa, anexo, criacao) nao muda. Mesma regra do
+// Worker, que e quem segura de verdade (crmJuntarNotas).
+function diaPV(ts){ const t=new Date(ts).getTime(); return isFinite(t)?new Date(t-4*3600e3).toISOString().slice(0,10):''; }
+function notaEditavel(n){
+  return !!n && !TIPOS_DO_SISTEMA[n.tipo] && String(n.por||'')===String(usuario||'') && diaPV(n.ts)===diaPV(Date.now());
+}
+async function corrigirNota(id){
+  const o=negocioDaFicha(); if(!o) return;
+  const n=(o.notas||[]).find(function(x){ return x.id===id; });
+  if(!notaEditavel(n)){ aviso('Não dá mais para corrigir','Só dá para corrigir a sua própria anotação no mesmo dia. Para retificar, faça uma anotação nova.'); return; }
+  const novo=prompt('Corrigir a anotação:', n.texto||'');
+  if(novo===null) return;
+  const t=String(novo).trim();
+  if(!t || t===n.texto) return;
+  await alterar(function(base){
+    const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
+    const m=alvo&&(alvo.notas||[]).find(function(x){ return x.id===id; });
+    if(!m||!notaEditavel(m)) return false;
+    if(m.textoOriginal===undefined) m.textoOriginal=m.texto;
+    m.texto=t; m.editadaEm=agoraISO();
+  },{acao:'corrigiu uma anotação', alvo:alvoDoNegocio(o)});
+  renderNotas(negocioDaFicha());
+}
+async function apagarNota(id){
+  const o=negocioDaFicha(); if(!o) return;
+  const n=(o.notas||[]).find(function(x){ return x.id===id; });
+  if(!notaEditavel(n)){ aviso('Não dá mais para apagar','Só dá para apagar a sua própria anotação no mesmo dia.'); return; }
+  if(!confirm('Apagar esta anotação?\n\n"'+String(n.texto||'').slice(0,120)+'"')) return;
+  await alterar(function(base){
+    const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
+    if(!alvo) return false;
+    const antes=(alvo.notas||[]).length;
+    alvo.notas=(alvo.notas||[]).filter(function(x){ return !(x.id===id && notaEditavel(x)); });
+    if(alvo.notas.length===antes) return false;
+  },{acao:'apagou uma anotação', alvo:alvoDoNegocio(o), detalhe:String(n.texto||'').slice(0,120)});
+  renderNotas(negocioDaFicha());
 }
 // ---- TIPO DO CONTATO (ideia trazida do Evoluti, 14/10/2026) ----
 // Mostra COMO foi cada contato. Os ultimos tipos sao gravados pelo proprio
@@ -2256,7 +2305,8 @@ function abrirFicha(id){
   if(o.anonimizadoEm) quem.push('dados pessoais apagados em '+fmtData(o.anonimizadoEm)+' por '+(o.anonimizadoPor||'—'));
   document.getElementById('o-quem').textContent=quem.join(' · ');
   const gestor=podeGerenciar();
-  document.getElementById('ficha-btn-excluir').style.display=!o.excluido?'':'none';
+  // Excluir: gerente e admin; a vendedora, so os negocios DELA (16/10/2026).
+  document.getElementById('ficha-btn-excluir').style.display=(!o.excluido && (podeGerenciar() || o.vendedor===usuarioLogin))?'':'none';
   document.getElementById('ficha-btn-restaurar').style.display=(gestor&&o.excluido)?'':'none';
   // Limpeza da LGPD e so do administrador (decisao do Ander, 10/10/2026).
   // "Apagar dados pessoais" saiu da ficha a pedido do Ander (14/10/2026): o
@@ -2463,9 +2513,10 @@ async function confirmarEnvioFunil(){
 }
 
 async function excluirNegocio(){
-  if(recusarExcluir()) return;
   const o=(dados.oportunidades||[]).find(function(x){ return x.id===fichaId; });
   if(!o) return;
+  if(recusarSeConsulta()) return;
+  if(!podeGerenciar() && o.vendedor!==usuarioLogin){ aviso('Sem permissão','Você só pode excluir os negócios que são seus.'); return; }
   if(!confirm('Mandar "'+(o.cliente||'este negócio')+'" para a lixeira?\n\nO gerente consegue restaurar depois.')) return;
   const ok=await alterar(function(base){
     const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
