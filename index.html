@@ -544,6 +544,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
               <label><input type="checkbox" id="nu-mod-fabrica"> 🏭 Fábrica</label>
               <label><input type="checkbox" id="nu-mod-obra"> 📋 Gerenciamento de Obra</label>
               <label><input type="checkbox" id="nu-mod-crm"> 🤝 CRM Comercial</label>
+              <label title="A pessoa abre a Fábrica para consultar a etapa dos projetos, mas não altera nada"><input type="checkbox" id="nu-ver-fabrica" onchange="if(this.checked) document.getElementById('nu-mod-fabrica').checked=true"> 👁️ Fábrica só para consultar</label>
             </div>
           </div>
         </div>
@@ -584,6 +585,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
             <label><input type="checkbox" id="eu-mod-fabrica"> 🏭 Fábrica</label>
             <label><input type="checkbox" id="eu-mod-obra"> 📋 Gerenciamento de Obra</label>
             <label><input type="checkbox" id="eu-mod-crm"> 🤝 CRM Comercial</label>
+            <label title="A pessoa abre a Fábrica para consultar a etapa dos projetos, mas não altera nada"><input type="checkbox" id="eu-ver-fabrica" onchange="if(this.checked) document.getElementById('eu-mod-fabrica').checked=true"> 👁️ Fábrica só para consultar</label>
           </div>
         </div>
         <div class="form-group span2">
@@ -2221,7 +2223,11 @@ async function addUsuario(){
   // parenteses, traco e espaco atrapalham. O 55 do Brasil entra na hora de
   // montar o link, para nao depender de quem digitou lembrar dele.
   const whatsapp=document.getElementById('nu-whatsapp').value.replace(/\D/g,'');
-  portalData.usuarios.push({name,username,role,modulos,active:true,tempPass:true,
+  // Fabrica "so para consultar" (16/10/2026): o Worker poe no cracha e recusa
+  // a gravacao na Fabrica (soVeNoRegistro). Marcar a caixa ja libera o modulo.
+  const soVer=document.getElementById('nu-ver-fabrica').checked?['fabrica']:[];
+  if(soVer.length && modulos.indexOf('fabrica')<0) modulos.push('fabrica');
+  portalData.usuarios.push({name,username,role,modulos,soVer,active:true,tempPass:true,
     whatsapp:whatsapp,
     criadoPor:meuUsuario(), criadoEm:new Date().toISOString()});
   await savePortalData();
@@ -2237,6 +2243,7 @@ async function addUsuario(){
   document.getElementById('nu-mod-fabrica').checked=false;
   document.getElementById('nu-mod-obra').checked=false;
   document.getElementById('nu-mod-crm').checked=false;
+  document.getElementById('nu-ver-fabrica').checked=false;
   renderUserList();
   alert('Usuário cadastrado e salvo! ✅');
 }
@@ -2272,6 +2279,7 @@ function editUsuario(idx){
   MODULOS_DO_SISTEMA.forEach(function(m){
     document.getElementById('eu-mod-'+m).checked=mods.indexOf(m)>=0;
   });
+  document.getElementById('eu-ver-fabrica').checked=(u.soVer||[]).indexOf('fabrica')>=0;
   // O que eu nao posso dar fica travado como esta (marcado ou nao).
   travarModulosQueNaoPossoDar('eu-mod-');
   document.getElementById('edit-user-overlay').classList.add('open');
@@ -2310,6 +2318,8 @@ async function salvarEdicaoUsuario(){
   u.whatsapp=document.getElementById('eu-whatsapp').value.replace(/\D/g,'');
   u.role=role;
   u.modulos=modulos;
+  u.soVer=document.getElementById('eu-ver-fabrica').checked?['fabrica']:[];
+  if(u.soVer.length && u.modulos.indexOf('fabrica')<0) u.modulos.push('fabrica');
   if(senha){
     // Editando a si mesmo: o Worker pede a senha atual.
     const tk=lerToken();

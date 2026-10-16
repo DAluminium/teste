@@ -1055,7 +1055,9 @@ function etapaInicialDoFunil(f){
   return e?e.id:etapaInicial();
 }
 function nomeDoFunil(f){ const x=FUNIS.find(function(y){ return y.id===f; }); return x?x.nome:f; }
-function funisQueVejo(){ return ehOrcamentista()?['orcamentos']:['orcamentos','vendas']; }
+// Todos veem os dois funis. A orcamentista via so o de Orcamentos ate 16/10/2026;
+// agora acompanha tambem as vendas (Giovanna e Ana) — o Worker entrega tudo a ela.
+function funisQueVejo(){ return ['orcamentos','vendas']; }
 function vendedorCompletaNaEtapa(etapaId){
   const e=etapaDe(etapaId);
   return e?!!e.vendedorCompleta:etapaId==='faltainfo';
@@ -1063,14 +1065,13 @@ function vendedorCompletaNaEtapa(etapaId){
 // O que esta pessoa pode fazer com o negocio. Espelha a trava do Worker: a
 // tela so evita a pessoa tentar e perder o que digitou.
 function podeMoverNoFunil(o){
-  if(podeGerenciar()) return true;
-  if(funilDoNegocio(o)==='orcamentos') return ehOrcamentista();
+  if(podeGerenciar() || ehOrcamentista()) return true;
+  if(funilDoNegocio(o)==='orcamentos') return false;
   return o.vendedor===usuarioLogin;
 }
 function podeEditarNegocio(o){
-  if(podeGerenciar()) return true;
+  if(podeGerenciar() || ehOrcamentista()) return true;
   if(funilDoNegocio(o)==='orcamentos'){
-    if(ehOrcamentista()) return true;
     return o.vendedor===usuarioLogin && vendedorCompletaNaEtapa(o.etapa);
   }
   return o.vendedor===usuarioLogin;
@@ -1250,19 +1251,8 @@ function renderNumeros(){
   const hoje=hojeISO(), mes=hoje.slice(0,7);
   const emOrcamento=lista.filter(function(o){ return funilDoNegocio(o)==='orcamentos'; });
   const faltaInfo=emOrcamento.filter(function(o){ return vendedorCompletaNaEtapa(o.etapa); });
-  // Quem orca so ve o funil de Orcamentos: os numeros dele sao o trabalho dele.
-  if(ehOrcamentista()){
-    const somaOrc=emOrcamento.reduce(function(s,o){ return s+(Number(o.valor)||0); },0);
-    document.getElementById('numeros').innerHTML=
-      card('var(--blue)',emOrcamento.length,'Em orçamento',fmtMoeda(somaOrc)||'','setFunil(\'orcamentos\')')+
-      card(faltaInfo.length?'var(--red)':'var(--gray-3)',faltaInfo.length,'Esperando o vendedor','falta informação','')+
-      etapasDoFunil('orcamentos').filter(function(e){ return !e.vendedorCompleta; }).map(function(e){
-        const n=emOrcamento.filter(function(o){ return o.etapa===e.id; }).length;
-        return card(corDe(e.id),n,e.nome,'','');
-      }).join('');
-    const c0=document.getElementById('conta-retornos'); if(c0) c0.innerHTML='';
-    return;
-  }
+  // Quem orca via cartoes so de Orcamentos ate 16/10/2026; agora acompanha
+  // tambem as vendas, entao ve os mesmos numeros da equipe.
   const abertos=lista.filter(function(o){ return tipoDe(o)==='aberta' && funilDoNegocio(o)==='vendas'; });
   const somaAbertos=abertos.reduce(function(s,o){ return s+(Number(o.valor)||0); },0);
   const ganhosMes=lista.filter(function(o){ return tipoDe(o)==='ganho' && String(o.fechadoEm||'').slice(0,7)===mes; });
@@ -2929,7 +2919,6 @@ function abrirApp(nome,papelDoUsuario,login){
   lerLocal();
   try{ const v=localStorage.getItem('dalum-crm-view'); if(v) view=v; }catch(e){}
   try{ const fz=localStorage.getItem('dalum-crm-funil'); if(fz) funilAtual=fz; }catch(e){}
-  if(ehOrcamentista()) funilAtual='orcamentos';
   setFunil(funilAtual);
   setView(view);
   sincronizar();

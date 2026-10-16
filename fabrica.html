@@ -845,7 +845,12 @@ function papelDoCracha(){
   try{ const t=lerToken(); return String((t&&t.dados&&t.dados.r)||'').toLowerCase(); }catch(e){ return ''; }
 }
 function podeExcluir(){ const p=papelDoCracha(); return p==='admin'||p==='gerente'; }
-function ehConsulta(){ return papelDoCracha()==='consulta'; }
+// Consulta, ou a Fabrica marcada "so ver" no cadastro da pessoa (16/10/2026):
+// a tela fica so para olhar. Quem trava a gravacao e o Worker (soVeNoRegistro).
+function ehConsulta(){
+  if(papelDoCracha()==='consulta') return true;
+  try{ const t=lerToken(); const v=(t&&t.dados&&Array.isArray(t.dados.v))?t.dados.v:[]; return v.indexOf('fabrica')>=0; }catch(e){ return false; }
+}
 function recusarExcluir(){
   if(podeExcluir()) return false;
   alert('S\u00f3 o gerente ou o administrador pode excluir.\n\nPe\u00e7a a quem gerencia este m\u00f3dulo.');
