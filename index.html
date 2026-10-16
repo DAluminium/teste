@@ -369,8 +369,8 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
     </div>
     <div class="modal-body">
       <div style="display:flex;gap:6px;border-bottom:1px solid var(--gray-2);margin-bottom:14px">
-        <button class="btn btn-outline cad-aba" data-aba="fornecedores" onclick="abaCadastros('fornecedores')" style="font-size:12.5px;padding:6px 14px;border-radius:8px 8px 0 0">🏭 Fornecedores</button>
-        <button class="btn btn-outline cad-aba" data-aba="clientes" onclick="abaCadastros('clientes')" style="font-size:12.5px;padding:6px 14px;border-radius:8px 8px 0 0">👥 Clientes</button>
+        <button class="btn btn-outline cad-aba" data-aba="fornecedores" id="cad-aba-fornecedores" onclick="abaCadastros('fornecedores')" style="font-size:12.5px;padding:6px 14px;border-radius:8px 8px 0 0">🏭 Fornecedores</button>
+        <button class="btn btn-outline cad-aba" data-aba="clientes" id="cad-aba-clientes" onclick="abaCadastros('clientes')" style="font-size:12.5px;padding:6px 14px;border-radius:8px 8px 0 0">👥 Clientes</button>
         <button class="btn btn-outline cad-aba" data-aba="usuarios" id="cad-aba-usuarios" onclick="abaCadastros('usuarios')" style="font-size:12.5px;padding:6px 14px;border-radius:8px 8px 0 0">🔑 Usuários</button>
       </div>
 
@@ -395,9 +395,12 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
       </div>
 
       <div id="cad-painel-clientes" class="cad-painel" style="display:none">
-        <div style="background:var(--gray-1);border-radius:8px;padding:14px;font-size:13px;color:var(--gray-5);line-height:1.6">
-          👥 O cadastro de clientes vem na <strong>etapa 2</strong>, ligado ao CRM e ao Gerenciamento de Obra, com a mesma regra do CRM: o vendedor vê só os clientes dele; gerente e administrador veem todos.
+        <div style="background:var(--teal-light);border-radius:8px;padding:9px 13px;font-size:12px;color:var(--teal-dark);margin-bottom:12px;line-height:1.5">
+          ℹ️ Todo cliente nasce no <strong>CRM</strong>. Esta lista junta, sem repetir, quem está nos negócios do CRM e nos contratos da Obra. Para corrigir um dado, abra o negócio no CRM. Você vê os mesmos clientes que vê no CRM.
         </div>
+        <input id="cli-busca" type="text" placeholder="Buscar por nome, telefone, cidade, vendedor..." oninput="renderClientes()" style="margin-bottom:10px;padding:7px 10px;border:1px solid var(--gray-3);border-radius:8px;font-family:inherit;font-size:13px">
+        <div id="cli-status" style="font-size:12px;color:var(--gray-5);margin-bottom:8px"></div>
+        <div id="cli-lista"></div>
       </div>
 
       <div id="cad-painel-usuarios" class="cad-painel" style="display:none">
@@ -811,7 +814,7 @@ function loginGuardaApagar(chave){
 // mesmo armazenamento: qualquer saida limpa a copia de TODOS eles.
 // Preferencias de tela (aba escolhida, ordem da carteira, ultima empresa do
 // comprovante) ficam: nao sao dado de ninguem.
-const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra','dalum-crm','dalum-crm-para-obra',
+const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra','dalum-crm','dalum-crm-para-obra','dalum-crm-abrir',
   'portal-admin-passes','dalum-admin-passes','fin-admin-passes'];
 function apagarDadosLocais(){
   DADOS_LOCAIS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
@@ -1473,12 +1476,21 @@ function modulosDoMeuCracha() {
   return (t && Array.isArray(t.dados.m) ? t.dados.m : []).map(function (x) { return String(x || '').toLowerCase(); });
 }
 function meuPapel() { return String(sessionStorage.getItem('portal-role') || '').toLowerCase(); }
-function podeVerCadastros() {
+// Fornecedores: admin, Compras e Financeiro. Clientes (16/10/2026): admin,
+// CRM e Obra — e cada um recebe do Worker so os clientes que ja ve nesses
+// modulos (o vendedor, so os dele). O botao aparece para quem ve alguma aba.
+function podeVerFornecedores() {
   if (meuPapel() === 'admin') return true;
   const m = modulosDoMeuCracha();
   return m.indexOf('compras') >= 0 || m.indexOf('financeiro') >= 0;
 }
-function podeMexerCadastros() { return podeVerCadastros() && meuPapel() !== 'consulta'; }
+function podeVerClientes() {
+  if (meuPapel() === 'admin') return true;
+  const m = modulosDoMeuCracha();
+  return m.indexOf('crm') >= 0 || m.indexOf('obra') >= 0;
+}
+function podeVerCadastros() { return podeVerFornecedores() || podeVerClientes(); }
+function podeMexerCadastros() { return podeVerFornecedores() && meuPapel() !== 'consulta'; }
 function podeExcluirCadastros() { return meuNivel() >= 2; }
 function ajustarBotaoCadastros() {
   const b = document.getElementById('btn-cadastros');
@@ -1576,12 +1588,15 @@ async function gravarCadastros(mudar) {
 }
 
 async function openCadastros() {
-  if (!podeVerCadastros()) { alert('Seu acesso não inclui os cadastros.\n\nEles são de quem usa o Compras ou o Financeiro.'); return; }
+  if (!podeVerCadastros()) { alert('Seu acesso não inclui os cadastros.\n\nEles são de quem usa o Compras, o Financeiro, o CRM ou a Obra.'); return; }
   document.getElementById('cadastros-overlay').classList.add('open');
   const podeAdministrar = meuPapel() === 'admin' || meuPapel() === 'gerente';
   document.getElementById('cad-aba-usuarios').style.display = podeAdministrar ? '' : 'none';
+  document.getElementById('cad-aba-fornecedores').style.display = podeVerFornecedores() ? '' : 'none';
+  document.getElementById('cad-aba-clientes').style.display = podeVerClientes() ? '' : 'none';
   document.getElementById('cad-btn-novo').style.display = podeMexerCadastros() ? '' : 'none';
   document.getElementById('cad-btn-importar').style.display = meuPapel() === 'admin' ? '' : 'none';
+  if (!podeVerFornecedores()) { abaCadastros('clientes'); return; }
   abaCadastros('fornecedores');
   document.getElementById('cad-status').textContent = 'Carregando...';
   document.getElementById('cad-lista').innerHTML = '';
@@ -1593,11 +1608,13 @@ function fecharCadastros(limpar) {
   document.getElementById('cadastros-overlay').classList.remove('open');
   document.getElementById('forn-overlay').classList.remove('open');
   if (limpar) {
-    _cad = { fornecedores: [], historico: [] }; _fornAberto = null;
+    _cad = { fornecedores: [], historico: [] }; _fornAberto = null; _clientes = [];
+    document.getElementById('cli-lista').innerHTML = '';
     document.getElementById('cad-lista').innerHTML = '';
   }
 }
 function abaCadastros(aba) {
+  if (aba === 'clientes') carregarClientes();
   document.querySelectorAll('.cad-painel').forEach(function (el) { el.style.display = el.id === 'cad-painel-' + aba ? 'block' : 'none'; });
   document.querySelectorAll('.cad-aba').forEach(function (b) {
     const ativa = b.getAttribute('data-aba') === aba;
@@ -1769,6 +1786,129 @@ async function excluirFornecedor() {
     return { acao: 'excluiu ' + f.nome, fornId: f.id, detalhe: formatarDocumento(f.documento) };
   });
   if (ok) fecharFornecedor();
+}
+
+// ---- CLIENTES (etapa 2, pedido do Ander, 16/10/2026) ----
+// Caminho escolhido por ele: nao existe cadastro proprio de cliente. Todo
+// cliente nasce no CRM; a lista e montada na hora a partir dos negocios do
+// CRM e dos contratos da Obra, juntando o mesmo cliente (mesmo telefone ou
+// mesmo nome). Nao se grava copia nenhuma — dado pessoal fica onde ja estava,
+// no cofre. Quem recorta o que cada um ve e o Worker: o vendedor recebe do
+// CRM so os negocios dele; a Obra entrega o nome do cliente a quem tem o
+// modulo. Abrir a lista fica no caderno de acessos (mostra telefone de varios
+// clientes de uma vez).
+let _clientes = [];
+function sistemaDe(base) { return ambienteDeTeste() ? base + '_teste' : base; }
+async function lerRegistroDoPortal(base) {
+  const r = await fetch(WORKER_URL + '?t=' + Date.now(), { cache: 'no-store', headers: cabecalhos(sistemaDe(base)) });
+  if (!r.ok) throw new Error('Erro ' + r.status);
+  return (await r.json()) || {};
+}
+function chaveTelefone(t) { const d = soDigitos(t); return d.length >= 10 ? d.slice(-9) : ''; }
+async function carregarClientes() {
+  const st = document.getElementById('cli-status');
+  st.textContent = 'Carregando...';
+  document.getElementById('cli-lista').innerHTML = '';
+  const m = modulosDoMeuCracha(), admin = meuPapel() === 'admin';
+  const avisos = [];
+  let crm = null, obra = null;
+  if (admin || m.indexOf('crm') >= 0) {
+    try { crm = await lerRegistroDoPortal('crm'); } catch (e) { avisos.push('CRM não carregou (' + e.message + ')'); }
+  }
+  if (admin || m.indexOf('obra') >= 0) {
+    try { obra = await lerRegistroDoPortal('obra'); } catch (e) { avisos.push('Obra não carregou (' + e.message + ')'); }
+  }
+  // O funil vem da ETAPA. As 4 de Orcamentos valem mesmo sem estar no cadastro
+  // de etapas (o CRM as conhece de fabrica).
+  const etapas = { espera: { nome: 'Em espera', funil: 'orcamentos' }, faltainfo: { nome: 'Falta informação', funil: 'orcamentos' },
+    orcando: { nome: 'Orçando', funil: 'orcamentos' }, revisao: { nome: 'Revisão / alteração', funil: 'orcamentos' } };
+  ((crm && crm.etapas) || []).forEach(function (e) { if (e && e.id) etapas[e.id] = { nome: e.nome || e.id, funil: e.funil || 'vendas' }; });
+  // Junta por telefone OU por nome: o primeiro que bater leva o registro.
+  const grupos = [], porTel = {}, porNome = {};
+  const achar = function (nome, tel) {
+    const kt = chaveTelefone(tel), kn = normalizarNomeForn(nome);
+    let g = (kt && porTel[kt]) || (kn && porNome[kn]) || null;
+    if (!g) { g = { nomes: {}, telefone: '', cidade: '', vendedores: {}, negocios: [], contratos: [] }; grupos.push(g); }
+    if (kt) porTel[kt] = g;
+    if (kn) porNome[kn] = g;
+    return g;
+  };
+  ((crm && crm.oportunidades) || []).forEach(function (o) {
+    if (!o || o.anonimizadoEm || !String(o.cliente || '').trim()) return;
+    const g = achar(o.cliente, o.telefone);
+    { const kn = normalizarNomeForn(o.cliente); if (!g.nomes[kn]) g.nomes[kn] = String(o.cliente).trim(); }
+    if (o.telefone && !g.telefone) g.telefone = o.telefone;
+    if (o.cidade && !g.cidade) g.cidade = o.cidade;
+    if (o.vendedor) g.vendedores[o.vendedor] = 1;
+    const et = etapas[o.etapa] || { nome: o.etapa || '', funil: 'vendas' };
+    g.negocios.push({ id: o.id, etapa: et.nome, funil: et.funil === 'orcamentos' ? 'Orçamentos' : 'Vendas' });
+  });
+  ((obra && obra.contratos) || []).forEach(function (c) {
+    if (!c || c.excluido || !String(c.cliente || '').trim()) return;
+    const tel = c.contrato && c.contrato.contato;
+    const g = achar(c.cliente, tel);
+    { const kn = normalizarNomeForn(c.cliente); if (!g.nomes[kn]) g.nomes[kn] = String(c.cliente).trim(); }
+    if (!g.telefone && tel && chaveTelefone(tel)) g.telefone = tel;
+    if (c.cidade && !g.cidade) g.cidade = c.cidade;
+    g.contratos.push({ ct: c.ct || '', status: c.status || '' });
+  });
+  _clientes = grupos.map(function (g) {
+    const nomes = Object.keys(g.nomes).map(function (k) { return g.nomes[k]; });
+    return { nome: nomes[0], outrosNomes: nomes.slice(1), telefone: g.telefone, cidade: g.cidade,
+             vendedores: Object.keys(g.vendedores), negocios: g.negocios, contratos: g.contratos };
+  }).sort(function (a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); });
+  st.dataset.avisos = avisos.join(' · ');
+  renderClientes();
+  if (_clientes.length) {
+    try {
+      fetch(WORKER_URL, { method: 'POST', cache: 'no-store',
+        headers: cabecalhos(sistemaDe(crm ? 'crm' : 'obra'), { 'Content-Type': 'application/json', 'X-Action': 'anotar-acesso' }),
+        body: JSON.stringify({ acao: 'abriu a lista de clientes', alvo: 'Cadastros · ' + _clientes.length + ' cliente(s)' }) }).catch(function () {});
+    } catch (e) {}
+  }
+}
+function renderClientes() {
+  const el = document.getElementById('cli-lista'), st = document.getElementById('cli-status');
+  if (!el) return;
+  const busca = normalizarNomeForn(document.getElementById('cli-busca').value);
+  const buscaDig = soDigitos(document.getElementById('cli-busca').value);
+  const lista = _clientes.filter(function (c) {
+    if (!busca) return true;
+    const txt = normalizarNomeForn([c.nome, c.outrosNomes.join(' '), c.cidade, c.vendedores.join(' ')].join(' '));
+    return txt.indexOf(busca) >= 0 || (buscaDig.length >= 4 && soDigitos(c.telefone).indexOf(buscaDig) >= 0);
+  });
+  const av = st.dataset.avisos || '';
+  st.textContent = _clientes.length + ' cliente(s)' + (lista.length !== _clientes.length ? ' · mostrando ' + lista.length : '') + (av ? ' · ⚠️ ' + av : '');
+  if (!lista.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--gray-4);font-size:13px;padding:24px">' +
+      (_clientes.length ? 'Nenhum cliente com essa busca.' : 'Nenhum cliente para mostrar.') + '</div>';
+    return;
+  }
+  el.innerHTML = lista.slice(0, 300).map(function (c) {
+    return '<div style="border:1px solid var(--gray-2);border-radius:10px;padding:10px 14px;margin-bottom:8px">' +
+      '<div style="font-weight:700;font-size:14px">' + escTexto(c.nome) +
+        (c.outrosNomes.length ? ' <span style="font-weight:400;font-size:11.5px;color:var(--gray-4)">(também: ' + escTexto(c.outrosNomes.join(', ')) + ')</span>' : '') + '</div>' +
+      '<div style="font-size:12px;color:var(--gray-5);margin-top:3px">' +
+        [c.telefone ? '📞 ' + c.telefone : '', c.cidade ? '📍 ' + c.cidade : '', c.vendedores.length ? '👤 ' + c.vendedores.join(', ') : '']
+          .filter(Boolean).map(escTexto).join(' · ') + '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">' +
+        c.negocios.map(function (n) {
+          return '<button class="btn btn-outline" style="font-size:11.5px;padding:3px 9px" onclick="abrirNegocioNoCrm(\'' + escTexto(n.id) + '\')" title="Abrir este negócio no CRM">🤝 ' +
+            escTexto(n.funil + ' · ' + n.etapa) + ' ↗</button>';
+        }).join('') +
+        c.contratos.map(function (k) {
+          return '<span style="font-size:11.5px;padding:3px 9px;border:1px solid var(--gray-2);border-radius:8px;color:var(--gray-5)">📋 CT ' +
+            escTexto(k.ct || '—') + (k.status ? ' · ' + escTexto(k.status) : '') + '</span>';
+        }).join('') +
+      '</div></div>';
+  }).join('') + (lista.length > 300 ? '<div style="font-size:12px;color:var(--gray-4);text-align:center;padding:8px">Mostrando 300 — use a busca para achar os outros.</div>' : '');
+}
+// Abre o CRM ja na ficha do negocio. O CRM le o bilhete ao carregar (vale 10
+// min) e o apaga — so leva o id, nenhum dado pessoal.
+function abrirNegocioNoCrm(id) {
+  try { localStorage.setItem('dalum-crm-abrir', JSON.stringify({ id: id, ts: Date.now() })); } catch (e) {}
+  fecharCadastros(false);
+  abrirModulo(ambienteDeTeste() ? 'https://daluminium.github.io/teste/crm.html' : 'https://daluminium.github.io/crm/', 'CRM Comercial');
 }
 
 // ---- PUXAR DOS LANCAMENTOS (so admin) ----

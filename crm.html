@@ -590,7 +590,7 @@ function loginGuardaApagar(chave){
 
 // LGPD: ao sair, apaga a copia dos dados guardada no navegador — de TODOS os
 // modulos, porque todos dividem o mesmo armazenamento.
-const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra','dalum-crm','dalum-crm-para-obra',
+const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra','dalum-crm','dalum-crm-para-obra','dalum-crm-abrir',
   'portal-admin-passes','dalum-admin-passes','fin-admin-passes'];
 // ---- PERMISSOES POR FUNCAO (pedido do Ander, 10/10/2026) ----
 // Admin: tudo. Gerente: tambem exclui e configura. Funcionario e Vendedor:
@@ -2906,6 +2906,20 @@ function mostrarLogin(){
   });
 }
 
+// O portal (Cadastros > Clientes > negocio) deixa o id num bilhete e abre o
+// CRM. Le depois da primeira busca, apaga na hora e vale 10 minutos. Negocio
+// que este usuario nao recebe do Worker (de outro vendedor) simplesmente nao
+// abre — a regra de quem ve o que continua a mesma.
+function abrirNegocioPedido(){
+  let b=null;
+  try{ b=JSON.parse(localStorage.getItem('dalum-crm-abrir')||'null'); }catch(e){}
+  try{ localStorage.removeItem('dalum-crm-abrir'); }catch(e){}
+  if(!b||!b.id||!b.ts||Date.now()-b.ts>10*60*1000) return;
+  const o=(dados.oportunidades||[]).find(function(x){ return x.id===b.id; });
+  if(!o){ aviso('Negócio não encontrado','Esse negócio não está na sua lista do CRM.'); return; }
+  try{ const f=funilDoNegocio(o); if(f && f!==funilAtual) setFunil(f); }catch(e){}
+  abrirFicha(b.id);
+}
 function abrirApp(nome,papelDoUsuario,login){
   usuario=nome;
   papel=String(papelDoUsuario||'').toLowerCase();
@@ -2921,7 +2935,7 @@ function abrirApp(nome,papelDoUsuario,login){
   try{ const fz=localStorage.getItem('dalum-crm-funil'); if(fz) funilAtual=fz; }catch(e){}
   setFunil(funilAtual);
   setView(view);
-  sincronizar();
+  sincronizar().then(abrirNegocioPedido);
   carregarVendedores();
 
   document.getElementById('aviso-ov').addEventListener('click',function(e){ if(e.target===this) fecharAviso(); });

@@ -307,7 +307,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div class="form-grid" id="f-grid-ident">
         <div class="fg"><label>Contrato (CT) <span style="color:var(--red)">*</span></label><input id="f-ct" placeholder="Ex.: 0073"></div>
         <div class="fg"><label>Ano <span style="color:var(--red)">*</span></label><input id="f-ano" inputmode="numeric" placeholder="Ex.: 2026"></div>
-        <div class="fg span2"><label>Cliente / Obra <span style="color:var(--red)">*</span></label><input id="f-cliente" placeholder="Ex.: CONDOMINIO RESIDENCIAL RIO DE JANEIRO II"></div>
+        <div class="fg span2"><label>Cliente / Obra <span style="color:var(--red)">*</span></label><input id="f-cliente" placeholder="Ex.: CONDOMINIO RESIDENCIAL RIO DE JANEIRO II" list="lista-cli-crm" autocomplete="off" oninput="aplicarClienteCrm()" onchange="aplicarClienteCrm()"><datalist id="lista-cli-crm"></datalist><span id="f-cliente-dica" style="display:none;font-size:11.5px;margin-top:4px;line-height:1.4"></span></div>
         <div class="fg"><label>Coordenador</label><input id="f-coord" list="lista-coord" placeholder="Ex.: Jefersson"></div>
         <div class="fg"><label>Responsável comercial</label><input id="f-respcom" list="lista-respcom" placeholder="Ex.: Aretusa"></div>
         <div class="fg"><label>Cidade</label><input id="f-cidade" list="lista-cidade" placeholder="Ex.: PORTO VELHO - RO"></div>
@@ -2355,6 +2355,62 @@ function preencherSelects(){
     REVISAO_LISTA.map(function(s){ return '<option value="'+esc(s)+'">'+esc(s)+'</option>'; }).join('');
 }
 
+// ---- CLIENTE DO CRM NO CONTRATO NOVO (pedido do Ander, 16/10/2026) ----
+// Todo cliente nasce no CRM. No contrato NOVO, o campo Cliente sugere os nomes
+// de la e, ao escolher um, preenche a cidade. A cidade segue o cliente: se o
+// sistema colocou e a pessoa troca o cliente, troca junto (ou esvazia); se a
+// pessoa digitou a cidade a mao, fica. So le o CRM — quem nao tem o modulo
+// recebe recusa do Worker e o campo continua livre, como sempre foi.
+const SISTEMA_CRM = /_teste$/.test(SUPA_SISTEMA) ? 'crm_teste' : 'crm';
+let _cliCrm=null, _cliCidadeSistema='';
+function normalizarCliente(t){
+  return String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+}
+async function carregarClientesCrm(){
+  try{
+    const r=await fetch(WORKER+'?t='+Date.now(),{cache:'no-store',headers:cabecalhos({'X-Sistema':SISTEMA_CRM})});
+    if(!r.ok) return;
+    const d=await r.json();
+    const vistos={};
+    _cliCrm=[];
+    ((d&&d.oportunidades)||[]).forEach(function(o){
+      if(!o||o.anonimizadoEm) return;
+      const nome=String(o.cliente||'').trim(), k=normalizarCliente(nome);
+      if(!k) return;
+      if(vistos[k]){ if(!vistos[k].cidade && o.cidade) vistos[k].cidade=o.cidade; return; }
+      vistos[k]={nome:nome, cidade:String(o.cidade||'').trim()};
+      _cliCrm.push(vistos[k]);
+    });
+    _cliCrm.sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
+    const dl=document.getElementById('lista-cli-crm');
+    if(dl) dl.innerHTML=_cliCrm.map(function(c){ return '<option value="'+escEnvio(c.nome)+'"></option>'; }).join('');
+  }catch(e){}
+}
+function aplicarClienteCrm(){
+  const dica=document.getElementById('f-cliente-dica');
+  if(!dica) return;
+  if(fichaId!==null || _cliCrm===null){ dica.style.display='none'; return; }
+  const nome=document.getElementById('f-cliente').value.trim();
+  const k=normalizarCliente(nome);
+  const c=k?_cliCrm.find(function(x){ return normalizarCliente(x.nome)===k; }):null;
+  const cid=document.getElementById('f-cidade');
+  let doSistema=false;
+  // Campo vazio tambem e do sistema: a pessoa apagou, entao pode preencher.
+  if(cid && (cid.value===_cliCidadeSistema || !cid.value.trim())){
+    const nova=c?c.cidade:'';
+    cid.value=nova; _cliCidadeSistema=nova; doSistema=!!nova;
+  }
+  if(!nome){ dica.style.display='none'; return; }
+  dica.style.display='block';
+  if(c){
+    dica.style.color='var(--teal-dark)';
+    dica.textContent='✓ Cliente do CRM'+(doSistema?' — cidade preenchida.':(c.cidade&&cid&&cid.value&&normalizarCliente(cid.value)!==normalizarCliente(c.cidade)?' — a cidade digitada foi mantida (no CRM: '+c.cidade+').':'.'));
+  }else{
+    dica.style.color='var(--gray-4)';
+    dica.textContent='Não encontrei este cliente no CRM. Todo cliente nasce lá — confira se o nome está igual.';
+  }
+}
+
 function novoContrato(){
   if(!podeLancar()){ aviso('Modo consulta','Você está no modo consulta: pode olhar, mas não cadastrar.'); return; }
   fichaId=null;
@@ -2384,6 +2440,9 @@ function novoContrato(){
   recalcular();
   document.getElementById('ficha-ov').classList.add('open');
   setTimeout(function(){ document.getElementById('f-ct').focus(); },80);
+  _cliCidadeSistema='';
+  aplicarClienteCrm();
+  carregarClientesCrm().then(aplicarClienteCrm);
 }
 
 function abrirFicha(id){
