@@ -1520,7 +1520,7 @@ function numeroWhatsCad(t) {
 }
 function falarNoWhatsCad(t) {
   const n = numeroWhatsCad(t);
-  if (!n) { alert('Esse telefone está incompleto.\n\nPara o WhatsApp é preciso o DDD e o número — ex: (69) 99999-0000.'); return; }
+  if (!n) { alert('Esse telefone está incompleto.\n\nPara o WhatsApp é preciso o DDD e o número — ex: 69 99999-9999.'); return; }
   abrirWhats('https://api.whatsapp.com/send?phone=' + n);
 }
 function botaoWhatsCad(t) {
