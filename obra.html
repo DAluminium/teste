@@ -1687,6 +1687,11 @@ const FOLGA_PARA_REVISAR=5;
 // Onde dá para comprar quando o prazo da compra de fora já estourou. São
 // dias ÚTEIS, e os números vieram do Ander (15/10/2026). Só aparecem na
 // tela nesse caso — fora dele, a ficha segue limpa.
+//
+// A tela diz "se o material tiver pronto no mercado" de propósito: material
+// com pintura especial não existe pronto, e aí comprar perto não resolve
+// (Ander, 16/10/2026). O sistema não tem como saber se AQUELE material
+// existe na praça, então apresenta a condição e deixa a pessoa decidir.
 const COMPRA_PERTO=[
   {nome:'no interior', dias:3},
   {nome:'local',       dias:1}
@@ -1809,11 +1814,14 @@ function recalcular(){
       d('d-limite',
         '⚠️ Para comprar <b>fora</b> a data já passou ('+fmtData(r.limiteMaterial)+').'+
         (ainda.length
-          ? ' Ainda dá tempo: '+ainda.map(function(o){
+          ? ' <b>Se o material tiver pronto no mercado</b>, ainda dá tempo: '+ainda.map(function(o){
               return '<b>'+o.nome+'</b> ('+o.dias+' '+(o.dias===1?'dia útil':'dias úteis')+
                      ') até <b>'+fmtData(o.ate)+'</b>';
             }).join(' · ')+'.'
-          : ' <b>Nem comprando local dá tempo</b> para medir em '+fmtData(c.medicao)+'.'),
+          : ' <b>Nem comprando local dá tempo</b> para medir em '+fmtData(c.medicao)+'.')+
+        (Number(c.prazoMaterial)>60
+          ? ' Atenção: prazo de '+Number(c.prazoMaterial)+' dias úteis indica material especial — confira se existe pronto antes de contar com a compra perto.'
+          : ''),
         'var(--red)');
     }
   } else if(r.limiteMaterial){
