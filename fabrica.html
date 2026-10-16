@@ -3613,7 +3613,24 @@ function abrirFicha(id){
   document.getElementById('ficha-btn-excluir').style.display   = ex?'none':'inline-flex';
   document.getElementById('ficha-btn-restaurar').style.display = ex?'inline-flex':'none';
   document.getElementById('ficha-btn-salvar').style.display    = ex?'none':'inline-flex';
+  travarFichaSeConsulta();
   document.getElementById('ficha-ov').classList.add('open');
+}
+// Modo consulta (Consulta ou Fabrica "so para consultar", pedido do Ander em
+// 16/10/2026): a ficha so se le. Campos travados e sem botoes de mexer
+// (anexar, escanear, colar, vaos, excluir, salvar). Os anexos continuam
+// abrindo — sao links, nao botoes. A trava de verdade e o Worker.
+function travarFichaSeConsulta(){
+  if(!ehConsulta()) return;
+  if(!document.getElementById('estilo-ficha-leitura')){
+    const st=document.createElement('style'); st.id='estilo-ficha-leitura';
+    st.textContent='#ficha-ov.so-leitura .modal-body button,#ficha-ov.so-leitura #notif-group{display:none !important}'+
+      '#ficha-ov.so-leitura #ficha-btn-excluir,#ficha-ov.so-leitura #ficha-btn-restaurar,#ficha-ov.so-leitura #ficha-btn-salvar{display:none !important}';
+    document.head.appendChild(st);
+  }
+  const ov=document.getElementById('ficha-ov');
+  ov.classList.add('so-leitura');
+  ov.querySelectorAll('.modal-body input, .modal-body select, .modal-body textarea').forEach(function(el){ el.disabled=true; });
 }
 
 function htmlLinhaEtapas(o){
