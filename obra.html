@@ -323,7 +323,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div class="secao">Prazos</div>
       <div class="form-grid" id="f-grid-prazos">
         <div class="fg"><label>Fechamento</label><input type="date" id="f-fechamento" onchange="recalcular()"></div>
-        <div class="fg"><label>Prazo de material (dias corridos para chegar)</label><input type="number" min="0" id="f-prazomat" oninput="recalcular()" placeholder="Ex.: 30">
+        <div class="fg"><label>Prazo de material (dias úteis para chegar)</label><input type="number" min="0" id="f-prazomat" oninput="recalcular()" placeholder="Ex.: 30">
           <span class="dica" id="d-limite"></span></div>
         <div class="fg"><label>Medição prevista</label><input type="date" id="f-medicao" onchange="recalcular()"></div>
         <div class="fg"><label>Dias de produção (úteis)</label><input type="number" min="0" id="f-diasprod" oninput="recalcular()" placeholder="Ex.: 30"></div>
@@ -1678,23 +1678,10 @@ function ehDiaUtil(iso){
   if(s===0||s===6) return false;
   return !nomeDoFeriado(iso);
 }
-// Dias CORRIDOS, para o prazo de material: o fornecedor de fora não para no
-// fim de semana, e a cláusula do contrato fala em "30 dias corridos para a
-// aquisição dos insumos". Produção e instalação continuam em dias úteis.
-// O resultado pode cair em sábado, domingo ou feriado — é o prazo do
-// fornecedor, não a agenda da fábrica.
-function somaDiasCorridos(iso, n){
-  if(!iso||!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
-  const qtd=Number(n);
-  if(!isFinite(qtd)||qtd<0) return '';
-  return isoDeUTC(Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10))+Math.round(qtd)*86400000);
-}
-function voltaDiasCorridos(iso, n){
-  if(!iso||!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
-  const qtd=Number(n);
-  if(!isFinite(qtd)||qtd<0) return '';
-  return isoDeUTC(Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10))-Math.round(qtd)*86400000);
-}
+// Quanto tempo depois de fechar o contrato a compra deve começar, quando
+// ainda não há medição prevista. É a folga para revisar o projeto antes de
+// comprar. Dias úteis.
+const FOLGA_PARA_REVISAR=5;
 
 // Onde dá para comprar quando o prazo da compra de fora já estourou. São
 // dias ÚTEIS, e os números vieram do Ander (15/10/2026). Só aparecem na
@@ -1745,30 +1732,32 @@ function somaDiasUteis(iso, n){
 }
 
 // ================= AS CONTAS DA FICHA =================
-// Comprar até                  = medição prevista − prazo de material (CORRIDOS)
-// Projeção de entrada na obra  = medição prevista + dias de produção
-// Entrega                      = projeção de entrada + dias de instalação
+// Iniciar a compra  COM medição = medição prevista − prazo de material
+//                   SEM medição = fechamento + 5 dias úteis
+// Projeção de entrada na obra   = medição prevista + dias de produção
+// Entrega                       = projeção de entrada + dias de instalação
 //
-// O "Comprar até" conta PARA TRÁS a partir da medição (pedido da Hyllary em
-// 15/10/2026). Antes contava para a frente, a partir do fechamento, e dava
-// uma data que não queria dizer nada: o fechamento não manda no prazo da
-// compra. O que manda é quando o material precisa estar aqui — a medição —
-// menos o tempo que ele leva para chegar.
+// A data é SEMPRE a mesma coisa: quando INICIAR A COMPRA. A data de o
+// material estar na fábrica não precisa aparecer — ela é a própria medição.
+//
+// Com medição, a conta é reversa (pedido da Hyllary, 15/10/2026). É o que
+// evita comprar cedo demais: obra fechada em janeiro com medição prevista
+// para dezembro não precisa do material comprado em janeiro.
+//
+// Sem medição — que é o normal na hora de fechar, porque a previsão só sai
+// depois da primeira visita à obra —, contrato fechado se compra logo: a
+// folga é só para revisar o projeto.
 function contasDe(c){
   return {
-    // Prazo em branco NAO e zero: sem ele a conta nao existe. Sem esta
-    // trava, Number('') daria 0 e a tela mostraria a propria data da
-    // medicao como se fosse a resposta (pego no teste em 15/10/2026).
-    //
-    // Sem medicao prevista, cai no fechamento contando PARA A FRENTE — a
-    // conta antiga (pedido do Ander em 15/10/2026). Para tras nao serve:
-    // daria uma data anterior ao proprio contrato. Repare que o numero
-    // muda de significado nesse caso, e a dica da ficha avisa: com medicao
-    // e quando COMECAR a compra; sem medicao e quando o material CHEGA.
-    limiteMaterial: (String(c.prazoMaterial==null?'':c.prazoMaterial).trim()==='')
-      ? ''
-      : (c.medicao ? voltaDiasCorridos(c.medicao, c.prazoMaterial)
-                   : somaDiasCorridos(c.fechamento, c.prazoMaterial)),
+    // Sem medição o prazo de material nem entra na conta: o que manda é a
+    // folga depois do fechamento. Com medição, prazo em branco NÃO é zero —
+    // sem ele a conta não existe, e sem esta trava Number('') daria 0 e a
+    // tela mostraria a própria data da medição como resposta (pego no teste
+    // em 15/10/2026).
+    limiteMaterial: c.medicao
+      ? ((String(c.prazoMaterial==null?'':c.prazoMaterial).trim()==='')
+          ? '' : voltaDiasUteis(c.medicao, c.prazoMaterial))
+      : somaDiasUteis(c.fechamento, FOLGA_PARA_REVISAR),
     projEntrada:    somaDiasUteis(c.medicao, c.diasProd),
     entrega:        somaDiasUteis(c.projEntrada || somaDiasUteis(c.medicao, c.diasProd), c.diasInst)
   };
@@ -1808,8 +1797,8 @@ function recalcular(){
   if(r.limiteMaterial && c.medicao){
     // Com medição: a data é o PRAZO PARA COMEÇAR a compra.
     if(r.limiteMaterial >= hojeISO()){
-      d('d-limite','Começar a compra até <b>'+fmtData(r.limiteMaterial)+'</b> — '+
-        (Number(c.prazoMaterial)||0)+' dias corridos antes da medição.');
+      d('d-limite','Iniciar a compra até <b>'+fmtData(r.limiteMaterial)+'</b> — '+
+        (Number(c.prazoMaterial)||0)+' dias úteis antes da medição.');
     } else {
       // Passou o prazo de comprar fora. Em vez de so alarmar, a tela diz o
       // que ainda da para fazer: comprar perto chega em poucos dias uteis.
@@ -1827,16 +1816,21 @@ function recalcular(){
         'var(--red)');
     }
   } else if(r.limiteMaterial){
-    // Sem medição: caiu no fechamento, e aí a data quer dizer outra coisa —
-    // quando o material CHEGA. É provisório, então o texto diz isso.
+    // Sem medição prevista — o caso normal de contrato recém-fechado. A
+    // data continua querendo dizer a MESMA coisa: quando iniciar a compra.
+    const atrasado = r.limiteMaterial < hojeISO();
     d('d-limite',
-      'Sem medição prevista: contando do fechamento, o material chegaria em <b>'+
-      fmtData(r.limiteMaterial)+'</b>. <b>Preencha a medição</b> para saber até quando começar a compra.',
-      'var(--amber)');
-  } else if(!c.fechamento && !c.medicao){
-    d('d-limite','Preencha a <b>medição prevista</b> (ou ao menos o fechamento) e o prazo para ver a data da compra.');
+      (atrasado?'⚠️ ':'')+'Sem medição prevista: iniciar a compra até <b>'+
+      fmtData(r.limiteMaterial)+'</b> — '+FOLGA_PARA_REVISAR+' dias úteis após o fechamento'+
+      (atrasado?', e <b>essa data já passou</b>.':'.')+
+      ' Quando a medição for definida, a data se refaz pela conta reversa.',
+      atrasado?'var(--red)':'');
+  } else if(c.medicao){
+    // Tem medição e não tem data: o que falta é o prazo, não o fechamento.
+    // Perguntar o fechamento aqui mandaria a pessoa para o campo errado.
+    d('d-limite','Preencha o <b>prazo de material</b> para ver quando iniciar a compra.');
   } else {
-    d('d-limite','Preencha o prazo de material para ver até quando dá para começar a compra.');
+    d('d-limite','Preencha o <b>fechamento</b> (ou a medição prevista) para ver quando iniciar a compra.');
   }
 
   if(r.projEntrada && !_manual.projEntrada){
