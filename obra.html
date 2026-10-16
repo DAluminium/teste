@@ -1679,8 +1679,9 @@ function ehDiaUtil(iso){
   return !nomeDoFeriado(iso);
 }
 // Quanto tempo depois de fechar o contrato a compra deve começar, quando
-// ainda não há medição prevista. É a folga para revisar o projeto antes de
-// comprar. Dias úteis.
+// ainda não há medição prevista. Não é folga à toa: é o tempo de FAZER A
+// REVISÃO DO PROJETO e fechar a lista de material, para comprar certo
+// (Ander, 16/10/2026). Dias úteis.
 const FOLGA_PARA_REVISAR=5;
 
 // Onde dá para comprar quando o prazo da compra de fora já estourou. São
@@ -1821,8 +1822,9 @@ function recalcular(){
     const atrasado = r.limiteMaterial < hojeISO();
     d('d-limite',
       (atrasado?'⚠️ ':'')+'Sem medição prevista: iniciar a compra até <b>'+
-      fmtData(r.limiteMaterial)+'</b> — '+FOLGA_PARA_REVISAR+' dias úteis após o fechamento'+
-      (atrasado?', e <b>essa data já passou</b>.':'.')+
+      fmtData(r.limiteMaterial)+'</b> — '+FOLGA_PARA_REVISAR+' dias úteis após o fechamento, '+
+      'tempo de revisar o projeto e fechar a lista de material'+
+      (atrasado?'. <b>Essa data já passou.</b>':'.')+
       ' Quando a medição for definida, a data se refaz pela conta reversa.',
       atrasado?'var(--red)':'');
   } else if(c.medicao){
