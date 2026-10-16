@@ -718,13 +718,25 @@ async function carregarTempo(){
 // ================= BACKUPS =================
 let _backups=null;
 // Junta as linhas da mesma rodada: mesma origem, no mesmo minuto.
+function fmtBytes(n){
+  if(n==null||!isFinite(n)) return '—';
+  if(n<1024) return n+' bytes';
+  if(n<1048576) return (n/1024).toLocaleString('pt-BR',{maximumFractionDigits:0})+' KB';
+  return (n/1048576).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' MB';
+}
+function somaTamanhos(r){
+  if(!r.tamanhos||r.tamanhos.some(function(x){ return x==null; })) return null;
+  return r.tamanhos.reduce(function(a,b){ return a+b; },0);
+}
 function rodadasDeBackup(lista){
   const rodadas=[];
   lista.forEach(function(b){
     const t=new Date(b.created_at).getTime();
     const r=rodadas.find(function(x){ return x.origem===b.origem && Math.abs(x.t-t)<60000; });
-    if(r) r.registros.push(b.sistema);
-    else rodadas.push({t:t,origem:b.origem||'',registros:[b.sistema]});
+    // Tamanho (16/10/2026): soma o de cada copia da rodada, quando o banco manda.
+    const tam=Number(b.tamanho);
+    if(r){ r.registros.push(b.sistema); r.tamanhos.push(isFinite(tam)?tam:null); }
+    else rodadas.push({t:t,origem:b.origem||'',registros:[b.sistema],tamanhos:[isFinite(tam)?tam:null]});
   });
   return rodadas.sort(function(a,b){ return b.t-a.t; });
 }
@@ -746,9 +758,13 @@ async function carregarBackups(forcar){
         (d.maisAntigo?'A mais antiga é de '+esc(dataHora(d.maisAntigo))+'.':'')+' Guarda 90 dias.</div></div></div>';
     if(!rodadas.length){ alvo.className='vazio'; alvo.textContent='Nenhum backup encontrado.'; return; }
     alvo.className='';
-    alvo.innerHTML='<div class="tabela-cx"><table class="tab"><thead><tr><th>Quando</th><th>Por quê</th><th>Registros copiados</th></tr></thead><tbody>'+
+    alvo.innerHTML='<div class="tabela-cx"><table class="tab"><thead><tr><th>Quando</th><th>Por quê</th><th>Tamanho</th><th>Registros copiados</th></tr></thead><tbody>'+
       rodadas.map(function(r){
+        // Passando o mouse no tamanho: o de cada registro, do maior para o menor.
+        const det=r.registros.map(function(nome,i){ return {nome:nome, t:r.tamanhos[i]}; })
+          .sort(function(a,b){ return (b.t||0)-(a.t||0); }).map(function(x){ return x.nome+': '+fmtBytes(x.t); }).join('\n');
         return '<tr><td style="white-space:nowrap">'+esc(dataHora(r.t))+'</td><td>'+esc(r.origem||'—')+'</td>'+
+          '<td style="white-space:nowrap" title="'+esc(det)+'"><b>'+esc(fmtBytes(somaTamanhos(r)))+'</b></td>'+
           '<td><b>'+r.registros.length+'</b> <span class="sub">'+esc(r.registros.slice().sort().join(', '))+'</span></td></tr>';
       }).join('')+'</tbody></table></div>'+
       '<div class="rodape">Mostra as rodadas dos últimos dias (até 600 cópias).</div>';
