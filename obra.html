@@ -1692,6 +1692,12 @@ const FOLGA_PARA_REVISAR=5;
 // com pintura especial não existe pronto, e aí comprar perto não resolve
 // (Ander, 16/10/2026). O sistema não tem como saber se AQUELE material
 // existe na praça, então apresenta a condição e deixa a pessoa decidir.
+// A partir de quantos dias úteis o prazo já indica MATERIAL ESPECIAL —
+// pintura fora de catálogo e afins, que não existe pronto no mercado.
+// Segundo o Ander (16/10/2026), esse material leva de 60 a 90 dias úteis,
+// conforme o caso. Daí para cima não adianta contar com a compra perto.
+const PRAZO_MATERIAL_ESPECIAL=60;
+
 const COMPRA_PERTO=[
   {nome:'no interior', dias:3},
   {nome:'local',       dias:1}
@@ -1819,8 +1825,10 @@ function recalcular(){
                      ') até <b>'+fmtData(o.ate)+'</b>';
             }).join(' · ')+'.'
           : ' <b>Nem comprando local dá tempo</b> para medir em '+fmtData(c.medicao)+'.')+
-        (Number(c.prazoMaterial)>60
-          ? ' Atenção: prazo de '+Number(c.prazoMaterial)+' dias úteis indica material especial — confira se existe pronto antes de contar com a compra perto.'
+        (Number(c.prazoMaterial)>=PRAZO_MATERIAL_ESPECIAL
+          ? ' <b>Atenção: prazo de '+Number(c.prazoMaterial)+' dias úteis é material especial</b>'+
+            ' (de '+PRAZO_MATERIAL_ESPECIAL+' a 90 dias úteis, conforme o material) —'+
+            ' confira se existe pronto antes de contar com a compra perto.'
           : ''),
         'var(--red)');
     }
