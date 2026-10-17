@@ -1360,27 +1360,82 @@ let _checkFab=null;
 // contrato, proposta ou comprovante sem login, para sempre. Agora o Worker
 // confere o cracha e devolve um link que vale 1 minuto. Para mandar um anexo
 // a alguem, mande o ARQUIVO, nao o link.
-async function linkDoAnexo(url,nome){
+async function linkDoAnexo(url,nome,modo,para){
   const r=await fetch(WORKER,{method:'POST',cache:'no-store',
     headers:cabecalhos({'Content-Type':'application/json','X-Action':'abrir-anexo'}),
-    body:JSON.stringify({url:url,nome:nome||''})});
+    body:JSON.stringify({url:url,nome:nome||'',modo:modo||'',para:para||''})});
   let j=null; try{ j=await r.json(); }catch(e){}
   if(!r.ok||!j||!j.url) throw new Error((j&&j.erro)||('erro '+r.status+' no servidor'));
   // 'abrir' e o endereco pelo Worker, com o nome original no fim (o leitor de
   // PDF salva com esse nome, e baixar imagem funciona).
   return j.abrir||j.url;
 }
-// A aba abre JA no clique e recebe o endereco quando ele chega: aberta depois
-// de esperar o Worker, o navegador a bloquearia como propaganda.
+// ---- VER, BAIXAR E ENVIAR ANEXO PELO SISTEMA (pedido do Ander, 17/10/2026) ----
+// O anexo abre numa janela DO SISTEMA, sem o botao de baixar do navegador; o
+// unico jeito de baixar e o botao "Baixar", e cada coisa fica anotada na
+// Auditoria: visualizou, baixou, enviou. O bilhete do "ver" nao serve para
+// baixar (o Worker recusa). Nao impede 100% (print, foto da tela), mas o
+// caminho normal fica registrado.
+function tipoParaVer(nome){
+  const e=String(nome||'').toLowerCase().split('.').pop();
+  if(e==='pdf') return 'pdf';
+  if(['jpg','jpeg','png','gif','webp','bmp'].indexOf(e)>=0) return 'img';
+  return '';
+}
+function fecharVisor(){ const v=document.getElementById('visor-anexo'); if(v) v.remove(); }
 async function abrirAnexo(url,nome){
-  const aba=window.open('','_blank');
-  try{
-    const u=await linkDoAnexo(url,nome);
-    if(aba){ aba.opener=null; aba.location.href=u; } else location.href=u;
-  }catch(e){
-    if(aba) aba.close();
-    alert('Não consegui abrir o anexo.\n\n'+e.message);
+  fecharVisor();
+  let tipo=tipoParaVer(nome);
+  // PDF dentro da pagina nao abre no celular (o navegador so baixa).
+  if(tipo==='pdf' && navigator.pdfViewerEnabled===false) tipo='';
+  const v=document.createElement('div');
+  v.id='visor-anexo';
+  v.style.cssText='position:fixed;inset:0;z-index:2147482000;background:rgba(0,0,0,.65);display:flex;flex-direction:column;padding:12px;font-family:system-ui,-apple-system,"Segoe UI",sans-serif';
+  const bt='border:1px solid #b9c6cc;background:#fff;color:#2c3e50;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap';
+  v.innerHTML='<div style="display:flex;align-items:center;gap:8px;background:#fff;border-radius:10px 10px 0 0;padding:8px 12px">'+
+    '<span id="visor-nome" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13.5px;color:#2c3e50"></span>'+
+    '<button type="button" id="visor-baixar" style="'+bt+';background:#0E7C7B;border-color:#0E7C7B;color:#fff;font-weight:600">⬇ Baixar</button>'+
+    '<button type="button" id="visor-fechar" style="'+bt+'">Fechar</button></div>'+
+    '<div id="visor-corpo" style="flex:1;min-height:0;background:#525659;border-radius:0 0 10px 10px;display:flex;align-items:center;justify-content:center;overflow:auto;color:#fff;font-size:14px">Abrindo...</div>';
+  document.body.appendChild(v);
+  v.querySelector('#visor-nome').textContent=nome||'arquivo';
+  v.querySelector('#visor-baixar').onclick=function(){ baixarPeloSistema(url,nome); };
+  v.querySelector('#visor-fechar').onclick=fecharVisor;
+  v.onclick=function(e){ if(e.target===v) fecharVisor(); };
+  const corpo=v.querySelector('#visor-corpo');
+  if(!tipo){
+    corpo.innerHTML='<div style="text-align:center;padding:24px;line-height:1.6;max-width:420px">Este arquivo não abre aqui na tela.<br>Use <b>⬇ Baixar</b> para abrir no computador ou no celular.</div>';
+    return;
   }
+  try{
+    const u=await linkDoAnexo(url,nome,'ver');
+    if(document.getElementById('visor-anexo')!==v) return;
+    corpo.innerHTML='';
+    if(tipo==='pdf'){
+      const f=document.createElement('iframe');
+      f.src=u+'#toolbar=0&navpanes=0';
+      f.style.cssText='width:100%;height:100%;border:0;background:#fff';
+      corpo.appendChild(f);
+    } else {
+      const im=document.createElement('img');
+      im.src=u; im.alt=nome||''; im.draggable=false;
+      im.style.cssText='max-width:100%;max-height:100%;object-fit:contain';
+      im.oncontextmenu=function(e){ e.preventDefault(); };
+      corpo.appendChild(im);
+    }
+  }catch(e){
+    corpo.textContent='Não consegui abrir o anexo: '+e.message;
+  }
+}
+// O unico caminho para baixar: fica anotado como "baixou anexo".
+async function baixarPeloSistema(url,nome){
+  try{
+    const l=await linkDoAnexo(url,nome,'baixar');
+    const d=document.createElement('a');
+    d.href=l+(l.indexOf('/anexo/')>0?'&baixar=1':'');
+    if(l.indexOf('/anexo/')<0) d.download=nome||'arquivo';
+    document.body.appendChild(d); d.click(); d.remove();
+  }catch(e){ alert('Não consegui baixar o anexo.\n\n'+e.message); }
 }
 // ---- ENVIAR ANEXO PELO WHATSAPP (pedido do Ander, 21/09/2026) ----
 // O WhatsApp nao recebe arquivo por link. Entao o sistema BAIXA o arquivo, com
@@ -1420,7 +1475,7 @@ async function enviarAnexo(url,nome){
   '</div>';
   document.body.appendChild(ov);
   // Ja pede o endereco do arquivo, para o download sair no mesmo clique.
-  try{ _envioAnexo.link=await linkDoAnexo(url,nome); _envioAnexo.quando=Date.now(); }catch(e){}
+  try{ _envioAnexo.link=await linkDoAnexo(url,nome,'enviar'); _envioAnexo.quando=Date.now(); }catch(e){}
 }
 async function enviarPara(i){
   if(!_envioAnexo) return;
@@ -1434,7 +1489,7 @@ async function enviarPara(i){
   }
   // O endereco vale 1 minuto: se a janela ficou aberta mais que isso, pede outro.
   if(!_envioAnexo.link || Date.now()-_envioAnexo.quando>50000){
-    try{ _envioAnexo.link=await linkDoAnexo(_envioAnexo.url,_envioAnexo.nome); _envioAnexo.quando=Date.now(); }
+    try{ _envioAnexo.link=await linkDoAnexo(_envioAnexo.url,_envioAnexo.nome,'enviar'); _envioAnexo.quando=Date.now(); }
     catch(e){ alert('Não consegui preparar o arquivo.\n\n'+e.message); return; }
   }
   const msg='Olá'+(primeiro?', '+primeiro:'')+'! Segue o arquivo: '+_envioAnexo.nome;
@@ -1447,6 +1502,8 @@ async function enviarPara(i){
   const d=document.createElement('a');
   d.href=_envioAnexo.link+(_envioAnexo.link.indexOf('/anexo/')>0?'&baixar=1':'');
   document.body.appendChild(d); d.click(); d.remove();
+  // Fica anotado na Auditoria: "enviou anexo pelo WhatsApp", para quem (17/10/2026).
+  linkDoAnexo(_envioAnexo.url,_envioAnexo.nome,'enviou',primeiro||num).catch(function(){});
 
   const conversa='https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg);
   if(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'')){
