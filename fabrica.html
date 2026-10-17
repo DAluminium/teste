@@ -1386,8 +1386,9 @@ function fecharVisor(){ const v=document.getElementById('visor-anexo'); if(v) v.
 async function abrirAnexo(url,nome){
   fecharVisor();
   let tipo=tipoParaVer(nome);
-  // PDF dentro da pagina nao abre no celular (o navegador so baixa).
-  if(tipo==='pdf' && navigator.pdfViewerEnabled===false) tipo='';
+  // PDF no celular: o navegador nao mostra dentro da pagina; quem desenha e o
+  // pdf.js (desenharPdf).
+  if(tipo==='pdf' && navigator.pdfViewerEnabled===false) tipo='pdfcel';
   const v=document.createElement('div');
   v.id='visor-anexo';
   v.style.cssText='position:fixed;inset:0;z-index:2147482000;background:rgba(0,0,0,.65);display:flex;flex-direction:column;padding:12px;font-family:system-ui,-apple-system,"Segoe UI",sans-serif';
@@ -1410,6 +1411,7 @@ async function abrirAnexo(url,nome){
   try{
     const u=await linkDoAnexo(url,nome,'ver');
     if(document.getElementById('visor-anexo')!==v) return;
+    if(tipo==='pdfcel'){ await desenharPdf(corpo,u,v); return; }
     corpo.innerHTML='';
     if(tipo==='pdf'){
       const f=document.createElement('iframe');
@@ -1425,6 +1427,80 @@ async function abrirAnexo(url,nome){
     }
   }catch(e){
     corpo.textContent='Não consegui abrir o anexo: '+e.message;
+  }
+}
+// ---- PDF NO CELULAR (pedido do Ander, 17/10/2026) ----
+// O navegador do celular nao mostra PDF dentro da pagina — so baixa. Quem
+// acompanha contrato e medida de esquadria pelo celular precisa ver sem
+// baixar: as paginas sao desenhadas aqui pelo leitor de PDF da Mozilla
+// (pdf.js), com zoom. Ele so e baixado quando um celular abre um PDF, do mesmo
+// site publico dos outros componentes, com selo de conferencia (o navegador
+// recusa o arquivo se ele vier diferente do esperado).
+const PDFJS_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_SELO='sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e';
+const PDFJS_AJUDANTE_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const PDFJS_AJUDANTE_SELO='sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2';
+let _pdfjs=null;
+function carregarPdfJs(){
+  if(_pdfjs) return _pdfjs;
+  _pdfjs=new Promise(function(ok,falhou){
+    const s=document.createElement('script');
+    s.src=PDFJS_URL; s.integrity=PDFJS_SELO; s.crossOrigin='anonymous';
+    s.onload=async function(){
+      try{
+        const lib=window.pdfjsLib;
+        if(!lib) throw new Error('o leitor de PDF não carregou direito');
+        // O "ajudante" faz a parte pesada; tambem vem com selo.
+        const r=await fetch(PDFJS_AJUDANTE_URL,{integrity:PDFJS_AJUDANTE_SELO,mode:'cors'});
+        if(!r.ok) throw new Error('não consegui baixar o leitor de PDF');
+        lib.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([await r.text()],{type:'text/javascript'}));
+        ok(lib);
+      }catch(e){ _pdfjs=null; falhou(e); }
+    };
+    s.onerror=function(){ _pdfjs=null; falhou(new Error('não consegui baixar o leitor de PDF (confira a internet)')); };
+    document.head.appendChild(s);
+  });
+  return _pdfjs;
+}
+async function desenharPdf(corpo,u,v){
+  corpo.style.display='block'; corpo.style.overflow='auto'; corpo.style.padding='8px';
+  corpo.textContent='Abrindo o PDF...';
+  // Zoom na barra de cima: - e + (para ler as medidas).
+  let zoom=1;
+  const bt='border:1px solid #b9c6cc;background:#fff;color:#2c3e50;border-radius:8px;padding:4px 12px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit';
+  const menos=document.createElement('button'); menos.type='button'; menos.textContent='−'; menos.title='Diminuir'; menos.style.cssText=bt;
+  const mais=document.createElement('button'); mais.type='button'; mais.textContent='+'; mais.title='Aumentar'; mais.style.cssText=bt;
+  const ref=v.querySelector('#visor-baixar');
+  ref.parentNode.insertBefore(menos,ref); ref.parentNode.insertBefore(mais,ref);
+  const paginas=document.createElement('div');
+  const aplicar=function(){ paginas.style.width=(zoom*100)+'%'; };
+  menos.onclick=function(){ zoom=Math.max(1,zoom-0.5); aplicar(); };
+  mais.onclick=function(){ zoom=Math.min(4,zoom+0.5); aplicar(); };
+  try{
+    const lib=await carregarPdfJs();
+    const doc=await lib.getDocument({url:u,disableRange:true,disableStream:true}).promise;
+    if(document.getElementById('visor-anexo')!==v) return;
+    corpo.textContent='';
+    corpo.appendChild(paginas);
+    const largura=Math.max(320,corpo.clientWidth-16);
+    const nitidez=Math.min(3,(window.devicePixelRatio||1)*1.5);
+    for(let i=1;i<=doc.numPages;i++){
+      const pg=await doc.getPage(i);
+      const base=pg.getViewport({scale:1});
+      // Nitido o bastante para o zoom, sem passar de 2400 px (memoria do celular).
+      const escala=Math.min(2400/base.width,(largura*nitidez)/base.width);
+      const vp=pg.getViewport({scale:escala});
+      const c=document.createElement('canvas');
+      c.width=Math.floor(vp.width); c.height=Math.floor(vp.height);
+      c.style.cssText='display:block;width:100%;height:auto;margin:0 0 8px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.4)';
+      c.oncontextmenu=function(e){ e.preventDefault(); };
+      paginas.appendChild(c);
+      await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+      if(document.getElementById('visor-anexo')!==v) return;
+    }
+  }catch(e){
+    corpo.style.display='flex';
+    corpo.textContent='Não consegui mostrar o PDF aqui ('+(e&&e.message||e)+'). Use ⬇ Baixar.';
   }
 }
 // O unico caminho para baixar: fica anotado como "baixou anexo".
