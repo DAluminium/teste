@@ -2033,8 +2033,13 @@ function printAll(){
 // os dos colegas, so o gerente. Vale o login gravado no anexo (quemLogin,
 // desde 20/10/2026); nos mais antigos, o nome de quem enviou, quando houver.
 function meuLoginDeAnexo(){ try{ const t=lerToken(); return String((t&&t.dados&&t.dados.u)||'').toLowerCase().trim(); }catch(e){ return ''; } }
+// Permissao extra por pessoa, dada pelo admin (20/10/2026): tirar anexo de
+// QUALQUER pessoa no Compras — ex.: o auxiliar que assumiu as compras e
+// precisa tirar os anexos de quem estava antes. Vem no cracha (campo a).
+function tiraQualquerAnexo(){ try{ const t=lerToken(); const a=(t&&t.dados&&Array.isArray(t.dados.a))?t.dados.a:[]; return a.indexOf('compras')>=0; }catch(e){ return false; } }
 function anexoEhMeu(d){
   if(!d) return false;
+  if(tiraQualquerAnexo()) return true;
   if(d.quemLogin){ const l=meuLoginDeAnexo(); return !!l && String(d.quemLogin).toLowerCase().trim()===l; }
   return !!d.quem && String(d.quem).trim()===String(usuarioLogado()||'').trim();
 }

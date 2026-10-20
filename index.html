@@ -547,6 +547,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
               <label><input type="checkbox" id="nu-mod-fabrica"> 🏭 Fábrica</label>
               <label><input type="checkbox" id="nu-mod-obra"> 📋 Gerenciamento de Obra</label>
               <label><input type="checkbox" id="nu-mod-crm"> 🤝 CRM Comercial</label>
+              <label data-so-admin title="Mesmo sendo funcionário, tira anexos de qualquer pessoa no Compras (os lançamentos continuam só com o gerente)"><input type="checkbox" id="nu-anexos-compras"> 🗑 Compras: tira anexo de qualquer pessoa</label>
               <label title="A pessoa abre a Fábrica para consultar a etapa dos projetos, mas não altera nada"><input type="checkbox" id="nu-ver-fabrica" onchange="if(this.checked) document.getElementById('nu-mod-fabrica').checked=true"> 👁️ Fábrica só para consultar</label>
             </div>
           </div>
@@ -588,6 +589,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
             <label><input type="checkbox" id="eu-mod-fabrica"> 🏭 Fábrica</label>
             <label><input type="checkbox" id="eu-mod-obra"> 📋 Gerenciamento de Obra</label>
             <label><input type="checkbox" id="eu-mod-crm"> 🤝 CRM Comercial</label>
+            <label data-so-admin title="Mesmo sendo funcionário, tira anexos de qualquer pessoa no Compras (os lançamentos continuam só com o gerente)"><input type="checkbox" id="eu-anexos-compras"> 🗑 Compras: tira anexo de qualquer pessoa</label>
             <label title="A pessoa abre a Fábrica para consultar a etapa dos projetos, mas não altera nada"><input type="checkbox" id="eu-ver-fabrica" onchange="if(this.checked) document.getElementById('eu-mod-fabrica').checked=true"> 👁️ Fábrica só para consultar</label>
           </div>
         </div>
@@ -2463,7 +2465,9 @@ async function addUsuario(){
   // a gravacao na Fabrica (soVeNoRegistro). Marcar a caixa ja libera o modulo.
   const soVer=document.getElementById('nu-ver-fabrica').checked?['fabrica']:[];
   if(soVer.length && modulos.indexOf('fabrica')<0) modulos.push('fabrica');
-  portalData.usuarios.push({name,username,role,modulos,soVer,active:true,tempPass:true,
+  // Tira anexo de qualquer pessoa no Compras (20/10/2026): so o admin da; o Worker confere.
+  const excluiAnexos=(souAdmin()&&document.getElementById('nu-anexos-compras').checked)?['compras']:[];
+  portalData.usuarios.push({name,username,role,modulos,soVer,excluiAnexos,active:true,tempPass:true,
     whatsapp:whatsapp,
     criadoPor:meuUsuario(), criadoEm:new Date().toISOString()});
   await savePortalData();
@@ -2480,6 +2484,7 @@ async function addUsuario(){
   document.getElementById('nu-mod-obra').checked=false;
   document.getElementById('nu-mod-crm').checked=false;
   document.getElementById('nu-ver-fabrica').checked=false;
+  document.getElementById('nu-anexos-compras').checked=false;
   renderUserList();
   alert('Usuário cadastrado e salvo! ✅');
 }
@@ -2516,6 +2521,7 @@ function editUsuario(idx){
     document.getElementById('eu-mod-'+m).checked=mods.indexOf(m)>=0;
   });
   document.getElementById('eu-ver-fabrica').checked=(u.soVer||[]).indexOf('fabrica')>=0;
+  document.getElementById('eu-anexos-compras').checked=(u.excluiAnexos||[]).indexOf('compras')>=0;
   // O que eu nao posso dar fica travado como esta (marcado ou nao).
   travarModulosQueNaoPossoDar('eu-mod-');
   document.getElementById('edit-user-overlay').classList.add('open');
@@ -2555,6 +2561,7 @@ async function salvarEdicaoUsuario(){
   u.role=role;
   u.modulos=modulos;
   u.soVer=document.getElementById('eu-ver-fabrica').checked?['fabrica']:[];
+  if(souAdmin()) u.excluiAnexos=document.getElementById('eu-anexos-compras').checked?['compras']:[];
   if(u.soVer.length && u.modulos.indexOf('fabrica')<0) u.modulos.push('fabrica');
   if(senha){
     // Editando a si mesmo: o Worker pede a senha atual.
