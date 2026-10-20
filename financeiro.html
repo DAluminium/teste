@@ -4023,7 +4023,7 @@ function renderPagar(){
 // do campo Fornecedor e mostra o PIX e o banco para quem vai pagar.
 // Se a leitura falhar (Worker antigo, sem acesso), o campo continua sendo
 // texto livre, como sempre foi.
-let _fornCad = null;
+let _fornCad = null, _fornCadInativos = {};
 function cadSistema(){ return AMBIENTE==='teste' ? 'cadastros_teste' : 'cadastros'; }
 function normalizarNomeForn(t){
   return String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -4036,8 +4036,12 @@ async function carregarFornecedoresCad(){
     const r=await fetch(WORKER_URL+'?t='+Date.now(),{cache:'no-store',headers:cabecalhos(cadSistema())});
     if(!r.ok) return;
     const d=await r.json();
+    // Inativo (20/10/2026) fica fora das sugestoes; guardo so o nome, para
+    // o aviso dizer "inativo" em vez de "nao esta no cadastro".
+    _fornCadInativos={};
+    ((d&&Array.isArray(d.fornecedores))?d.fornecedores:[]).forEach(function(f){ if(f&&f.inativo) _fornCadInativos[normalizarNomeForn(f.nome)]=1; });
     _fornCad=((d&&Array.isArray(d.fornecedores))?d.fornecedores:[])
-      .filter(function(f){ return f && (f.uso==='financeiro'||f.uso==='ambos'); });
+      .filter(function(f){ return f && !f.inativo && (f.uso==='financeiro'||f.uso==='ambos'); });
     const dl=document.getElementById('lista-forn-cad');
     if(dl) dl.innerHTML=_fornCad.map(function(f){ return '<option value="'+escEnvio(f.nome)+'"></option>'; }).join('');
   }catch(e){}
@@ -4057,7 +4061,9 @@ function aplicarFornecedorCad(px){
   dica.style.display='block';
   if(!f){
     dica.style.color='var(--gray-4)';
-    dica.innerHTML='Este fornecedor não está no cadastro. Para cadastrar: <strong>📇 Cadastros</strong>, no portal.';
+    dica.innerHTML=(_fornCadInativos[normalizarNomeForn(nome)]
+      ? '⛔ Este fornecedor está <strong>inativo</strong> no cadastro. Se precisar usar, peça ao gerente para reativar em 📇 Cadastros.'
+      : 'Este fornecedor não está no cadastro. Para cadastrar: <strong>📇 Cadastros</strong>, no portal.');
     return;
   }
   dica.style.color='var(--teal-dark)';

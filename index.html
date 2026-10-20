@@ -386,6 +386,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
             <option value="financeiro">Usados no Financeiro</option>
             <option value="ambos">Nos dois</option>
             <option value="incompleto">⚠️ Cadastro incompleto</option>
+            <option value="inativo">⛔ Inativos</option>
           </select>
           <button class="btn btn-teal" id="cad-btn-novo" style="font-size:12.5px;padding:7px 14px" onclick="openFornecedor(null)">+ Novo fornecedor</button>
           <button class="btn btn-outline" id="cad-btn-importar" style="display:none;font-size:12.5px;padding:7px 14px" onclick="importarFornecedores()" title="Cria o cadastro com os nomes que já aparecem nas compras e nas contas a pagar">⤓ Puxar dos lançamentos</button>
@@ -465,6 +466,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
     </div>
     <div class="modal-footer" style="display:flex;justify-content:space-between;gap:8px;padding:12px 20px;border-top:1px solid var(--gray-2)">
       <button class="btn btn-red" id="forn-btn-excluir" style="display:none" onclick="excluirFornecedor()">Excluir</button>
+      <button class="btn btn-outline" id="forn-btn-inativar" style="display:none;margin-left:6px" onclick="alternarInativoFornecedor()">Inativar</button>
       <div style="display:flex;gap:8px;margin-left:auto">
         <button class="btn btn-outline" onclick="fecharFornecedor()">Cancelar</button>
         <button class="btn btn-teal" id="forn-btn-salvar" onclick="salvarFornecedor()">Salvar fornecedor</button>
@@ -1691,8 +1693,10 @@ function renderFornecedores() {
   const busca = normalizarNomeForn(document.getElementById('cad-busca').value);
   const buscaDig = soDigitos(document.getElementById('cad-busca').value);
   const filtro = document.getElementById('cad-filtro').value;
-  const todos = _cad.fornecedores || [];
-  const lista = todos.filter(function (f) {
+  const cadastrados = _cad.fornecedores || [];
+  const todos = cadastrados.filter(function (f) { return !f.inativo; });
+  const inativos = cadastrados.length - todos.length;
+  const lista = (filtro === 'inativo' ? cadastrados.filter(function (f) { return f.inativo; }) : todos).filter(function (f) {
     if (filtro === 'incompleto' && !faltandoNoForn(f).length) return false;
     if (filtro === 'ambos' && f.uso !== 'ambos') return false;
     if ((filtro === 'compras' || filtro === 'financeiro') && f.uso !== filtro && f.uso !== 'ambos') return false;
@@ -1703,19 +1707,21 @@ function renderFornecedores() {
   const incompletos = todos.filter(function (f) { return faltandoNoForn(f).length; }).length;
   document.getElementById('cad-status').textContent = todos.length + ' fornecedor(es) cadastrado(s)' +
     (incompletos ? ' · ⚠️ ' + incompletos + ' com cadastro incompleto' : '') +
+    (inativos ? ' · ⛔ ' + inativos + ' inativo(s)' : '') +
     (lista.length !== todos.length ? ' · mostrando ' + lista.length : '');
   if (!lista.length) {
     el.innerHTML = '<div style="text-align:center;color:var(--gray-4);font-size:13px;padding:24px">' +
-      (todos.length ? 'Nenhum fornecedor com esse filtro.' : 'Nenhum fornecedor cadastrado ainda.') + '</div>';
+      (cadastrados.length ? 'Nenhum fornecedor com esse filtro.' : 'Nenhum fornecedor cadastrado ainda.') + '</div>';
     return;
   }
   const corUso = { compras: '#0E8FA6', financeiro: '#1e7d4f', ambos: '#7B2D8B' };
   el.innerHTML = lista.map(function (f) {
     const falta = faltandoNoForn(f);
-    return '<div onclick="openFornecedor(\'' + escTexto(f.id) + '\')" style="cursor:pointer;border:1px solid var(--gray-2);border-radius:10px;padding:10px 14px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">' +
+    return '<div onclick="openFornecedor(\'' + escTexto(f.id) + '\')" style="cursor:pointer;border:1px solid var(--gray-2);border-radius:10px;padding:10px 14px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap' + (f.inativo ? ';opacity:.6;background:var(--gray-1)' : '') + '">' +
       '<div style="flex:1;min-width:220px">' +
         '<div style="font-weight:700;font-size:14px">' + escTexto(f.nome) +
           (f.uso ? ' <span style="font-size:10.5px;font-weight:600;color:white;background:' + (corUso[f.uso] || '#888') + ';border-radius:10px;padding:1px 8px;margin-left:4px">' + CAD_ROTULO_USO[f.uso] + '</span>' : '') +
+          (f.inativo ? ' <span style="font-size:10.5px;font-weight:600;color:white;background:#7f8c8d;border-radius:10px;padding:1px 8px;margin-left:4px">⛔ Inativo</span>' : '') +
         '</div>' +
         '<div style="font-size:12px;color:var(--gray-5);margin-top:3px">' +
           [f.razao, formatarDocumento(f.documento), f.cidade].filter(Boolean).map(escTexto).join(' · ') + '</div>' +
@@ -1758,6 +1764,15 @@ function openFornecedor(id) {
   document.querySelectorAll('#forn-overlay input, #forn-overlay select').forEach(function (el) { el.disabled = !pode; });
   document.getElementById('forn-btn-salvar').style.display = pode ? '' : 'none';
   document.getElementById('forn-btn-excluir').style.display = (f && podeExcluirCadastros()) ? '' : 'none';
+  const bIn = document.getElementById('forn-btn-inativar');
+  bIn.style.display = (f && podeExcluirCadastros()) ? '' : 'none';
+  bIn.textContent = f && f.inativo ? 'Reativar' : 'Inativar';
+  if (f && f.inativo) {
+    aviso.style.display = 'block';
+    aviso.innerHTML = '⛔ <strong>Fornecedor inativo</strong>' + (f.inativadoPor ? ' — por ' + escTexto(f.inativadoPor) : '') +
+      (f.inativadoEm ? ' em ' + escTexto(new Date(f.inativadoEm).toLocaleDateString('pt-BR')) : '') +
+      '. Não aparece nas sugestões do Compras nem do Financeiro.' + (aviso.innerHTML ? '<br>' + aviso.innerHTML : '');
+  }
   // Ultimas alteracoes deste fornecedor. Troca de PIX/conta e o que mais
   // importa saber: e o caminho classico de golpe (trocar o PIX do fornecedor).
   const hist = f ? (_cad.historico || []).filter(function (h) { return h.fornId === f.id; }).slice(0, 6) : [];
@@ -1813,7 +1828,7 @@ async function salvarFornecedor() {
       return normalizarNomeForn(x.nome) === normalizarNomeForn(novo.nome) || (soDigitos(x.documento) && soDigitos(x.documento) === dig);
     });
     if (repetido) {
-      alert('Já existe um fornecedor com esse nome ou CNPJ: "' + repetido.nome + '".\n\nAbra o que já existe e complete por lá.');
+      alert('Já existe um fornecedor com esse nome ou CNPJ: "' + repetido.nome + '"' + (repetido.inativo ? ' (está INATIVO — use o filtro "Inativos" e reative)' : '') + '.\n\nAbra o que já existe e complete por lá.');
       return false;
     }
     const i = lista.findIndex(function (x) { return x.id === id; });
@@ -1838,11 +1853,65 @@ async function salvarFornecedor() {
   if (ok) fecharFornecedor();
 }
 
+// Quantos lancamentos citam o fornecedor (compras, manutencao e contas a
+// pagar). null = nao deu para conferir algum dos dois modulos.
+async function contarLancamentosDoFornecedor(nome) {
+  const k = normalizarNomeForn(nome);
+  let n = 0, conferiu = true;
+  try {
+    const c = await lerRegistroDoPortal('compras');
+    ['urgente', 'importante', 'pago', 'manutencao', 'manutComprada'].forEach(function (L) {
+      (c[L] || []).forEach(function (r) { if (r && normalizarNomeForn(r.fornecedor) === k) n++; });
+    });
+  } catch (e) { conferiu = false; }
+  try {
+    const fi = await lerRegistroDoPortal('financeiro');
+    (fi.pagar || []).forEach(function (r) { if (r && normalizarNomeForn(r.forn) === k) n++; });
+  } catch (e) { conferiu = false; }
+  return conferiu ? n : (n || null);
+}
+async function alternarInativoFornecedor(motivo) {
+  if (!podeExcluirCadastros()) { alert('Só o gerente ou o administrador pode inativar ou reativar.'); return false; }
+  const f = _fornAberto;
+  if (!f) return false;
+  const inativar = !f.inativo;
+  if (!motivo && !confirm(inativar
+      ? 'Inativar o fornecedor "' + f.nome + '"?\n\nEle continua no cadastro (com o histórico e o PIX), mas deixa de aparecer nas sugestões do Compras e do Financeiro. Dá para reativar depois.'
+      : 'Reativar o fornecedor "' + f.nome + '"?\n\nEle volta a aparecer nas sugestões do Compras e do Financeiro.')) return false;
+  const eu = sessionStorage.getItem('portal-user') || meuLogin();
+  const ok = await gravarCadastros(function (dados) {
+    const i = dados.fornecedores.findIndex(function (x) { return x.id === f.id; });
+    if (i < 0) { alert('Este fornecedor não está mais no cadastro.'); return false; }
+    const x = Object.assign({}, dados.fornecedores[i]);
+    if (inativar) { x.inativo = true; x.inativadoEm = new Date().toISOString(); x.inativadoPor = eu; }
+    else { delete x.inativo; delete x.inativadoEm; delete x.inativadoPor; }
+    x.alteradoPor = eu; x.alteradoEm = new Date().toISOString();
+    dados.fornecedores[i] = x;
+    return { acao: (inativar ? 'inativou ' : 'reativou ') + f.nome, fornId: f.id, detalhe: motivo || '' };
+  });
+  if (ok) fecharFornecedor();
+  return ok;
+}
 async function excluirFornecedor() {
   if (!podeExcluirCadastros()) { alert('Só o gerente ou o administrador pode excluir.'); return; }
   const f = _fornAberto;
   if (!f) return;
-  if (!confirm('Excluir o fornecedor "' + f.nome + '" do cadastro?\n\nAs compras e contas já lançadas com ele continuam como estão.')) return;
+  // Com lancamento no nome dele, nao exclui: inativa (pedido do Ander, 20/10/2026).
+  const n = await contarLancamentosDoFornecedor(f.nome);
+  if (n !== 0) {
+    if (f.inativo) {
+      alert((n === null ? 'Não consegui conferir se "' + f.nome + '" tem lançamentos.' : '"' + f.nome + '" tem ' + n + ' lançamento(s) no nome dele.') +
+        '\n\nPor isso ele não é excluído — e já está inativo.');
+      return;
+    }
+    if (!confirm((n === null
+        ? 'Não consegui conferir se "' + f.nome + '" tem lançamentos no Compras e no Financeiro.'
+        : '"' + f.nome + '" tem ' + n + ' lançamento(s) no nome dele (Compras / Financeiro).') +
+        '\n\nPor isso ele não será excluído. Quer INATIVAR?\n\nEle continua no cadastro, mas some das sugestões do Compras e do Financeiro.')) return;
+    await alternarInativoFornecedor(n === null ? 'no lugar de excluir — lançamentos não conferidos' : 'no lugar de excluir — ' + n + ' lançamento(s)');
+    return;
+  }
+  if (!confirm('Excluir o fornecedor "' + f.nome + '" do cadastro?\n\nNão há lançamento no nome dele. Esta ação não pode ser desfeita pela tela.')) return;
   const ok = await gravarCadastros(function (dados) {
     const i = dados.fornecedores.findIndex(function (x) { return x.id === f.id; });
     if (i < 0) return false;
