@@ -910,14 +910,21 @@ async function buscarRemoto(){
   return arrumar(j);
 }
 
-async function enviarRemoto(payload){
+// ---- GRAVACAO CONDICIONAL NO CRM (20/10/2026) ----
+// Manda junto a versao que leu (X-Base). Se outra pessoa gravou no meio, o
+// Worker responde 409 e nada e gravado por cima: quem chama rele e reaplica.
+async function enviarRemoto(payload, versaoLida){
+  const extra={'Content-Type':'application/json'};
+  if(versaoLida) extra['X-Base']=versaoLida;
   const r=await fetch(WORKER,{
     method:'PATCH',
-    headers:cabecalhos({'Content-Type':'application/json'}),
+    headers:cabecalhos(extra),
     body:JSON.stringify({data:payload})
   });
   if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
+  if(r.status===409) return 'conflito';
   if(!r.ok) throw new Error('Worker '+r.status);
+  return 'ok';
 }
 
 // Historico gravado JUNTO com a alteracao. O vendedor nao le o historico (o
@@ -943,27 +950,43 @@ async function alterar(fn, registro){
 async function gravarAlteracao(fn, registro){
   status('🔄 Salvando...');
   try{
-    let base=null;
-    try{ base=await buscarRemoto(); }catch(e){ base=null; }
-    if(!base) base=arrumar(JSON.parse(JSON.stringify(dados)));
-    const resultado=await fn(base);
-    if(resultado===false){ status(''); return false; }
-    if(registro){
-      try{
-        const r=(typeof registro==='function')?registro(base):registro;
-        if(r && r.acao) logCrm(base, r.acao, r.alvo, r.detalhe);
-      }catch(e){}
+    let base=null, carimbo='';
+    // Duas pessoas salvando no mesmo instante: a que chegar depois recebe
+    // "conflito", rele a versao nova e reaplica a alteracao DELA por cima —
+    // ate 4 vezes. Ninguem apaga o que o outro salvou.
+    for(let tentativa=0; tentativa<4; tentativa++){
+      base=null;
+      try{ base=await buscarRemoto(); }catch(e){ base=null; }
+      const veioDoServidor=!!base;
+      if(!base) base=arrumar(JSON.parse(JSON.stringify(dados)));
+      const versaoLida=veioDoServidor?String(base.atualizadoEm||''):'';
+      const resultado=await fn(base);
+      if(resultado===false){ status(''); return false; }
+      if(registro){
+        try{
+          const r=(typeof registro==='function')?registro(base):registro;
+          if(r && r.acao) logCrm(base, r.acao, r.alvo, r.detalhe);
+        }catch(e){}
+      }
+      carimbo=agoraISO();
+      base.atualizadoEm=carimbo;
+      base.atualizadoPor=usuario;
+      const deu=await enviarRemoto(base, versaoLida);
+      if(deu!=='conflito') break;
+      status('🔀 Outra pessoa salvou junto — juntando...');
+      if(tentativa===3) throw new Error('conflito');
+      await new Promise(function(ok){ setTimeout(ok, 300+Math.random()*700); });
     }
-    const carimbo=agoraISO();
-    base.atualizadoEm=carimbo;
-    base.atualizadoPor=usuario;
-    await enviarRemoto(base);
 
     // O Worker ja respondeu "ok" sem gravar (registro inexistente): relemos e
     // conferimos o carimbo.
     let confere=null;
     try{ confere=await buscarRemoto(); }catch(e){ confere=null; }
-    if(!confere || confere.atualizadoEm!==carimbo){
+    // Outra pessoa salvou DEPOIS (por cima da versao que ja tinha a minha
+    // alteracao — a gravacao condicional garante): nao e falha.
+    const depoisDeMim=!!confere && confere.atualizadoEm!==carimbo &&
+      new Date(confere.atualizadoEm).getTime()>new Date(carimbo).getTime();
+    if(!confere || (confere.atualizadoEm!==carimbo && !depoisDeMim)){
       status('🔴 NÃO gravou no servidor','#ffcccc');
       aviso('Os dados NÃO foram salvos',
             'O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+
@@ -2568,14 +2591,16 @@ async function salvarFicha(){
       alvo={id:id, criadoEm:agoraISO(), criadoPor:usuario, notas:[]};
       base.oportunidades.push(alvo);
     }
-    const etapaNova=f.etapa;
-    const motivo=f.motivoPerda;
-    delete f.etapa; delete f.motivoPerda;
+    // Copia: esta funcao pode rodar mais de uma vez (gravacao condicional).
+    const f2=Object.assign({}, f);
+    const etapaNova=f2.etapa;
+    const motivo=f2.motivoPerda;
+    delete f2.etapa; delete f2.motivoPerda;
     // Autorizacao: guarda QUANDO e QUEM anotou — e o que se precisa mostrar se
     // um dia alguem perguntar "quando eu autorizei isso?".
     if(f.autorizaContato && !alvo.autorizaContato){ alvo.autorizaEm=hojeISO(); alvo.autorizaPor=usuario; }
     if(!f.autorizaContato){ alvo.autorizaEm=''; alvo.autorizaPor=''; }
-    Object.assign(alvo,f);
+    Object.assign(alvo,f2);
     alvo.vendedorNome=nomeVend;
     aplicarEtapa(alvo, etapaNova);
     if(etapaDe(etapaNova) && etapaDe(etapaNova).tipo==='perdido') alvo.motivoPerda=motivo;
