@@ -2243,7 +2243,7 @@ function renderDocsCrm(o){
       '<span>'+(d.link?'🔗':'📄')+'</span>'+
       '<a href="#" style="flex:1;min-width:0;word-break:break-word;color:var(--teal-dark);font-weight:600" onclick="event.preventDefault();abrirDocCrm(\''+esc(d.id)+'\')">'+esc(d.nome||'arquivo')+'</a>'+
       '<span class="nota-quem" style="white-space:nowrap">'+(d.tamanho?fmtTamanho(d.tamanho)+' · ':'')+esc(d.quem||'')+(q?' · '+esc(q):'')+'</span>'+
-      (podeGerenciar()?'<button type="button" class="btn btn-outline btn-sm" title="Tirar este anexo" onclick="removerDocCrm(\''+esc(d.id)+'\')">×</button>':'')+
+      ((podeGerenciar()||anexoEhMeu(d))?'<button type="button" class="btn btn-outline btn-sm" title="Tirar este anexo" onclick="removerDocCrm(\''+esc(d.id)+'\')">×</button>':'')+
     '</div>';
   }).join(''):'<div class="dica" style="font-size:12px;color:var(--gray-4)">Nenhum anexo.</div>';
   const podeAnexar=!!o && !o.excluido && podeEditarNegocio(o) && !ehConsulta();
@@ -2311,7 +2311,7 @@ async function enviarVariosArquivos(arqs){
       const ehPdf=arq.type==='application/pdf';
       const j=await enviarArquivoPrivado(arq, PASTA_ARQUIVOS_CRM, ehPdf?'raw':'auto');
       if(!j||!j.secure_url) throw new Error('o servidor não devolveu o endereço do arquivo');
-      docs.push({id:novoId(), nome:arq.name, url:j.secure_url, tamanho:arq.size, mime:arq.type||'', quem:usuario, quando:agoraISO()});
+      docs.push({id:novoId(), nome:arq.name, url:j.secure_url, tamanho:arq.size, mime:arq.type||'', quem:usuario, quemLogin:meuLoginDeAnexo(), quando:agoraISO()});
     }catch(e){ falhas.push(arq.name+': '+e.message); }
   }
   st.textContent='';
@@ -2350,16 +2350,27 @@ async function anexarLinkCrm(){
   if(!/^https:\/\/\S+$/i.test(link)){ aviso('Link inválido','O link precisa começar com https://'); return; }
   const nome=String(prompt('Nome para aparecer no negócio (ex.: Projeto da fachada):','')||'').trim()||link.replace(/^https:\/\//,'').slice(0,60);
   if(!o){ _anexosPendentes.push({id:novoId(), nome:nome, link:link}); renderDocsCrm(null); return; }
-  await gravarDocsCrm([{id:novoId(), nome:nome, link:link, quem:usuario, quando:agoraISO()}]);
+  await gravarDocsCrm([{id:novoId(), nome:nome, link:link, quem:usuario, quemLogin:meuLoginDeAnexo(), quando:agoraISO()}]);
 }
 function tirarPendente(id){
   _anexosPendentes=_anexosPendentes.filter(function(p){ return p.id!==id; });
   renderDocsCrm(null);
 }
+// ---- ANEXO QUE A PROPRIA PESSOA ENVIOU (pedido da gerente Nikoly, 20/10/2026) ----
+// O funcionario pode tirar o anexo que ELE enviou (anexou o arquivo errado);
+// os dos colegas, so o gerente. Vale o login gravado no anexo (quemLogin,
+// desde 20/10/2026); nos mais antigos, o nome de quem enviou, quando houver.
+function meuLoginDeAnexo(){ try{ const t=lerToken(); return String((t&&t.dados&&t.dados.u)||'').toLowerCase().trim(); }catch(e){ return ''; } }
+function anexoEhMeu(d){
+  if(!d) return false;
+  if(d.quemLogin){ const l=meuLoginDeAnexo(); return !!l && String(d.quemLogin).toLowerCase().trim()===l; }
+  return !!d.quem && String(d.quem).trim()===String(usuario||'').trim();
+}
 async function removerDocCrm(id){
-  if(recusarExcluir()) return;
   const o=negocioDaFicha(); if(!o) return;
   const d=(o.docs||[]).find(function(x){ return x.id===id; }); if(!d) return;
+  if(recusarSeConsulta()) return;
+  if(!anexoEhMeu(d) && recusarExcluir()) return;
   if(!confirm('Tirar "'+(d.nome||'este anexo')+'" deste negócio?')) return;
   const ok=await alterar(function(base){
     const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
@@ -2547,7 +2558,7 @@ async function salvarFicha(){
       return;
     }
     docsNovos=_anexosPendentes.map(function(p){
-      return p.doc || {id:novoId(), nome:p.nome, link:p.link, quem:usuario, quando:agoraISO()};
+      return p.doc || {id:novoId(), nome:p.nome, link:p.link, quem:usuario, quemLogin:meuLoginDeAnexo(), quando:agoraISO()};
     });
   }
   const ok=await alterar(function(base){

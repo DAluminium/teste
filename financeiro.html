@@ -2913,7 +2913,7 @@ function renderAttachList(){
       <a href="#" data-anexo="${a.url}" data-nome="${a.name}" onclick="abrirAnexo(this.dataset.anexo,this.dataset.nome);return false;" title="${a.name}">${a.name}</a>
       <span style="font-size:11px;color:var(--gray-4);white-space:nowrap" title="${tituloDoAnexo(a)}">${dataDoAnexo(a)||'—'}</span>
       <button class="btn btn-outline btn-sm" data-anexo="${a.url}" data-nome="${String(a.name||'').replace(/"/g,'&quot;')}" onclick="enviarAnexo(this.dataset.anexo,this.dataset.nome)" title="Enviar pelo WhatsApp">Enviar</button>
-      <button class="act act-del" onclick="removeAttach(${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+      <button class="act ${anexoEhMeu(a)?'':'act-del'}" onclick="removeAttach(${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
     </div>`;
   }).join('');
 }
@@ -3420,7 +3420,8 @@ async function scanEntregar(arquivo){
   const j=await enviarArquivoPrivado(arquivo,'daluminium-financeiro','raw');
   const alvo = attachType==='pagar' ? data.pagar[attachIdx] : data.receber[attachIdx];
   if(!alvo.attachments) alvo.attachments=[];
-  alvo.attachments.push({name:arquivo.name,url:j.secure_url,public_id:j.public_id});
+  alvo.attachments.push({name:arquivo.name,url:j.secure_url,public_id:j.public_id,
+    quando:new Date().toISOString(), quem:sessionStorage.getItem('fin-user')||'', quemLogin:meuLoginDeAnexo()});
   await persist(); render(); renderAttachList();
 }
 
@@ -3481,15 +3482,27 @@ async function uploadAttach(event){
     const r2=attachType==='pagar'?data.pagar[attachIdx]:data.receber[attachIdx];
     if(!r2.attachments) r2.attachments=[];
     r2.attachments.push({name:file.name,url:j.secure_url,public_id:j.public_id,
-      quando:new Date().toISOString()});
+      quando:new Date().toISOString(), quem:sessionStorage.getItem('fin-user')||'', quemLogin:meuLoginDeAnexo()});
     await persist(); render(); renderAttachList();
     prog.style.display='none';
   }catch(e){ prog.textContent='❌ Erro ao enviar. Tente novamente.'; }
   event.target.value='';
 }
 
+// ---- ANEXO QUE A PROPRIA PESSOA ENVIOU (pedido da gerente Nikoly, 20/10/2026) ----
+// O funcionario pode tirar o anexo que ELE enviou (anexou o arquivo errado);
+// os dos colegas, so o gerente. Vale o login gravado no anexo (quemLogin,
+// desde 20/10/2026); nos mais antigos, o nome de quem enviou, quando houver.
+function meuLoginDeAnexo(){ try{ const t=lerToken(); return String((t&&t.dados&&t.dados.u)||'').toLowerCase().trim(); }catch(e){ return ''; } }
+function anexoEhMeu(d){
+  if(!d) return false;
+  if(d.quemLogin){ const l=meuLoginDeAnexo(); return !!l && String(d.quemLogin).toLowerCase().trim()===l; }
+  return !!d.quem && String(d.quem).trim()===String(sessionStorage.getItem('fin-user')||'').trim();
+}
 async function removeAttach(idx){
-  if(recusarExcluir()) return;
+  const r0=attachType==='pagar'?data.pagar[attachIdx]:data.receber[attachIdx];
+  if(recusarSeConsulta()) return;
+  if(!anexoEhMeu(r0&&r0.attachments&&r0.attachments[idx]) && recusarExcluir()) return;
   if(!confirm('Remover este anexo?')) return;
   const r=attachType==='pagar'?data.pagar[attachIdx]:data.receber[attachIdx];
   const arq=(r.attachments[idx]||{}).name||'(sem nome)';

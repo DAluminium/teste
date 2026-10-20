@@ -2188,7 +2188,7 @@ async function anexarDoc(ev){
       nome:arq.name,
       url:j.secure_url,
       tamanho:arq.size,
-      quem:usuario,
+      quem:usuario, quemLogin:meuLoginDeAnexo(),
       quando:agoraISO()
     });
     renderDocs();
@@ -2215,10 +2215,21 @@ async function anexarDoc(ev){
 // que aconteceu com o Ander: apagou pelo celular, atualizou, e o anexo voltou.
 let docsApagados={};
 
+// ---- ANEXO QUE A PROPRIA PESSOA ENVIOU (pedido da gerente Nikoly, 20/10/2026) ----
+// O funcionario pode tirar o anexo que ELE enviou (anexou o arquivo errado);
+// os dos colegas, so o gerente. Vale o login gravado no anexo (quemLogin,
+// desde 20/10/2026); nos mais antigos, o nome de quem enviou, quando houver.
+function meuLoginDeAnexo(){ try{ const t=lerToken(); return String((t&&t.dados&&t.dados.u)||'').toLowerCase().trim(); }catch(e){ return ''; } }
+function anexoEhMeu(d){
+  if(!d) return false;
+  if(d.quemLogin){ const l=meuLoginDeAnexo(); return !!l && String(d.quemLogin).toLowerCase().trim()===l; }
+  return !!d.quem && String(d.quem).trim()===String(usuario||'').trim();
+}
 async function removerDoc(id){
-  if(recusarExcluir()) return;
   const d=fichaDocs.find(x=>x.id===id);
   if(!d) return;
+  if(recusarSeConsulta()) return;
+  if(!anexoEhMeu(d) && recusarExcluir()) return;
   if(!confirm('Remover "'+d.nome+'" desta obra?')) return;
   docsApagados[d.id]=1;
   if(d.url) docsApagados[d.url]=1;
@@ -2855,7 +2866,7 @@ async function scanSalvar(){
       nome:nome,
       url:j.secure_url,
       tamanho:bytes.length,
-      quem:usuario,
+      quem:usuario, quemLogin:meuLoginDeAnexo(),
       quando:agoraISO()
     });
     renderDocs();
