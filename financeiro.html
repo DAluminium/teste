@@ -2456,7 +2456,12 @@ async function persist(){
   finally{ _gravando--; }
 }
 
-async function gravarNoServidor(){
+// ---- GRAVACAO CONDICIONAL (20/10/2026) ----
+// Grava dizendo ao Worker a versao que leu por ultimo (X-Base): se outra
+// pessoa gravou depois disso, nada e gravado por cima e a juncao roda de novo.
+async function gravarNoServidor(tentativa){
+  tentativa=tentativa||0;
+  let versaoLida='';
   if(!dataReady) return; // Nunca salva antes de carregar da nuvem
   const totalItems=(data.pagar||[]).length+(data.receber||[]).length+(data.usuarios||[]).length;
   const hasSaldo=Object.values(data.saldosIniciais||{}).some(v=>v>0);
@@ -2470,6 +2475,7 @@ async function gravarNoServidor(){
     if(ultimoServidor!==null){
       let atual=null;
       try{ atual=await lerRemoto(); }catch(e){ atual=null; }
+      if(atual) versaoLida=String(atual.atualizadoEm||'');
       if(atual && JSON.stringify(atual)!==ultimoServidor){
         const base=JSON.parse(ultimoServidor);
         const deles=diferencas(base,atual);   // o que a outra pessoa fez
@@ -2531,19 +2537,31 @@ async function gravarNoServidor(){
     // Worker, quem guarda a chave e ele, e a gravacao ainda passa pelo cracha.
     const resp=await fetch('https://daluminium-api.daluminium2.workers.dev',{
       method:'PATCH',
-      headers:cabecalhos(SUPA_SISTEMA,{'Content-Type':'application/json'}),
+      headers:cabecalhos(SUPA_SISTEMA,Object.assign({'Content-Type':'application/json'},versaoLida?{'X-Base':versaoLida}:{})),
       body:JSON.stringify({data:data})
     });
     // A resposta nao era conferida: um erro do servidor passava batido e a
     // tela mostrava "salvo" do mesmo jeito.
     if(resp.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
+    if(resp.status===409){
+      // Outra pessoa gravou entre a minha conferencia e a gravacao: o Worker
+      // recusou (nada foi gravado por cima). Rele e junta de novo, sozinho.
+      if(tentativa<3){
+        setStatus('🔀 Outra pessoa salvou junto — juntando...');
+        await new Promise(function(ok){ setTimeout(ok,300+Math.random()*700); });
+        return gravarNoServidor(tentativa+1);
+      }
+      throw new Error('conflito');
+    }
     if(!resp.ok) throw new Error('Servidor recusou a gravação: '+resp.status);
 
     // Mesmo com resposta ok, conferimos relendo: gravacao aceita nem sempre
     // significa gravacao aplicada.
     let confere=null;
     try{ confere=await lerRemoto(); }catch(e){ confere=null; }
-    if(!confere || confere.atualizadoEm!==carimbo){
+    const horaDe=function(x){ return new Date(String(x||'').slice(0,24)).getTime(); };
+    const depoisDeMim=!!confere && confere.atualizadoEm!==carimbo && horaDe(confere.atualizadoEm)>horaDe(carimbo);
+    if(!confere || (confere.atualizadoEm!==carimbo && !depoisDeMim)){
       setStatus('🔴 NÃO gravou no servidor','#ffcccc');
       alert('ATENÇÃO — os dados NÃO foram salvos no servidor.\n\n'+
             'O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+

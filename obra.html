@@ -1645,14 +1645,21 @@ async function buscarRemoto(){
   return arrumar(j);
 }
 
-async function enviarRemoto(payload){
+// ---- GRAVACAO CONDICIONAL (20/10/2026) ----
+// Manda junto a versao que leu (X-Base). Se outra pessoa gravou no meio, o
+// Worker responde 409 e nada e gravado por cima: quem chama rele e reaplica.
+async function enviarRemoto(payload, versaoLida){
+  const extra={'Content-Type':'application/json'};
+  if(versaoLida) extra['X-Base']=versaoLida;
   const r=await fetch(WORKER,{
     method:'PATCH',
-    headers:cabecalhos({'Content-Type':'application/json'}),
+    headers:cabecalhos(extra),
     body:JSON.stringify({data:payload})
   });
   if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
+  if(r.status===409) return 'conflito';
   if(!r.ok) throw new Error('Worker '+r.status);
+  return 'ok';
 }
 
 // Registro do que foi feito no módulo. Fica no mesmo documento dos contratos e
@@ -1682,27 +1689,43 @@ async function alterar(fn, registro){
 async function gravarAlteracao(fn, registro){
   status('🔄 Salvando...');
   try{
-    let base=null;
-    try{ base=await buscarRemoto(); }catch(e){ base=null; }
-    if(!base) base=arrumar(JSON.parse(JSON.stringify(dados)));
-    await fn(base);
-    if(registro){
-      try{
-        const r=(typeof registro==='function')?registro(base):registro;
-        if(r && r.acao) logObra(base, r.acao, r.alvo, r.detalhe);
-      }catch(e){}   // histórico nunca pode impedir a gravação do trabalho
+    // Duas pessoas salvando no mesmo instante: a que chegar depois recebe
+    // "conflito", rele a versao nova e reaplica a alteracao DELA por cima —
+    // ate 4 vezes. Ninguem apaga o que o outro salvou.
+    let base=null, carimbo='';
+    for(let tentativa=0; tentativa<4; tentativa++){
+      base=null;
+      try{ base=await buscarRemoto(); }catch(e){ base=null; }
+      const veioDoServidor=!!base;
+      const versaoLida=veioDoServidor?String(base.atualizadoEm||''):'';
+      if(!base) base=arrumar(JSON.parse(JSON.stringify(dados)));
+      await fn(base);
+      if(registro){
+        try{
+          const r=(typeof registro==='function')?registro(base):registro;
+          if(r && r.acao) logObra(base, r.acao, r.alvo, r.detalhe);
+        }catch(e){}   // histórico nunca pode impedir a gravação do trabalho
+      }
+      carimbo=agoraISO();
+      base.atualizadoEm=carimbo;
+      base.atualizadoPor=usuario;
+      const deu=await enviarRemoto(base, versaoLida);
+      if(deu!=='conflito') break;
+      status('🔀 Outra pessoa salvou junto — juntando...');
+      if(tentativa===3) throw new Error('conflito');
+      await new Promise(function(ok){ setTimeout(ok, 300+Math.random()*700); });
     }
-    const carimbo=agoraISO();
-    base.atualizadoEm=carimbo;
-    base.atualizadoPor=usuario;
-    await enviarRemoto(base);
 
     // O Worker responde {"ok":true} mesmo quando NÃO grava nada — é o que
     // acontece se o registro do módulo ainda não existir no banco. Por isso
     // não dá para confiar na resposta dele: relemos e conferimos o carimbo.
     let confere=null;
     try{ confere=await buscarRemoto(); }catch(e){ confere=null; }
-    if(!confere || confere.atualizadoEm!==carimbo){
+    // Outra pessoa salvou DEPOIS (por cima da versao que ja tinha a minha
+    // alteracao — a gravacao condicional garante): nao e falha.
+    const depoisDeMim=!!confere && confere.atualizadoEm!==carimbo &&
+      new Date(confere.atualizadoEm).getTime()>new Date(carimbo).getTime();
+    if(!confere || (confere.atualizadoEm!==carimbo && !depoisDeMim)){
       status('🔴 NÃO gravou no servidor','#ffcccc');
       aviso('Os dados NÃO foram salvos',
             'O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+
@@ -5118,15 +5141,19 @@ async function tirarAnexoDaFabrica(c, d){
     alvo:(o.cliente||'')+(o.obra?' · '+o.obra:''),
     detalhe:(d.tipo?d.tipo+' · ':'')+d.nome });
   if(fab.historico.length>500) fab.historico=fab.historico.slice(0,500);
+  // Versao lida, para a gravacao condicional (20/10/2026): se outra pessoa
+  // gravou no meio, o Worker recusa e nada e gravado por cima.
+  const versaoLidaOutro=String(fab.atualizadoEm||'');
   const carimbo=agoraISO();
   fab.atualizadoEm=carimbo; fab.atualizadoPor=usuario;
   const r=await fetch(WORKER,{method:'PATCH',
-    headers:cabecalhosFabrica({'Content-Type':'application/json'}),
+    headers:cabecalhosFabrica(Object.assign({'Content-Type':'application/json'},versaoLidaOutro?{'X-Base':versaoLidaOutro}:{})),
     body:JSON.stringify({data:fab})});
+  if(r.status===409) throw new Error('outra pessoa salvou a Fábrica ao mesmo tempo. Tente de novo');
   if(!r.ok) throw new Error('Fábrica '+r.status);
   // O Worker responde ok mesmo quando NAO grava. Confere pelo carimbo.
   const confere=await lerFabrica();
-  if(confere.atualizadoEm!==carimbo) throw new Error('a Fábrica não gravou');
+  if(confere.atualizadoEm!==carimbo && !(new Date(String(confere.atualizadoEm).slice(0,24)).getTime()>new Date(carimbo).getTime())) throw new Error('a Fábrica não gravou');
   _fabricaObras=confere.obras||[];
   // De proposito NAO chamamos excluir-anexo: o arquivo continua sendo deste
   // contrato. Apagar aqui tiraria o anexo de quem ainda precisa dele.
@@ -5154,14 +5181,18 @@ async function tirarAnexoDoCompras(c, d){
     obra: reg.obra||c.cliente||'—', contrato: reg.contrato||c.ct||'—',
     detail:(d.tipo?d.tipo+' · ':'')+d.nome });
   if(comp.historico.length>500) comp.historico=comp.historico.slice(0,500);
+  // Versao lida, para a gravacao condicional (20/10/2026): se outra pessoa
+  // gravou no meio, o Worker recusa e nada e gravado por cima.
+  const versaoLidaOutro=String(comp.atualizadoEm||'');
   const carimbo=agoraISO();
   comp.atualizadoEm=carimbo; comp.atualizadoPor=usuario;
   const r=await fetch(WORKER,{method:'PATCH',
-    headers:cabecalhosCompras({'Content-Type':'application/json'}),
+    headers:cabecalhosCompras(Object.assign({'Content-Type':'application/json'},versaoLidaOutro?{'X-Base':versaoLidaOutro}:{})),
     body:JSON.stringify({data:comp})});
+  if(r.status===409) throw new Error('outra pessoa salvou o Compras ao mesmo tempo. Tente de novo');
   if(!r.ok) throw new Error('Compras '+r.status);
   const confere=await lerCompras();
-  if(confere.atualizadoEm!==carimbo) throw new Error('o Compras não gravou');
+  if(confere.atualizadoEm!==carimbo && !(new Date(String(confere.atualizadoEm).slice(0,24)).getTime()>new Date(carimbo).getTime())) throw new Error('o Compras não gravou');
   _comprasDados=confere;
   aviso('Pronto','"'+d.nome+'" não aparece mais no lançamento desta obra no Compras.\n\n'+
     'O arquivo continua aqui no contrato.');
@@ -5192,15 +5223,19 @@ async function mandarAnexoParaFabrica(c, d){
     alvo:(o.cliente||'')+(o.obra?' · '+o.obra:''),
     detalhe:(d.tipo?d.tipo+' · ':'')+d.nome });
   if(fab.historico.length>500) fab.historico=fab.historico.slice(0,500);
+  // Versao lida, para a gravacao condicional (20/10/2026): se outra pessoa
+  // gravou no meio, o Worker recusa e nada e gravado por cima.
+  const versaoLidaOutro=String(fab.atualizadoEm||'');
   const carimbo=agoraISO();
   fab.atualizadoEm=carimbo; fab.atualizadoPor=usuario;
   const r=await fetch(WORKER,{method:'PATCH',
-    headers:cabecalhosFabrica({'Content-Type':'application/json'}),
+    headers:cabecalhosFabrica(Object.assign({'Content-Type':'application/json'},versaoLidaOutro?{'X-Base':versaoLidaOutro}:{})),
     body:JSON.stringify({data:fab})});
+  if(r.status===409) throw new Error('outra pessoa salvou a Fábrica ao mesmo tempo. Tente de novo');
   if(!r.ok) throw new Error('Fábrica '+r.status);
   // O Worker responde ok mesmo quando NAO grava. Confere pelo carimbo.
   const confere=await lerFabrica();
-  if(confere.atualizadoEm!==carimbo) throw new Error('a Fábrica não gravou');
+  if(confere.atualizadoEm!==carimbo && !(new Date(String(confere.atualizadoEm).slice(0,24)).getTime()>new Date(carimbo).getTime())) throw new Error('a Fábrica não gravou');
   _fabricaObras=confere.obras||[];
   aviso('Pronto','"'+d.nome+'" agora aparece na ficha desta obra na Fábrica.');
 }
@@ -5228,14 +5263,18 @@ async function mandarAnexoParaCompras(c, d){
     obra: reg.obra||c.cliente||'—', contrato: reg.contrato||c.ct||'—',
     detail:(d.tipo?d.tipo+' · ':'')+d.nome });
   if(comp.historico.length>500) comp.historico=comp.historico.slice(0,500);
+  // Versao lida, para a gravacao condicional (20/10/2026): se outra pessoa
+  // gravou no meio, o Worker recusa e nada e gravado por cima.
+  const versaoLidaOutro=String(comp.atualizadoEm||'');
   const carimbo=agoraISO();
   comp.atualizadoEm=carimbo; comp.atualizadoPor=usuario;
   const r=await fetch(WORKER,{method:'PATCH',
-    headers:cabecalhosCompras({'Content-Type':'application/json'}),
+    headers:cabecalhosCompras(Object.assign({'Content-Type':'application/json'},versaoLidaOutro?{'X-Base':versaoLidaOutro}:{})),
     body:JSON.stringify({data:comp})});
+  if(r.status===409) throw new Error('outra pessoa salvou o Compras ao mesmo tempo. Tente de novo');
   if(!r.ok) throw new Error('Compras '+r.status);
   const confere=await lerCompras();
-  if(confere.atualizadoEm!==carimbo) throw new Error('o Compras não gravou');
+  if(confere.atualizadoEm!==carimbo && !(new Date(String(confere.atualizadoEm).slice(0,24)).getTime()>new Date(carimbo).getTime())) throw new Error('o Compras não gravou');
   _comprasDados=confere;
   aviso('Pronto','"'+d.nome+'" agora aparece no lançamento desta obra no Compras.');
 }
@@ -5913,15 +5952,19 @@ async function enviarParaFabrica(c, ehNovo){
       });
       if(fab.historico.length>500) fab.historico=fab.historico.slice(0,500);
     }
+    // Versao lida, para a gravacao condicional (20/10/2026): se outra pessoa
+    // gravou no meio, o Worker recusa e nada e gravado por cima.
+    const versaoLidaOutro=String(fab.atualizadoEm||'');
     const carimbo=agoraISO();
     fab.atualizadoEm=carimbo; fab.atualizadoPor=usuario;
     const r=await fetch(WORKER,{method:'PATCH',
-      headers:cabecalhosFabrica({'Content-Type':'application/json'}),
+      headers:cabecalhosFabrica(Object.assign({'Content-Type':'application/json'},versaoLidaOutro?{'X-Base':versaoLidaOutro}:{})),
       body:JSON.stringify({data:fab})});
+    if(r.status===409) throw new Error('outra pessoa salvou a Fábrica ao mesmo tempo. Tente de novo');
     if(!r.ok) throw new Error('Fábrica '+r.status);
     // O Worker responde ok mesmo sem gravar. Confere pelo carimbo.
     const confere=await lerFabrica();
-    if(confere.atualizadoEm!==carimbo) throw new Error('não gravou');
+    if(confere.atualizadoEm!==carimbo && !(new Date(String(confere.atualizadoEm).slice(0,24)).getTime()>new Date(carimbo).getTime())) throw new Error('não gravou');
     _fabricaObras=confere.obras||[];
     anotarEnvio('fab','na Fábrica','');
   }catch(e){
@@ -6576,16 +6619,20 @@ async function enviarParaCompras(c){
       if(comp.historico.length>500) comp.historico=comp.historico.slice(0,500);
     }
 
+    // Versao lida, para a gravacao condicional (20/10/2026): se outra pessoa
+    // gravou no meio, o Worker recusa e nada e gravado por cima.
+    const versaoLidaOutro=String(comp.atualizadoEm||'');
     const carimbo=agoraISO();
     comp.atualizadoEm=carimbo;
     comp.atualizadoPor=usuario;
     const r=await fetch(WORKER,{method:'PATCH',
-      headers:cabecalhosCompras({'Content-Type':'application/json'}),
+      headers:cabecalhosCompras(Object.assign({'Content-Type':'application/json'},versaoLidaOutro?{'X-Base':versaoLidaOutro}:{})),
       body:JSON.stringify({data:comp})});
+    if(r.status===409) throw new Error('outra pessoa salvou o Compras ao mesmo tempo. Tente de novo');
     if(!r.ok) throw new Error('Compras '+r.status);
     // O Worker responde ok mesmo sem gravar. Confere pelo carimbo.
     const confere=await lerCompras();
-    if(confere.atualizadoEm!==carimbo) throw new Error('não gravou');
+    if(confere.atualizadoEm!==carimbo && !(new Date(String(confere.atualizadoEm).slice(0,24)).getTime()>new Date(carimbo).getTime())) throw new Error('não gravou');
     _comprasDados=confere;
     anotarEnvio('comp',ja?'atualizado no Compras':'no Compras','');
   }catch(e){

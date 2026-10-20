@@ -4355,14 +4355,18 @@ async function fetchBin(apiKey, binId){
   return await r.json();
 }
 
-async function pushBin(apiKey, binId, payload){
+async function pushBin(apiKey, binId, payload, versaoLida){
+  const extra={'Content-Type':'application/json'};
+  if(versaoLida) extra['X-Base']=versaoLida;
   const r=await fetch('https://daluminium-api.daluminium2.workers.dev',{
     method:'PATCH',
-    headers:cabecalhos(SUPA_SISTEMA,{'Content-Type':'application/json'}),
+    headers:cabecalhos(SUPA_SISTEMA,extra),
     body:JSON.stringify({data:payload})
   });
   if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
+  if(r.status===409) return 'conflito';
   if(!r.ok) throw new Error('Erro Worker: '+r.status);
+  return 'ok';
 }
 
 async function createBin(apiKey, payload){
@@ -4582,7 +4586,12 @@ async function persist(){
   finally{ _gravando--; }
 }
 
-async function gravarNoServidor(){
+// ---- GRAVACAO CONDICIONAL (20/10/2026) ----
+// Grava dizendo ao Worker a versao que leu por ultimo (X-Base): se outra
+// pessoa gravou depois disso, nada e gravado por cima e a juncao roda de novo.
+async function gravarNoServidor(tentativa){
+  tentativa=tentativa||0;
+  let versaoLida='';
   if(!dataReady) return; // Nunca salva antes de carregar da nuvem
   const totalItems=(data.urgente||[]).length+(data.importante||[]).length+(data.pago||[]).length+(data.manutencao||[]).length+(data.historico||[]).length+(data.usuarios||[]).length;
   const hasSaldo=Object.values(data.saldosIniciais||{}).some(v=>v>0);
@@ -4599,6 +4608,7 @@ async function gravarNoServidor(){
     if(ultimoServidor!==null){
       let atual=null;
       try{ atual=await fetchBin(cfg.apiKey,cfg.binId); }catch(e){ atual=null; }
+      if(atual) versaoLida=String(atual.atualizadoEm||'');
       if(atual && JSON.stringify(atual)!==ultimoServidor){
         const base=JSON.parse(ultimoServidor);
         const deles=diferencas(base,atual);   // o que a outra pessoa fez
@@ -4653,14 +4663,26 @@ async function gravarNoServidor(){
     data.atualizadoEm=carimbo;
     data.atualizadoPor=sessionStorage.getItem('dalum-user')||lastBy||'';
 
-    await pushBin(cfg.apiKey,cfg.binId,data);
+    const deu=await pushBin(cfg.apiKey,cfg.binId,data,versaoLida);
+    if(deu==='conflito'){
+      // Outra pessoa gravou entre a minha conferencia e a gravacao: o Worker
+      // recusou (nada foi gravado por cima). Rele e junta de novo, sozinho.
+      if(tentativa<3){
+        setStatus('🔀 Outra pessoa salvou junto — juntando...');
+        await new Promise(function(ok){ setTimeout(ok,300+Math.random()*700); });
+        return gravarNoServidor(tentativa+1);
+      }
+      throw new Error('conflito');
+    }
 
     // O servidor chega a responder "ok" sem ter gravado nada — acontece, por
     // exemplo, quando o registro do modulo nao existe no banco. Por isso nao
     // da para confiar na resposta dele: relemos e conferimos o carimbo.
     let confere=null;
     try{ confere=await fetchBin(cfg.apiKey,cfg.binId); }catch(e){ confere=null; }
-    if(!confere || confere.atualizadoEm!==carimbo){
+    const horaDe=function(x){ return new Date(String(x||'').slice(0,24)).getTime(); };
+    const depoisDeMim=!!confere && confere.atualizadoEm!==carimbo && horaDe(confere.atualizadoEm)>horaDe(carimbo);
+    if(!confere || (confere.atualizadoEm!==carimbo && !depoisDeMim)){
       setStatus('🔴 NÃO gravou no servidor','#ffcccc');
       alert('ATENÇÃO — os dados NÃO foram salvos no servidor.\n\n'+
             'O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+
