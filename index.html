@@ -457,7 +457,11 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
             <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="Parafusos e fixação"> Parafusos e fixação</label>
             <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="Ferramentas"> Ferramentas</label>
             <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="Serviços"> Serviços</label>
-            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="Outros"> Outros</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="Pintura"> Pintura</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--gray-6)"><input type="checkbox" class="fc-cat" value="Outros" onchange="mostrarCategoriaOutro()"> Outros</label>
+          </div>
+          <div id="fc-cat-outro-caixa" style="display:none;margin-top:6px">
+            <input id="fc-cat-outro" type="text" maxlength="80" placeholder="Qual? Ex.: serralheria, transporte, pintura eletrostática">
           </div>
         </div>
         <div class="form-group span2"><label>Observação</label><input id="fc-obs" type="text" placeholder="Ex: entrega só às terças; prazo de 15 dias"></div>
@@ -1701,7 +1705,7 @@ function renderFornecedores() {
     if (filtro === 'ambos' && f.uso !== 'ambos') return false;
     if ((filtro === 'compras' || filtro === 'financeiro') && f.uso !== filtro && f.uso !== 'ambos') return false;
     if (!busca) return true;
-    const txt = normalizarNomeForn([f.nome, f.razao, f.cidade, f.contato, f.email, (f.categorias || []).join(' ')].join(' '));
+    const txt = normalizarNomeForn([f.nome, f.razao, f.cidade, f.contato, f.email, (f.categorias || []).join(' '), f.categoriaOutro].join(' '));
     return txt.indexOf(busca) >= 0 || (buscaDig.length >= 3 && soDigitos(f.documento).indexOf(buscaDig) >= 0);
   }).sort(function (a, b) { return String(a.nome).localeCompare(String(b.nome), 'pt-BR'); });
   const incompletos = todos.filter(function (f) { return faltandoNoForn(f).length; }).length;
@@ -1727,7 +1731,8 @@ function renderFornecedores() {
           [f.razao, formatarDocumento(f.documento), f.cidade].filter(Boolean).map(escTexto).join(' · ') + '</div>' +
         '<div style="font-size:12px;color:var(--gray-5);margin-top:2px">' +
           [f.contato ? '👤 ' + escTexto(f.contato) : '', f.telefone ? botaoWhatsCad(f.telefone) : '', f.pix ? '💸 PIX cadastrado' : ''].filter(Boolean).join(' · ') + '</div>' +
-        ((f.categorias || []).length ? '<div style="font-size:11.5px;color:var(--teal-dark);margin-top:3px">' + escTexto(f.categorias.join(', ')) + '</div>' : '') +
+        ((f.categorias || []).length ? '<div style="font-size:11.5px;color:var(--teal-dark);margin-top:3px">' +
+          escTexto(f.categorias.map(function (c) { return c === 'Outros' && f.categoriaOutro ? 'Outros: ' + f.categoriaOutro : c; }).join(', ')) + '</div>' : '') +
       '</div>' +
       (falta.length ? '<div style="font-size:11.5px;color:#7d5a10;background:#fdf6e3;border:1px solid #e8d9a8;border-radius:8px;padding:4px 9px;max-width:260px">⚠️ Cadastro incompleto — falta ' + escTexto(falta.join(', ')) + '</div>' : '') +
     '</div>';
@@ -1736,10 +1741,19 @@ function renderFornecedores() {
 
 const CAD_CAMPOS = { nome: 'fc-nome', telefone: 'fc-telefone', contato: 'fc-contato', cidade: 'fc-cidade',
   documento: 'fc-documento', razao: 'fc-razao', endereco: 'fc-endereco', email: 'fc-email',
-  pix: 'fc-pix', pixNome: 'fc-pix-nome', banco: 'fc-banco', conta: 'fc-conta', obs: 'fc-obs', uso: 'fc-uso' };
+  pix: 'fc-pix', pixNome: 'fc-pix-nome', banco: 'fc-banco', conta: 'fc-conta', obs: 'fc-obs', uso: 'fc-uso',
+  categoriaOutro: 'fc-cat-outro' };
+// "Outros" com o que for: o campo "Qual?" so aparece com "Outros" marcado (ou ja preenchido).
+function mostrarCategoriaOutro() {
+  const outros = document.querySelector('.fc-cat[value="Outros"]');
+  const campo = document.getElementById('fc-cat-outro');
+  const ver = (outros && outros.checked) || !!campo.value.trim();
+  document.getElementById('fc-cat-outro-caixa').style.display = ver ? 'block' : 'none';
+  if (ver && outros && outros.checked && !campo.value.trim() && document.activeElement === outros) setTimeout(function () { campo.focus(); }, 30);
+}
 const CAD_ROTULO_CAMPO = { nome: 'nome', telefone: 'telefone', contato: 'contato', cidade: 'cidade', documento: 'CNPJ/CPF',
   razao: 'razão social', endereco: 'endereço', email: 'e-mail', pix: 'PIX', pixNome: 'favorecido', banco: 'banco',
-  conta: 'agência/conta', obs: 'observação', uso: 'quem usa', categorias: 'o que vende' };
+  conta: 'agência/conta', obs: 'observação', uso: 'quem usa', categorias: 'o que vende', categoriaOutro: 'outra categoria' };
 const CAD_CAMPOS_PAGAMENTO = ['pix', 'pixNome', 'banco', 'conta'];
 
 function openFornecedor(id) {
@@ -1751,6 +1765,7 @@ function openFornecedor(id) {
   if (f) document.getElementById('fc-documento').value = formatarDocumento(f.documento);
   document.querySelectorAll('.fc-cat').forEach(function (c) { c.checked = !!(f && (f.categorias || []).indexOf(c.value) >= 0); });
   usoParaCaixas();
+  mostrarCategoriaOutro();
   document.getElementById('forn-titulo').textContent = f ? f.nome : 'Novo fornecedor';
   const falta = f ? faltandoNoForn(f) : [];
   const aviso = document.getElementById('forn-aviso');
