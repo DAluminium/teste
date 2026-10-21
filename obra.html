@@ -5036,10 +5036,14 @@ function anexoJaNoCompras(url){
   return !!(alvo && (alvo.reg.attachments||[]).some(function(a){ return a.url===url; }));
 }
 
-// Os dois botoes da linha do anexo. So quem altera contrato os ve — a mesma
-// regra de quem pode anexar.
+// Os dois botoes da linha do anexo: mesma regra do resto da ficha — todos
+// menos a Consulta, que so olha (pedido do Ander, 21/10/2026; antes era so
+// admin e gerente).
+// O contrato nao vaza por aqui: o anexo com rotulo "contrato" nem chega ao
+// navegador de quem nao pode ve-lo — o Worker corta na origem. Entao cada um
+// so manda o que ja recebe.
 function botoesDoAnexo(d){
-  if(!podeGerenciar()) return '';
+  if(!podeLancar()) return '';
   const botao='border:1px solid var(--gray-3);background:#fff;color:var(--gray-6);'+
     'border-radius:6px;font-size:11px;padding:2px 8px;cursor:pointer;'+
     'white-space:nowrap;font-family:inherit';
@@ -5060,8 +5064,8 @@ function botoesDoAnexo(d){
 }
 
 async function mandarAnexo(url, destino){
-  if(!podeGerenciar()){
-    aviso('Sem permissão','Só administrador ou gerente manda arquivo para outro módulo.');
+  if(!podeLancar()){
+    aviso('Modo consulta','Você está no modo consulta: pode olhar, mas não mandar arquivo para outro módulo.');
     return;
   }
   const c=contratoDaFicha();
@@ -5094,8 +5098,8 @@ async function mandarAnexo(url, destino){
 // mandou errado, clica de novo e desfaz.
 // O arquivo NAO e apagado — continua neste contrato, e volta num clique.
 async function tirarAnexo(url, destino){
-  if(!podeGerenciar()){
-    aviso('Sem permissão','Só administrador ou gerente mexe nos anexos dos outros módulos.');
+  if(!podeLancar()){
+    aviso('Modo consulta','Você está no modo consulta: pode olhar, mas não mexer nos anexos dos outros módulos.');
     return;
   }
   const c=contratoDaFicha();
