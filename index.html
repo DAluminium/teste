@@ -2140,8 +2140,13 @@ async function importarFornecedores() {
 // oferecidos no cadastro. Consulta SO OLHA — quem trava e o Worker.
 // orcamentista (13/10/2026): quem faz os orcamentos no CRM — ve todo o funil de
 // Orcamentos e nao ve o de Vendas (quem corta e o Worker).
-const NIVEL={admin:3, gerente:2, funcionario:1, compras:1, financeiro:1, consulta:1, vendedor:1, orcamentista:1};
-const ROTULO_PAPEL={gerente:'Gerente',funcionario:'Funcionário',compras:'Compras',financeiro:'Financeiro',vendedor:'Vendedor',orcamentista:'Orçamentista',consulta:'Consulta (só olha)'};
+// tecnico (21/10/2026): quem faz a revisao final do projeto antes da
+// producao. Ve o CONTRATO como o gerente (anexo e dados) — quem libera e o
+// Worker, pela funcao veContrato. NAO cadastra contrato novo, e NAO mexe em
+// usuarios: o "nivel" aqui e so quem administra quem, e nisso ele fica junto
+// com os demais. O que o poe acima do Funcionario e o acesso ao contrato.
+const NIVEL={admin:3, gerente:2, tecnico:1, funcionario:1, compras:1, financeiro:1, consulta:1, vendedor:1, orcamentista:1};
+const ROTULO_PAPEL={gerente:'Gerente',tecnico:'Técnico',funcionario:'Funcionário',compras:'Compras',financeiro:'Financeiro',vendedor:'Vendedor',orcamentista:'Orçamentista',consulta:'Consulta (só olha)'};
 function nivelDe(role){ return NIVEL[String(role||'').toLowerCase()] || 1; }
 function meuNivel(){ return nivelDe(sessionStorage.getItem('portal-role')||''); }
 function meuUsuario(){ return String(sessionStorage.getItem('portal-admin-key')||'').toLowerCase(); }
@@ -2203,7 +2208,9 @@ function podeMexerEm(u){
 // Os papéis que EU posso conceder: só os de nível menor que o meu.
 function papeisQuePossoDar(){
   const meu=meuNivel();
-  return ['gerente','funcionario','vendedor','orcamentista','consulta'].filter(function(r){ return nivelDe(r)<meu; });
+  // A ordem aqui e a ordem do menu: o Tecnico vem logo depois do Gerente,
+  // porque e o que ve o contrato.
+  return ['gerente','tecnico','funcionario','vendedor','orcamentista','consulta'].filter(function(r){ return nivelDe(r)<meu; });
 }
 // Os modulos que EU posso dar (10/10/2026): o admin, todos; o gerente, so os
 // que ele mesmo tem. O Worker confere de novo ao gravar — aqui e so para a tela
