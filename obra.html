@@ -863,10 +863,6 @@ function podeGerenciar(){ return papel==='admin' || papel==='gerente'; }
 // Ander, 14/10/2026). O contrato com CPF, excluir e os cadastros continuam do
 // gerente — e o Worker nao entrega nem aceita o contrato de quem nao e gerente.
 function podeLancar(){ return !!papel && papel!=='consulta'; }
-// Cadastrar contrato NOVO e outra coisa: o Tecnico revisa o que ja existe e
-// nao abre obra (decisao do Ander, 21/10/2026). Salvar a ficha ele continua
-// podendo — e por ali que ele marca a Revisao do projeto.
-function podeCriar(){ return podeLancar() && papel!=='tecnico'; }
 // O registro de historico e SO do admin. Gerente cadastra e altera, mas nao
 // ve quem fez o que — decisao do Ander em 11/09/2026.
 function soAdmin(){ return papel==='admin'; }
@@ -2592,13 +2588,6 @@ function aplicarClienteCrm(){
 
 function novoContrato(){
   if(!podeLancar()){ aviso('Modo consulta','Você está no modo consulta: pode olhar, mas não cadastrar.'); return; }
-  // Esconder o botao nao basta: sem isto, quem chamasse a funcao pelo console
-  // abriria a ficha de contrato novo assim mesmo.
-  if(!podeCriar()){
-    aviso('Contrato novo é de quem cadastra',
-      'A função Técnico revisa os contratos que já existem — inclusive marcando a Revisão do projeto — mas não abre obra nova.');
-    return;
-  }
   fichaId=null;
   _manual={};
   fichaDocs=[]; docsApagados={};
@@ -6785,10 +6774,9 @@ function aplicarPermissoes(){
   document.querySelectorAll('[data-so-gestor]').forEach(function(el){
     el.style.display=gestor?'':'none';
   });
-  // Novo contrato: todos menos a Consulta (pedido do Ander, 14/10/2026) e
-  // menos o Tecnico, que revisa e nao abre obra (21/10/2026).
+  // Novo contrato: todos menos a Consulta (pedido do Ander, 14/10/2026).
   document.querySelectorAll('[data-nao-consulta]').forEach(function(el){
-    el.style.display=podeCriar()?'':'none';
+    el.style.display=podeLancar()?'':'none';
   });
   const h=document.getElementById('vb-hist');
   if(h) h.style.display=soAdmin()?'':'none';
