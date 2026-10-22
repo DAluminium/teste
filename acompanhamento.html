@@ -81,6 +81,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .midia-botoes label.btn{cursor:pointer}
 .audio-linha{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
 .audio-info{font-size:12px;color:var(--gray-5)}
+.croquis-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:10px}
+.croqui-cel{border:1px solid var(--gray-3);border-radius:8px;background:#fff;padding:4px;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:stretch;gap:3px}
+.croqui-cel:hover{border-color:var(--cor);background:var(--cor-light)}
+.croqui-cel img{width:100%;aspect-ratio:4/3;object-fit:contain;background:var(--gray-1)}
+.croqui-falta{aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;background:var(--gray-1);color:var(--gray-4);font-size:10.5px;font-style:italic}
+.croqui-cel span{font-size:10.5px;color:var(--gray-5);word-break:break-all;line-height:1.25}
+.croqui-nome{font-size:11px;color:var(--gray-5);margin-top:4px;word-break:break-all}
 .pdf-botoes{display:flex;gap:8px;flex-wrap:wrap}
 #visita-pe .pdf-botoes{width:100%;margin-bottom:4px}
 .foto-rel{display:block;width:100%;border:0;border-top:1px solid var(--gray-2);background:#fff;color:var(--gray-5);font-size:11px;padding:5px;cursor:pointer;font-family:inherit;text-align:center}
@@ -202,6 +209,14 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <div class="modal-head"><div class="modal-title" id="visita-titulo">Registrar visita</div></div>
     <div class="modal-body" id="visita-corpo"></div>
     <div class="modal-foot" id="visita-pe"></div>
+  </div>
+</div>
+
+<div class="overlay" id="croqui-ov" style="z-index:310">
+  <div class="modal" style="width:min(820px,100%)">
+    <div class="modal-head" style="display:flex;align-items:center;gap:8px"><div class="modal-title" style="flex:1">Croquis</div>
+      <button class="btn btn-outline btn-sm" onclick="fecharEscolhaCroqui()">Fechar</button></div>
+    <div class="modal-body" id="croqui-corpo"></div>
   </div>
 </div>
 
@@ -1510,9 +1525,10 @@ async function gerarFichaPdf(emBranco){
     pdf.text('Medida de projeto: '+(p.dimL&&p.dimH?p.dimL+' × '+p.dimH:txt(p.dimTxt))+' mm'+(p.qtde?'  ·  Qtde '+p.qtde:''),196,yb+6,{align:'right'});
     // coluna da esquerda: desenho e projeto
     let ye=yb+12;
-    if(e.desenho&&doc){
+    // Croqui escolhido manda sobre o desenho do PDF.
+    if(e.croqui || (e.desenho&&doc)){
       try{
-        const src=await desenhoDe(doc,e.desenho);
+        const src=e.croqui?await imagemDoCroqui(e.croqui.id):await desenhoDe(doc,e.desenho);
         const t=await tamanhoDaImagem(src);
         // Em JPEG com fundo branco: o PNG entrava no PDF com uns 400 KB cada
         // desenho e a ficha passava de 1 MB com 3 esquadrias (pesado para o
@@ -1757,6 +1773,228 @@ async function enviarRelatorioWhats(visitaId){
     function(){ abrirWhats(url); });
 }
 
+// ================= CROQUIS (22/10/2026) =================
+// A biblioteca de croquis do SmartCEM (~8 mil desenhos de tipologia) fica no
+// Cloudinary, pasta privada daluminium_croquis, cada um com o proprio codigo
+// como nome. A LISTA dos codigos fica em croquis-lista.json, ao lado deste
+// arquivo (nao e dado de ninguem). Uso: quando o PDF vem sem desenho ou com o
+// desenho errado, a pessoa escolhe o croqui; o desenho do PDF continua sendo
+// o padrao. A esquadria guarda so {id, nome} em e.croqui.
+const PASTA_CROQUIS='daluminium_croquis';
+let _listaCroquis=null;
+function carregarListaCroquis(){
+  if(_listaCroquis) return _listaCroquis;
+  _listaCroquis=fetch('croquis-lista.json',{cache:'no-store'}).then(function(r){
+    if(!r.ok) throw new Error('lista de croquis não encontrada ('+r.status+')');
+    return r.json();
+  }).then(function(j){
+    return (j.itens||[]).map(function(i){ return {nome:i[0], id:i[1], fam:familiaDoCroqui(i[0])}; });
+  });
+  _listaCroquis.catch(function(){ _listaCroquis=null; });
+  return _listaCroquis;
+}
+// Familia = as letras do comeco do codigo (ALC, HYD, EX, PPV...).
+function familiaDoCroqui(nome){ const m=String(nome).toUpperCase().match(/^[A-Z]+/); return m?m[0]:'OUTROS'; }
+// Enderecos das miniaturas, pedidos ao Worker em lotes de ate 60.
+const _croquiLink={};
+async function linksDeCroquis(ids){
+  const faltam=ids.filter(function(id){ return !_croquiLink[id]; });
+  for(let i=0;i<faltam.length;i+=60){
+    const lote=faltam.slice(i,i+60);
+    const r=await fetch(WORKER,{method:'POST',cache:'no-store',
+      headers:cabecalhos({'Content-Type':'application/json','X-Action':'croquis-links'}),
+      body:JSON.stringify({ids:lote})});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(r.status===401){ sessaoExpirada(); throw new Error('sessão expirada'); }
+    if(!r.ok||!j||!j.links) throw new Error((j&&j.erro)||('erro '+r.status));
+    Object.keys(j.links).forEach(function(k){ _croquiLink[k]=j.links[k]; });
+  }
+  return ids.map(function(id){ return _croquiLink[id]; });
+}
+// O croqui como imagem local (para a tela e para o PDF).
+const _croquiImg={};
+function imagemDoCroqui(id){
+  if(_croquiImg[id]) return _croquiImg[id];
+  _croquiImg[id]=(async function(){
+    const u=(await linksDeCroquis([id]))[0];
+    const r=await fetch(u);
+    if(!r.ok) throw new Error(r.status===404?'este croqui ainda não foi carregado na nuvem':'croqui '+r.status);
+    const b=await r.blob();
+    return await new Promise(function(ok){ const fr=new FileReader(); fr.onload=function(){ ok(fr.result); }; fr.readAsDataURL(b); });
+  })();
+  _croquiImg[id].catch(function(){ delete _croquiImg[id]; });
+  return _croquiImg[id];
+}
+
+// ---- Janela "Escolher croqui" ----
+let _escolhaCroqui={esqId:null, fam:'', busca:'', pagina:0};
+const CROQUIS_POR_PAGINA=48;
+async function abrirEscolhaCroqui(esqId){
+  if(recusarSeConsulta()) return;
+  _escolhaCroqui={esqId:esqId, fam:_escolhaCroqui.fam||'', busca:'', pagina:0};
+  document.getElementById('croqui-ov').classList.add('open');
+  document.getElementById('croqui-corpo').innerHTML='<div class="vazio">Carregando a lista...</div>';
+  try{ await carregarListaCroquis(); }
+  catch(e){ document.getElementById('croqui-corpo').innerHTML='<div class="vazio">Não consegui abrir a lista de croquis: '+esc(e.message)+'</div>'; return; }
+  desenharEscolhaCroqui();
+}
+function fecharEscolhaCroqui(){ document.getElementById('croqui-ov').classList.remove('open'); }
+async function desenharEscolhaCroqui(){
+  const lista=await carregarListaCroquis();
+  const contagem={}; lista.forEach(function(c){ contagem[c.fam]=(contagem[c.fam]||0)+1; });
+  const fams=Object.keys(contagem).sort(function(a,b){ return contagem[b]-contagem[a] || a.localeCompare(b); });
+  const q=semAcento(_escolhaCroqui.busca).toUpperCase().replace(/[^A-Z0-9]+/g,'');
+  const filtrados=lista.filter(function(c){
+    if(_escolhaCroqui.fam && c.fam!==_escolhaCroqui.fam) return false;
+    if(q && semAcento(c.nome).toUpperCase().replace(/[^A-Z0-9]+/g,'').indexOf(q)<0) return false;
+    return true;
+  });
+  const paginas=Math.max(1,Math.ceil(filtrados.length/CROQUIS_POR_PAGINA));
+  if(_escolhaCroqui.pagina>=paginas) _escolhaCroqui.pagina=paginas-1;
+  const pag=filtrados.slice(_escolhaCroqui.pagina*CROQUIS_POR_PAGINA,(_escolhaCroqui.pagina+1)*CROQUIS_POR_PAGINA);
+  const e=esquadriaNaTela(_escolhaCroqui.esqId);
+  let h='<div class="depois" style="margin-bottom:8px">'+(e?'Para a <b>'+esc(e.tipo||e.tipoPdf)+'</b>'+(e.projeto&&e.projeto.descricao?' — '+esc(e.projeto.descricao):''):'')+'</div>'+
+    '<div class="grade2" style="grid-template-columns:1fr 1.4fr">'+
+    '<div class="fg"><label>Família</label><select onchange="_escolhaCroqui.fam=this.value;_escolhaCroqui.pagina=0;desenharEscolhaCroqui()">'+
+      '<option value="">Todas ('+lista.length+')</option>'+fams.map(function(f){ return '<option value="'+esc(f)+'"'+(f===_escolhaCroqui.fam?' selected':'')+'>'+esc(f)+' ('+contagem[f]+')</option>'; }).join('')+'</select></div>'+
+    '<div class="fg"><label>Buscar pelo código</label><input id="croqui-busca" placeholder="Ex.: JC200, MAX100, ABT" value="'+esc(_escolhaCroqui.busca)+'" '+
+      'oninput="_escolhaCroqui.busca=this.value;_escolhaCroqui.pagina=0;clearTimeout(window._tBuscaCroqui);window._tBuscaCroqui=setTimeout(desenharEscolhaCroqui,350)"></div></div>';
+  h+='<div class="depois" style="margin:6px 0">'+filtrados.length+' croqui(s)'+(paginas>1?' · página '+(_escolhaCroqui.pagina+1)+' de '+paginas:'')+'</div>';
+  h+='<div class="croquis-grade">'+pag.map(function(c){
+    return '<button class="croqui-cel" onclick="escolherCroqui(\''+esc(c.id)+'\')" title="'+esc(c.nome)+'"><img data-croqui="'+esc(c.id)+'" alt="" '+
+      'onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'croqui-falta\',textContent:\'ainda não carregado\'}))"><span>'+esc(c.nome)+'</span></button>';
+  }).join('')+'</div>';
+  if(paginas>1) h+='<div class="midia-botoes" style="justify-content:center">'+
+    '<button class="btn btn-outline btn-sm"'+(_escolhaCroqui.pagina?'':' disabled')+' onclick="_escolhaCroqui.pagina--;desenharEscolhaCroqui()">← anteriores</button>'+
+    '<button class="btn btn-outline btn-sm"'+(_escolhaCroqui.pagina<paginas-1?'':' disabled')+' onclick="_escolhaCroqui.pagina++;desenharEscolhaCroqui()">próximos →</button></div>';
+  const corpo=document.getElementById('croqui-corpo');
+  const foco=document.activeElement&&document.activeElement.id==='croqui-busca';
+  corpo.innerHTML=h;
+  if(foco){ const b=document.getElementById('croqui-busca'); b.focus(); b.setSelectionRange(b.value.length,b.value.length); }
+  try{
+    const links=await linksDeCroquis(pag.map(function(c){ return c.id; }));
+    pag.forEach(function(c,i){ const im=corpo.querySelector('img[data-croqui="'+c.id+'"]'); if(im) im.src=links[i]; });
+  }catch(err){ corpo.insertAdjacentHTML('afterbegin','<div class="aviso-linha aviso-verm">Não consegui mostrar as miniaturas: '+esc(err.message)+'</div>'); }
+}
+async function escolherCroqui(id){
+  const lista=await carregarListaCroquis();
+  const c=lista.find(function(x){ return x.id===id; }); if(!c) return;
+  const esqId=_escolhaCroqui.esqId;
+  fecharEscolhaCroqui();
+  await trocarCroqui(esqId,{id:c.id,nome:c.nome});
+}
+// Grava direto (nao passa pelo rascunho das medidas), como as fotos.
+async function trocarCroqui(esqId,croqui){
+  const o=obraPorId(obraAberta)||{};
+  const deu=await alterar(function(base){
+    const a=base.acompanhamentos.find(function(x){ return x.ctoId===obraAberta; });
+    const e=a&&a.esquadrias.find(function(x){ return x.id===esqId; });
+    if(!e) return false;
+    const antes=e.croqui?e.croqui.nome:'(desenho do PDF)';
+    if(croqui) e.croqui=croqui; else { if(!e.croqui) return false; delete e.croqui; }
+    if(!Array.isArray(e.historico)) e.historico=[];
+    e.historico.push({quando:agoraISO(),quem:usuario,campo:'croqui',de:antes,para:croqui?croqui.nome:'(desenho do PDF)'});
+  },{acao:croqui?'escolheu croqui':'voltou ao desenho do PDF', alvo:(o.ct?o.ct+' · ':'')+(o.cliente||''), detalhe:croqui?croqui.nome:''});
+  if(deu){
+    redesenharFicha(esqId);
+    // redesenharFicha reaproveita a imagem antiga; aqui o desenho mudou.
+    const a=acompDaObra(obraAberta), e=a&&a.esquadrias.find(function(x){ return x.id===esqId; });
+    if(a&&e){ const d=document.getElementById('desenho-'+esqId); if(d) d.textContent='carregando...'; mostrarDesenho(a,e); }
+  }
+}
+function voltarDesenhoDoPdf(esqId){
+  if(!confirm('Voltar a usar o desenho que veio no PDF?')) return;
+  trocarCroqui(esqId,null);
+}
+
+// ---- Carregar a biblioteca na nuvem (so admin, uma vez) ----
+// A pessoa descompacta o Croquis.zip e escolhe a PASTA. O sistema sobe cada
+// imagem com o codigo como nome. O Worker assina com overwrite=false: subir
+// de novo o que ja esta la nao estraga nada, e o navegador lembra o que ja
+// foi (localStorage), para recomecar de onde parou.
+const LS_CROQUIS_SUBIDOS='dalum-croquis-subidos';
+let _carga=null;
+function croquisJaSubidos(){ try{ return new Set(JSON.parse(localStorage.getItem(LS_CROQUIS_SUBIDOS)||'[]')); }catch(e){ return new Set(); } }
+function guardarSubidos(s){ try{ localStorage.setItem(LS_CROQUIS_SUBIDOS,JSON.stringify(Array.from(s))); }catch(e){} }
+async function abrirCargaCroquis(){
+  if(!soAdmin()){ aviso('Só o administrador','Só o administrador carrega a biblioteca de croquis.'); return; }
+  document.getElementById('croqui-ov').classList.add('open');
+  const corpo=document.getElementById('croqui-corpo');
+  corpo.innerHTML='<div class="vazio">Carregando a lista...</div>';
+  let lista; try{ lista=await carregarListaCroquis(); }catch(e){ corpo.innerHTML='<div class="vazio">'+esc(e.message)+'</div>'; return; }
+  const subidos=croquisJaSubidos();
+  const ja=lista.filter(function(c){ return subidos.has(c.id); }).length;
+  corpo.innerHTML='<div style="font-size:13.5px;line-height:1.6">'+
+    '<b>Biblioteca de croquis na nuvem</b><br>'+
+    'A lista tem <b>'+lista.length+'</b> croquis. Por este computador já subiram <b>'+ja+'</b>.<br><br>'+
+    '1. Descompacte o <b>Croquis.zip</b> (botão direito → Extrair tudo).<br>'+
+    '2. Clique em <b>Escolher a pasta</b> e selecione a pasta <b>Croquis</b>.<br>'+
+    '3. Deixe esta tela aberta até terminar (uns 15 a 20 minutos). Se parar, é só fazer de novo: continua de onde parou.</div>'+
+    '<div class="midia-botoes" style="margin-top:12px"><label class="btn btn-cor">📁 Escolher a pasta<input type="file" webkitdirectory multiple hidden onchange="iniciarCargaCroquis(this)"></label></div>'+
+    '<div id="carga-status" style="margin-top:12px"></div>';
+}
+async function iniciarCargaCroquis(input){
+  const arquivos=Array.prototype.slice.call(input.files||[]); input.value='';
+  const lista=await carregarListaCroquis();
+  const porNome={}; lista.forEach(function(c){ porNome[c.nome.toUpperCase()]=c; });
+  const subidos=croquisJaSubidos();
+  const fila=[]; let foraDaLista=0, achados=0;
+  arquivos.forEach(function(f){
+    if(!/\.png$/i.test(f.name)) return;
+    const c=porNome[f.name.replace(/\.png$/i,'').toUpperCase()];
+    if(!c){ foraDaLista++; return; }
+    achados++;
+    if(!subidos.has(c.id)) fila.push({f:f,c:c});
+  });
+  if(!achados){
+    const st0=document.getElementById('carga-status');
+    if(st0) st0.innerHTML='<div class="aviso-linha aviso-ambar">Não achei croquis nesta pasta ('+arquivos.length+' arquivo(s)). Escolha a pasta <b>Croquis</b> que saiu do zip.</div>';
+    return;
+  }
+  _carga={total:fila.length, feitos:0, erros:[], parar:false};
+  const st=document.getElementById('carga-status');
+  const mostrar=function(){
+    if(!st) return;
+    const pct=_carga.total?Math.round(_carga.feitos*100/_carga.total):100;
+    st.innerHTML='<div style="background:var(--gray-2);border-radius:6px;height:12px;overflow:hidden"><div style="background:var(--cor);height:12px;width:'+pct+'%"></div></div>'+
+      '<div style="font-size:13px;margin-top:6px">'+_carga.feitos+' de '+_carga.total+' enviados ('+pct+'%)'+(_carga.erros.length?' · <span style="color:var(--red)">'+_carga.erros.length+' com erro</span>':'')+
+      (foraDaLista?' · '+foraDaLista+' arquivo(s) fora da lista (ignorados)':'')+'</div>'+
+      (_carga.parar||_carga.feitos+_carga.erros.length>=_carga.total?'':'<button class="btn btn-outline btn-sm" style="margin-top:6px" onclick="_carga.parar=true">Pausar</button>');
+  };
+  mostrar();
+  if(!fila.length){ st.insertAdjacentHTML('beforeend','<div class="aviso-linha aviso-azul" style="margin-top:8px">Nada a enviar: todos os croquis desta pasta já estão na nuvem.</div>'); return; }
+  let i=0;
+  const trabalhador=async function(){
+    while(i<fila.length && !_carga.parar){
+      const it=fila[i++];
+      try{
+        const r=await fetch(WORKER,{method:'POST',cache:'no-store',
+          headers:cabecalhos({'Content-Type':'application/json','X-Action':'assinar-envio'}),
+          body:JSON.stringify({pasta:PASTA_CROQUIS, publicId:it.c.id})});
+        let a=null; try{ a=await r.json(); }catch(e){}
+        if(r.status===401){ sessaoExpirada(); _carga.parar=true; return; }
+        if(!r.ok||!a||!a.signature) throw new Error((a&&a.erro)||('assinatura '+r.status));
+        const fd=new FormData();
+        fd.append('file',it.f); fd.append('api_key',a.api_key); fd.append('timestamp',a.timestamp);
+        fd.append('signature',a.signature); fd.append('public_id',a.public_id); fd.append('overwrite',a.overwrite); fd.append('type',a.type);
+        const up=await fetch('https://api.cloudinary.com/v1_1/'+a.conta+'/image/upload',{method:'POST',body:fd});
+        if(!up.ok){ let t=''; try{ t=await up.text(); }catch(e){} throw new Error('nuvem '+up.status+' '+t.slice(0,80)); }
+        subidos.add(it.c.id);
+        _carga.feitos++;
+        if(_carga.feitos%25===0) guardarSubidos(subidos);
+      }catch(err){ _carga.erros.push(it.c.nome+': '+err.message); }
+      mostrar();
+    }
+  };
+  await Promise.all([trabalhador(),trabalhador(),trabalhador(),trabalhador()]);
+  guardarSubidos(subidos);
+  mostrar();
+  st.insertAdjacentHTML('beforeend',_carga.parar
+    ?'<div class="aviso-linha aviso-ambar" style="margin-top:8px">Pausado. Para continuar, escolha a pasta de novo.</div>'
+    :'<div class="aviso-linha aviso-azul" style="margin-top:8px">Terminado. '+_carga.feitos+' croqui(s) enviado(s)'+(_carga.erros.length?'; '+_carga.erros.length+' com erro — escolha a pasta de novo para tentar só esses.':'.')+'</div>');
+  if(_carga.erros.length) console.warn('Croquis com erro:',_carga.erros);
+}
+
 // ================= MONTAR AS FICHAS A PARTIR DO PDF =================
 function docsDeMedicao(o){ return (o&&Array.isArray(o.docs))?o.docs.filter(function(d){ return d&&d.url; }):[]; }
 function acompDaObra(id){ return (dados.acompanhamentos||[]).find(function(a){ return a.ctoId===id; })||null; }
@@ -1883,7 +2121,9 @@ function renderLista(tela){
   // cursor do lugar.
   if(!document.getElementById('busca')){
     tela.innerHTML='<input class="busca" id="busca" placeholder="Buscar obra, contrato, cliente, coordenador..." value="'+esc(_busca)+'" '+
-      'oninput="_busca=this.value;renderLista(document.getElementById(\'tela\'));"><div id="lista-obras"></div>';
+      'oninput="_busca=this.value;renderLista(document.getElementById(\'tela\'));">'+
+      (soAdmin()?'<div style="text-align:right;margin:-4px 0 10px"><button class="btn btn-outline btn-sm" onclick="abrirCargaCroquis()">🖼 Biblioteca de croquis</button></div>':'')+
+      '<div id="lista-obras"></div>';
   }
   let h='';
   if(!obras.length) h+='<div class="vazio">Nenhuma obra veio do Gerenciamento de Obra ainda.</div>';
@@ -1987,7 +2227,7 @@ function desenhoSuspeito(d){ return !!d && (d.w>250 || d.x+d.w>300); }
 function tipoMalLido(e){ return /^\S+\s+\d+\s+\d+\s+\d+/.test(String(e.tipoPdf||'')); }
 function semNadaDigitado(e){
   const campos=['lCima','lMeio','lBaixo','hEsq','hCentro','hDir','d1','d2','condicao','faltas','faltaOutro','obs','folgaL','folgaH'];
-  return campos.every(function(c){ return !e[c]; }) && !(e.fotos||[]).length && !(e.audios||[]).length &&
+  return campos.every(function(c){ return !e[c]; }) && !(e.fotos||[]).length && !(e.audios||[]).length && !e.croqui &&
     (!e.etapa||e.etapa==='medir') && String(e.tipo||'')===String(e.tipoPdf||'') && String(e.local||'')===String((e.projeto||{}).local||'');
 }
 function consertarDesenhosVelhos(o,a){
@@ -2036,7 +2276,12 @@ function htmlFicha(a,e){
       esc((ETAPAS.find(function(x){ return x.id===etapa; })||{}).nome||etapa)+'</span></div>';
   if(e.foraDaRevisao) h+='<div class="aviso-linha aviso-verm" style="border-radius:0">⚠️ Esta esquadria não está no PDF mais novo. Ela não foi apagada: confira com o comercial.</div>';
   h+='<div class="ficha-corpo"><div>'+
-    '<div class="desenho" id="desenho-'+e.id+'">'+(e.desenho?'carregando desenho...':'sem desenho no PDF')+'</div>'+
+    '<div class="desenho" id="desenho-'+e.id+'">'+(e.croqui?'carregando croqui...':e.desenho?'carregando desenho...':'sem desenho no PDF')+'</div>'+
+    (e.croqui?'<div class="croqui-nome">Croqui: '+esc(e.croqui.nome)+'</div>':'')+
+    (ehConsulta()?'':'<div class="midia-botoes" style="margin-top:6px">'+
+      '<button class="btn btn-outline btn-sm" onclick="abrirEscolhaCroqui(\''+e.id+'\')">🖼 '+(e.croqui?'Trocar croqui':(e.desenho?'Usar outro croqui':'Escolher croqui'))+'</button>'+
+      (e.croqui&&e.desenho?'<button class="btn btn-outline btn-sm" onclick="voltarDesenhoDoPdf(\''+e.id+'\')">↩ Desenho do PDF</button>':
+        (e.croqui?'<button class="btn btn-outline btn-sm" onclick="voltarDesenhoDoPdf(\''+e.id+'\')">✕ Tirar croqui</button>':''))+'</div>')+
     '<div class="proj"><b>Projeto:</b> '+esc(p.dimTxt||((p.dimL||'?')+' x '+(p.dimH||'?')))+(p.qtde?' · Qtde '+esc(p.qtde):'')+'<br>'+
       (p.cor?'<b>Cor:</b> '+esc(p.cor)+'<br>':'')+(p.vidro?'<b>Vidro:</b> '+esc(p.vidro)+'<br>':'')+
       (p.descricao?'<b>Descrição:</b> '+esc(p.descricao):'')+'</div>'+
@@ -2085,8 +2330,19 @@ function htmlProducao(c){
   return 'Medida de produção: <b>'+c.pL+' x '+c.pH+' mm</b>';
 }
 async function mostrarDesenho(a,e){
-  if(!e.desenho) return;
   const el=document.getElementById('desenho-'+e.id);
+  if(e.croqui){
+    try{
+      const src=await imagemDoCroqui(e.croqui.id);
+      const alvo=document.getElementById('desenho-'+e.id);
+      if(alvo) alvo.innerHTML='<img alt="Croqui '+esc(e.croqui.nome)+'" src="'+src+'">';
+    }catch(err){
+      const alvo=document.getElementById('desenho-'+e.id);
+      if(alvo) alvo.textContent='não consegui mostrar o croqui ('+(err&&err.message||err)+')';
+    }
+    return;
+  }
+  if(!e.desenho) return;
   if(desenhoSuspeito(e.desenho)){ if(el) el.textContent='corrigindo o desenho...'; return; }
   const o=obraPorId(a.ctoId);
   const doc=(docsDeMedicao(o)).find(function(d){ return d.id===e.desenho.doc; }) ||
