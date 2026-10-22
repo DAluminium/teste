@@ -935,11 +935,6 @@ function pedirCodigoNoCartao(errado){
       cx.innerHTML='<label class="login-label" for="login-codigo" style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#5A6370;margin-bottom:4px">C\u00f3digo do autenticador</label>'+
         '<input class="login-input" id="login-codigo" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="000000" style="letter-spacing:.3em;font-weight:700;text-align:center">'+
         '<div id="login-codigo-dica" style="font-size:12px;line-height:1.45;margin-top:4px"></div>'+
-        // Botao para confirmar (21/10/2026): no celular do Ander o teclado nao
-        // avisava a pagina dos 6 numeros digitados, e a entrada ficava em
-        // "Verificando..." para sempre, sem nada para apertar.
-        '<button type="button" id="login-codigo-ok" style="width:100%;margin:8px 0 6px;padding:11px;border:0;border-radius:8px;'+
-          'background:#0E8FA6;color:#fff;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer">Confirmar código</button>'+
         '<a href="#" id="login-codigo-cancelar" style="font-size:12px;color:#5A6370">Cancelar</a>';
       depoisDe.parentNode.insertBefore(cx,depoisDe.nextSibling);
     }
@@ -950,29 +945,22 @@ function pedirCodigoNoCartao(errado){
     dica.textContent=errado
       ? 'C\u00f3digo errado. Confira no aplicativo e digite o n\u00famero que est\u00e1 aparecendo agora.'
       : 'Digite os 6 n\u00fameros que o aplicativo autenticador do seu celular est\u00e1 mostrando.';
-    const ok=document.getElementById('login-codigo-ok');
-    inp.value=''; inp.disabled=false; ok.disabled=false; ok.textContent='Confirmar código';
+    inp.value=''; inp.disabled=false;
     setTimeout(function(){ inp.focus(); },30);
     let foi=false;
     function entregar(v){
       if(foi) return; foi=true;
-      inp.oninput=null; inp.onkeydown=null; inp.onkeyup=null; inp.onchange=null; ok.onclick=null;
-      if(v){ inp.disabled=true; ok.disabled=true; ok.textContent='Conferindo...'; dica.style.color='#5A6370'; dica.textContent='Conferindo...'; }
+      inp.oninput=null; inp.onkeydown=null; inp.onkeyup=null; inp.onchange=null;
+      if(v){ inp.disabled=true; dica.style.color='#5A6370'; dica.textContent='Conferindo...'; }
       else cx.style.display='none';
       resolver(v);
     }
-    // Varios jeitos de perceber o codigo, porque cada teclado de celular avisa
-    // de um jeito: ao digitar, ao soltar a tecla, ao sair do campo e no botao.
+    // Entra sozinho ao completar os 6 numeros (pedido do Ander: sem botao).
+    // Varios jeitos de perceber, porque cada teclado de celular avisa de um
+    // jeito: ao digitar, ao soltar a tecla, ao sair do campo e no Enter.
     const conferir=function(){ const d=inp.value.replace(/\D/g,''); if(d.length===6) entregar(d); };
     inp.oninput=conferir; inp.onkeyup=conferir; inp.onchange=conferir;
     inp.onkeydown=function(ev){ if(ev.key==='Enter'||ev.keyCode===13){ ev.preventDefault(); conferir(); } };
-    ok.onclick=function(ev){
-      ev.preventDefault();
-      const d=inp.value.replace(/\D/g,'');
-      if(d.length===6){ entregar(d); return; }
-      dica.style.color='#C0392B';
-      dica.textContent=d.length?'Faltam números: o código tem 6 (você digitou '+d.length+').':'Digite os 6 números do aplicativo autenticador.';
-    };
     document.getElementById('login-codigo-cancelar').onclick=function(ev){ ev.preventDefault(); entregar(''); };
   });
 }
