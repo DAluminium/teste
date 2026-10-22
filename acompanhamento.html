@@ -677,11 +677,15 @@ async function lerSmartCem(doc){
       resto.forEach(function(i){ usados.add(i); descricao+=' '+i.t; });
     }
     its.forEach(function(i){ if(/^(tipo|localiza|dimens|qtde?)/i.test(i.t)) usados.add(i); });
-    // Desenho: a imagem a esquerda cujo meio cai dentro do bloco.
+    // Desenho: a imagem INTEIRA na coluna da esquerda (antes do rotulo
+    // "Tipo:") cujo meio cai dentro do bloco; a mais perto do topo do bloco.
+    // Sem a exigencia de caber na coluna, o rodape do PDF (uma faixa larga que
+    // comeca na margem) era escolhido para a ultima esquadria da pagina — por
+    // ser a maior imagem (P3 da Caroline, 21/10/2026).
     const desenho=imagens.filter(function(im){
       const meio=im.y+im.h/2;
-      return im.p===b.p && im.w>=40 && im.h>=40 && im.x<b.r.x && meio>=b.y0 && meio<b.y1;
-    }).sort(function(a,c){ return c.w*c.h-a.w*a.h; })[0]||null;
+      return im.p===b.p && im.w>=40 && im.h>=40 && im.x+im.w<=b.r.x+2 && meio>=b.y0 && meio<b.y1;
+    }).sort(function(a,c){ return Math.abs(a.y-b.r.y)-Math.abs(c.y-b.r.y); })[0]||null;
     return {
       tipo:tipo, local:local, qtde:qtde,
       dimL:dm?dm[1]:'', dimH:dm?dm[2]:'', dimTxt:dimTxt,
