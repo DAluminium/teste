@@ -946,6 +946,21 @@ function renderObra(tela){
   a.esquadrias.forEach(function(e){ h+=htmlFicha(a,e); });
   tela.innerHTML=h;
   a.esquadrias.forEach(function(e){ mostrarDesenho(a,e); });
+  consertarDesenhosVelhos(o,a);
+}
+
+// Fichas montadas antes da correcao de 21/10/2026 guardaram o RODAPE do PDF
+// como desenho da ultima esquadria da pagina. O desenho do SmartCEM e uma
+// figura estreita na coluna da esquerda (uns 130 pontos); o rodape e uma
+// faixa larga. Achando um desses, le o PDF de novo uma vez, sozinho — a
+// releitura troca so o que veio do projeto, as medidas ficam.
+const _consertoTentado={};
+function desenhoSuspeito(d){ return !!d && (d.w>250 || d.x+d.w>300); }
+function consertarDesenhosVelhos(o,a){
+  if(_consertoTentado[a.id] || ehConsulta() || temRascunho() || _gravando) return;
+  if(!a.esquadrias.some(function(e){ return desenhoSuspeito(e.desenho); })) return;
+  _consertoTentado[a.id]=true;
+  montarFichas(o,true);
 }
 
 // Valor na tela: o que foi digitado e nao salvo, senao o do banco.
@@ -1038,6 +1053,7 @@ function htmlProducao(c){
 async function mostrarDesenho(a,e){
   if(!e.desenho) return;
   const el=document.getElementById('desenho-'+e.id);
+  if(desenhoSuspeito(e.desenho)){ if(el) el.textContent='corrigindo o desenho...'; return; }
   const o=obraPorId(a.ctoId);
   const doc=(docsDeMedicao(o)).find(function(d){ return d.id===e.desenho.doc; }) ||
             (a.origem&&a.origem.doc===e.desenho.doc?{id:a.origem.doc,url:a.origem.url,nome:a.origem.nome}:null);
