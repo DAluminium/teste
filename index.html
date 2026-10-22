@@ -1126,8 +1126,10 @@ async function verificarSenha(digitada,armazenada){
   return digitada===armazenada;
 }
 function getTent(){ try{return JSON.parse(localStorage.getItem('portal-tries')||'{"c":0,"t":0}');}catch{return{c:0,t:0};} }
-function setTent(o){ localStorage.setItem('portal-tries',JSON.stringify(o)); }
-function resetTent(){ localStorage.removeItem('portal-tries'); }
+// Protegidas (21/10/2026): navegador de celular que recusa o armazenamento
+// fazia o login parar em "Verificando..." depois do codigo do autenticador.
+function setTent(o){ try{ localStorage.setItem('portal-tries',JSON.stringify(o)); }catch(e){} }
+function resetTent(){ try{ localStorage.removeItem('portal-tries'); }catch(e){} }
 function checkBloq(){
   const t=getTent();
   if(t.c>=MAX_TENT){
@@ -1305,6 +1307,11 @@ async function doLogin(){
     return;
   }
 
+  // Daqui para baixo a senha (e o codigo) ja foram aceitos. Qualquer falha
+  // aparece escrita na tela (21/10/2026): antes, um erro aqui deixava o botao
+  // em "Verificando..." para sempre, sem dizer nada — foi o que aconteceu no
+  // celular do Ander.
+  try{
   resetTent();
   const isAdmin=(cracha.role==='admin');
   const modulos=cracha.modulos&&cracha.modulos.length?cracha.modulos:['compras'];
@@ -1334,6 +1341,12 @@ async function doLogin(){
   if(cracha.tempPass){
     const u=portalData.usuarios.find(x=>String(x.username||'').toLowerCase()===String(cracha.username||'').toLowerCase());
     if(u) setTimeout(()=>trocarSenhaUser(u),500);
+  }
+  }catch(e){
+    btn.textContent='Entrar'; btn.disabled=false;
+    err.textContent='A senha e o código foram aceitos, mas a tela parou ao abrir o portal ('+
+      ((e&&(e.name+': '+e.message))||e)+'). Mande um print desta mensagem para o suporte.';
+    err.style.display='block';
   }
 }
 
