@@ -625,36 +625,43 @@ function abrirPdf(doc){
   return _pdfs[doc.url];
 }
 
+// Revisao no fim do numero: R01, RV8, V3 (e V3A, V3B: variantes da V3).
 function revisaoDe(prop){
-  const m=String(prop||'').toUpperCase().match(/[-_ ]?R(?:V)?(\d+)\s*$/);
+  const m=String(prop||'').toUpperCase().match(/[-_ ]?(?:RV?|V)(\d+)[A-Z]?\s*$/);
   return m?parseInt(m[1],10):0;
 }
 // "ORC-26-02-0055-R01" e "ORC-26-02-0055-R02" sao a mesma proposta.
 function propostaSemRevisao(prop){
-  return String(prop||'').toUpperCase().replace(/\s+/g,'').replace(/[-_]?R(?:V)?\d+$/,'');
+  return String(prop||'').toUpperCase().replace(/\s+/g,'').replace(/[-_]?(?:RV?|V)\d+[A-Z]?$/,'');
 }
 function nomeRev(n){ return 'R'+String(n).padStart(2,'0'); }
 
-// Le um PDF do SmartCEM (Alumisoft) e devolve a proposta e as esquadrias.
-// Cada esquadria e um bloco que comeca no rotulo "Tipo:"; na linha de baixo
-// vem tipo, localizacao, dimensoes e quantidade, alinhados pelas colunas do
-// cabecalho. As anotacoes feitas por cima do PDF vem em letra maior e ficam
-// como observacao do bloco mais proximo.
+// Le um PDF do SmartCEM (Alumisoft) e devolve a(s) proposta(s) e as esquadrias.
+// Cada esquadria e um bloco marcado pelo rotulo "Tipo:". Ha DOIS modelos de
+// impressao (achados em 22/10/2026):
+//  A) "Tipo: | Localizacao: | Dimensoes | Qtde" no TOPO do bloco; descricao,
+//     cor e vidro embaixo (proposta da Caroline).
+//  B) descricao, "Acabamento:" e "Vidros:" em cima e a linha
+//     "Tipo: | Qtd: | L: | H: | Linha: | Localizacao:" no FIM do bloco
+//     (proposta do Pedro Marcelino / Sidney).
+// O modelo e reconhecido bloco a bloco pelos rotulos da linha do "Tipo:".
+// As anotacoes feitas por cima do PDF vem em letra MAIOR que a do SmartCEM
+// (9 pt): no modelo A em 18, no B em 12. Ficam como observacao do bloco onde
+// caem; texto grande fora de qualquer bloco (cabecalho, rodape) e ignorado.
 async function lerSmartCem(doc){
   const pdf=await abrirPdf(doc);
   const lib=await carregarPdfJs();
-  const itens=[], imagens=[];
+  const itens=[], imagens=[], alturaPag={};
   for(let n=1;n<=pdf.numPages;n++){
     const pg=await pdf.getPage(n);
     const vp=pg.getViewport({scale:1});
+    alturaPag[n]=vp.height;
     const tc=await pg.getTextContent();
     tc.items.forEach(function(it){
       const t=String(it.str||'').trim();
       if(!t) return;
-      itens.push({p:n,x:it.transform[4],y:vp.height-it.transform[5],h:it.height||Math.abs(it.transform[3])||0,t:t});
+      itens.push({p:n,x:it.transform[4],y:vp.height-it.transform[5],h:it.height||Math.abs(it.transform[3])||0,w:it.width||0,t:t});
     });
-    // Desenho de cada tipologia: imagens da pagina com a posicao em que sao
-    // pintadas (matriz de transformacao acumulada).
     const ops=await pg.getOperatorList();
     let m=[1,0,0,1,0,0]; const pilha=[];
     const mul=function(a,b){ return [a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]]; };
@@ -665,108 +672,172 @@ async function lerSmartCem(doc){
       else if(f===lib.OPS.transform) m=mul(m,ops.argsArray[i]);
       else if(f===lib.OPS.paintImageXObject||f===lib.OPS.paintInlineImageXObject||f===lib.OPS.paintJpegXObject){
         const w=Math.abs(m[0]), h=Math.abs(m[3]);
-        const topo=vp.height-Math.max(m[5],m[5]+m[3]);
-        imagens.push({p:n,x:Math.min(m[4],m[4]+m[0]),y:topo,w:w,h:h});
+        imagens.push({p:n,x:Math.min(m[4],m[4]+m[0]),y:vp.height-Math.max(m[5],m[5]+m[3]),w:w,h:h});
       }
     }
   }
   const igual=function(a,b){ return Math.abs(a-b)<=4; };
-  const prop=(itens.find(function(i){ return /^ORC[-\w]+$/i.test(i.t); })||{}).t||'';
-  // Blocos: um por rotulo "Tipo:".
+  const LETRA_ANOTACAO=10.5;   // o SmartCEM escreve em 9 pt (rodape 7-8)
+  // Propostas citadas no PDF (um PDF pode juntar varias: V3, V3A, V3B...).
+  const propostas=[];
+  itens.forEach(function(i){
+    (i.t.toUpperCase().match(/ORC-[\w-]*\w/g)||[]).forEach(function(pr){ if(propostas.indexOf(pr)<0) propostas.push(pr); });
+  });
+  const prop=propostas[0]||'';
   const rotulos=itens.filter(function(i){ return /^tipo:?$/i.test(i.t); })
     .sort(function(a,b){ return a.p-b.p || a.y-b.y; });
+  // Onde comeca o conteudo de cada pagina: depois do cabecalho da proposta.
+  const CABECALHO=/^(prazo de execu|validade|emitido por|obra:|proposta|cliente:|contato:|end\. obra|cidade:|cep:|cpf:|telefone:|e-mail:)/i;
+  const inicioPagina={};
+  rotulos.forEach(function(r){
+    if(inicioPagina[r.p]!==undefined) return;
+    const cab=itens.filter(function(i){ return i.p===r.p && i.y<r.y-40 && CABECALHO.test(i.t); });
+    inicioPagina[r.p]=cab.length?Math.max.apply(null,cab.map(function(i){ return i.y; }))+8:0;
+  });
+  const fimPagina=function(p){
+    const rod=itens.filter(function(i){ return i.p===p && /smartcem|alumisoft/i.test(i.t); }).map(function(i){ return i.y; });
+    return (rod.length?Math.min.apply(null,rod):alturaPag[p]||842)-20;
+  };
   const blocos=rotulos.map(function(r,k){
-    const prox=rotulos[k+1];
-    const fimPagina=Math.min.apply(null,itens.filter(function(i){ return i.p===r.p && /smartcem|alumisoft/i.test(i.t); }).map(function(i){ return i.y; }).concat([99999]));
-    return {r:r, p:r.p, y0:r.y-12, y1:(prox&&prox.p===r.p)?prox.y-12:fimPagina-20};
+    const linha=itens.filter(function(i){ return i.p===r.p && igual(i.y,r.y) && i.x>r.x; });
+    const modeloB=linha.some(function(i){ return /^(l|h|qtd):?$/i.test(i.t); });
+    const ant=rotulos[k-1], prox=rotulos[k+1];
+    if(modeloB){
+      return {r:r,p:r.p,modelo:'B',linha:linha,
+        y0:(ant&&ant.p===r.p)?ant.y+22:inicioPagina[r.p],
+        y1:r.y+22};
+    }
+    return {r:r,p:r.p,modelo:'A',linha:linha,
+      y0:r.y-12, y1:(prox&&prox.p===r.p)?prox.y-12:fimPagina(r.p)};
   });
   const noBloco=function(b){ return itens.filter(function(i){ return i.p===b.p && i.y>=b.y0 && i.y<b.y1; }); };
+  // Junta pedacos da mesma linha; sem espaco quando um encosta no outro
+  // ("J0" + "4" = "J04").
+  const juntar=function(lista){
+    let s='', fim=null;
+    lista.forEach(function(i){
+      if(s && !(fim!==null && i.x-fim<1.2)) s+=' ';
+      s+=i.t; fim=i.w?i.x+i.w:null;
+    });
+    return s;
+  };
   const usados=new Set();
   const esquadrias=blocos.map(function(b){
     const its=noBloco(b);
-    const cab=function(re){ return its.find(function(i){ return re.test(i.t) && igual(i.y,b.r.y); }); };
-    const cLoc=cab(/^localiza/i), cDim=cab(/^dimens/i), cQtd=cab(/^qtde?/i);
-    const xLoc=cLoc?cLoc.x:b.r.x+90, xDim=cDim?cDim.x:xLoc+110, xQtd=cQtd?cQtd.x:xDim+100;
-    // Linha dos valores: logo abaixo do cabecalho, em letra normal.
-    const linha=its.filter(function(i){ return i.y>b.r.y+6 && i.y<b.r.y+30 && i.h<14; });
-    const naColuna=function(de,ate){ return linha.filter(function(i){ return i.x>=de && i.x<ate; }).sort(function(a,c){ return a.x-c.x; }); };
-    const tipo=naColuna(b.r.x-15,xLoc-10).map(function(i){ return i.t; }).join(' ');
-    const local=naColuna(xLoc-15,xDim-10).map(function(i){ return i.t; }).join(' ');
-    const dimTxt=naColuna(xDim-15,xQtd-10).map(function(i){ return i.t; }).join(' ');
-    const qtde=naColuna(xQtd-15,99999).map(function(i){ return i.t; }).join(' ');
-    linha.forEach(function(i){ usados.add(i); });
-    const dm=dimTxt.match(/(\d+)\s*[xX×]\s*(\d+)/);
-    // Valor na mesma linha do rotulo ("Cor da Esquadria: ...").
     const aoLado=function(re){
       const r=its.find(function(i){ return re.test(i.t); });
       if(!r) return {txt:'',r:null};
       usados.add(r);
-      const v=its.filter(function(i){ return igual(i.y,r.y) && i.x>r.x && i.h<14; }).sort(function(a,c){ return a.x-c.x; });
+      const v=its.filter(function(i){ return igual(i.y,r.y) && i.x>r.x && i.h<LETRA_ANOTACAO; }).sort(function(a,c){ return a.x-c.x; });
       v.forEach(function(i){ usados.add(i); });
-      return {txt:v.map(function(i){ return i.t; }).join(' '),r:r};
+      return {txt:juntar(v),r:r};
     };
-    const cor=aoLado(/^cor da esquadria/i).txt;
-    const vidro=aoLado(/^vidros?:?$/i).txt;
-    const d=aoLado(/^descri/i);
-    let descricao=d.txt;
-    if(d.r){
-      // A descricao pode continuar nas linhas de baixo (letra normal).
-      const resto=its.filter(function(i){ return i.y>d.r.y+4 && i.y<d.r.y+50 && i.h<14 && i.x>=d.r.x-6 && !usados.has(i) && !/:$/.test(i.t); })
-        .sort(function(a,c){ return a.y-c.y || a.x-c.x; });
-      resto.forEach(function(i){ usados.add(i); descricao+=' '+i.t; });
+    let tipo='', local='', qtde='', dimL='', dimH='', dimTxt='', cor='', vidro='', descricao='', linhaProd='';
+    const linhaValores=its.filter(function(i){ return i.y>b.r.y+6 && i.y<b.r.y+30 && i.h<LETRA_ANOTACAO; });
+    const naColuna=function(de,ate){ return linhaValores.filter(function(i){ return i.x>=de && i.x<ate; }).sort(function(a,c){ return a.x-c.x; }); };
+    linhaValores.forEach(function(i){ usados.add(i); });
+    b.linha.forEach(function(i){ usados.add(i); }); usados.add(b.r);
+    if(b.modelo==='B'){
+      const col=function(re,padrao){ const i=b.linha.find(function(x){ return re.test(x.t); }); return i?i.x:padrao; };
+      const xQtd=col(/^qtd/i,b.r.x+60), xL=col(/^l:?$/i,xQtd+57), xH=col(/^h:?$/i,xL+48), xLin=col(/^linha/i,xH+62), xLoc=col(/^localiza/i,xLin+90);
+      tipo=juntar(naColuna(b.r.x-15,xQtd-6));
+      qtde=juntar(naColuna(xQtd-8,xL-8));
+      dimL=juntar(naColuna(xL-10,xH-8)).replace(/\D/g,'');
+      dimH=juntar(naColuna(xH-10,xLin-10)).replace(/\D/g,'');
+      linhaProd=juntar(naColuna(xLin-10,xLoc-20));
+      local=juntar(naColuna(xLoc-20,99999));
+      dimTxt=dimL&&dimH?dimL+' x '+dimH:'';
+      const ac=aoLado(/^acabamento/i);
+      cor=ac.txt;
+      const vi=aoLado(/^vidros?:?$/i);
+      vidro=vi.txt;
+      if(!vidro){ const sv=its.find(function(i){ return /^sem vidros?$/i.test(i.t); }); if(sv){ vidro='Sem vidros'; usados.add(sv); } }
+      // Descricao: o texto de cima, antes do "Acabamento:" (pode ter varias linhas).
+      const limite=ac.r?ac.r.y-2:b.r.y-2;
+      const desc=its.filter(function(i){
+        return i.y<limite && i.x>=b.r.x-10 && i.h<LETRA_ANOTACAO && !usados.has(i) && !/:$/.test(i.t);
+      }).sort(function(a,c){ return a.y-c.y || a.x-c.x; });
+      const porLinha=[]; desc.forEach(function(i){ const l=porLinha.find(function(x){ return igual(x.y,i.y); }); if(l) l.its.push(i); else porLinha.push({y:i.y,its:[i]}); });
+      descricao=porLinha.map(function(l){ return juntar(l.its); }).join(' ');
+      desc.forEach(function(i){ usados.add(i); });
+    } else {
+      const cab=function(re){ return b.linha.find(function(i){ return re.test(i.t); }); };
+      const cLoc=cab(/^localiza/i), cDim=cab(/^dimens/i), cQtd=cab(/^qtde?/i);
+      const xLoc=cLoc?cLoc.x:b.r.x+90, xDim=cDim?cDim.x:xLoc+110, xQtd=cQtd?cQtd.x:xDim+100;
+      tipo=juntar(naColuna(b.r.x-15,xLoc-10));
+      local=juntar(naColuna(xLoc-15,xDim-10));
+      dimTxt=juntar(naColuna(xDim-15,xQtd-10));
+      qtde=juntar(naColuna(xQtd-15,99999));
+      const dm=dimTxt.match(/(\d+)\s*[xX×]\s*(\d+)/);
+      dimL=dm?dm[1]:''; dimH=dm?dm[2]:'';
+      cor=aoLado(/^cor da esquadria/i).txt;
+      vidro=aoLado(/^vidros?:?$/i).txt;
+      const d=aoLado(/^descri/i);
+      descricao=d.txt;
+      if(d.r){
+        const resto=its.filter(function(i){ return i.y>d.r.y+4 && i.y<d.r.y+50 && i.h<LETRA_ANOTACAO && i.x>=d.r.x-6 && !usados.has(i) && !/:$/.test(i.t); })
+          .sort(function(a,c){ return a.y-c.y || a.x-c.x; });
+        resto.forEach(function(i){ usados.add(i); descricao+=' '+i.t; });
+      }
     }
-    its.forEach(function(i){ if(/^(tipo|localiza|dimens|qtde?)/i.test(i.t)) usados.add(i); });
-    // Desenho: a imagem INTEIRA na coluna da esquerda (antes do rotulo
-    // "Tipo:") cujo meio cai dentro do bloco; a mais perto do topo do bloco.
-    // Sem a exigencia de caber na coluna, o rodape do PDF (uma faixa larga que
-    // comeca na margem) era escolhido para a ultima esquadria da pagina — por
-    // ser a maior imagem (P3 da Caroline, 21/10/2026).
-    const desenho=imagens.filter(function(im){
-      const meio=im.y+im.h/2;
-      return im.p===b.p && im.w>=40 && im.h>=40 && im.x+im.w<=b.r.x+2 && meio>=b.y0 && meio<b.y1;
-    }).sort(function(a,c){ return Math.abs(a.y-b.r.y)-Math.abs(c.y-b.r.y); })[0]||null;
+    // Todo o resto em letra normal do bloco e do SmartCEM (areas, rotulos...).
+    its.forEach(function(i){ if(i.h<LETRA_ANOTACAO) usados.add(i); });
+    // Desenho: imagem cujo MEIO esta na coluna da esquerda (antes do "Tipo:")
+    // e dentro do bloco; a mais perto do meio do bloco. Recortada a coluna e
+    // ao bloco — ha desenho que "vaza" para os lados no PDF. O rodape do PDF
+    // (faixa larga a partir da margem) tem o meio fora da coluna.
+    const meioBloco=(b.y0+b.y1)/2;
+    const cand=imagens.filter(function(im){
+      const mx=im.x+im.w/2, my=im.y+im.h/2;
+      return im.p===b.p && im.w>=40 && im.h>=40 && mx<b.r.x && my>=b.y0 && my<b.y1;
+    }).sort(function(a,c){ return Math.abs(a.y+a.h/2-meioBloco)-Math.abs(c.y+c.h/2-meioBloco); })[0]||null;
+    let desenho=null;
+    if(cand){
+      const x0=Math.max(0,cand.x), x1=Math.min(cand.x+cand.w,b.r.x-3);
+      const y0=Math.max(cand.y,b.y0-4), y1=Math.min(cand.y+cand.h,b.y1);
+      if(x1-x0>=30 && y1-y0>=30) desenho={p:cand.p,x:x0,y:y0,w:x1-x0,h:y1-y0};
+    }
     return {
-      tipo:tipo, local:local, qtde:qtde,
-      dimL:dm?dm[1]:'', dimH:dm?dm[2]:'', dimTxt:dimTxt,
+      tipo:tipo, local:local, qtde:qtde, linha:linhaProd,
+      dimL:dimL, dimH:dimH, dimTxt:dimTxt,
       cor:cor, vidro:vidro, descricao:descricao.replace(/\s+/g,' ').trim(),
-      desenho:desenho?{p:desenho.p,x:desenho.x,y:desenho.y,w:desenho.w,h:desenho.h}:null,
-      notas:[]
+      desenho:desenho, notas:[]
     };
   });
-  // Anotacoes por cima do PDF: texto que nao e de nenhum bloco, em letra
-  // maior (as do SmartCEM sao de 9 pt). Pedacos vizinhos viram uma nota so.
-  const primeiro=blocos[0];
-  const soltos=itens.filter(function(i){
-    return !usados.has(i) && i.h>=13 && primeiro && (i.p>primeiro.p || i.y>=primeiro.y0);
-  }).sort(function(a,b){ return a.p-b.p || a.y-b.y || a.x-b.x; });
+  // Anotacoes: texto em letra maior que nao e de nenhum campo e cai DENTRO de
+  // um bloco. Pedacos vizinhos viram uma nota so.
+  const blocoDe=function(i){ return blocos.findIndex(function(b){ return b.p===i.p && i.y>=b.y0 && i.y<b.y1; }); };
+  const soltos=itens.filter(function(i){ return !usados.has(i) && i.h>=LETRA_ANOTACAO && blocoDe(i)>=0; })
+    .sort(function(a,b){ return a.p-b.p || a.y-b.y || a.x-b.x; });
   const notas=[];
   soltos.forEach(function(i){
+    const k=blocoDe(i);
     const ult=notas[notas.length-1];
-    if(ult && ult.p===i.p && i.y-ult.yFim<=26 && Math.abs(i.x-ult.x)<=60){ ult.t+=' · '+i.t; ult.yFim=i.y; return; }
-    notas.push({p:i.p,x:i.x,y:i.y,yFim:i.y,t:i.t});
+    if(ult && ult.k===k && i.y-ult.yFim<=26 && Math.abs(i.x-ult.x)<=60){ ult.t+=' · '+i.t; ult.yFim=i.y; return; }
+    notas.push({k:k,p:i.p,x:i.x,y:i.y,yFim:i.y,t:i.t});
   });
   notas.forEach(function(n){
-    let k=blocos.findIndex(function(b){ return b.p===n.p && n.y>=b.y0 && n.y<b.y1; });
-    if(k<0){
-      // Fora de qualquer bloco: o mais proximo na mesma pagina.
-      let melhor=1e9;
-      blocos.forEach(function(b,j){ if(b.p!==n.p) return; const d=Math.min(Math.abs(n.y-b.y0),Math.abs(n.y-b.y1)); if(d<melhor){ melhor=d; k=j; } });
-    }
     // Nota que cita duas ou mais esquadrias (ex.: P2+P3) e de CONJUNTO: vai
     // para todas as citadas, marcada.
-    const citados=(n.t.toUpperCase().match(/\b[A-Z]{1,3}\d{1,3}\b/g)||[]).filter(function(t){
-      return esquadrias.some(function(e){ return e.tipo.toUpperCase()===t; });
+    // Compara sem o "_" (no PDF aparece "P05_A+P05B"), e so palavra inteira
+    // (P1 nao conta dentro de P10).
+    const sem=function(s){ return String(s||'').toUpperCase().replace(/_/g,''); };
+    const textoNota=sem(n.t);
+    const unicos=[];
+    esquadrias.forEach(function(e){
+      const t=sem(e.tipo); if(!t||unicos.indexOf(e.tipo.toUpperCase())>=0) return;
+      const re=new RegExp('(^|[^A-Z0-9])'+t.replace(/[^A-Z0-9]/g,'\\$&')+'(?![A-Z0-9])');
+      if(re.test(textoNota)) unicos.push(e.tipo.toUpperCase());
     });
-    const unicos=citados.filter(function(t,i){ return citados.indexOf(t)===i; });
     if(unicos.length>=2){
       esquadrias.forEach(function(e){
         if(unicos.indexOf(e.tipo.toUpperCase())>=0) e.notas.push({texto:n.t,conjunto:unicos});
       });
-    } else if(k>=0){
-      esquadrias[k].notas.push({texto:n.t});
+    } else {
+      esquadrias[n.k].notas.push({texto:n.t});
     }
   });
-  return {proposta:prop, revisao:revisaoDe(prop), esquadrias:esquadrias};
+  return {proposta:prop, propostas:propostas, revisao:revisaoDe(prop), esquadrias:esquadrias};
 }
 
 // Recorta o desenho de uma esquadria da pagina do PDF. Guarda na memoria da
@@ -1700,6 +1771,8 @@ async function lerMedicaoDaObra(o){
 function avisosDaLeitura(o, lido, anterior){
   const avisos=[];
   const pdfProp=lido.escolhido.r.proposta;
+  const todas=lido.escolhido.r.propostas||[];
+  if(todas.length>1) avisos.push('Este PDF junta '+todas.length+' propostas: '+todas.join(', ')+'. Confira se todas são desta obra.');
   if(lido.total>1) avisos.push('Há '+lido.total+' PDFs de medição nesta obra. Usei o da revisão mais alta: '+nomeRev(lido.escolhido.r.revisao)+' ("'+lido.escolhido.doc.nome+'").');
   if(!o.proposta) avisos.push('A ficha da obra não tem o nº da proposta (ORC). O PDF diz '+(pdfProp||'(sem número)')+'.');
   else if(pdfProp && propostaSemRevisao(pdfProp)!==propostaSemRevisao(o.proposta))
@@ -1714,7 +1787,7 @@ function avisosDaLeitura(o, lido, anterior){
 function esquadriaNova(e, doc){
   return {
     id:novoId(), tipoPdf:e.tipo,
-    projeto:{tipo:e.tipo,local:e.local,qtde:e.qtde,dimL:e.dimL,dimH:e.dimH,dimTxt:e.dimTxt,cor:e.cor,vidro:e.vidro,descricao:e.descricao},
+    projeto:{tipo:e.tipo,local:e.local,qtde:e.qtde,dimL:e.dimL,dimH:e.dimH,dimTxt:e.dimTxt,cor:e.cor,vidro:e.vidro,descricao:e.descricao,linha:e.linha||''},
     desenho:e.desenho?Object.assign({doc:doc.id},e.desenho):null,
     notas:e.notas,
     tipo:e.tipo, local:e.local,
@@ -1743,12 +1816,17 @@ async function montarFichas(o, releitura){
     a.origem={doc:doc.id,nome:doc.nome,url:doc.url,proposta:r.proposta,revisao:r.revisao,lidoEm:agoraISO(),lidoPor:usuario,
               docsVistos:docsDeMedicao(o).map(function(d){ return d.id; })};
     a.avisos=avisosDaLeitura(o,lido,anterior);
+    // Releitura de fichas em que NINGUEM digitou nada: remonta do zero. E o
+    // caso de PDF lido errado por versao antiga do leitor (22/10/2026: o
+    // segundo modelo do SmartCEM juntava tudo no Tipo — "J01 1 600 3350
+    // GOLD" — e a ficha nao casava mais com o "J01" lido certo).
+    if(releitura && a.esquadrias.every(semNadaDigitado)) a.esquadrias=[];
     const vistos={};
     r.esquadrias.forEach(function(e){
       const ja=a.esquadrias.find(function(x){ return !vistos[x.id] && String(x.tipoPdf).toUpperCase()===String(e.tipo).toUpperCase(); });
       if(ja){
         vistos[ja.id]=1;
-        ja.projeto={tipo:e.tipo,local:e.local,qtde:e.qtde,dimL:e.dimL,dimH:e.dimH,dimTxt:e.dimTxt,cor:e.cor,vidro:e.vidro,descricao:e.descricao};
+        ja.projeto={tipo:e.tipo,local:e.local,qtde:e.qtde,dimL:e.dimL,dimH:e.dimH,dimTxt:e.dimTxt,cor:e.cor,vidro:e.vidro,descricao:e.descricao,linha:e.linha||''};
         ja.desenho=e.desenho?Object.assign({doc:doc.id},e.desenho):null;
         ja.notas=e.notas;
         delete ja.foraDaRevisao;
@@ -1882,9 +1960,17 @@ function renderObra(tela){
 // releitura troca so o que veio do projeto, as medidas ficam.
 const _consertoTentado={};
 function desenhoSuspeito(d){ return !!d && (d.w>250 || d.x+d.w>300); }
+// Tipo lido com as medidas grudadas ("J01 1 600 3350 GOLD"): o PDF do segundo
+// modelo do SmartCEM lido pelo leitor antigo (antes de 22/10/2026).
+function tipoMalLido(e){ return /^\S+\s+\d+\s+\d+\s+\d+/.test(String(e.tipoPdf||'')); }
+function semNadaDigitado(e){
+  const campos=['lCima','lMeio','lBaixo','hEsq','hCentro','hDir','d1','d2','condicao','faltas','faltaOutro','obs','folgaL','folgaH'];
+  return campos.every(function(c){ return !e[c]; }) && !(e.fotos||[]).length && !(e.audios||[]).length &&
+    (!e.etapa||e.etapa==='medir') && String(e.tipo||'')===String(e.tipoPdf||'') && String(e.local||'')===String((e.projeto||{}).local||'');
+}
 function consertarDesenhosVelhos(o,a){
   if(_consertoTentado[a.id] || ehConsulta() || temRascunho() || _gravando) return;
-  if(!a.esquadrias.some(function(e){ return desenhoSuspeito(e.desenho); })) return;
+  if(!a.esquadrias.some(function(e){ return desenhoSuspeito(e.desenho) || tipoMalLido(e); })) return;
   _consertoTentado[a.id]=true;
   montarFichas(o,true);
 }
