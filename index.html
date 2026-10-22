@@ -82,6 +82,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .modulo-card.crm:hover{border-color:#1F5FA8}
 .modulo-card.crm .modulo-arrow{color:#1F5FA8}
 .badge-crm{background:#E8F1FB;color:#1F5FA8}
+.modulo-card.acompanhamento{border-top:4px solid #C2255C}
+.modulo-card.acompanhamento:hover{border-color:#C2255C}
+.modulo-card.acompanhamento .modulo-arrow{color:#C2255C}
+.badge-acompanhamento{background:#FCE8EF;color:#A61E4D}
+/* "Acompanhamento" e uma palavra so e nao quebra: com 18px ela passava 9px da
+   largura do cartao quando os seis ficam na mesma fileira. */
+.modulo-card.acompanhamento .modulo-title{font-size:16.5px}
 .modulo-arrow{margin-top:1.5rem;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
 .modulo-card.compras .modulo-arrow{color:var(--teal-dark)}
 .modulo-card.financeiro .modulo-arrow{color:var(--purple)}
@@ -553,6 +560,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
               <label><input type="checkbox" id="nu-mod-fabrica"> 🏭 Fábrica</label>
               <label><input type="checkbox" id="nu-mod-obra"> 📋 Gerenciamento de Obra</label>
               <label><input type="checkbox" id="nu-mod-crm"> 🤝 CRM Comercial</label>
+              <label><input type="checkbox" id="nu-mod-acompanhamento"> 📐 Acompanhamento</label>
               <label data-so-admin title="Mesmo sendo funcionário, tira anexos de qualquer pessoa no Compras (os lançamentos continuam só com o gerente)"><input type="checkbox" id="nu-anexos-compras"> 🗑 Compras: tira anexo de qualquer pessoa</label>
               <label title="A pessoa abre a Fábrica para consultar a etapa dos projetos, mas não altera nada"><input type="checkbox" id="nu-ver-fabrica" onchange="if(this.checked) document.getElementById('nu-mod-fabrica').checked=true"> 👁️ Fábrica só para consultar</label>
             </div>
@@ -595,6 +603,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
             <label><input type="checkbox" id="eu-mod-fabrica"> 🏭 Fábrica</label>
             <label><input type="checkbox" id="eu-mod-obra"> 📋 Gerenciamento de Obra</label>
             <label><input type="checkbox" id="eu-mod-crm"> 🤝 CRM Comercial</label>
+            <label><input type="checkbox" id="eu-mod-acompanhamento"> 📐 Acompanhamento</label>
             <label data-so-admin title="Mesmo sendo funcionário, tira anexos de qualquer pessoa no Compras (os lançamentos continuam só com o gerente)"><input type="checkbox" id="eu-anexos-compras"> 🗑 Compras: tira anexo de qualquer pessoa</label>
             <label title="A pessoa abre a Fábrica para consultar a etapa dos projetos, mas não altera nada"><input type="checkbox" id="eu-ver-fabrica" onchange="if(this.checked) document.getElementById('eu-mod-fabrica').checked=true"> 👁️ Fábrica só para consultar</label>
           </div>
@@ -856,7 +865,7 @@ function loginGuardaApagar(chave){
 // Preferencias de tela (aba escolhida, ordem da carteira, ultima empresa do
 // comprovante) ficam: nao sao dado de ninguem.
 const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra','dalum-crm','dalum-crm-para-obra','dalum-crm-abrir',
-  'portal-admin-passes','dalum-admin-passes','fin-admin-passes'];
+  'portal-admin-passes','dalum-admin-passes','fin-admin-passes','dalum-acomp','dalum-acomp-obras'];
 function apagarDadosLocais(){
   DADOS_LOCAIS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
 }
@@ -1439,8 +1448,8 @@ function showPortal(nome, modulos, isAdmin){
   renderModulos(modulos);
   // 1 módulo e não admin — entra direto
   if(modulos.length===1&&!isAdmin){
-    const URLS={compras:'https://daluminium.github.io/teste/compras.html',financeiro:'https://daluminium.github.io/teste/financeiro.html',fabrica:'https://daluminium.github.io/teste/fabrica.html',obra:'https://daluminium.github.io/teste/obra.html',crm:'https://daluminium.github.io/teste/crm.html'};
-    const TITULOS={compras:'Gestão de Compras',financeiro:'Financeiro',fabrica:'Fábrica',obra:'Gerenciamento de Obra',crm:'CRM Comercial'};
+    const URLS={compras:'https://daluminium.github.io/teste/compras.html',financeiro:'https://daluminium.github.io/teste/financeiro.html',fabrica:'https://daluminium.github.io/teste/fabrica.html',obra:'https://daluminium.github.io/teste/obra.html',crm:'https://daluminium.github.io/teste/crm.html',acompanhamento:'https://daluminium.github.io/teste/acompanhamento.html'};
+    const TITULOS={compras:'Gestão de Compras',financeiro:'Financeiro',fabrica:'Fábrica',obra:'Gerenciamento de Obra',crm:'CRM Comercial',acompanhamento:'Acompanhamento'};
     const m=modulos[0];
     if(URLS[m]){ document.getElementById('portal').style.display='none'; abrirModulo(URLS[m],TITULOS[m]); }
   }
@@ -1453,7 +1462,8 @@ function renderModulos(modulos){
     financeiro:{icon:'💰',title:'Financeiro',desc:'Contas a pagar, contas a receber, fluxo de caixa e relatórios',url:'https://daluminium.github.io/teste/financeiro.html',cls:'financeiro',badge:'badge-financeiro',badgeText:'Financeiro'},
     fabrica:{icon:'🏭',title:'Fábrica',desc:'Acompanhamento das obras da conferência técnica até a entrega ao cliente',url:'https://daluminium.github.io/teste/fabrica.html',cls:'fabrica',badge:'badge-fabrica',badgeText:'Fábrica'},
     obra:{icon:'📋',title:'Gerenciamento de Obra',desc:'A carteira de contratos: status, prazos, medição, entrega e anexos de cada obra',url:'https://daluminium.github.io/teste/obra.html',cls:'obra',badge:'badge-obra',badgeText:'Obra'},
-    crm:{icon:'🤝',title:'CRM Comercial',desc:'O funil de vendas: clientes em negociação, retornos combinados e negócios fechados',url:'https://daluminium.github.io/teste/crm.html',cls:'crm',badge:'badge-crm',badgeText:'CRM'}
+    crm:{icon:'🤝',title:'CRM Comercial',desc:'O funil de vendas: clientes em negociação, retornos combinados e negócios fechados',url:'https://daluminium.github.io/teste/crm.html',cls:'crm',badge:'badge-crm',badgeText:'CRM'},
+    acompanhamento:{icon:'📐',title:'Acompanhamento',desc:'Medição de vãos na obra: uma ficha por esquadria, do PDF do SmartCEM até a produção',url:'https://daluminium.github.io/teste/acompanhamento.html',cls:'acompanhamento',badge:'badge-acompanhamento',badgeText:'Medição'}
   };
   // A ordem dos cartoes e a ordem do TRABALHO, nao a ordem em que os modulos
   // aparecem no cadastro do usuario: tudo comeca no Gerenciamento de Obra,
@@ -1463,7 +1473,9 @@ function renderModulos(modulos){
   // havera um modulo novo, e ele nao pode desaparecer da tela so por nao ter
   // sido acrescentado aqui.
   // O CRM vem antes de tudo: e a venda que vira contrato na Obra (09/10/2026).
-  const ORDEM=['crm','obra','financeiro','compras','fabrica'];
+  // O Acompanhamento (21/10/2026) vem logo depois da Obra: a medicao do vao
+  // acontece depois do contrato e antes da producao.
+  const ORDEM=['crm','obra','acompanhamento','financeiro','compras','fabrica'];
   const pos=function(m){ const i=ORDEM.indexOf(m); return i<0?ORDEM.length:i; };
   const naOrdem=modulos.slice().sort(function(a,b){ return pos(a)-pos(b); });
   container.innerHTML=naOrdem.map(m=>{
@@ -2529,6 +2541,7 @@ async function addUsuario(){
   if(document.getElementById('nu-mod-fabrica').checked) modulos.push('fabrica');
   if(document.getElementById('nu-mod-obra').checked) modulos.push('obra');
   if(document.getElementById('nu-mod-crm').checked) modulos.push('crm');
+  if(document.getElementById('nu-mod-acompanhamento').checked) modulos.push('acompanhamento');
   if(!name||!username||!pass){ alert('Preencha nome, usuário e senha.'); return; }
   if(pass.length<6){ alert('A senha precisa de pelo menos 6 caracteres.'); return; }
   if(ADMINS.find(a=>a.user===username)){ alert('Usuário reservado para administradores.'); return; }
@@ -2574,6 +2587,7 @@ async function addUsuario(){
   document.getElementById('nu-mod-fabrica').checked=false;
   document.getElementById('nu-mod-obra').checked=false;
   document.getElementById('nu-mod-crm').checked=false;
+  document.getElementById('nu-mod-acompanhamento').checked=false;
   document.getElementById('nu-ver-fabrica').checked=false;
   document.getElementById('nu-anexos-compras').checked=false;
   renderUserList();
@@ -2582,7 +2596,7 @@ async function addUsuario(){
 
 // Qual usuário está aberto na janela de edição. Nulo = nenhuma.
 let _editandoUsuario=null;
-const MODULOS_DO_SISTEMA=['compras','financeiro','fabrica','obra','crm'];
+const MODULOS_DO_SISTEMA=['compras','financeiro','fabrica','obra','crm','acompanhamento'];
 
 function editUsuario(idx){
   const u=portalData.usuarios[idx];
