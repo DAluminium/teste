@@ -684,6 +684,14 @@ async function lerSmartCem(doc){
     (i.t.toUpperCase().match(/ORC-[\w-]*\w/g)||[]).forEach(function(pr){ if(propostas.indexOf(pr)<0) propostas.push(pr); });
   });
   const prop=propostas[0]||'';
+  // Nome do cliente no cabecalho ("Cliente:" e o valor na mesma linha). Serve
+  // para avisar quando o PDF anexado e de outro cliente.
+  let clientePdf='';
+  const rotCli=itens.find(function(i){ return /^cliente:?$/i.test(i.t); });
+  if(rotCli){
+    clientePdf=itens.filter(function(i){ return i.p===rotCli.p && Math.abs(i.y-rotCli.y)<=4 && i.x>rotCli.x && i.x<rotCli.x+300 && i.h<LETRA_ANOTACAO && !/:$/.test(i.t); })
+      .sort(function(a,b){ return a.x-b.x; }).map(function(i){ return i.t; }).join(' ').trim();
+  }
   const rotulos=itens.filter(function(i){ return /^tipo:?$/i.test(i.t); })
     .sort(function(a,b){ return a.p-b.p || a.y-b.y; });
   // Onde comeca o conteudo de cada pagina: depois do cabecalho da proposta.
@@ -837,7 +845,7 @@ async function lerSmartCem(doc){
       esquadrias[n.k].notas.push({texto:n.t});
     }
   });
-  return {proposta:prop, propostas:propostas, revisao:revisaoDe(prop), esquadrias:esquadrias};
+  return {proposta:prop, propostas:propostas, revisao:revisaoDe(prop), cliente:clientePdf, esquadrias:esquadrias};
 }
 
 // Recorta o desenho de uma esquadria da pagina do PDF. Guarda na memoria da
@@ -1768,9 +1776,23 @@ async function lerMedicaoDaObra(o){
   return {escolhido:lidos[0], total:docs.length};
 }
 
+// Mesmo cliente se os dois nomes tiverem pelo menos uma palavra de verdade em
+// comum (sem acento; fora "de", "da", "dos"...). "CAROLINE SANTOS" e
+// "CAROLINE SANTOS MATOS" batem; "PEDRO MARCELINO" e "SIDNEY SOBRINHO" nao.
+// Folgado de proposito: obra cadastrada com apelido ou nome do casal nao
+// pode virar alarme falso.
+function mesmoCliente(a,b){
+  const palavras=function(s){ return semAcento(s).toUpperCase().split(/[^A-Z0-9]+/).filter(function(p){ return p.length>=3 && ['DOS','DAS','EM','COM','LTDA','EIRELI','OBRA','RESIDENCIA','CASA'].indexOf(p)<0; }); };
+  const pa=palavras(a), pb=palavras(b);
+  if(!pa.length||!pb.length) return true;
+  return pa.some(function(p){ return pb.indexOf(p)>=0; });
+}
 function avisosDaLeitura(o, lido, anterior){
   const avisos=[];
   const pdfProp=lido.escolhido.r.proposta;
+  const cliPdf=lido.escolhido.r.cliente||'';
+  if(cliPdf && o.cliente && !mesmoCliente(cliPdf,o.cliente))
+    avisos.push('O cliente no PDF é "'+cliPdf+'", e a obra é "'+o.cliente+'". Confira se o PDF anexado é desta obra.');
   const todas=lido.escolhido.r.propostas||[];
   if(todas.length>1) avisos.push('Este PDF junta '+todas.length+' propostas: '+todas.join(', ')+'. Confira se todas são desta obra.');
   if(lido.total>1) avisos.push('Há '+lido.total+' PDFs de medição nesta obra. Usei o da revisão mais alta: '+nomeRev(lido.escolhido.r.revisao)+' ("'+lido.escolhido.doc.nome+'").');
