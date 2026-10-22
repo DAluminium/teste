@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acompanhamento · Daluminium</title>
+<style>
+:root{--cor:#C2255C;--cor-dark:#A61E4D;--cor-light:#FCE8EF;--red:#C0392B;--red-light:#FDF0EE;--amber:#B9770E;--amber-light:#FEF7E6;--green:#1A7A45;--green-light:#EDFAF3;--gray-1:#F7F8F9;--gray-2:#EEF0F2;--gray-3:#DEE1E5;--gray-4:#9AA1AB;--gray-5:#5A6370;--gray-6:#23282F;--radius:8px;--shadow:0 1px 4px rgba(0,0,0,0.07),0 0 0 0.5px rgba(0,0,0,0.05)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--gray-1);color:var(--gray-6);font-size:14px;min-height:100vh}
+.topbar{background:var(--cor-dark);color:#fff;padding:0 1rem;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:50;box-shadow:0 1px 6px rgba(0,0,0,.15);gap:8px}
+.topbar-logo{font-size:16px;font-weight:600;display:flex;align-items:center;gap:10px;min-width:0}
+.topbar-logo span{opacity:.75;font-weight:400;font-size:13px}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+#sync{font-size:12px;color:rgba(255,255,255,.85);white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 14px;border-radius:var(--radius);border:1px solid transparent;font-size:13px;font-family:inherit;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.25)}
+.btn-outline{background:#fff;color:var(--gray-6);border-color:var(--gray-3)}.btn-outline:hover{background:var(--gray-1)}
+.btn-cor{background:var(--cor);color:#fff;border-color:var(--cor-dark)}.btn-cor:hover{background:var(--cor-dark)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn[disabled]{opacity:.5;cursor:default}
+.main{max-width:1100px;margin:0 auto;padding:1rem 1rem 6rem}
+.busca{width:100%;padding:9px 12px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:14px;background:#fff;margin-bottom:12px}
+.lista-obras{display:flex;flex-direction:column;gap:8px}
+.obra-linha{background:#fff;border-radius:10px;box-shadow:var(--shadow);padding:10px 14px;display:flex;gap:12px;align-items:center;cursor:pointer;border-left:4px solid var(--gray-3)}
+.obra-linha:hover{background:var(--cor-light)}
+.obra-linha.tem-med{border-left-color:var(--cor)}
+.obra-ct{font-weight:700;font-size:13px;color:var(--cor-dark);min-width:48px}
+.obra-nome{font-weight:600;flex:1;min-width:0}
+.obra-sub{font-size:12px;color:var(--gray-5);margin-top:2px}
+.pill{display:inline-block;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600;background:var(--gray-2);color:var(--gray-5);white-space:nowrap}
+.pill-cor{background:var(--cor-light);color:var(--cor-dark)}
+.pill-verde{background:var(--green-light);color:var(--green)}
+.pill-ambar{background:var(--amber-light);color:var(--amber)}
+.pill-verm{background:var(--red-light);color:var(--red)}
+.vazio{text-align:center;color:var(--gray-4);padding:30px 10px;font-style:italic}
+.cab{background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:14px 16px;margin-bottom:12px}
+.cab-topo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.cab-titulo{font-size:18px;font-weight:700;flex:1;min-width:0}
+.cab-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px 16px}
+.cab-item label{display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-4)}
+.cab-item div{font-size:13.5px;margin-top:1px;word-break:break-word}
+.cab-item .falta{color:var(--gray-4);font-style:italic}
+.avisos{margin:10px 0 0;display:flex;flex-direction:column;gap:6px}
+.aviso-linha{border-radius:8px;padding:8px 12px;font-size:13px;line-height:1.5}
+.aviso-ambar{background:var(--amber-light);color:#7a4e07;border:1px solid #F5D98A}
+.aviso-azul{background:var(--cor-light);color:var(--cor-dark);border:1px solid #F3C4D4}
+.aviso-verm{background:var(--red-light);color:var(--red);border:1px solid #F3C7C1}
+.ficha{background:#fff;border-radius:12px;box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden;border:2px solid transparent}
+.ficha.suja{border-color:var(--amber)}
+.ficha-topo{display:flex;gap:10px;align-items:center;padding:10px 14px;background:var(--cor-light);flex-wrap:wrap}
+.ficha-topo .tipo{font-size:17px;font-weight:800;color:var(--cor-dark)}
+.ficha-corpo{padding:12px 14px;display:grid;grid-template-columns:200px 1fr;gap:14px}
+.desenho{background:var(--gray-1);border:1px solid var(--gray-2);border-radius:8px;min-height:120px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--gray-4);text-align:center;padding:4px}
+.desenho img{max-width:100%;height:auto;display:block}
+.proj{font-size:12.5px;line-height:1.55;color:var(--gray-5);margin-top:8px}
+.proj b{color:var(--gray-6)}
+.secao{margin-top:12px}
+.secao h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-5);margin-bottom:6px}
+.grade{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.grade2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.fg label{display:block;font-size:11.5px;color:var(--gray-5);margin-bottom:3px}
+.fg input,.fg select,.fg textarea{width:100%;padding:8px 9px;border:1px solid var(--gray-3);border-radius:7px;font-family:inherit;font-size:14px;background:#fff}
+.fg textarea{min-height:64px;resize:vertical}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--cor)}
+.fg input.mudou,.fg select.mudou,.fg textarea.mudou{background:#FFFBEA;border-color:var(--amber)}
+.resultado{background:var(--green-light);border-radius:8px;padding:8px 12px;font-size:13.5px;color:#14532d;margin-top:8px}
+.resultado.incompleto{background:var(--gray-2);color:var(--gray-5)}
+.faltas{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px;font-size:13px}
+.faltas label{display:flex;align-items:center;gap:5px;cursor:pointer}
+.nota-pdf{background:#FFF8E1;border-left:3px solid var(--amber);padding:6px 10px;border-radius:4px;font-size:12.5px;margin-top:6px}
+.nota-pdf.conjunto{background:#FDECEA;border-left-color:var(--red)}
+.depois{font-size:12px;color:var(--gray-4);font-style:italic}
+.hist{font-size:12px;color:var(--gray-5);max-height:160px;overflow:auto;border-top:1px dashed var(--gray-3);margin-top:10px;padding-top:6px}
+.barra-salvar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:2px solid var(--amber);padding:10px 16px;display:none;align-items:center;justify-content:center;gap:12px;z-index:60;box-shadow:0 -2px 10px rgba(0,0,0,.1);flex-wrap:wrap}
+.barra-salvar.visivel{display:flex}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:.6rem}
+.overlay.open{display:flex}
+.modal{background:#fff;border-radius:12px;width:min(480px,100%);max-height:92vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.modal-head{padding:14px 18px;border-bottom:1px solid var(--gray-2)}
+.modal-title{font-size:15px;font-weight:700}
+.modal-body{padding:14px 18px}
+.modal-foot{padding:12px 18px;border-top:1px solid var(--gray-2);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.escolha{border:1px solid var(--gray-3);border-radius:8px;padding:10px;margin-top:8px;cursor:pointer}
+.escolha:hover{border-color:var(--cor);background:var(--cor-light)}
+.bloqueio{display:flex;align-items:center;justify-content:center;min-height:80vh;padding:24px;text-align:center;color:var(--gray-5)}
+@media (max-width:700px){
+  .ficha-corpo{grid-template-columns:1fr}
+  .desenho{max-width:260px;margin:0 auto;width:100%}
+  .topbar-logo span{display:none}
+  .grade{gap:6px}
+}
+@media (max-width:480px){
+  .topbar{padding:0 .6rem}
+  .topbar-logo{font-size:15px;white-space:nowrap}
+  .topbar-actions{gap:5px}
+  #sync{font-size:10.5px;max-width:84px;white-space:normal;line-height:1.2;text-align:right}
+}
+</style>
+<script>
+// ---- MODO ESPELHO ("Ver como", pedido do Ander, 16/10/2026) ----
+// Mesmo bloco dos outros modulos: na aba em que o admin ve o sistema como
+// outra pessoa, nada le, grava nem apaga o armazenamento que as abas dividem.
+try{ if(sessionStorage.getItem('dalum-espelho')){ (function(){
+  const L=window.localStorage, P=Storage.prototype, ler=P.getItem, gravar=P.setItem, tirar=P.removeItem, limpar=P.clear;
+  P.getItem=function(k){ return this===L?null:ler.call(this,k); };
+  P.setItem=function(k,v){ if(this!==L) return gravar.call(this,k,v); };
+  P.removeItem=function(k){ if(this!==L) return tirar.call(this,k); };
+  P.clear=function(){ if(this!==L) return limpar.call(this); };
+})(); } }catch(e){}
+
+// Marca que este modulo esta aberto DENTRO do portal, para o CSS esconder a
+// faixa duplicada.
+try{ if(window.self!==window.top) document.documentElement.classList.add('dentro-do-portal'); }
+catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
+</script>
+</head>
+<body>
+<!-- ================================================================
+     AVISO DE AMBIENTE DE TESTE
+     Este bloco existe SOMENTE nos arquivos de teste. Ao levar um
+     arquivo daqui para producao, ELE PRECISA SAIR — junto com a troca
+     do identificador do sistema.
+     Motivo: em 11/08/2026 contas reais foram lancadas aqui achando que
+     era producao, porque as duas telas eram identicas.
+     ================================================================ -->
+<div id="faixa-teste">Ambiente de teste &middot; o que voce lancar aqui nao vale</div>
+<style>
+  #faixa-teste{position:fixed;top:0;left:0;right:0;height:30px;z-index:100000;
+    background:repeating-linear-gradient(45deg,#B9770E 0 14px,#8a5a0a 14px 28px);
+    color:#fff;font:700 12px/30px system-ui,-apple-system,"Segoe UI",sans-serif;
+    letter-spacing:.08em;text-align:center;text-transform:uppercase;
+    box-shadow:0 1px 6px rgba(0,0,0,.3);pointer-events:none}
+  body{padding-top:30px}
+  .topbar{top:30px !important;background:#B9770E !important}
+  .bloqueio{padding-top:30px}
+  html.dentro-do-portal #faixa-teste{display:none}
+  html.dentro-do-portal body{padding-top:0}
+  html.dentro-do-portal .topbar{top:0 !important}
+  html.dentro-do-portal .bloqueio{padding-top:0}
+  @media print{
+    #faixa-teste{position:static;background:none;color:#000;border:2px solid #000;
+      box-shadow:none;line-height:1.6;margin-bottom:8px}
+    body{padding-top:0}
+    .topbar{top:0 !important}
+  }
+</style>
+
+<div class="bloqueio" id="bloqueio">Abrindo...</div>
+
+<div id="app" style="display:none">
+  <div class="topbar">
+    <div class="topbar-logo">&#128208; Acompanhamento <span>medição de vãos</span></div>
+    <div class="topbar-actions">
+      <span id="sync"></span>
+      <button class="btn btn-ghost btn-sm" id="btn-voltar" style="display:none" onclick="voltarParaLista()">&larr; Obras</button>
+      <button class="btn btn-ghost btn-sm" id="btn-sair" onclick="sairDoModulo()">Sair</button>
+    </div>
+  </div>
+  <div class="main" id="tela"></div>
+</div>
+
+<div class="barra-salvar" id="barra-salvar">
+  <span id="barra-salvar-txt" style="font-size:13.5px;font-weight:600;color:#7a4e07">Há medidas não salvas</span>
+  <button class="btn btn-outline" onclick="descartarRascunho()">Descartar</button>
+  <button class="btn btn-cor" id="btn-salvar" onclick="salvarObra()">&#128190; Salvar</button>
+</div>
+
+<div class="overlay" id="aviso-ov" style="z-index:400">
+  <div class="modal">
+    <div class="modal-head"><div class="modal-title" id="aviso-titulo">Aviso</div></div>
+    <div class="modal-body"><div id="aviso-texto" style="font-size:13.5px;line-height:1.6;white-space:pre-line"></div></div>
+    <div class="modal-foot"><button class="btn btn-cor" id="aviso-btn" onclick="fecharAviso()">Entendi</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="escolha-ov" style="z-index:410">
+  <div class="modal">
+    <div class="modal-head"><div class="modal-title" id="escolha-titulo">Duas pessoas mudaram o mesmo campo</div></div>
+    <div class="modal-body" id="escolha-corpo"></div>
+  </div>
+</div>
+
+<script>
+// ================= CONFIG =================
+const WORKER='https://daluminium-api.daluminium2.workers.dev';
+// Identificador do sistema no banco: SEM acento (vai num cabecalho HTTP).
+// Producao: 'acompanhamento'.
+const SUPA_SISTEMA='acompanhamento_teste';
+// ATENCAO: muda de teste para producao, igual ao SUPA_SISTEMA acima.
+// Producao: https://daluminium.github.io/portal/
+const PORTAL_URL='https://daluminium.github.io/teste/';
+// Deriva do SUPA_SISTEMA, como na Fabrica e na Obra: menos diferenca para
+// manter entre os dois ambientes.
+const AMBIENTE = /_teste$/.test(SUPA_SISTEMA) ? 'teste' : 'producao';
+const LS_KEY='dalum-acomp';
+const LS_OBRAS='dalum-acomp-obras';
+const TOKEN_KEY='dalum-token';
+// Copia local de TODOS os modulos (mesmo endereco, mesmo armazenamento): sair
+// de qualquer um limpa todos. Lista igual a dos outros, mais as deste modulo.
+const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra','dalum-crm','dalum-crm-para-obra',
+  'portal-admin-passes','dalum-admin-passes','fin-admin-passes',LS_KEY,LS_OBRAS];
+
+// Etapas de cada esquadria. O id NUNCA muda (fica gravado na ficha).
+const ETAPAS=[
+  {id:'medir',    nome:'A medir'},
+  {id:'campo',    nome:'Medido em campo'},
+  {id:'tecnico',  nome:'No técnico'},
+  {id:'producao', nome:'Liberado para produção'}
+];
+const FALTAS=[
+  {id:'reboco', nome:'Reboco'},
+  {id:'contrapiso', nome:'Contrapiso'},
+  {id:'revestimento', nome:'Revestimento'},
+  {id:'prumo', nome:'Prumo / esquadro'},
+  {id:'outro', nome:'Outro'}
+];
+// Os campos que a pessoa digita em cada esquadria. E por esta lista que a
+// gravacao junta campo a campo o que eu mudei e o que um colega mudou.
+const CAMPOS_FICHA={
+  tipo:'Tipo', local:'Localização',
+  lCima:'Largura em cima', lMeio:'Largura no meio', lBaixo:'Largura embaixo',
+  hEsq:'Altura à esquerda', hCentro:'Altura no centro', hDir:'Altura à direita',
+  d1:'Diagonal 1', d2:'Diagonal 2',
+  condicao:'Condição do vão', faltas:'O que falta', faltaOutro:'Outro (o que falta)',
+  obs:'Observações', folgaL:'Folga L', folgaH:'Folga H', etapa:'Etapa'
+};
+
+let dados={acompanhamentos:[],historico:[]};
+let obras=[];             // recorte da Obra que o Worker entrega
+let usuario='', papel='';
+let obraAberta=null;      // id do contrato (da Obra) aberto na tela
+// Rascunho: o que foi digitado e ainda nao foi salvo, por esquadria e campo.
+// Base: como cada esquadria estava quando a tela foi montada — e a referencia
+// para saber o que EU mudei e o que um colega mudou (mesma ideia da Fabrica).
+let rascunho={}, baseFichas={};
+let _gravando=0, _versaoLocal=0;
+
+// ================= UTILIDADES =================
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function novoId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function agoraISO(){ return new Date().toISOString(); }
+function agoraHora(){ return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+function fmtData(d){ if(!d) return ''; const p=String(d).slice(0,10).split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:d; }
+function fmtQuando(iso){ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?iso:d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+function semAcento(t){ return String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(); }
+function copia(o){ return JSON.parse(JSON.stringify(o)); }
+function status(txt,cor){ const e=document.getElementById('sync'); if(e){ e.textContent=txt; e.style.color=cor||'rgba(255,255,255,.85)'; } }
+// Numero em milimetros: aceita "2.900", "2900", "2900,5". Vazio ou zero = sem medida.
+function mm(v){ const n=parseFloat(String(v==null?'':v).replace(/\./g,'').replace(',','.')); return isFinite(n)&&n>0?n:null; }
+
+// ================= AVISOS NA TELA =================
+let _avisoAoFechar=null;
+function aviso(titulo, texto, aoFechar){
+  document.getElementById('aviso-titulo').textContent=titulo||'Aviso';
+  document.getElementById('aviso-texto').textContent=texto||'';
+  _avisoAoFechar=aoFechar||null;
+  document.getElementById('aviso-ov').classList.add('open');
+  setTimeout(function(){ const b=document.getElementById('aviso-btn'); if(b) b.focus(); },60);
+}
+function fecharAviso(){
+  document.getElementById('aviso-ov').classList.remove('open');
+  const fn=_avisoAoFechar; _avisoAoFechar=null;
+  if(fn) fn();
+}
+
+// ================= CRACHA E SESSAO (igual aos outros modulos) =================
+function loginGuardaLer(chave){
+  try{ const v=sessionStorage.getItem(chave); if(v!==null) return v; }catch(e){}
+  try{ return localStorage.getItem(chave); }catch(e){ return null; }
+}
+function loginGuardaApagar(chave){
+  let meu=null;
+  try{ meu=sessionStorage.getItem(chave); }catch(e){}
+  try{ sessionStorage.removeItem(chave); }catch(e){}
+  try{ if(meu===null || localStorage.getItem(chave)===meu) localStorage.removeItem(chave); }catch(e){}
+}
+function lerSSO(){
+  try{
+    const s=JSON.parse(loginGuardaLer('dalum-sso')||'null');
+    if(!s||!s.nome) return null;
+    if(Date.now()-s.ts>8*60*60*1000){ loginGuardaApagar('dalum-sso'); return null; }
+    return s;
+  }catch(e){ return null; }
+}
+function b64urlParaTexto(s){
+  const b64=s.replace(/-/g,'+').replace(/_/g,'/');
+  const bin=atob(b64+'==='.slice((b64.length+3)%4));
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+function lerToken(){
+  try{
+    const t=loginGuardaLer(TOKEN_KEY);
+    if(!t) return null;
+    const partes=t.split('.');
+    if(partes.length!==2) return null;
+    const d=JSON.parse(b64urlParaTexto(partes[0]));
+    if(!d||!d.exp||Date.now()>=d.exp){ loginGuardaApagar(TOKEN_KEY); return null; }
+    return {token:t,dados:d};
+  }catch(e){ loginGuardaApagar(TOKEN_KEY); return null; }
+}
+function cabecalhos(extra){
+  const h=Object.assign({'X-Sistema':SUPA_SISTEMA},extra||{});
+  const t=lerToken();
+  if(t) h['Authorization']='Bearer '+t.token;
+  return h;
+}
+function apagarDadosLocais(){ DADOS_LOCAIS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} }); }
+function soAdmin(){ return papel==='admin'; }
+// Consulta, ou o Acompanhamento marcado "so ver" no cadastro da pessoa: so
+// olha. Quem trava de verdade e o Worker; aqui a tela so evita que a pessoa
+// digite e perca.
+function ehConsulta(){
+  if(papel==='consulta') return true;
+  try{ const t=lerToken(); const v=(t&&t.dados&&Array.isArray(t.dados.v))?t.dados.v:[]; return v.indexOf('acompanhamento')>=0; }catch(e){ return false; }
+}
+function recusarSeConsulta(){
+  try{ if(sessionStorage.getItem('dalum-espelho')){
+    aviso('Modo espelho','Você está vendo o sistema como outra pessoa, só para olhar.\n\nNada foi gravado.');
+    return true;
+  } }catch(e){}
+  if(!ehConsulta()) return false;
+  aviso('Modo consulta','Você pode olhar, mas não alterar.\n\nA alteração não foi salva.');
+  return true;
+}
+
+let _sessionId=(function(){
+  try{
+    let i=sessionStorage.getItem('dalum-sessao');
+    if(!i){ i=Math.random().toString(36).slice(2)+Date.now().toString(36); sessionStorage.setItem('dalum-sessao',i); }
+    return i;
+  }catch(e){ return 'tela'+Date.now(); }
+})();
+async function acaoSessao(nome, corpo){
+  const r=await fetch(WORKER,{method:'POST',
+    headers:Object.assign(cabecalhos({'Content-Type':'application/json','X-Action':nome}),{'X-Sistema':'sessions'}),
+    body:JSON.stringify(Object.assign({sessionId:_sessionId, ambiente:AMBIENTE}, corpo||{}))});
+  if(!r.ok) throw new Error('worker '+r.status);
+  return r.json();
+}
+let _checkSessao=null;
+async function checkForceLogout(){
+  let r=null;
+  try{ r=await acaoSessao('sessao-sinal',{sistema:'acompanhamento'}); }catch(e){ return; }
+  if(!r||!r.derrubado) return;
+  alert(r.motivo==='outro-login'
+    ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
+    :'Sua sessão foi encerrada pelo administrador.');
+  loginGuardaApagar(TOKEN_KEY); loginGuardaApagar('dalum-sso'); apagarDadosLocais();
+  location.reload();
+}
+async function sairDoModulo(){
+  if(temRascunho() && !confirm('Há medidas não salvas. Sair mesmo assim?')) return;
+  if(!temRascunho() && !confirm('Deseja sair?')) return;
+  try{ await acaoSessao('sessao-sair',{}); }catch(e){}
+  loginGuardaApagar(TOKEN_KEY); loginGuardaApagar('dalum-sso'); apagarDadosLocais();
+  rascunho={};
+  if(window.self!==window.top) window.parent.postMessage('logout','*');
+  location.reload();
+}
+function sessaoExpirada(){
+  if(window.__sessaoExpirada) return;
+  window.__sessaoExpirada=true;
+  try{ loginGuardaApagar(TOKEN_KEY); loginGuardaApagar('dalum-sso'); }catch(e){} apagarDadosLocais();
+  aviso('Sessão expirada','O acesso vale 8 horas e o seu venceu. O que você já tinha salvo continua guardado.\n\nVamos voltar para a tela de entrada.',
+    function(){
+      if(window.self!==window.top){ try{ window.parent.postMessage('logout','*'); }catch(e){} setTimeout(function(){ location.reload(); },800); return; }
+      location.reload();
+    });
+}
+function telaBloqueio(titulo, texto){
+  document.getElementById('app').style.display='none';
+  const b=document.getElementById('bloqueio');
+  b.style.display='flex';
+  b.innerHTML='<div style="max-width:480px"><div style="font-size:42px;margin-bottom:12px">&#128274;</div>'+
+    '<h1 style="font-size:19px;color:#1f2937;margin-bottom:10px">'+esc(titulo)+'</h1>'+
+    '<p style="line-height:1.6">'+esc(texto)+'</p></div>';
+}
+
+// ---- AVISO DE VERSAO NOVA (igual aos outros modulos) ----
+let _versaoQuandoAbriu=null, _avisouVersaoNova=false;
+async function conferirVersao(){
+  if(_avisouVersaoNova) return;
+  let v=null;
+  try{
+    const base=(AMBIENTE==='teste')?'https://daluminium.github.io/teste/versao.json':'https://daluminium.github.io/portal/versao.json';
+    const r=await fetch(base+'?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok) return;
+    v=(await r.json()).versao;
+  }catch(e){ return; }
+  if(!v) return;
+  if(_versaoQuandoAbriu===null){ _versaoQuandoAbriu=v; return; }
+  if(v===_versaoQuandoAbriu) return;
+  _avisouVersaoNova=true;
+  const b=document.createElement('div');
+  b.style.cssText='position:fixed;left:0;right:0;top:0;z-index:10050;background:#FFFBEA;border-bottom:2px solid #E6B800;'+
+    'font-size:13.5px;padding:10px 14px;display:flex;align-items:center;gap:12px;justify-content:center;flex-wrap:wrap';
+  b.innerHTML='<span><b>Saiu uma versão nova do sistema.</b> Salve o que estiver digitando e atualize a página.</span>'+
+    '<button type="button" class="btn btn-cor btn-sm" id="barra-versao-ok">Atualizar agora</button>'+
+    '<button type="button" class="btn btn-outline btn-sm" id="barra-versao-x">Agora não</button>';
+  document.body.appendChild(b);
+  b.querySelector('#barra-versao-ok').onclick=function(){
+    if(temRascunho() && !confirm('Há medidas não salvas. Atualizar mesmo assim?')) return;
+    try{ if(window.self!==window.top){ window.parent.postMessage('atualizar-versao','*'); return; } }catch(e){}
+    location.replace(location.pathname+'?v='+encodeURIComponent(v));
+  };
+  b.querySelector('#barra-versao-x').onclick=function(){ b.remove(); };
+}
+setTimeout(conferirVersao,1500);
+setInterval(conferirVersao,5*60*1000);
+
+// ================= DADOS DO PROPRIO MODULO =================
+// Ler sempre sem cache: no-store e um parametro que muda a cada chamada.
+async function buscarRemoto(){
+  const r=await fetch(WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7),{cache:'no-store',headers:cabecalhos()});
+  if(r.status===503){ telaBloqueio('Sistema em manutenção','Estamos ajustando o sistema. Seus dados estão guardados.'); throw new Error('manutencao'); }
+  if(r.status===403){ telaBloqueio('Sem acesso a este módulo','Seu acesso não inclui o Acompanhamento' + (AMBIENTE==='teste'?' (ou este é o ambiente de teste, que é só para administradores e gerentes)':'') + '. Peça ao administrador para liberar.'); throw new Error('Acesso negado'); }
+  if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
+  if(!r.ok) throw new Error('Worker '+r.status);
+  const j=await r.json();
+  if(!j||typeof j!=='object'||Array.isArray(j)) return null;
+  if(!Array.isArray(j.acompanhamentos)) j.acompanhamentos=[];
+  if(!Array.isArray(j.historico)) j.historico=[];
+  return j;
+}
+// A Obra, pelo recorte do Worker: so cabecalho e anexos de medicao. Sem CPF,
+// sem valor. O Acompanhamento nunca grava na Obra.
+async function buscarObras(){
+  const r=await fetch(WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7),{cache:'no-store',
+    headers:cabecalhos({'X-Action':'obras-do-acompanhamento'})});
+  if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
+  if(!r.ok) throw new Error('Obra '+r.status);
+  const j=await r.json();
+  return (j&&Array.isArray(j.contratos))?j.contratos:[];
+}
+// GRAVACAO CONDICIONAL (20/10/2026): manda a versao que leu (X-Base). Se outra
+// pessoa gravou no meio, o Worker responde 409 e nada e gravado por cima.
+async function enviarRemoto(payload, versaoLida){
+  const extra={'Content-Type':'application/json'};
+  if(versaoLida) extra['X-Base']=versaoLida;
+  const r=await fetch(WORKER,{method:'PATCH',headers:cabecalhos(extra),body:JSON.stringify({data:payload})});
+  if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
+  if(r.status===409) return 'conflito';
+  if(!r.ok) throw new Error('Worker '+r.status);
+  return 'ok';
+}
+function logGeral(base, acao, alvo, detalhe){
+  if(!Array.isArray(base.historico)) base.historico=[];
+  base.historico.unshift({id:novoId(), ts:agoraISO(), user:usuario||'—', acao:acao, alvo:alvo||'—', detalhe:detalhe||''});
+  if(base.historico.length>500) base.historico=base.historico.slice(0,500);
+}
+function lerLocal(){
+  try{ const s=localStorage.getItem(LS_KEY); if(s) dados=JSON.parse(s); }catch(e){}
+  if(!dados||typeof dados!=='object') dados={};
+  if(!Array.isArray(dados.acompanhamentos)) dados.acompanhamentos=[];
+  try{ const o=JSON.parse(localStorage.getItem(LS_OBRAS)||'null'); if(Array.isArray(o)) obras=o; }catch(e){}
+}
+function gravarLocal(){
+  try{ localStorage.setItem(LS_KEY,JSON.stringify(dados)); localStorage.setItem(LS_OBRAS,JSON.stringify(obras)); }catch(e){}
+}
+
+// Toda alteracao passa por aqui: rele o banco, aplica a mudanca em cima do que
+// esta la e grava com X-Base. Confere depois pelo carimbo, porque o Worker ja
+// respondeu "ok" sem gravar (registro inexistente).
+async function alterar(fn, registro){
+  if(recusarSeConsulta()) return false;
+  _versaoLocal++; _gravando++;
+  try{ return await gravarAlteracao(fn, registro); }
+  finally{ _gravando--; }
+}
+async function gravarAlteracao(fn, registro){
+  status('🔄 Salvando...');
+  try{
+    let base=null, carimbo='';
+    for(let tentativa=0; tentativa<4; tentativa++){
+      base=null;
+      try{ base=await buscarRemoto(); }catch(e){ base=null; }
+      // Sem conseguir ler o banco NAO grava: gravar a copia local por cima
+      // poderia apagar o que um colega salvou.
+      if(!base) throw new Error('sem leitura');
+      const versaoLida=String(base.atualizadoEm||'');
+      const ok=await fn(base);
+      if(ok===false){ status('🟡 Nada salvo'); return false; }
+      if(registro){
+        try{ const r=(typeof registro==='function')?registro(base):registro; if(r&&r.acao) logGeral(base,r.acao,r.alvo,r.detalhe); }catch(e){}
+      }
+      carimbo=agoraISO();
+      base.atualizadoEm=carimbo; base.atualizadoPor=usuario;
+      const deu=await enviarRemoto(base, versaoLida);
+      if(deu!=='conflito') break;
+      status('🔀 Outra pessoa salvou junto — juntando...');
+      if(tentativa===3) throw new Error('conflito');
+      await new Promise(function(ok){ setTimeout(ok,300+Math.random()*700); });
+    }
+    let confere=null;
+    try{ confere=await buscarRemoto(); }catch(e){ confere=null; }
+    const depoisDeMim=!!confere && confere.atualizadoEm!==carimbo &&
+      new Date(confere.atualizadoEm).getTime()>new Date(carimbo).getTime();
+    if(!confere || (confere.atualizadoEm!==carimbo && !depoisDeMim)){
+      status('🔴 NÃO gravou no servidor','#ffcccc');
+      aviso('As medidas NÃO foram salvas','O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+
+        'Não continue: avise o responsável pelo sistema. O que você digitou continua na tela.');
+      return false;
+    }
+    dados=confere; gravarLocal();
+    status('🟢 Salvo · '+agoraHora());
+    return true;
+  }catch(e){
+    status('🔴 Não salvou','#ffcccc');
+    aviso('Não foi possível salvar','Verifique a internet e tente de novo.\n\nNada foi perdido: o que você digitou continua na tela.');
+    return false;
+  }
+}
+
+async function sincronizar(manual){
+  if(_gravando) return;
+  const versao=_versaoLocal;
+  status('🔄 Buscando...');
+  try{
+    const [d,o]=await Promise.all([buscarRemoto(), buscarObras()]);
+    // Uma gravacao comecou enquanto esta leitura estava no caminho: a leitura
+    // e velha, descarta.
+    if(_gravando || versao!==_versaoLocal) return;
+    if(d) dados=d;
+    obras=o||[];
+    gravarLocal();
+    // Sem nada digitado, a referencia das fichas passa a ser o que veio agora.
+    if(!temRascunho()) baseFichas={};
+    render();
+    status('🟢 Atualizado · '+agoraHora());
+  }catch(e){
+    if(!document.getElementById('app').style.display) render();
+    status('🔴 Sem conexão — dados locais','#ffcccc');
+  }
+}
+
+// ================= O PDF DO SMARTCEM =================
+const PDFJS_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_SELO='sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e';
+const PDFJS_AJUDANTE_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const PDFJS_AJUDANTE_SELO='sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2';
+let _pdfjs=null;
+function carregarPdfJs(){
+  if(_pdfjs) return _pdfjs;
+  _pdfjs=new Promise(function(ok,falhou){
+    const s=document.createElement('script');
+    s.src=PDFJS_URL; s.integrity=PDFJS_SELO; s.crossOrigin='anonymous';
+    s.onload=async function(){
+      try{
+        const lib=window.pdfjsLib;
+        if(!lib) throw new Error('o leitor de PDF não carregou direito');
+        const r=await fetch(PDFJS_AJUDANTE_URL,{integrity:PDFJS_AJUDANTE_SELO,mode:'cors'});
+        if(!r.ok) throw new Error('não consegui baixar o leitor de PDF');
+        lib.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([await r.text()],{type:'text/javascript'}));
+        ok(lib);
+      }catch(e){ _pdfjs=null; falhou(e); }
+    };
+    s.onerror=function(){ _pdfjs=null; falhou(new Error('não consegui baixar o leitor de PDF (confira a internet)')); };
+    document.head.appendChild(s);
+  });
+  return _pdfjs;
+}
+// O anexo e privado: o Worker devolve um link que vale 1 minuto.
+async function linkDoAnexo(url,nome){
+  const r=await fetch(WORKER,{method:'POST',cache:'no-store',
+    headers:cabecalhos({'Content-Type':'application/json','X-Action':'abrir-anexo'}),
+    body:JSON.stringify({url:url,nome:nome||'',modo:'ver',para:''})});
+  let j=null; try{ j=await r.json(); }catch(e){}
+  if(r.status===401){ sessaoExpirada(); throw new Error('sessão expirada'); }
+  if(!r.ok||!j||!j.url) throw new Error((j&&j.erro)||('erro '+r.status+' no servidor'));
+  return j.abrir||j.url;
+}
+// Um PDF aberto fica guardado na memoria desta tela: os desenhos de todas as
+// esquadrias saem dele sem baixar de novo.
+const _pdfs={};
+function abrirPdf(doc){
+  if(_pdfs[doc.url]) return _pdfs[doc.url];
+  _pdfs[doc.url]=(async function(){
+    const lib=await carregarPdfJs();
+    const u=await linkDoAnexo(doc.url,doc.nome);
+    return lib.getDocument({url:u,disableRange:true,disableStream:true}).promise;
+  })();
+  _pdfs[doc.url].catch(function(){ delete _pdfs[doc.url]; });
+  return _pdfs[doc.url];
+}
+
+function revisaoDe(prop){
+  const m=String(prop||'').toUpperCase().match(/[-_ ]?R(?:V)?(\d+)\s*$/);
+  return m?parseInt(m[1],10):0;
+}
+// "ORC-26-02-0055-R01" e "ORC-26-02-0055-R02" sao a mesma proposta.
+function propostaSemRevisao(prop){
+  return String(prop||'').toUpperCase().replace(/\s+/g,'').replace(/[-_]?R(?:V)?\d+$/,'');
+}
+function nomeRev(n){ return 'R'+String(n).padStart(2,'0'); }
+
+// Le um PDF do SmartCEM (Alumisoft) e devolve a proposta e as esquadrias.
+// Cada esquadria e um bloco que comeca no rotulo "Tipo:"; na linha de baixo
+// vem tipo, localizacao, dimensoes e quantidade, alinhados pelas colunas do
+// cabecalho. As anotacoes feitas por cima do PDF vem em letra maior e ficam
+// como observacao do bloco mais proximo.
+async function lerSmartCem(doc){
+  const pdf=await abrirPdf(doc);
+  const lib=await carregarPdfJs();
+  const itens=[], imagens=[];
+  for(let n=1;n<=pdf.numPages;n++){
+    const pg=await pdf.getPage(n);
+    const vp=pg.getViewport({scale:1});
+    const tc=await pg.getTextContent();
+    tc.items.forEach(function(it){
+      const t=String(it.str||'').trim();
+      if(!t) return;
+      itens.push({p:n,x:it.transform[4],y:vp.height-it.transform[5],h:it.height||Math.abs(it.transform[3])||0,t:t});
+    });
+    // Desenho de cada tipologia: imagens da pagina com a posicao em que sao
+    // pintadas (matriz de transformacao acumulada).
+    const ops=await pg.getOperatorList();
+    let m=[1,0,0,1,0,0]; const pilha=[];
+    const mul=function(a,b){ return [a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]]; };
+    for(let i=0;i<ops.fnArray.length;i++){
+      const f=ops.fnArray[i];
+      if(f===lib.OPS.save) pilha.push(m.slice());
+      else if(f===lib.OPS.restore) m=pilha.pop()||m;
+      else if(f===lib.OPS.transform) m=mul(m,ops.argsArray[i]);
+      else if(f===lib.OPS.paintImageXObject||f===lib.OPS.paintInlineImageXObject||f===lib.OPS.paintJpegXObject){
+        const w=Math.abs(m[0]), h=Math.abs(m[3]);
+        const topo=vp.height-Math.max(m[5],m[5]+m[3]);
+        imagens.push({p:n,x:Math.min(m[4],m[4]+m[0]),y:topo,w:w,h:h});
+      }
+    }
+  }
+  const igual=function(a,b){ return Math.abs(a-b)<=4; };
+  const prop=(itens.find(function(i){ return /^ORC[-\w]+$/i.test(i.t); })||{}).t||'';
+  // Blocos: um por rotulo "Tipo:".
+  const rotulos=itens.filter(function(i){ return /^tipo:?$/i.test(i.t); })
+    .sort(function(a,b){ return a.p-b.p || a.y-b.y; });
+  const blocos=rotulos.map(function(r,k){
+    const prox=rotulos[k+1];
+    const fimPagina=Math.min.apply(null,itens.filter(function(i){ return i.p===r.p && /smartcem|alumisoft/i.test(i.t); }).map(function(i){ return i.y; }).concat([99999]));
+    return {r:r, p:r.p, y0:r.y-12, y1:(prox&&prox.p===r.p)?prox.y-12:fimPagina-20};
+  });
+  const noBloco=function(b){ return itens.filter(function(i){ return i.p===b.p && i.y>=b.y0 && i.y<b.y1; }); };
+  const usados=new Set();
+  const esquadrias=blocos.map(function(b){
+    const its=noBloco(b);
+    const cab=function(re){ return its.find(function(i){ return re.test(i.t) && igual(i.y,b.r.y); }); };
+    const cLoc=cab(/^localiza/i), cDim=cab(/^dimens/i), cQtd=cab(/^qtde?/i);
+    const xLoc=cLoc?cLoc.x:b.r.x+90, xDim=cDim?cDim.x:xLoc+110, xQtd=cQtd?cQtd.x:xDim+100;
+    // Linha dos valores: logo abaixo do cabecalho, em letra normal.
+    const linha=its.filter(function(i){ return i.y>b.r.y+6 && i.y<b.r.y+30 && i.h<14; });
+    const naColuna=function(de,ate){ return linha.filter(function(i){ return i.x>=de && i.x<ate; }).sort(function(a,c){ return a.x-c.x; }); };
+    const tipo=naColuna(b.r.x-15,xLoc-10).map(function(i){ return i.t; }).join(' ');
+    const local=naColuna(xLoc-15,xDim-10).map(function(i){ return i.t; }).join(' ');
+    const dimTxt=naColuna(xDim-15,xQtd-10).map(function(i){ return i.t; }).join(' ');
+    const qtde=naColuna(xQtd-15,99999).map(function(i){ return i.t; }).join(' ');
+    linha.forEach(function(i){ usados.add(i); });
+    const dm=dimTxt.match(/(\d+)\s*[xX×]\s*(\d+)/);
+    // Valor na mesma linha do rotulo ("Cor da Esquadria: ...").
+    const aoLado=function(re){
+      const r=its.find(function(i){ return re.test(i.t); });
+      if(!r) return {txt:'',r:null};
+      usados.add(r);
+      const v=its.filter(function(i){ return igual(i.y,r.y) && i.x>r.x && i.h<14; }).sort(function(a,c){ return a.x-c.x; });
+      v.forEach(function(i){ usados.add(i); });
+      return {txt:v.map(function(i){ return i.t; }).join(' '),r:r};
+    };
+    const cor=aoLado(/^cor da esquadria/i).txt;
+    const vidro=aoLado(/^vidros?:?$/i).txt;
+    const d=aoLado(/^descri/i);
+    let descricao=d.txt;
+    if(d.r){
+      // A descricao pode continuar nas linhas de baixo (letra normal).
+      const resto=its.filter(function(i){ return i.y>d.r.y+4 && i.y<d.r.y+50 && i.h<14 && i.x>=d.r.x-6 && !usados.has(i) && !/:$/.test(i.t); })
+        .sort(function(a,c){ return a.y-c.y || a.x-c.x; });
+      resto.forEach(function(i){ usados.add(i); descricao+=' '+i.t; });
+    }
+    its.forEach(function(i){ if(/^(tipo|localiza|dimens|qtde?)/i.test(i.t)) usados.add(i); });
+    // Desenho: a imagem a esquerda cujo meio cai dentro do bloco.
+    const desenho=imagens.filter(function(im){
+      const meio=im.y+im.h/2;
+      return im.p===b.p && im.w>=40 && im.h>=40 && im.x<b.r.x && meio>=b.y0 && meio<b.y1;
+    }).sort(function(a,c){ return c.w*c.h-a.w*a.h; })[0]||null;
+    return {
+      tipo:tipo, local:local, qtde:qtde,
+      dimL:dm?dm[1]:'', dimH:dm?dm[2]:'', dimTxt:dimTxt,
+      cor:cor, vidro:vidro, descricao:descricao.replace(/\s+/g,' ').trim(),
+      desenho:desenho?{p:desenho.p,x:desenho.x,y:desenho.y,w:desenho.w,h:desenho.h}:null,
+      notas:[]
+    };
+  });
+  // Anotacoes por cima do PDF: texto que nao e de nenhum bloco, em letra
+  // maior (as do SmartCEM sao de 9 pt). Pedacos vizinhos viram uma nota so.
+  const primeiro=blocos[0];
+  const soltos=itens.filter(function(i){
+    return !usados.has(i) && i.h>=13 && primeiro && (i.p>primeiro.p || i.y>=primeiro.y0);
+  }).sort(function(a,b){ return a.p-b.p || a.y-b.y || a.x-b.x; });
+  const notas=[];
+  soltos.forEach(function(i){
+    const ult=notas[notas.length-1];
+    if(ult && ult.p===i.p && i.y-ult.yFim<=26 && Math.abs(i.x-ult.x)<=60){ ult.t+=' · '+i.t; ult.yFim=i.y; return; }
+    notas.push({p:i.p,x:i.x,y:i.y,yFim:i.y,t:i.t});
+  });
+  notas.forEach(function(n){
+    let k=blocos.findIndex(function(b){ return b.p===n.p && n.y>=b.y0 && n.y<b.y1; });
+    if(k<0){
+      // Fora de qualquer bloco: o mais proximo na mesma pagina.
+      let melhor=1e9;
+      blocos.forEach(function(b,j){ if(b.p!==n.p) return; const d=Math.min(Math.abs(n.y-b.y0),Math.abs(n.y-b.y1)); if(d<melhor){ melhor=d; k=j; } });
+    }
+    // Nota que cita duas ou mais esquadrias (ex.: P2+P3) e de CONJUNTO: vai
+    // para todas as citadas, marcada.
+    const citados=(n.t.toUpperCase().match(/\b[A-Z]{1,3}\d{1,3}\b/g)||[]).filter(function(t){
+      return esquadrias.some(function(e){ return e.tipo.toUpperCase()===t; });
+    });
+    const unicos=citados.filter(function(t,i){ return citados.indexOf(t)===i; });
+    if(unicos.length>=2){
+      esquadrias.forEach(function(e){
+        if(unicos.indexOf(e.tipo.toUpperCase())>=0) e.notas.push({texto:n.t,conjunto:unicos});
+      });
+    } else if(k>=0){
+      esquadrias[k].notas.push({texto:n.t});
+    }
+  });
+  return {proposta:prop, revisao:revisaoDe(prop), esquadrias:esquadrias};
+}
+
+// Recorta o desenho de uma esquadria da pagina do PDF. Guarda na memoria da
+// tela: o banco guarda so a posicao, nao a imagem (a imagem pesaria em toda
+// gravacao de todas as obras).
+const _desenhos={};
+async function desenhoDe(doc, d){
+  const chave=doc.url+'|'+d.p+'|'+Math.round(d.x)+'|'+Math.round(d.y);
+  if(_desenhos[chave]) return _desenhos[chave];
+  _desenhos[chave]=(async function(){
+    const pdf=await abrirPdf(doc);
+    const pg=await pdf.getPage(d.p);
+    const escala=3;
+    const vp=pg.getViewport({scale:escala});
+    const c=document.createElement('canvas');
+    c.width=Math.floor(vp.width); c.height=Math.floor(vp.height);
+    await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+    const m=3;
+    const sx=Math.max(0,(d.x-m)*escala), sy=Math.max(0,(d.y-m)*escala);
+    const sw=Math.min(c.width-sx,(d.w+2*m)*escala), sh=Math.min(c.height-sy,(d.h+2*m)*escala);
+    const r=document.createElement('canvas');
+    r.width=Math.floor(sw); r.height=Math.floor(sh);
+    r.getContext('2d').drawImage(c,sx,sy,sw,sh,0,0,sw,sh);
+    return r.toDataURL('image/png');
+  })();
+  _desenhos[chave].catch(function(){ delete _desenhos[chave]; });
+  return _desenhos[chave];
+}
+
+// ================= MONTAR AS FICHAS A PARTIR DO PDF =================
+function docsDeMedicao(o){ return (o&&Array.isArray(o.docs))?o.docs.filter(function(d){ return d&&d.url; }):[]; }
+function acompDaObra(id){ return (dados.acompanhamentos||[]).find(function(a){ return a.ctoId===id; })||null; }
+function obraPorId(id){ return obras.find(function(o){ return o.id===id; })||null; }
+
+// Le todos os PDFs de medicao da obra e fica com a revisao mais alta.
+async function lerMedicaoDaObra(o){
+  const docs=docsDeMedicao(o);
+  if(!docs.length) throw new Error('esta obra não tem o PDF de medição anexado na Obra (rótulo "Medição")');
+  const lidos=[];
+  for(const d of docs){
+    try{ const r=await lerSmartCem(d); if(r.esquadrias.length) lidos.push({doc:d,r:r}); }
+    catch(e){ console.warn('Não consegui ler',d.nome,e); }
+  }
+  if(!lidos.length) throw new Error('não achei esquadrias no PDF de medição. Confira se é o PDF original do SmartCEM');
+  lidos.sort(function(a,b){ return b.r.revisao-a.r.revisao || String(b.doc.quando||'').localeCompare(String(a.doc.quando||'')); });
+  return {escolhido:lidos[0], total:docs.length};
+}
+
+function avisosDaLeitura(o, lido, anterior){
+  const avisos=[];
+  const pdfProp=lido.escolhido.r.proposta;
+  if(lido.total>1) avisos.push('Há '+lido.total+' PDFs de medição nesta obra. Usei o da revisão mais alta: '+nomeRev(lido.escolhido.r.revisao)+' ("'+lido.escolhido.doc.nome+'").');
+  if(!o.proposta) avisos.push('A ficha da obra não tem o nº da proposta (ORC). O PDF diz '+(pdfProp||'(sem número)')+'.');
+  else if(pdfProp && propostaSemRevisao(pdfProp)!==propostaSemRevisao(o.proposta))
+    avisos.push('O nº da proposta no PDF ('+pdfProp+') é diferente do cadastrado na obra ('+o.proposta+'). Confira se o PDF é desta obra.');
+  else if(pdfProp && revisaoDe(pdfProp)!==revisaoDe(o.proposta))
+    avisos.push('O PDF é da revisão '+nomeRev(revisaoDe(pdfProp))+' e a obra está cadastrada com a '+nomeRev(revisaoDe(o.proposta))+'.');
+  if(anterior && anterior.revisao!==undefined && anterior.revisao!==lido.escolhido.r.revisao)
+    avisos.push('A revisão mudou: era '+nomeRev(anterior.revisao)+', agora é '+nomeRev(lido.escolhido.r.revisao)+'. As medidas já digitadas foram mantidas.');
+  return avisos;
+}
+
+function esquadriaNova(e, doc){
+  return {
+    id:novoId(), tipoPdf:e.tipo,
+    projeto:{tipo:e.tipo,local:e.local,qtde:e.qtde,dimL:e.dimL,dimH:e.dimH,dimTxt:e.dimTxt,cor:e.cor,vidro:e.vidro,descricao:e.descricao},
+    desenho:e.desenho?Object.assign({doc:doc.id},e.desenho):null,
+    notas:e.notas,
+    tipo:e.tipo, local:e.local,
+    lCima:'',lMeio:'',lBaixo:'',hEsq:'',hCentro:'',hDir:'',d1:'',d2:'',
+    condicao:'', faltas:'', faltaOutro:'', obs:'', folgaL:'', folgaH:'',
+    etapa:'medir', visto:null, historico:[]
+  };
+}
+
+// Primeira leitura (ou releitura) do PDF. Na releitura as medidas digitadas
+// ficam: muda so o que veio do projeto. Esquadria que saiu do PDF novo NAO e
+// apagada — fica marcada, para alguem decidir.
+async function montarFichas(o, releitura){
+  if(recusarSeConsulta()) return;
+  status('📄 Lendo o PDF...');
+  let lido;
+  try{ lido=await lerMedicaoDaObra(o); }
+  catch(e){ status(''); aviso('Não consegui montar as fichas', 'Motivo: '+e.message+'.'); return; }
+  const doc=lido.escolhido.doc, r=lido.escolhido.r;
+  const deu=await alterar(function(base){
+    let a=base.acompanhamentos.find(function(x){ return x.ctoId===o.id; });
+    const anterior=a?a.origem:null;
+    if(a && !releitura) return false;   // outra pessoa montou enquanto isso
+    if(!a){ a={id:novoId(),ctoId:o.id,esquadrias:[],criadoEm:agoraISO(),criadoPor:usuario}; base.acompanhamentos.push(a); }
+    a.ct=o.ct; a.cliente=o.cliente;
+    a.origem={doc:doc.id,nome:doc.nome,url:doc.url,proposta:r.proposta,revisao:r.revisao,lidoEm:agoraISO(),lidoPor:usuario,
+              docsVistos:docsDeMedicao(o).map(function(d){ return d.id; })};
+    a.avisos=avisosDaLeitura(o,lido,anterior);
+    const vistos={};
+    r.esquadrias.forEach(function(e){
+      const ja=a.esquadrias.find(function(x){ return !vistos[x.id] && String(x.tipoPdf).toUpperCase()===String(e.tipo).toUpperCase(); });
+      if(ja){
+        vistos[ja.id]=1;
+        ja.projeto={tipo:e.tipo,local:e.local,qtde:e.qtde,dimL:e.dimL,dimH:e.dimH,dimTxt:e.dimTxt,cor:e.cor,vidro:e.vidro,descricao:e.descricao};
+        ja.desenho=e.desenho?Object.assign({doc:doc.id},e.desenho):null;
+        ja.notas=e.notas;
+        delete ja.foraDaRevisao;
+      } else {
+        const n=esquadriaNova(e,doc); vistos[n.id]=1; a.esquadrias.push(n);
+      }
+    });
+    a.esquadrias.forEach(function(x){ if(!vistos[x.id]) x.foraDaRevisao=true; });
+  }, {acao:releitura?'releu a medição':'montou as fichas', alvo:(o.ct?o.ct+' · ':'')+o.cliente,
+      detalhe:r.esquadrias.length+' esquadria(s) · '+(r.proposta||doc.nome)});
+  if(deu){ baseFichas={}; rascunho={}; render(); }
+}
+
+// ================= TELA =================
+function render(){
+  const tela=document.getElementById('tela');
+  if(!tela) return;
+  document.getElementById('btn-voltar').style.display=obraAberta?'':'none';
+  if(obraAberta) renderObra(tela); else renderLista(tela);
+  atualizarBarraSalvar();
+}
+
+let _busca='';
+function renderLista(tela){
+  const q=semAcento(_busca);
+  const ordem=function(o){ const a=acompDaObra(o.id); return a?0:(docsDeMedicao(o).length?1:2); };
+  const lista=obras.filter(function(o){
+    if(!q) return true;
+    return semAcento([o.ct,o.cliente,o.coord,o.status,o.proposta].join(' ')).indexOf(q)>=0;
+  }).sort(function(a,b){ return ordem(a)-ordem(b) || String(a.cliente).localeCompare(String(b.cliente)); });
+  // A busca e desenhada uma vez so: redesenhar o campo a cada letra tirava o
+  // cursor do lugar.
+  if(!document.getElementById('busca')){
+    tela.innerHTML='<input class="busca" id="busca" placeholder="Buscar obra, contrato, cliente, coordenador..." value="'+esc(_busca)+'" '+
+      'oninput="_busca=this.value;renderLista(document.getElementById(\'tela\'));"><div id="lista-obras"></div>';
+  }
+  let h='';
+  if(!obras.length) h+='<div class="vazio">Nenhuma obra veio do Gerenciamento de Obra ainda.</div>';
+  else if(!lista.length) h+='<div class="vazio">Nada encontrado para "'+esc(_busca)+'".</div>';
+  h+='<div class="lista-obras">';
+  lista.forEach(function(o){
+    const a=acompDaObra(o.id), docs=docsDeMedicao(o);
+    let selo;
+    if(a){
+      const n=a.esquadrias.length, prod=a.esquadrias.filter(function(e){ return e.etapa==='producao'; }).length;
+      selo='<span class="pill pill-cor">'+n+' esquadria'+(n===1?'':'s')+(prod?' · '+prod+' liberada'+(prod===1?'':'s'):'')+'</span>';
+    } else if(docs.length) selo='<span class="pill pill-ambar">📎 medição anexada</span>';
+    else selo='<span class="pill">sem medição</span>';
+    h+='<div class="obra-linha'+(a||docs.length?' tem-med':'')+'" onclick="abrirObra(\''+esc(o.id)+'\')">'+
+      '<div class="obra-ct">'+esc(o.ct||'—')+'</div>'+
+      '<div style="flex:1;min-width:0"><div class="obra-nome">'+esc(o.cliente||'(sem nome)')+'</div>'+
+      '<div class="obra-sub">'+esc([o.status, o.coord?'Coord.: '+o.coord:'', o.entrega?'Entrega '+fmtData(o.entrega):''].filter(Boolean).join(' · '))+'</div></div>'+
+      selo+'</div>';
+  });
+  h+='</div>';
+  document.getElementById('lista-obras').innerHTML=h;
+}
+
+function abrirObra(id){
+  obraAberta=id;
+  try{ sessionStorage.setItem('dalum-acomp-aberta',id); }catch(e){}
+  baseFichas={};
+  render();
+  window.scrollTo(0,0);
+  const o=obraPorId(id);
+  // Primeira vez que a obra e aberta com o PDF anexado: monta sozinho.
+  if(o && !acompDaObra(id) && docsDeMedicao(o).length && !ehConsulta()) montarFichas(o,false);
+}
+function voltarParaLista(){
+  if(temRascunho() && !confirm('Há medidas não salvas nesta obra. Voltar e perder o que foi digitado?')) return;
+  rascunho={}; baseFichas={};
+  obraAberta=null;
+  try{ sessionStorage.removeItem('dalum-acomp-aberta'); }catch(e){}
+  render();
+}
+
+function itemCab(rotulo, valor){
+  return '<div class="cab-item"><label>'+esc(rotulo)+'</label><div>'+(valor?esc(valor):'<span class="falta">não preenchido na Obra</span>')+'</div></div>';
+}
+
+function renderObra(tela){
+  const o=obraPorId(obraAberta);
+  if(!o){ tela.innerHTML='<div class="vazio">Esta obra não está mais na lista do Gerenciamento de Obra.</div>'; return; }
+  const a=acompDaObra(o.id);
+  let h='<div class="cab"><div class="cab-topo"><div class="cab-titulo">'+esc(o.cliente)+'</div>'+
+    '<span class="pill pill-cor">CT '+esc(o.ct||'—')+'</span>'+(o.status?'<span class="pill">'+esc(o.status)+'</span>':'')+'</div>'+
+    '<div class="cab-grade">'+
+      itemCab('Endereço', [o.endereco,o.cidadeUF].filter(Boolean).join(' — '))+
+      itemCab('Telefone', o.contato)+
+      itemCab('Proposta (ORC)', o.proposta)+
+      itemCab('Coordenador', o.coord)+
+      itemCab('Início (fechamento)', fmtData(o.fechamento))+
+      itemCab('Previsão de entrega', fmtData(o.entrega))+
+    '</div>';
+  h+='<div style="font-size:11.5px;color:var(--gray-4);margin-top:8px">Estes dados vêm da ficha da obra no Gerenciamento de Obra. Para corrigir, corrija lá.</div>';
+  const avisos=[];
+  if(a){
+    (a.avisos||[]).forEach(function(t){ avisos.push('<div class="aviso-linha aviso-ambar">⚠️ '+esc(t)+'</div>'); });
+    const vistos=(a.origem&&a.origem.docsVistos)||[];
+    const novos=docsDeMedicao(o).filter(function(d){ return vistos.indexOf(d.id)<0; });
+    if(novos.length) avisos.push('<div class="aviso-linha aviso-azul">📄 Chegou PDF de medição novo na Obra ('+esc(novos.map(function(d){ return d.nome; }).join(', '))+'). '+
+      '<button class="btn btn-cor btn-sm" onclick="relerMedicao()">Ler de novo</button></div>');
+    if(a.origem) avisos.push('<div class="aviso-linha" style="background:var(--gray-2);color:var(--gray-5)">Fichas montadas de "'+esc(a.origem.nome)+'" ('+esc(a.origem.proposta||'sem nº')+') em '+esc(fmtQuando(a.origem.lidoEm))+' por '+esc(a.origem.lidoPor||'—')+'. '+
+      '<a href="#" onclick="verPdfOriginal();return false">Ver o PDF</a>'+(ehConsulta()?'':' · <a href="#" onclick="relerMedicao();return false">Ler o PDF de novo</a>')+'</div>');
+  }
+  if(avisos.length) h+='<div class="avisos">'+avisos.join('')+'</div>';
+  h+='</div>';
+  if(!a){
+    if(docsDeMedicao(o).length) h+='<div class="vazio">Montando as fichas a partir do PDF de medição... <br><br>'+
+      (ehConsulta()?'':'<button class="btn btn-cor" onclick="montarFichas(obraPorId(obraAberta),false)">Montar as fichas agora</button>')+'</div>';
+    else h+='<div class="vazio">Esta obra ainda não tem o PDF de medição.<br><br>No <b>Gerenciamento de Obra</b>, abra a ficha da obra e anexe o PDF do SmartCEM com o rótulo <b>Medição</b>. Depois volte aqui.</div>';
+    tela.innerHTML=h;
+    return;
+  }
+  a.esquadrias.forEach(function(e){ if(!baseFichas[e.id]) baseFichas[e.id]=copia(e); });
+  a.esquadrias.forEach(function(e){ h+=htmlFicha(a,e); });
+  tela.innerHTML=h;
+  a.esquadrias.forEach(function(e){ mostrarDesenho(a,e); });
+}
+
+// Valor na tela: o que foi digitado e nao salvo, senao o do banco.
+function valor(e,campo){
+  const r=rascunho[e.id];
+  if(r && Object.prototype.hasOwnProperty.call(r,campo)) return r[campo];
+  return e[campo]==null?'':e[campo];
+}
+function menor(vals){ const n=vals.map(mm).filter(function(x){ return x!==null; }); return n.length?Math.min.apply(null,n):null; }
+function contasDe(e){
+  const L=menor([valor(e,'lCima'),valor(e,'lMeio'),valor(e,'lBaixo')]);
+  const H=menor([valor(e,'hEsq'),valor(e,'hCentro'),valor(e,'hDir')]);
+  const fL=mm(valor(e,'folgaL')), fH=mm(valor(e,'folgaH'));
+  return {L:L,H:H,fL:fL,fH:fH,pL:(L!==null&&fL!==null)?L-fL:null,pH:(H!==null&&fH!==null)?H-fH:null};
+}
+
+function campoNum(e,campo,rot){
+  const v=valor(e,campo), mudou=rascunho[e.id]&&Object.prototype.hasOwnProperty.call(rascunho[e.id],campo);
+  return '<div class="fg"><label>'+esc(rot)+'</label><input inputmode="numeric" aria-label="'+esc((e.tipo||e.tipoPdf)+' · '+(CAMPOS_FICHA[campo]||rot))+'" data-e="'+e.id+'" data-c="'+campo+'" value="'+esc(v)+'"'+
+    (mudou?' class="mudou"':'')+(ehConsulta()?' disabled':'')+' oninput="digitou(this)" placeholder="mm"></div>';
+}
+function campoTxt(e,campo,rot,ph){
+  const v=valor(e,campo), mudou=rascunho[e.id]&&Object.prototype.hasOwnProperty.call(rascunho[e.id],campo);
+  return '<div class="fg"><label>'+esc(rot)+'</label><input aria-label="'+esc((e.tipo||e.tipoPdf)+' · '+(CAMPOS_FICHA[campo]||rot))+'" data-e="'+e.id+'" data-c="'+campo+'" value="'+esc(v)+'"'+
+    (mudou?' class="mudou"':'')+(ehConsulta()?' disabled':'')+' oninput="digitou(this)" placeholder="'+esc(ph||'')+'"></div>';
+}
+
+function htmlFicha(a,e){
+  const p=e.projeto||{};
+  const c=contasDe(e);
+  const suja=rascunho[e.id]&&Object.keys(rascunho[e.id]).length;
+  const etapa=valor(e,'etapa')||'medir';
+  const cond=valor(e,'condicao');
+  const faltas=String(valor(e,'faltas')||'').split(',').filter(Boolean);
+  let h='<div class="ficha'+(suja?' suja':'')+'" id="ficha-'+e.id+'">'+
+    '<div class="ficha-topo"><span class="tipo">'+esc(valor(e,'tipo')||p.tipo||'?')+'</span>'+
+    '<span style="flex:1;font-size:13px;color:var(--gray-5)">'+esc(valor(e,'local')||'(sem localização)')+'</span>'+
+    '<span class="pill '+(etapa==='producao'?'pill-verde':etapa==='tecnico'?'pill-cor':etapa==='campo'?'pill-ambar':'')+'">'+
+      esc((ETAPAS.find(function(x){ return x.id===etapa; })||{}).nome||etapa)+'</span></div>';
+  if(e.foraDaRevisao) h+='<div class="aviso-linha aviso-verm" style="border-radius:0">⚠️ Esta esquadria não está no PDF mais novo. Ela não foi apagada: confira com o comercial.</div>';
+  h+='<div class="ficha-corpo"><div>'+
+    '<div class="desenho" id="desenho-'+e.id+'">'+(e.desenho?'carregando desenho...':'sem desenho no PDF')+'</div>'+
+    '<div class="proj"><b>Projeto:</b> '+esc(p.dimTxt||((p.dimL||'?')+' x '+(p.dimH||'?')))+(p.qtde?' · Qtde '+esc(p.qtde):'')+'<br>'+
+      (p.cor?'<b>Cor:</b> '+esc(p.cor)+'<br>':'')+(p.vidro?'<b>Vidro:</b> '+esc(p.vidro)+'<br>':'')+
+      (p.descricao?'<b>Descrição:</b> '+esc(p.descricao):'')+'</div>'+
+    (e.notas||[]).map(function(n){
+      return '<div class="nota-pdf'+(n.conjunto?' conjunto':'')+'">'+(n.conjunto?'<b>CONJUNTO '+esc(n.conjunto.join(' + '))+':</b> ':'<b>Anotação no PDF:</b> ')+esc(n.texto)+'</div>';
+    }).join('')+
+  '</div><div>';
+  h+='<div class="grade2">'+campoTxt(e,'tipo','Tipo','Ex.: P1')+campoTxt(e,'local','Localização','Ex.: Corredor')+'</div>';
+  h+='<div class="secao"><h4>Largura (mm)</h4><div class="grade">'+campoNum(e,'lCima','Em cima')+campoNum(e,'lMeio','No meio')+campoNum(e,'lBaixo','Embaixo')+'</div></div>';
+  h+='<div class="secao"><h4>Altura (mm)</h4><div class="grade">'+campoNum(e,'hEsq','Esquerda')+campoNum(e,'hCentro','Centro')+campoNum(e,'hDir','Direita')+'</div></div>';
+  h+='<div class="secao"><h4>Diagonais (mm)</h4><div class="grade2">'+campoNum(e,'d1','Diagonal 1')+campoNum(e,'d2','Diagonal 2')+'</div></div>';
+  h+='<div class="resultado'+(c.L===null||c.H===null?' incompleto':'')+'" id="vao-'+e.id+'">'+htmlVao(c)+'</div>';
+  h+='<div class="secao"><h4>Condição do vão</h4><div class="grade2"><div class="fg"><select data-e="'+e.id+'" data-c="condicao" onchange="digitou(this)"'+(ehConsulta()?' disabled':'')+'>'+
+    '<option value=""'+(cond?'':' selected')+'>— escolha —</option>'+
+    '<option value="liberado"'+(cond==='liberado'?' selected':'')+'>Liberado</option>'+
+    '<option value="nao"'+(cond==='nao'?' selected':'')+'>Não liberado</option></select></div></div>';
+  if(cond==='nao'){
+    h+='<div class="faltas">'+FALTAS.map(function(f){
+      return '<label><input type="checkbox" data-e="'+e.id+'" data-falta="'+f.id+'"'+(faltas.indexOf(f.id)>=0?' checked':'')+(ehConsulta()?' disabled':'')+' onchange="marcouFalta(this)"> '+esc(f.nome)+'</label>';
+    }).join('')+'</div>';
+    if(faltas.indexOf('outro')>=0) h+='<div style="margin-top:6px">'+campoTxt(e,'faltaOutro','O que mais falta','Descreva')+'</div>';
+  }
+  h+='</div>';
+  h+='<div class="secao"><h4>Observações</h4><div class="fg"><textarea data-e="'+e.id+'" data-c="obs" oninput="digitou(this)"'+(ehConsulta()?' disabled':'')+'>'+esc(valor(e,'obs'))+'</textarea></div>'+
+    '<div class="depois">Foto do vão e áudios técnicos: entram na próxima etapa.</div></div>';
+  h+='<div class="secao"><h4>Setor técnico</h4><div class="grade2">'+campoNum(e,'folgaL','Folga L')+campoNum(e,'folgaH','Folga H')+'</div>'+
+    '<div class="resultado'+(c.pL===null||c.pH===null?' incompleto':'')+'" id="prod-'+e.id+'">'+htmlProducao(c)+'</div>'+
+    (e.visto?'<div style="font-size:12px;color:var(--green);margin-top:6px">✔ Liberado para produção por <b>'+esc(e.visto.quem)+'</b> em '+esc(fmtQuando(e.visto.quando))+'</div>':'')+'</div>';
+  h+='<div class="secao"><h4>Etapa</h4><div class="fg"><select data-e="'+e.id+'" data-c="etapa" onchange="mudouEtapa(this)"'+(ehConsulta()?' disabled':'')+'>'+
+    ETAPAS.map(function(x){ return '<option value="'+x.id+'"'+(x.id===etapa?' selected':'')+'>'+esc(x.nome)+'</option>'; }).join('')+'</select></div>'+
+    '<div style="font-size:11.5px;color:var(--gray-4);margin-top:4px">Só vai ao técnico com o vão liberado e as medidas feitas; só vai à produção com a folga preenchida.</div></div>';
+  if(soAdmin() && (e.historico||[]).length){
+    h+='<div class="hist"><b>Histórico</b><br>'+e.historico.slice().reverse().slice(0,40).map(function(x){
+      return esc(fmtQuando(x.quando))+' · '+esc(x.quem)+' · '+esc(CAMPOS_FICHA[x.campo]||x.campo)+': '+esc(x.de===''?'(vazio)':x.de)+' → '+esc(x.para===''?'(vazio)':x.para);
+    }).join('<br>')+'</div>';
+  }
+  h+='</div></div></div>';
+  return h;
+}
+function htmlVao(c){
+  if(c.L===null&&c.H===null) return 'Medida do vão: digite as larguras e as alturas — vale a <b>menor</b> de cada sentido.';
+  return 'Medida do vão (a menor): <b>'+(c.L===null?'?':c.L)+' x '+(c.H===null?'?':c.H)+' mm</b>';
+}
+function htmlProducao(c){
+  if(c.pL===null||c.pH===null) return 'Medida de produção = vão − folga (preencha a folga).';
+  return 'Medida de produção: <b>'+c.pL+' x '+c.pH+' mm</b>';
+}
+async function mostrarDesenho(a,e){
+  if(!e.desenho) return;
+  const el=document.getElementById('desenho-'+e.id);
+  const o=obraPorId(a.ctoId);
+  const doc=(docsDeMedicao(o)).find(function(d){ return d.id===e.desenho.doc; }) ||
+            (a.origem&&a.origem.doc===e.desenho.doc?{id:a.origem.doc,url:a.origem.url,nome:a.origem.nome}:null);
+  if(!doc){ if(el) el.textContent='o PDF não está mais anexado na Obra'; return; }
+  try{
+    const src=await desenhoDe(doc,e.desenho);
+    const alvo=document.getElementById('desenho-'+e.id);
+    if(alvo) alvo.innerHTML='<img alt="Desenho '+esc(e.tipoPdf)+'" src="'+src+'">';
+  }catch(err){
+    const alvo=document.getElementById('desenho-'+e.id);
+    if(alvo) alvo.textContent='não consegui mostrar o desenho ('+(err&&err.message||err)+')';
+  }
+}
+async function verPdfOriginal(){
+  const a=acompDaObra(obraAberta);
+  if(!a||!a.origem) return;
+  try{ const u=await linkDoAnexo(a.origem.url,a.origem.nome); window.open(u,'_blank'); }
+  catch(e){ aviso('Não consegui abrir o PDF', e.message); }
+}
+function relerMedicao(){
+  if(temRascunho()){ aviso('Salve antes','Há medidas não salvas. Salve (ou descarte) antes de ler o PDF de novo.'); return; }
+  const o=obraPorId(obraAberta);
+  if(o) montarFichas(o,true);
+}
+
+// ================= DIGITAR E SALVAR =================
+function esquadriaNaTela(id){
+  const a=acompDaObra(obraAberta);
+  return a?a.esquadrias.find(function(e){ return e.id===id; }):null;
+}
+function anotar(id,campo,v){
+  const e=esquadriaNaTela(id); if(!e) return;
+  const base=baseFichas[id]||e;
+  if(!rascunho[id]) rascunho[id]={};
+  const orig=base[campo]==null?'':String(base[campo]);
+  if(String(v)===orig) delete rascunho[id][campo]; else rascunho[id][campo]=v;
+  if(!Object.keys(rascunho[id]).length) delete rascunho[id];
+}
+function digitou(el){
+  const id=el.getAttribute('data-e'), campo=el.getAttribute('data-c');
+  anotar(id,campo,el.value);
+  el.classList.toggle('mudou', !!(rascunho[id]&&Object.prototype.hasOwnProperty.call(rascunho[id],campo)));
+  const e=esquadriaNaTela(id);
+  if(e){
+    const c=contasDe(e);
+    const v=document.getElementById('vao-'+id); if(v){ v.innerHTML=htmlVao(c); v.classList.toggle('incompleto',c.L===null||c.H===null); }
+    const p=document.getElementById('prod-'+id); if(p){ p.innerHTML=htmlProducao(c); p.classList.toggle('incompleto',c.pL===null||c.pH===null); }
+    const f=document.getElementById('ficha-'+id); if(f) f.classList.toggle('suja',!!rascunho[id]);
+  }
+  // A condicao muda o que aparece (o que falta): redesenha so esta ficha.
+  if(campo==='condicao') redesenharFicha(id);
+  atualizarBarraSalvar();
+}
+function marcouFalta(el){
+  const id=el.getAttribute('data-e');
+  const e=esquadriaNaTela(id); if(!e) return;
+  const atual=String(valor(e,'faltas')||'').split(',').filter(Boolean);
+  const f=el.getAttribute('data-falta');
+  const nova=el.checked?(atual.indexOf(f)<0?atual.concat([f]):atual):atual.filter(function(x){ return x!==f; });
+  const ordenada=FALTAS.map(function(x){ return x.id; }).filter(function(x){ return nova.indexOf(x)>=0; });
+  anotar(id,'faltas',ordenada.join(','));
+  redesenharFicha(id);
+  atualizarBarraSalvar();
+}
+function mudouEtapa(el){
+  const id=el.getAttribute('data-e');
+  const e=esquadriaNaTela(id); if(!e) return;
+  const nova=el.value, c=contasDe(e);
+  if((nova==='tecnico'||nova==='producao') && valor(e,'condicao')!=='liberado'){
+    el.value=valor(e,'etapa')||'medir';
+    aviso('Ainda não','Só vai ao técnico com o vão marcado como "Liberado".'); return;
+  }
+  if((nova==='tecnico'||nova==='producao') && (c.L===null||c.H===null)){
+    el.value=valor(e,'etapa')||'medir';
+    aviso('Ainda não','Faltam as medidas do vão (pelo menos uma largura e uma altura).'); return;
+  }
+  if(nova==='producao' && (c.fL===null||c.fH===null)){
+    el.value=valor(e,'etapa')||'medir';
+    aviso('Ainda não','Só vai à produção com a folga L e a folga H preenchidas.'); return;
+  }
+  anotar(id,'etapa',nova);
+  redesenharFicha(id);
+  atualizarBarraSalvar();
+}
+function redesenharFicha(id){
+  const a=acompDaObra(obraAberta); if(!a) return;
+  const e=a.esquadrias.find(function(x){ return x.id===id; }); if(!e) return;
+  const el=document.getElementById('ficha-'+id); if(!el) return;
+  const foco=document.activeElement&&document.activeElement.getAttribute&&document.activeElement.getAttribute('data-c');
+  const desenho=document.getElementById('desenho-'+id);
+  const img=desenho?desenho.innerHTML:'';
+  const t=document.createElement('div'); t.innerHTML=htmlFicha(a,e);
+  el.replaceWith(t.firstChild);
+  const d2=document.getElementById('desenho-'+id); if(d2&&img) d2.innerHTML=img;
+  if(foco){ const f=document.querySelector('#ficha-'+id+' [data-c="'+foco+'"]'); if(f) f.focus(); }
+}
+function temRascunho(){ return Object.keys(rascunho).length>0; }
+function atualizarBarraSalvar(){
+  const b=document.getElementById('barra-salvar');
+  const n=Object.keys(rascunho).length;
+  b.classList.toggle('visivel', n>0 && !!obraAberta);
+  document.getElementById('barra-salvar-txt').textContent=n===1?'1 esquadria com alteração não salva':n+' esquadrias com alteração não salva';
+}
+function descartarRascunho(){
+  if(!confirm('Descartar o que foi digitado e não salvo?')) return;
+  rascunho={}; baseFichas={};
+  render();
+}
+
+// Escolha quando eu e um colega mudamos o MESMO campo da mesma esquadria.
+function pedirEscolha(c){
+  return new Promise(function(ok){
+    const ov=document.getElementById('escolha-ov');
+    const fmt=function(v){ return v===''||v==null?'(vazio)':String(v); };
+    document.getElementById('escolha-corpo').innerHTML=
+      '<div style="font-size:13.5px;line-height:1.6"><b>'+esc(c.esq)+' · '+esc(CAMPOS_FICHA[c.campo]||c.campo)+'</b><br>'+
+      'Outra pessoa salvou um valor diferente enquanto você digitava. Qual fica?</div>'+
+      '<div class="escolha" id="esc-meu"><b>O meu:</b> '+esc(fmt(c.meu))+'</div>'+
+      '<div class="escolha" id="esc-deles"><b>O que está salvo'+(c.quem?' ('+esc(c.quem)+')':'')+':</b> '+esc(fmt(c.deles))+'</div>';
+    ov.classList.add('open');
+    document.getElementById('esc-meu').onclick=function(){ ov.classList.remove('open'); ok('meu'); };
+    document.getElementById('esc-deles').onclick=function(){ ov.classList.remove('open'); ok('deles'); };
+  });
+}
+
+// Salva a obra aberta. Junta campo a campo, por esquadria (mesma regra da
+// Fabrica): campo que so eu mudei vai; campo que so o colega mudou fica o
+// dele; os dois mudaram o mesmo campo -> pergunta. Nada de substituir a
+// esquadria inteira.
+async function salvarObra(){
+  if(!temRascunho()) return;
+  const btn=document.getElementById('btn-salvar'); btn.disabled=true;
+  const meu=copia(rascunho), base=copia(baseFichas);
+  let mudancas=0;
+  const deu=await alterar(async function(srv){
+    mudancas=0;
+    const a=srv.acompanhamentos.find(function(x){ return x.ctoId===obraAberta; });
+    if(!a) return false;
+    const escolhas={};
+    for(const id of Object.keys(meu)){
+      const e=a.esquadrias.find(function(x){ return x.id===id; });
+      if(!e) continue;   // esquadria sumiu do banco: nao recria por conta propria
+      if(!Array.isArray(e.historico)) e.historico=[];
+      for(const campo of Object.keys(meu[id])){
+        const ref=base[id]&&base[id][campo]!=null?String(base[id][campo]):'';
+        const mine=String(meu[id][campo]);
+        const deles=e[campo]==null?'':String(e[campo]);
+        let fica;
+        if(deles===ref||deles===mine) fica=mine;
+        else {
+          const k=id+'|'+campo;
+          if(!escolhas[k]){
+            const ult=e.historico.slice().reverse().find(function(x){ return x.campo===campo; });
+            escolhas[k]=await pedirEscolha({esq:e.tipo||e.tipoPdf,campo:campo,meu:mine,deles:deles,quem:ult?ult.quem:''});
+          }
+          fica=escolhas[k]==='meu'?mine:deles;
+        }
+        if(fica===deles) continue;
+        e.historico.push({quando:agoraISO(),quem:usuario,campo:campo,de:deles,para:fica});
+        if(e.historico.length>200) e.historico=e.historico.slice(-200);
+        e[campo]=fica;
+        mudancas++;
+      }
+      // Regras da etapa conferidas de novo com o que ficou gravado.
+      const L=menor([e.lCima,e.lMeio,e.lBaixo]), H=menor([e.hEsq,e.hCentro,e.hDir]);
+      if((e.etapa==='tecnico'||e.etapa==='producao') && (e.condicao!=='liberado'||L===null||H===null)) e.etapa='campo';
+      if(e.etapa==='producao' && (mm(e.folgaL)===null||mm(e.folgaH)===null)) e.etapa='tecnico';
+      if(e.etapa==='producao' && !e.visto) e.visto={quem:usuario,quando:agoraISO()};
+      if(e.etapa!=='producao' && e.visto) e.visto=null;
+      if((!e.etapa||e.etapa==='medir') && L!==null && H!==null) e.etapa='campo';
+    }
+    if(!mudancas) return false;
+  }, function(){
+    const o=obraPorId(obraAberta)||{};
+    return {acao:'salvou medidas',alvo:(o.ct?o.ct+' · ':'')+(o.cliente||''),detalhe:mudancas+' campo(s)'};
+  });
+  btn.disabled=false;
+  if(deu){ rascunho={}; baseFichas={}; render(); }
+  else if(!mudancas){
+    // O banco ja tinha exatamente o que estava na tela (ou o colega salvou o
+    // mesmo valor): nada a gravar, nada a perder.
+    rascunho={}; baseFichas={}; render(); status('🟢 Já estava salvo · '+agoraHora());
+  }
+}
+
+window.addEventListener('beforeunload',function(ev){
+  if(temRascunho()){ ev.preventDefault(); ev.returnValue=''; }
+});
+
+// ================= ABERTURA =================
+function abrirApp(nome,papelDoUsuario){
+  usuario=nome;
+  papel=String(papelDoUsuario||'').toLowerCase();
+  acaoSessao('sessao-entrar',{sistema:'acompanhamento'}).catch(function(){});
+  if(!_checkSessao) _checkSessao=setInterval(checkForceLogout,5000);
+  document.getElementById('bloqueio').style.display='none';
+  document.getElementById('app').style.display='block';
+  lerLocal();
+  try{ const a=sessionStorage.getItem('dalum-acomp-aberta'); if(a) obraAberta=a; }catch(e){}
+  render();
+  sincronizar();
+  document.getElementById('aviso-ov').addEventListener('click',function(e){ if(e.target===this) fecharAviso(); });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape' && document.getElementById('aviso-ov').classList.contains('open')) fecharAviso();
+  });
+  // Busca alteracoes de colegas a cada 60 s. Com medida digitada e nao salva,
+  // os dados chegam mas a tela nao e redesenhada por baixo de quem digita: a
+  // juncao acontece no Salvar.
+  setInterval(function(){ atualizarDoBanco(); },60000);
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden) atualizarDoBanco(); });
+}
+async function atualizarDoBanco(){
+  if(_gravando) return;
+  if(temRascunho()){
+    try{
+      const versao=_versaoLocal;
+      const d=await buscarRemoto();
+      if(d && !_gravando && versao===_versaoLocal){ dados=d; gravarLocal(); status('🟡 Há alteração não salva · '+agoraHora()); }
+    }catch(e){}
+    return;
+  }
+  const foco=document.activeElement;
+  if(foco && /INPUT|TEXTAREA|SELECT/.test(foco.tagName) && foco.id!=='busca') return;
+  sincronizar();
+}
+
+(function iniciar(){
+  const t=lerToken();
+  if(t){ abrirApp(t.dados.n||t.dados.u||'usuário', t.dados.r); return; }
+  const sso=lerSSO();
+  if(sso){ abrirApp(sso.nome, sso.role); return; }
+  // Sem cracha: vai para o portal, o unico lugar onde se entra.
+  try{ (window.top||window).location.replace(PORTAL_URL); }
+  catch(e){ window.location.replace(PORTAL_URL); }
+})();
+</script>
+</body>
+</html>
