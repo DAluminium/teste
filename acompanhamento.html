@@ -81,6 +81,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .midia-botoes label.btn{cursor:pointer}
 .audio-linha{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
 .audio-info{font-size:12px;color:var(--gray-5)}
+.pdf-botoes{display:flex;gap:8px;flex-wrap:wrap}
+#visita-pe .pdf-botoes{width:100%;margin-bottom:4px}
+.foto-rel{display:block;width:100%;border:0;border-top:1px solid var(--gray-2);background:#fff;color:var(--gray-5);font-size:11px;padding:5px;cursor:pointer;font-family:inherit;text-align:center}
+.foto-rel.on{background:#FFF4D6;color:#7a4e07;font-weight:700}
 .visita-linha{border-top:1px solid var(--gray-2);padding:9px 2px;cursor:pointer;font-size:13.5px}
 .visita-linha:hover{background:var(--cor-light)}
 .vv-linha{display:grid;grid-template-columns:110px 150px 1fr;gap:8px;align-items:center;margin-bottom:6px}
@@ -269,6 +273,12 @@ function novoId(){ return Date.now().toString(36)+Math.random().toString(36).sli
 function agoraISO(){ return new Date().toISOString(); }
 function agoraHora(){ return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
 function fmtData(d){ if(!d) return ''; const p=String(d).slice(0,10).split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:d; }
+// Data LOCAL (AAAA-MM-DD) de um carimbo gravado em hora internacional. Cortar
+// o texto do carimbo dava o dia seguinte depois das 20h em Porto Velho.
+function diaLocal(iso){
+  const d=new Date(iso); if(isNaN(d)) return String(iso||'').slice(0,10);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
 function fmtQuando(iso){ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?iso:d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
 function semAcento(t){ return String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(); }
 function copia(o){ return JSON.parse(JSON.stringify(o)); }
@@ -1154,8 +1164,11 @@ function desenharVisita(){
     return '<div class="foto"><img data-mini="'+esc(f.url)+'" data-nome="'+esc(f.nome)+'" alt="Foto da visita" '+
       'onclick="verFoto(this.getAttribute(\'data-mini\'),this.getAttribute(\'data-nome\'),this.parentNode.querySelector(\'.foto-leg\').innerHTML)">'+
       '<div class="foto-leg">'+legendaDaFoto(f)+'</div>'+
+      (so?(f.noRelatorio?'<div class="foto-rel on">★ no relatório</div>':''):
+        '<button class="foto-rel'+(f.noRelatorio?' on':'')+'" onclick="marcarNoRelatorio(\''+f.id+'\')">'+(f.noRelatorio?'★ no relatório':'☆ pôr no relatório')+'</button>')+
       (so?'':'<button class="foto-x" title="Tirar esta foto" onclick="tirarFotoDaVisita(\''+f.id+'\')">×</button>')+'</div>';
-  }).join('')+'</div>';
+  }).join('')+'</div>'+
+  '<div class="depois" style="margin-top:4px">O relatório leva até 6 fotos: as marcadas com ★, ou as 6 primeiras se nenhuma for marcada.</div>';
   if(!so) h+='<div class="midia-botoes">'+
     '<label class="btn btn-cor btn-sm">📷 Tirar foto<input type="file" accept="image/*" capture="environment" onchange="recebeuFotosDaVisita(this,false)" hidden></label>'+
     '<label class="btn btn-outline btn-sm">🖼 Da galeria<input type="file" accept="image/*" multiple onchange="recebeuFotosDaVisita(this,true)" hidden></label></div>';
@@ -1164,6 +1177,8 @@ function desenharVisita(){
   document.getElementById('visita-titulo').textContent=v.id?'Visita de '+fmtData(v.data):'Registrar visita';
   document.getElementById('visita-corpo').innerHTML=h;
   document.getElementById('visita-pe').innerHTML=
+    (v.id?'<div class="pdf-botoes"><button class="btn btn-outline btn-sm" onclick="relatorioDaVisita(false)">📄 Relatório PDF</button>'+
+      '<button class="btn btn-sm" style="background:#25D366;color:#fff;border-color:#1DA851" onclick="relatorioDaVisita(true)">📲 Enviar ao cliente</button></div>':'')+
     (v.id&&!so?'<button class="btn btn-outline" style="margin-right:auto;color:var(--red)" onclick="excluirVisita()">Excluir visita</button>':'')+
     '<button class="btn btn-outline" onclick="fecharVisita()">'+(so?'Fechar':'Cancelar')+'</button>'+
     (so?'':'<button class="btn btn-cor" id="btn-salvar-visita" onclick="salvarVisita()">💾 Salvar visita</button>');
@@ -1190,6 +1205,37 @@ async function recebeuFotosDaVisita(input,daGaleria){
   }
   status('🟡 Foto(s) na visita — falta salvar');
   if(_visita) desenharVisita();
+}
+function marcarNoRelatorio(fid){
+  if(!_visita) return;
+  const f=_visita.fotos.find(function(x){ return x.id===fid; }); if(!f) return;
+  if(!f.noRelatorio && _visita.fotos.filter(function(x){ return x.noRelatorio; }).length>=6){
+    aviso('Já são 6','O relatório leva no máximo 6 fotos. Desmarque uma antes de marcar outra.'); return;
+  }
+  f.noRelatorio=!f.noRelatorio||undefined;
+  desenharVisita();
+}
+// O relatorio sai do que esta SALVO: com alteracao na tela, salva antes.
+function visitaMudou(){
+  if(!_visita||!_visita.id) return true;
+  const a=acompDaObra(obraAberta);
+  const salva=a&&(a.visitas||[]).find(function(x){ return x.id===_visita.id; });
+  return !salva || JSON.stringify(salva)!==JSON.stringify(_visita) || _visitaNovas.length>0;
+}
+async function relatorioDaVisita(enviar){
+  if(!_visita||!_visita.id) return;
+  if(visitaMudou()){
+    if(!ehConsulta() && (podeTirar(_visita))){
+      if(!confirm('Há alterações nesta visita. Salvar antes de gerar o relatório?')) return;
+      const id=_visita.id;
+      await salvarVisita();
+      if(_visita) return;           // nao salvou: o aviso ja apareceu
+      if(enviar) await enviarRelatorioWhats(id); else await gerarRelatorioPdf(id);
+      return;
+    }
+  }
+  const id=_visita.id;
+  if(enviar) await enviarRelatorioWhats(id); else await gerarRelatorioPdf(id);
 }
 function tirarFotoDaVisita(fid){
   if(!_visita) return;
@@ -1254,6 +1300,382 @@ async function excluirVisita(){
   _visitaNovas=[]; _visita=null;
   document.getElementById('visita-ov').classList.remove('open');
   render();
+}
+
+// ================= PDFs (ETAPA 3) =================
+// Gerados no proprio aparelho com o jsPDF (o mesmo da Obra, com selo de
+// conferencia). Nada passa pelo Worker. Modelos aprovados pelo Ander:
+// Ficha_Medicao_Vaos_Caroline_Santos.pdf e Relatorio_Visita_Cezar_Farinon.
+const JSPDF_URL='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+const JSPDF_SELO='sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk';
+let _jspdf=null;
+function carregarJsPDF(){
+  if(window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
+  if(_jspdf) return _jspdf;
+  _jspdf=new Promise(function(ok,falhou){
+    const s=document.createElement('script');
+    s.src=JSPDF_URL; s.integrity=JSPDF_SELO; s.crossOrigin='anonymous';
+    s.onload=function(){ if(window.jspdf&&window.jspdf.jsPDF) ok(window.jspdf.jsPDF); else falhou(new Error('o componente de PDF não carregou direito')); };
+    s.onerror=function(){ _jspdf=null; falhou(new Error('não consegui baixar o componente de PDF (confira a internet)')); };
+    document.head.appendChild(s);
+  });
+  return _jspdf;
+}
+const COR_MARCA=[181,101,29], COR_TEXTO=[35,40,47], COR_ROTULO=[110,118,128], COR_LINHA=[200,205,210], COR_FUNDO=[238,240,242];
+// Nome de arquivo sem acento nem simbolo (o WhatsApp e o celular agradecem).
+function nomeArquivo(t){ return String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,''); }
+function txt(v){ return v==null?'':String(v); }
+// Carrega uma imagem (dataURL ou endereco local) ja RECORTADA na proporcao
+// pedida, como foto de quadro: preenche tudo, corta as sobras.
+function imagemRecortada(src,proporcao,larguraPx){
+  return new Promise(function(ok,falhou){
+    const im=new Image();
+    im.onload=function(){
+      const W=larguraPx||900, H=Math.round(W/proporcao);
+      const c=document.createElement('canvas'); c.width=W; c.height=H;
+      const g=c.getContext('2d');
+      const ri=im.naturalWidth/im.naturalHeight;
+      let sw=im.naturalWidth, sh=im.naturalHeight, sx=0, sy=0;
+      if(ri>proporcao){ sw=sh*proporcao; sx=(im.naturalWidth-sw)/2; } else { sh=sw/proporcao; sy=(im.naturalHeight-sh)/2; }
+      g.fillStyle='#fff'; g.fillRect(0,0,W,H);
+      g.drawImage(im,sx,sy,sw,sh,0,0,W,H);
+      ok(c.toDataURL('image/jpeg',0.82));
+    };
+    im.onerror=function(){ falhou(new Error('imagem não abriu')); };
+    im.src=src;
+  });
+}
+// Imagem inteira (sem cortar), com o tamanho original — para os desenhos.
+function tamanhoDaImagem(src){
+  return new Promise(function(ok){ const im=new Image(); im.onload=function(){ ok({w:im.naturalWidth,h:im.naturalHeight}); }; im.onerror=function(){ ok(null); }; im.src=src; });
+}
+function pdfCabecalho(pdf,titulo,tituloPequeno){
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(15); pdf.setTextColor.apply(pdf,COR_TEXTO);
+  pdf.text("D'ALUMINIUM",12,15);
+  const lw=pdf.getTextWidth("D'ALUMINIUM ");
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(8.5); pdf.setTextColor.apply(pdf,COR_MARCA);
+  pdf.text('ARCH & DESIGN',12+lw,15);
+  if(tituloPequeno){ pdf.setFont('helvetica','normal'); pdf.setFontSize(8.5); pdf.setTextColor.apply(pdf,COR_ROTULO); }
+  else { pdf.setFont('helvetica','bold'); pdf.setFontSize(14); pdf.setTextColor.apply(pdf,COR_TEXTO); }
+  pdf.text(titulo,198,15,{align:'right'});
+  pdf.setDrawColor.apply(pdf,COR_MARCA); pdf.setLineWidth(0.5); pdf.line(12,18,198,18);
+}
+function pdfRotulo(pdf,t,x,y){ pdf.setFont('helvetica','bold'); pdf.setFontSize(6.5); pdf.setTextColor.apply(pdf,COR_ROTULO); pdf.text(String(t).toUpperCase(),x,y); }
+function pdfValor(pdf,t,x,y,tam,negrito,maxW){
+  pdf.setFont('helvetica',negrito?'bold':'normal'); pdf.setFontSize(tam||9); pdf.setTextColor.apply(pdf,COR_TEXTO);
+  const linhas=maxW?pdf.splitTextToSize(txt(t),maxW):[txt(t)];
+  pdf.text(linhas,x,y); return linhas.length;
+}
+function pdfCaixa(pdf,x,y,w,h,fundo){
+  pdf.setDrawColor.apply(pdf,COR_LINHA); pdf.setLineWidth(0.25);
+  if(fundo){ pdf.setFillColor.apply(pdf,fundo); pdf.rect(x,y,w,h,'FD'); } else pdf.rect(x,y,w,h);
+}
+function pdfMarca(pdf,x,y,marcado,rot){
+  pdf.setDrawColor.apply(pdf,COR_TEXTO); pdf.setLineWidth(0.25); pdf.rect(x,y-2.6,2.8,2.8);
+  if(marcado){ pdf.setLineWidth(0.5); pdf.line(x+0.5,y-1.3,x+1.2,y-0.3); pdf.line(x+1.2,y-0.3,x+2.4,y-2.2); }
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(8.5); pdf.setTextColor.apply(pdf,COR_TEXTO); pdf.text(rot,x+4,y);
+}
+async function fotoParaPdf(f,proporcao){
+  try{ const u=await miniatura(f.url,f.nome); return await imagemRecortada(u,proporcao,900); }catch(e){ return null; }
+}
+function baixarPdf(pdf,nome){ pdf.save(nome); }
+
+// ---- FICHA DE MEDICAO (uma por obra; 2 esquadrias por pagina) ----
+// Em branco = para imprimir e levar a obra (so o que veio do projeto).
+function dadosDaMedicao(a){
+  // Ultima medida gravada: data/hora e quem mediu, pelo historico das fichas.
+  const campos=['lCima','lMeio','lBaixo','hEsq','hCentro','hDir','d1','d2'];
+  let ult=null;
+  a.esquadrias.forEach(function(e){ (e.historico||[]).forEach(function(h){
+    if(campos.indexOf(h.campo)>=0 && (!ult||h.quando>ult.quando)) ult=h;
+  }); });
+  return ult;
+}
+async function gerarFichaPdf(emBranco){
+  const o=obraPorId(obraAberta), a=acompDaObra(obraAberta);
+  if(!o||!a) return;
+  if(!emBranco && temRascunho()){ aviso('Salve antes','Há medidas não salvas. Salve antes de gerar a ficha preenchida.'); return; }
+  status('📄 Montando a ficha...');
+  let jsPDF; try{ jsPDF=await carregarJsPDF(); }catch(e){ status(''); aviso('Não consegui gerar o PDF',e.message); return; }
+  const pdf=new jsPDF({unit:'mm',format:'a4',compress:true});
+  const med=emBranco?null:dadosDaMedicao(a);
+  const doc=(docsDeMedicao(o).find(function(d){ return a.origem&&d.id===a.origem.doc; }))||(a.origem?{id:a.origem.doc,url:a.origem.url,nome:a.origem.nome}:null);
+  const lista=a.esquadrias.filter(function(e){ return !e.foraDaRevisao; });
+  const paginas=Math.max(1,Math.ceil(lista.length/2));
+  const cabecalho=function(){
+    pdfCabecalho(pdf,'FICHA DE MEDIÇÃO DE VÃOS');
+    const col=[12,58.5,105,151.5], w=46.5;
+    const lin1=[['Cliente',o.cliente],['Proposta',o.proposta],['Contrato (CT)',o.ct],['Telefone',o.contato]];
+    const lin2=[['Cidade',o.cidadeUF],['Data e hora da medição',med?fmtQuando(med.quando):''],['Medidor',med?med.quem:''],['Coordenador',o.coord]];
+    [lin1,lin2].forEach(function(lin,li){
+      const y=21+li*10;
+      lin.forEach(function(c,i){ pdfCaixa(pdf,col[i],y,w,9.5); pdfRotulo(pdf,c[0],col[i]+1.5,y+3); pdfValor(pdf,pdf.splitTextToSize(txt(c[1]),w-3)[0]||'',col[i]+1.5,y+7.5,8.5); });
+    });
+  };
+  const rodape=function(n){
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(7); pdf.setTextColor.apply(pdf,COR_ROTULO);
+    pdf.text('Medidas em milímetros. A produção usa a MENOR das três medidas de cada sentido; o técnico aplica a folga.',12,290);
+    pdf.text('Página '+n+' de '+paginas,198,290,{align:'right'});
+  };
+  for(let i=0;i<lista.length||i===0;i++){
+    const e=lista[i];
+    if(i%2===0){ if(i>0) pdf.addPage(); cabecalho(); rodape(Math.floor(i/2)+1); }
+    if(!e) break;
+    const yb=i%2===0?45:165;
+    const p=e.projeto||{};
+    // faixa do topo
+    pdf.setFillColor.apply(pdf,COR_FUNDO); pdf.rect(12,yb,186,9,'F');
+    pdfRotulo(pdf,'Tipo',14,yb+3.2); pdfValor(pdf,emBranco?(p.tipo||e.tipoPdf):(e.tipo||e.tipoPdf),14,yb+7.6,10,true);
+    pdfRotulo(pdf,'Localização',34,yb+3.2); pdfValor(pdf,emBranco?p.local:e.local,34,yb+7.6,9,true);
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor.apply(pdf,COR_ROTULO);
+    pdf.text('Medida de projeto: '+(p.dimL&&p.dimH?p.dimL+' × '+p.dimH:txt(p.dimTxt))+' mm'+(p.qtde?'  ·  Qtde '+p.qtde:''),196,yb+6,{align:'right'});
+    // coluna da esquerda: desenho e projeto
+    let ye=yb+12;
+    if(e.desenho&&doc){
+      try{
+        const src=await desenhoDe(doc,e.desenho);
+        const t=await tamanhoDaImagem(src);
+        // Em JPEG com fundo branco: o PNG entrava no PDF com uns 400 KB cada
+        // desenho e a ficha passava de 1 MB com 3 esquadrias (pesado para o
+        // WhatsApp).
+        if(t){ const wMax=55,hMax=36; const f=Math.min(wMax/t.w,hMax/t.h);
+          const jpg=await imagemRecortada(src,t.w/t.h,Math.min(600,t.w));
+          pdf.addImage(jpg,'JPEG',12+(wMax-t.w*f)/2,ye,t.w*f,t.h*f); }
+      }catch(err){}
+    }
+    ye+=40;
+    const bloco=function(rot,val){ if(!val) return; pdfRotulo(pdf,rot,12,ye); ye+=3.6; const n=pdfValor(pdf,val,12,ye,8,false,58); ye+=n*3.4+1.5; };
+    bloco('Descrição',p.descricao); bloco('Cor',p.cor); bloco('Vidro',p.vidro);
+    (e.notas||[]).forEach(function(n){
+      const t=n.conjunto?('Conjunto '+n.conjunto.join(' + ')+' · '+n.texto):('Anotado na proposta: '+n.texto);
+      pdf.setFont('helvetica',n.conjunto?'bold':'normal'); pdf.setFontSize(7.5);
+      const linhas=pdf.splitTextToSize(t,55);
+      if(n.conjunto){ pdf.setFillColor(250,236,200); pdf.rect(12,ye-3,58,linhas.length*3.3+2,'F'); pdf.setTextColor(122,78,7); }
+      else pdf.setTextColor.apply(pdf,COR_ROTULO);
+      pdf.text(linhas,13.5,ye); ye+=linhas.length*3.3+2.5;
+    });
+    // coluna do meio: medidas
+    const xm=77, c3=20.6;
+    pdf.setFont('helvetica','bold'); pdf.setFontSize(10); pdf.setTextColor.apply(pdf,COR_TEXTO); pdf.text('MEDIDAS DO VÃO (mm)',xm,yb+14);
+    const linhaMedidas=function(rot,y,campos,rotulos,larg){
+      pdfRotulo(pdf,rot,xm,y);
+      campos.forEach(function(c,k){
+        const x=xm+k*larg; pdfCaixa(pdf,x,y+1.5,larg,10); pdfRotulo(pdf,rotulos[k],x+1.5,y+4.5);
+        if(!emBranco&&e[c]) pdfValor(pdf,e[c],x+1.5,y+10,9.5,true);
+      });
+    };
+    linhaMedidas('Largura',yb+20,['lCima','lMeio','lBaixo'],['Em cima','No meio','Embaixo'],c3);
+    linhaMedidas('Altura',yb+35,['hEsq','hCentro','hDir'],['Esquerda','Centro','Direita'],c3);
+    linhaMedidas('',yb+49,['d1','d2'],['Diagonal 1','Diagonal 2'],c3*1.5);
+    const cts=emBranco?{L:null,H:null,pL:null,pH:null,fL:null,fH:null}:contasDe(Object.assign({},e));
+    pdf.setFillColor.apply(pdf,COR_FUNDO); pdf.rect(xm,yb+63,62,13,'F');
+    pdfRotulo(pdf,'Medida do vão (menor)',xm+2,yb+67);
+    pdfValor(pdf,'L  '+(cts.L!==null?cts.L:'________')+'    ×  H  '+(cts.H!==null?cts.H:'________'),xm+2,yb+73.5,9.5,cts.L!==null);
+    pdf.setFont('helvetica','bold'); pdf.setFontSize(10); pdf.setTextColor.apply(pdf,COR_TEXTO); pdf.text('CONDIÇÃO DO VÃO',xm,yb+82);
+    pdfMarca(pdf,xm,yb+87,!emBranco&&e.condicao==='liberado','Liberado');
+    pdfMarca(pdf,xm+22,yb+87,!emBranco&&e.condicao==='nao','Não liberado');
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5); pdf.setTextColor.apply(pdf,COR_ROTULO); pdf.text('Falta:',xm,yb+91.5);
+    const faltas=emBranco?[]:String(e.faltas||'').split(',');
+    [['reboco','Reboco',0,95.5],['contrapiso','Contrapiso',31,95.5],['revestimento','Revestimento',0,99.8],['prumo','Prumo/esquadro',31,99.8],['outro','Outro'+(!emBranco&&e.faltaOutro?': '+e.faltaOutro:''),0,104.1]]
+      .forEach(function(f){ pdfMarca(pdf,xm+f[2],yb+f[3],faltas.indexOf(f[0])>=0,f[1]); });
+    // coluna da direita: foto, observacoes, setor tecnico
+    const xd=144, wd=54;
+    const foto=!emBranco&&(e.fotos||[])[0];
+    if(foto){
+      const src=await fotoParaPdf(foto,wd/40);
+      if(src) pdf.addImage(src,'JPEG',xd,yb+12,wd,40);
+      pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5); pdf.setTextColor.apply(pdf,COR_ROTULO);
+      pdf.text(fmtQuando(foto.quando)+(foto.local?' · local '+foto.local.lat+', '+foto.local.lng:''),xd,yb+55);
+    } else {
+      pdf.setDrawColor.apply(pdf,COR_LINHA); pdf.setLineDashPattern([1,1],0); pdf.rect(xd,yb+12,wd,42); pdf.setLineDashPattern([],0);
+      pdf.setFont('helvetica','bold'); pdf.setFontSize(7.5); pdf.setTextColor.apply(pdf,COR_ROTULO); pdf.text('FOTO DO VÃO',xd+wd/2,yb+31,{align:'center'});
+      pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5); pdf.text('com data, hora e endereço',xd+wd/2,yb+35,{align:'center'});
+    }
+    pdfRotulo(pdf,'Observações',xd,yb+60);
+    if(!emBranco&&e.obs){ pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5); pdf.setTextColor.apply(pdf,COR_TEXTO); pdf.text(pdf.splitTextToSize(e.obs,wd).slice(0,4),xd,yb+64); }
+    pdf.setDrawColor.apply(pdf,COR_LINHA); pdf.setLineWidth(0.2); pdf.line(xd,yb+79,xd+wd,yb+79);
+    pdfMarca(pdf,xd,yb+84,!emBranco&&(e.audios||[]).length>0,'Tem áudio técnico'+(!emBranco&&(e.audios||[]).length>1?' ('+e.audios.length+')':''));
+    pdf.setFillColor.apply(pdf,COR_FUNDO); pdf.rect(xd,yb+88,wd,21,'F');
+    pdf.setFont('helvetica','bold'); pdf.setFontSize(8.5); pdf.setTextColor.apply(pdf,COR_MARCA); pdf.text('SETOR TÉCNICO',xd+2,yb+93);
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor.apply(pdf,COR_TEXTO);
+    pdf.text('Folga  L  '+(!emBranco&&e.folgaL?e.folgaL:'_____')+'     H  '+(!emBranco&&e.folgaH?e.folgaH:'_____'),xd+2,yb+98);
+    pdf.text('Produção  L  '+(cts.pL!==null?cts.pL:'_____')+'  ×  H  '+(cts.pH!==null?cts.pH:'_____'),xd+2,yb+102.5);
+    pdf.text('Visto  '+(!emBranco&&e.visto?e.visto.quem+' · '+fmtData(diaLocal(e.visto.quando)):'______________________'),xd+2,yb+107);
+    if(i%2===0) { pdf.setDrawColor.apply(pdf,COR_LINHA); pdf.setLineWidth(0.2); pdf.line(12,yb+114,198,yb+114); }
+  }
+  // assinaturas no fim da ultima pagina (abaixo da unica ficha, ou no pe
+  // da pagina quando ela tem duas)
+  const ultimaY=(lista.length%2===1)?175:281;
+  {
+    pdf.setDrawColor.apply(pdf,COR_TEXTO); pdf.setLineWidth(0.25);
+    pdf.line(12,ultimaY,94,ultimaY); pdf.line(116,ultimaY,198,ultimaY);
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor.apply(pdf,COR_ROTULO);
+    pdf.text("Medidor – D'Aluminium",12,ultimaY+4); pdf.text('Setor técnico',116,ultimaY+4);
+  }
+  baixarPdf(pdf,'Ficha_Medicao_Vaos_'+nomeArquivo(o.cliente)+(emBranco?'_em_branco':'')+'.pdf');
+  status('🟢 Ficha gerada · '+agoraHora());
+}
+
+// ---- RELATORIO DA VISITA (uma pagina, ate 6 fotos) ----
+function situacaoGeral(v){
+  const vs=(v.vaos||[]).filter(function(x){ return x.situacao!=='naovisto'; });
+  if(!vs.length) return {txt:'VÃOS: NÃO VERIFICADOS',cor:[110,118,128],fundo:[238,240,242]};
+  const lib=vs.filter(function(x){ return x.situacao==='liberado'; }).length;
+  if(lib===(v.vaos||[]).length) return {txt:'VÃOS: LIBERADOS',cor:[26,122,69],fundo:[237,250,243]};
+  if(!lib) return {txt:'VÃOS: NÃO LIBERADOS',cor:[192,57,43],fundo:[253,240,238]};
+  return {txt:'VÃOS: PARCIAL',cor:[122,78,7],fundo:[250,236,200]};
+}
+function visitasEmOrdem(a){ return (a.visitas||[]).slice().sort(function(x,y){ return String(x.data+x.hora).localeCompare(String(y.data+y.hora)); }); }
+// As fotos do relatorio: as marcadas "vai no relatorio" (ate 6); sem marca,
+// as 6 primeiras. Sem foto na visita, as fotos dos vaos tiradas naquele dia.
+function fotosDoRelatorio(a,v){
+  let todas=(v.fotos||[]).slice();
+  if(!todas.length){
+    a.esquadrias.forEach(function(e){ (e.fotos||[]).forEach(function(f){
+      if(diaLocal(f.quando)===v.data) todas.push(f);
+    }); });
+  }
+  const marcadas=todas.filter(function(f){ return f.noRelatorio; });
+  const usar=(marcadas.length?marcadas:todas).slice(0,6);
+  return {usar:usar, total:todas.length};
+}
+async function gerarRelatorioPdf(visitaId,paraEnviar){
+  const o=obraPorId(obraAberta), a=acompDaObra(obraAberta);
+  const v=a&&(a.visitas||[]).find(function(x){ return x.id===visitaId; });
+  if(!o||!v) return null;
+  status('📄 Montando o relatório...');
+  let jsPDF; try{ jsPDF=await carregarJsPDF(); }catch(e){ status(''); aviso('Não consegui gerar o PDF',e.message); return null; }
+  const pdf=new jsPDF({unit:'mm',format:'a4',compress:true});
+  const ordem=visitasEmOrdem(a), n=ordem.findIndex(function(x){ return x.id===v.id; })+1;
+  const hoje=fmtData(hojeISO());
+  pdfCabecalho(pdf,'RELATÓRIO DE VISITA À OBRA',true);
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(19); pdf.setTextColor.apply(pdf,COR_TEXTO);
+  pdf.text(pdf.splitTextToSize(txt(o.cliente).toUpperCase(),186)[0],12,30);
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(9); pdf.setTextColor.apply(pdf,COR_ROTULO);
+  pdf.text(pdf.splitTextToSize([o.endereco,o.cidadeUF].filter(Boolean).join(' – '),186)[0]||'',12,35.5);
+  pdf.setFillColor.apply(pdf,COR_FUNDO); pdf.rect(12,40,186,20,'F');
+  [['Contrato',o.ct],['Início',fmtData(o.fechamento)],['Previsão',fmtData(o.entrega)],['Visita',n+' de '+ordem.length],['Emitido em',hoje]].forEach(function(c,i){
+    const x=16+i*36.5; pdfRotulo(pdf,c[0],x,45); pdfValor(pdf,c[1]||'—',x,51,11,true);
+  });
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5); pdf.setTextColor.apply(pdf,COR_ROTULO);
+  pdf.text('Responsável pela visita: '+(v.quem||'______________________'),16,57);
+  pdf.setFontSize(9.5); pdf.setTextColor.apply(pdf,COR_TEXTO);
+  pdf.text(pdf.splitTextToSize('Acompanhamos sua obra a cada visita para instalar as esquadrias assim que os vãos estiverem prontos. '+
+    'Este é o registro da visita de '+fmtData(v.data)+', com a situação dos vãos e as fotos do dia.',186),12,67);
+  pdf.setDrawColor.apply(pdf,COR_LINHA); pdf.setLineWidth(0.2); pdf.line(12,76,198,76);
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(12.5); pdf.setTextColor.apply(pdf,COR_TEXTO);
+  pdf.text('Visita '+n+'  ·  '+fmtData(v.data)+(v.hora?' '+v.hora:'')+'  ·  '+(v.tipo||''),12,83);
+  const sg=situacaoGeral(v);
+  pdf.setFontSize(7.5); const ws=pdf.getTextWidth(sg.txt)+6;
+  pdf.setFillColor.apply(pdf,sg.fundo); pdf.roundedRect(198-ws,79.2,ws,5.4,2.5,2.5,'F');
+  pdf.setTextColor.apply(pdf,sg.cor); pdf.text(sg.txt,198-ws/2,83,{align:'center'});
+  let y=89;
+  const pend=(v.pendencias||[]).filter(function(p){ return p.texto||p.de; });
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(8.5); pdf.setTextColor.apply(pdf,COR_ROTULO);
+  if(pend.length){
+    const t='Aguardando: '+pend.map(function(p){ return txt(p.texto)+(p.de?' ('+p.de+')':''); }).join('; ')+'.';
+    const l=pdf.splitTextToSize(t,186).slice(0,3); pdf.text(l,12,y); y+=l.length*3.8;
+  } else { pdf.text('Sem pendências de terceiros nesta visita.',12,y); y+=3.8; }
+  const naoLib=(v.vaos||[]).filter(function(x){ return x.situacao==='nao'; });
+  if(naoLib.length){
+    const l=pdf.splitTextToSize('Vãos ainda não liberados: '+naoLib.map(function(x){ return x.tipo+(x.obs?' ('+x.obs+')':''); }).join('; ')+'.',186).slice(0,2);
+    pdf.text(l,12,y); y+=l.length*3.8;
+  }
+  if(v.obs){ const l=pdf.splitTextToSize('Observações: '+v.obs,186).slice(0,2); pdf.text(l,12,y); y+=l.length*3.8; }
+  // fotos 3 x 2
+  const fr=fotosDoRelatorio(a,v);
+  const yf=Math.max(y+3,96), wf=59, hf=44, gx=4.5;
+  for(let k=0;k<fr.usar.length;k++){
+    const col=k%3, lin=Math.floor(k/3);
+    const x=12+col*(wf+gx), yy=yf+lin*(hf+9);
+    const src=await fotoParaPdf(fr.usar[k],wf/hf);
+    if(src) pdf.addImage(src,'JPEG',x,yy,wf,hf); else pdfCaixa(pdf,x,yy,wf,hf,COR_FUNDO);
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(7); pdf.setTextColor.apply(pdf,COR_ROTULO);
+    pdf.text('Foto '+(k+1)+' · '+fmtData(diaLocal(fr.usar[k].quando)),x,yy+hf+3.3);
+  }
+  let yh=yf+(fr.usar.length>3?2:fr.usar.length?1:0)*(hf+9);
+  if(!fr.usar.length){ pdf.setFontSize(8.5); pdf.text('Nenhuma foto nesta visita.',12,yf+3); yh=yf+8; }
+  if(fr.total>fr.usar.length){ pdf.setFontSize(7.5); pdf.setTextColor.apply(pdf,COR_ROTULO); pdf.text('+'+(fr.total-fr.usar.length)+' foto(s) desta visita disponível(is) no sistema.',12,yh-2); }
+  yh+=3;
+  pdf.setDrawColor.apply(pdf,COR_LINHA); pdf.line(12,yh,198,yh); yh+=7;
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(12); pdf.setTextColor.apply(pdf,COR_TEXTO); pdf.text('Histórico de visitas',12,yh); yh+=5;
+  ordem.slice(-6).forEach(function(x){
+    const i=ordem.indexOf(x)+1, esta=x.id===v.id;
+    pdf.setFont('helvetica',esta?'bold':'normal'); pdf.setFontSize(8.5); pdf.setTextColor.apply(pdf,esta?COR_TEXTO:COR_ROTULO);
+    pdf.text(i+'.  '+fmtData(x.data)+'  ·  '+(x.tipo||'')+'  ·  '+((x.fotos||[]).length)+' foto(s)'+(esta?'   (esta visita)':''),12,yh); yh+=4.2;
+  });
+  yh+=3;
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(12); pdf.setTextColor.apply(pdf,COR_TEXTO); pdf.text('Esquadrias',12,yh); yh+=5;
+  const conta=function(et){ return a.esquadrias.filter(function(e){ return !e.foraDaRevisao && (e.etapa||'medir')===et; }).length; };
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(8.5); pdf.setTextColor.apply(pdf,COR_TEXTO);
+  pdf.text('Total: '+a.esquadrias.filter(function(e){ return !e.foraDaRevisao; }).length+'   ·   A medir: '+conta('medir')+'   ·   Medidas: '+conta('campo')+
+    '   ·   Em análise técnica: '+conta('tecnico')+'   ·   Liberadas para produção: '+conta('producao'),12,yh);
+  const ya=Math.max(yh+18,262);
+  pdf.setDrawColor.apply(pdf,COR_TEXTO); pdf.setLineWidth(0.25); pdf.line(12,ya,94,ya); pdf.line(116,ya,198,ya);
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor.apply(pdf,COR_ROTULO);
+  pdf.text("Responsável pela visita – D'Aluminium",12,ya+4); pdf.text('Ciente do cliente',116,ya+4);
+  pdf.setDrawColor.apply(pdf,COR_LINHA); pdf.setLineWidth(0.2); pdf.line(12,284,198,284);
+  pdf.setFontSize(7.5); pdf.text(txt(o.cliente)+' · Contrato '+txt(o.ct)+' · Emitido em '+hoje,12,289); pdf.text('Página 1',198,289,{align:'right'});
+  const nome='Relatorio_Visita_'+nomeArquivo(o.cliente)+'_'+fmtData(v.data).replace(/\//g,'-')+'.pdf';
+  baixarPdf(pdf,nome);
+  status('🟢 Relatório gerado · '+agoraHora());
+  return {nome:nome, situacao:sg.txt, pend:pend, v:v, o:o};
+}
+
+// ---- WHATSAPP (igual a Obra: chama o aplicativo; quem envia e a pessoa) ----
+var _urlWhats='';
+function numeroWhats(n){
+  const so=String(n||'').replace(/\D/g,'');
+  if(!so) return '';
+  if(so.length===10||so.length===11) return '55'+so;
+  if(so.length<12) return '';
+  return so;
+}
+function fecharAvisoWhats(){ const cx=document.getElementById('whats-fallback'); if(cx) cx.remove(); }
+window.addEventListener('focus',fecharAvisoWhats);
+document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') fecharAvisoWhats(); });
+function abrirWhats(url){
+  _urlWhats=url;
+  const doApp=String(url).replace('https://api.whatsapp.com/send?','whatsapp://send?');
+  let atendeu=false;
+  const aoSumir=function(){ if(document.visibilityState==='hidden') atendeu=true; };
+  document.addEventListener('visibilitychange',aoSumir); window.addEventListener('blur',aoSumir);
+  setTimeout(function(){
+    document.removeEventListener('visibilitychange',aoSumir); window.removeEventListener('blur',aoSumir);
+    if(!atendeu) mostrarBotaoWhats();
+  },1400);
+  try{ location.href=doApp; }catch(e){ mostrarBotaoWhats(); }
+}
+function mostrarBotaoWhats(){
+  let cx=document.getElementById('whats-fallback');
+  if(!cx){ cx=document.createElement('div'); cx.id='whats-fallback';
+    cx.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+    document.body.appendChild(cx); }
+  cx.innerHTML='<div style="background:#fff;border-radius:12px;padding:20px 22px;max-width:380px;text-align:center">'+
+    '<div style="font-size:14px;font-weight:700;margin-bottom:8px">Abrir o WhatsApp</div>'+
+    '<div style="font-size:12.5px;color:#555;line-height:1.5;margin-bottom:14px">A mensagem já está pronta. <strong>Se o WhatsApp já abriu, pode fechar este aviso.</strong></div>'+
+    '<button type="button" class="btn btn-cor" onclick="abrirWhatsAgora()" style="background:#25D366;border-color:#25D366">Abrir a conversa</button>'+
+    '<div style="margin-top:12px"><button type="button" class="btn btn-outline btn-sm" onclick="fecharAvisoWhats()">Fechar</button></div></div>';
+  cx.onclick=function(e){ if(e.target===cx) fecharAvisoWhats(); };
+}
+function abrirWhatsAgora(){ fecharAvisoWhats(); let w=null; try{ w=window.open(_urlWhats,'_blank'); }catch(e){} if(!w) location.href=_urlWhats; }
+async function enviarRelatorioWhats(visitaId){
+  const r=await gerarRelatorioPdf(visitaId,true);
+  if(!r) return;
+  const primeiro=String(r.o.cliente||'').trim().split(/\s+/)[0]||'';
+  const nomeBonito=primeiro?primeiro.charAt(0).toUpperCase()+primeiro.slice(1).toLowerCase():'';
+  const pend=r.pend.length?'\n\nAguardando: '+r.pend.map(function(p){ return txt(p.texto)+(p.de?' ('+p.de+')':''); }).join('; ')+'.':'';
+  const frase={'VÃOS: LIBERADOS':'Todos os vãos estão liberados para a instalação.',
+    'VÃOS: PARCIAL':'Parte dos vãos já está liberada para a instalação.',
+    'VÃOS: NÃO LIBERADOS':'Os vãos ainda não estão liberados para a instalação.'}[r.situacao]||'';
+  const msg='Olá'+(nomeBonito?', '+nomeBonito:'')+'! Segue o relatório da visita de '+fmtData(r.v.data)+' à sua obra.'+
+    (frase?'\n\n'+frase:'')+pend+'\n\nQualquer dúvida, estamos à disposição.\nD\'Aluminium';
+  const num=numeroWhats(r.o.contato);
+  const url='https://api.whatsapp.com/send?'+(num?'phone='+num+'&':'')+'text='+encodeURIComponent(msg);
+  aviso('Relatório baixado','O arquivo "'+r.nome+'" foi baixado.\n\nAgora vamos abrir o WhatsApp'+(num?' na conversa do cliente':'')+' com a mensagem pronta. '+
+    'Na conversa, toque no clipe (📎) → Documento e escolha o arquivo baixado.\n\n'+
+    'O WhatsApp não aceita receber o arquivo direto do navegador: chega sem o nome.'+(num?'':'\n\nA obra não tem telefone cadastrado: escolha o contato no WhatsApp.'),
+    function(){ abrirWhats(url); });
 }
 
 // ================= MONTAR AS FICHAS A PARTIR DO PDF =================
@@ -1433,6 +1855,9 @@ function renderObra(tela){
       '<a href="#" onclick="verPdfOriginal();return false">Ver o PDF</a>'+(ehConsulta()?'':' · <a href="#" onclick="relerMedicao();return false">Ler o PDF de novo</a>')+'</div>');
   }
   if(avisos.length) h+='<div class="avisos">'+avisos.join('')+'</div>';
+  if(a) h+='<div class="pdf-botoes" style="margin-top:10px">'+
+    '<button class="btn btn-outline btn-sm" onclick="gerarFichaPdf(true)" title="Para imprimir e levar à obra">📄 Ficha de medição em branco</button>'+
+    '<button class="btn btn-outline btn-sm" onclick="gerarFichaPdf(false)">📄 Ficha de medição preenchida</button></div>';
   h+='</div>';
   if(!a){
     if(docsDeMedicao(o).length) h+='<div class="vazio">Montando as fichas a partir do PDF de medição... <br><br>'+
