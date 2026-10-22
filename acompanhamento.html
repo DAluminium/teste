@@ -71,6 +71,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .nota-pdf{background:#FFF8E1;border-left:3px solid var(--amber);padding:6px 10px;border-radius:4px;font-size:12.5px;margin-top:6px}
 .nota-pdf.conjunto{background:#FDECEA;border-left-color:var(--red)}
 .depois{font-size:12px;color:var(--gray-4);font-style:italic}
+.fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.foto{position:relative;background:var(--gray-1);border:1px solid var(--gray-2);border-radius:8px;overflow:hidden}
+.foto img{display:block;width:100%;height:110px;object-fit:cover;cursor:zoom-in;background:var(--gray-2)}
+.foto-leg{font-size:10.5px;color:var(--gray-5);padding:4px 6px;line-height:1.35}
+.foto-leg a{color:var(--cor-dark)}
+.foto-x{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:16px;line-height:26px;cursor:pointer}
+.midia-botoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.midia-botoes label.btn{cursor:pointer}
+.audio-linha{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+.audio-info{font-size:12px;color:var(--gray-5)}
+.visita-linha{border-top:1px solid var(--gray-2);padding:9px 2px;cursor:pointer;font-size:13.5px}
+.visita-linha:hover{background:var(--cor-light)}
+.vv-linha{display:grid;grid-template-columns:110px 150px 1fr;gap:8px;align-items:center;margin-bottom:6px}
+.vv-tipo{font-size:13px}.vv-tipo span{font-size:11.5px;color:var(--gray-5)}
+.grade-visita{grid-template-columns:1fr 1fr 1.4fr}
+@media (max-width:560px){ .vv-linha{grid-template-columns:1fr 1fr} .vv-linha .fg:last-child{grid-column:1 / -1}
+  .grade-visita{grid-template-columns:1fr 1fr} .grade-visita .fg:last-child{grid-column:1 / -1} }
+.btn.gravando{animation:pisca 1s infinite}
+@keyframes pisca{50%{opacity:.6}}
 .hist{font-size:12px;color:var(--gray-5);max-height:160px;overflow:auto;border-top:1px dashed var(--gray-3);margin-top:10px;padding-top:6px}
 .barra-salvar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:2px solid var(--amber);padding:10px 16px;display:none;align-items:center;justify-content:center;gap:12px;z-index:60;box-shadow:0 -2px 10px rgba(0,0,0,.1);flex-wrap:wrap}
 .barra-salvar.visivel{display:flex}
@@ -171,6 +190,14 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <div class="modal-head"><div class="modal-title" id="aviso-titulo">Aviso</div></div>
     <div class="modal-body"><div id="aviso-texto" style="font-size:13.5px;line-height:1.6;white-space:pre-line"></div></div>
     <div class="modal-foot"><button class="btn btn-cor" id="aviso-btn" onclick="fecharAviso()">Entendi</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="visita-ov" style="z-index:300">
+  <div class="modal" style="width:min(680px,100%)">
+    <div class="modal-head"><div class="modal-title" id="visita-titulo">Registrar visita</div></div>
+    <div class="modal-body" id="visita-corpo"></div>
+    <div class="modal-foot" id="visita-pe"></div>
   </div>
 </div>
 
@@ -563,10 +590,12 @@ function carregarPdfJs(){
   return _pdfjs;
 }
 // O anexo e privado: o Worker devolve um link que vale 1 minuto.
-async function linkDoAnexo(url,nome){
+// modo 'miniatura' (so foto do vao): abre sem anotar na Auditoria; 'ver'
+// (padrao) fica anotado como "visualizou anexo".
+async function linkDoAnexo(url,nome,modo){
   const r=await fetch(WORKER,{method:'POST',cache:'no-store',
     headers:cabecalhos({'Content-Type':'application/json','X-Action':'abrir-anexo'}),
-    body:JSON.stringify({url:url,nome:nome||'',modo:'ver',para:''})});
+    body:JSON.stringify({url:url,nome:nome||'',modo:modo||'ver',para:''})});
   let j=null; try{ j=await r.json(); }catch(e){}
   if(r.status===401){ sessaoExpirada(); throw new Error('sessão expirada'); }
   if(!r.ok||!j||!j.url) throw new Error((j&&j.erro)||('erro '+r.status+' no servidor'));
@@ -757,6 +786,476 @@ async function desenhoDe(doc, d){
   return _desenhos[chave];
 }
 
+// ================= FOTOS E AUDIOS (ETAPA 2) =================
+const PASTA_ARQUIVOS='daluminium_acompanhamento';
+// Envio assinado pelo Worker: o arquivo sobe como privado (igual a Obra).
+async function enviarArquivoPrivado(arquivo,tipoRecurso,nome){
+  const r=await fetch(WORKER,{method:'POST',cache:'no-store',
+    headers:cabecalhos({'Content-Type':'application/json','X-Action':'assinar-envio'}),
+    body:JSON.stringify({pasta:PASTA_ARQUIVOS})});
+  let a=null; try{ a=await r.json(); }catch(e){}
+  if(r.status===401){ sessaoExpirada(); throw new Error('sessão expirada'); }
+  if(!r.ok||!a||!a.signature) throw new Error((a&&a.erro)||('o servidor não autorizou o envio ('+r.status+')'));
+  const fd=new FormData();
+  fd.append('file',arquivo,nome||'arquivo');
+  fd.append('api_key',a.api_key); fd.append('timestamp',a.timestamp);
+  fd.append('signature',a.signature); fd.append('folder',a.folder); fd.append('type',a.type);
+  const up=await fetch('https://api.cloudinary.com/v1_1/'+a.conta+'/'+tipoRecurso+'/upload',{method:'POST',body:fd});
+  if(!up.ok){ let t=''; try{ t=await up.text(); }catch(e){} throw new Error('o servidor de arquivos recusou ('+up.status+') '+t.slice(0,120)); }
+  const j=await up.json();
+  // O endereco devolvido traz uma assinatura que abriria o arquivo para
+  // sempre, sem login. Guardado sem ela; quem abre e o Worker.
+  ['secure_url','url'].forEach(function(k){ if(j&&typeof j[k]==='string') j[k]=j[k].replace(/\/s--[^\/]+--\//,'/'); });
+  return j;
+}
+// Depois de gravar SEM o arquivo, pede para apagar no Cloudinary. O Worker so
+// apaga se nenhum registro citar mais o arquivo. Falha aqui nao atrapalha.
+async function excluirArquivoDoAnexo(url){
+  if(!url) return;
+  try{ await fetch(WORKER,{method:'POST',cache:'no-store',
+    headers:cabecalhos({'Content-Type':'application/json','X-Action':'excluir-anexo'}),
+    body:JSON.stringify({url:url})}); }catch(e){}
+}
+// Reduz a foto no celular antes de subir: ~1600 px no lado maior, JPEG 70%.
+// Uma foto de celular de 4 MB vira uns 300 KB — sobe rapido na obra.
+function reduzirFoto(arquivo){
+  return new Promise(function(ok,falhou){
+    const u=URL.createObjectURL(arquivo);
+    const im=new Image();
+    im.onload=function(){
+      const maior=Math.max(im.naturalWidth,im.naturalHeight)||1;
+      const f=Math.min(1,1600/maior);
+      const c=document.createElement('canvas');
+      c.width=Math.round(im.naturalWidth*f); c.height=Math.round(im.naturalHeight*f);
+      c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+      URL.revokeObjectURL(u);
+      c.toBlob(function(b){ b?ok(b):falhou(new Error('não consegui reduzir a foto')); },'image/jpeg',0.7);
+    };
+    im.onerror=function(){ URL.revokeObjectURL(u); falhou(new Error('o arquivo não é uma foto que o navegador consiga abrir')); };
+    im.src=u;
+  });
+}
+// Onde a pessoa esta na hora da foto. Sem permissao ou sem sinal, segue sem
+// local (nunca impede a foto).
+function pegarLocal(){
+  return new Promise(function(ok){
+    if(!navigator.geolocation) return ok(null);
+    let feito=false;
+    const fim=function(v){ if(!feito){ feito=true; ok(v); } };
+    setTimeout(function(){ fim(null); },10000);
+    navigator.geolocation.getCurrentPosition(function(p){
+      fim({lat:Math.round(p.coords.latitude*1e6)/1e6, lng:Math.round(p.coords.longitude*1e6)/1e6, prec:Math.round(p.coords.accuracy||0)});
+    },function(){ fim(null); },{enableHighAccuracy:true,timeout:9000,maximumAge:60000});
+  });
+}
+function linkMapa(l){ return 'https://www.google.com/maps?q='+encodeURIComponent(l.lat+','+l.lng); }
+// Miniaturas: baixadas uma vez por tela e guardadas na memoria.
+const _miniaturas={};
+function miniatura(url,nome){
+  if(_miniaturas[url]) return _miniaturas[url];
+  _miniaturas[url]=(async function(){
+    const u=await linkDoAnexo(url,nome,'miniatura');
+    const r=await fetch(u,{cache:'no-store'});
+    if(!r.ok) throw new Error('foto '+r.status);
+    return URL.createObjectURL(await r.blob());
+  })();
+  _miniaturas[url].catch(function(){ delete _miniaturas[url]; });
+  return _miniaturas[url];
+}
+async function preencherMiniaturas(raiz){
+  (raiz||document).querySelectorAll('img[data-mini]').forEach(async function(im){
+    if(im.getAttribute('src')) return;
+    try{ im.src=await miniatura(im.getAttribute('data-mini'),im.getAttribute('data-nome')); }
+    catch(e){ im.alt='não abriu'; im.style.background='#fdecea'; }
+  });
+}
+// Foto grande: abre numa janela do sistema (fica anotado na Auditoria).
+async function verFoto(url,nome,legenda){
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:2147482000;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;gap:10px';
+  ov.innerHTML='<div style="color:#fff;font-size:13px;text-align:center" id="vf-leg"></div><div id="vf-corpo" style="color:#fff">Abrindo...</div>'+
+    '<button class="btn btn-outline" id="vf-fechar">Fechar</button>';
+  document.body.appendChild(ov);
+  ov.querySelector('#vf-leg').innerHTML=legenda||'';
+  ov.querySelector('#vf-fechar').onclick=function(){ ov.remove(); };
+  ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
+  try{
+    const u=await linkDoAnexo(url,nome,'ver');
+    const im=document.createElement('img');
+    im.src=u; im.alt=nome||''; im.style.cssText='max-width:100%;max-height:78vh;object-fit:contain;border-radius:6px';
+    const c=ov.querySelector('#vf-corpo'); c.textContent=''; c.appendChild(im);
+  }catch(e){ ov.querySelector('#vf-corpo').textContent='Não consegui abrir a foto: '+e.message; }
+}
+function legendaDaFoto(f){
+  return esc(fmtQuando(f.quando))+(f.quem?' · '+esc(f.quem):'')+
+    (f.local?' · <a href="'+esc(linkMapa(f.local))+'" target="_blank" rel="noopener" style="color:inherit">📍 ver no mapa</a>':
+      (f.daGaleria?' · <span title="Foto escolhida da galeria: o local de quando foi tirada não vem junto">sem local (galeria)</span>':' · sem local'));
+}
+function meuLogin(){ try{ const t=lerToken(); return String((t&&t.dados&&t.dados.u)||'').toLowerCase(); }catch(e){ return ''; } }
+function podeTirar(item){ return papel==='admin'||papel==='gerente'||(item&&String(item.login||'').toLowerCase()===meuLogin()); }
+
+// Grava foto/audio direto no banco (nao passa pelo rascunho das medidas):
+// le o banco, acrescenta na lista daquela esquadria e grava. Duas pessoas
+// pondo foto juntas nao apagam uma a outra (gravacao condicional).
+async function acrescentarNaEsquadria(esqId, lista, item, rotulo){
+  const o=obraPorId(obraAberta)||{};
+  return alterar(function(base){
+    const a=base.acompanhamentos.find(function(x){ return x.ctoId===obraAberta; });
+    const e=a&&a.esquadrias.find(function(x){ return x.id===esqId; });
+    if(!e) return false;
+    if(!Array.isArray(e[lista])) e[lista]=[];
+    e[lista].push(item);
+    if(!Array.isArray(e.historico)) e.historico=[];
+    e.historico.push({quando:agoraISO(),quem:usuario,campo:lista,de:'',para:'+ '+item.nome});
+  },{acao:'acrescentou '+rotulo, alvo:(o.ct?o.ct+' · ':'')+(o.cliente||''), detalhe:item.nome});
+}
+async function tirarDaEsquadria(esqId, lista, itemId, rotulo){
+  const a0=acompDaObra(obraAberta);
+  const e0=a0&&a0.esquadrias.find(function(x){ return x.id===esqId; });
+  const it=e0&&(e0[lista]||[]).find(function(x){ return x.id===itemId; });
+  if(!it) return;
+  if(!podeTirar(it)){ aviso('Não dá para tirar','Só quem pôs o arquivo, o gerente ou o administrador pode tirar.'); return; }
+  if(!confirm('Tirar '+rotulo+' "'+it.nome+'"?')) return;
+  const o=obraPorId(obraAberta)||{};
+  const deu=await alterar(function(base){
+    const a=base.acompanhamentos.find(function(x){ return x.ctoId===obraAberta; });
+    const e=a&&a.esquadrias.find(function(x){ return x.id===esqId; });
+    if(!e||!Array.isArray(e[lista])) return false;
+    const antes=e[lista].length;
+    e[lista]=e[lista].filter(function(x){ return x.id!==itemId; });
+    if(e[lista].length===antes) return false;
+    if(!Array.isArray(e.historico)) e.historico=[];
+    e.historico.push({quando:agoraISO(),quem:usuario,campo:lista,de:it.nome,para:'(tirado)'});
+  },{acao:'tirou '+rotulo, alvo:(o.ct?o.ct+' · ':'')+(o.cliente||''), detalhe:it.nome});
+  if(deu){ excluirArquivoDoAnexo(it.url); redesenharFicha(esqId); }
+}
+
+async function recebeuFotos(input){
+  const esqId=input.getAttribute('data-e'), daGaleria=input.getAttribute('data-galeria')==='1';
+  const arquivos=Array.prototype.slice.call(input.files||[]);
+  input.value='';
+  if(!arquivos.length || recusarSeConsulta()) return;
+  const e=esquadriaNaTela(esqId); if(!e) return;
+  // Local so na foto da camera: a da galeria pode ter sido tirada em outro lugar.
+  const local=daGaleria?null:await pegarLocal();
+  let feitas=0;
+  for(let i=0;i<arquivos.length;i++){
+    const f=arquivos[i];
+    status('📷 Enviando foto '+(i+1)+' de '+arquivos.length+'...');
+    try{
+      const reduzida=await reduzirFoto(f);
+      const tipo=e.tipo||e.tipoPdf||'vao';
+      const nome=tipo+'_'+new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)+'_'+(i+1)+'.jpg';
+      const j=await enviarArquivoPrivado(reduzida,'image',nome);
+      const quando=daGaleria&&f.lastModified?new Date(f.lastModified).toISOString():agoraISO();
+      const item={id:novoId(),url:j.secure_url,nome:nome,tamanho:reduzida.size,quando:quando,enviadoEm:agoraISO(),
+                  quem:usuario,login:meuLogin(),local:local,daGaleria:daGaleria||undefined};
+      const ok=await acrescentarNaEsquadria(esqId,'fotos',item,'foto do vão');
+      if(ok) feitas++; else excluirArquivoDoAnexo(item.url);
+    }catch(err){
+      aviso('Foto não enviada','"'+(f.name||'foto')+'": '+err.message+'\n\nConfira a internet e tente de novo.');
+    }
+  }
+  redesenharFicha(esqId);
+  if(feitas) status('🟢 '+feitas+' foto'+(feitas>1?'s':'')+' salva'+(feitas>1?'s':'')+' · '+agoraHora());
+}
+
+// ---- Audio: gravado no proprio celular (MediaRecorder). Sobe como "video"
+// no Cloudinary, que e onde ele guarda audio.
+let _gravador=null;
+function tipoDeAudio(){
+  const ops=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg'];
+  if(!window.MediaRecorder||!MediaRecorder.isTypeSupported) return '';
+  return ops.find(function(t){ return MediaRecorder.isTypeSupported(t); })||'';
+}
+async function gravarAudio(esqId){
+  if(recusarSeConsulta()) return;
+  if(_gravador){ pararAudio(); return; }
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||!window.MediaRecorder){
+    // Navegador sem gravador: escolhe um arquivo de audio do celular.
+    const inp=document.getElementById('audio-arq-'+esqId); if(inp) inp.click();
+    return;
+  }
+  let fluxo;
+  try{ fluxo=await navigator.mediaDevices.getUserMedia({audio:true}); }
+  catch(e){ aviso('Microfone bloqueado','O navegador não liberou o microfone. Permita o uso do microfone para este site e tente de novo.'); return; }
+  const tipo=tipoDeAudio();
+  const rec=new MediaRecorder(fluxo,tipo?{mimeType:tipo}:undefined);
+  const partes=[];
+  rec.ondataavailable=function(ev){ if(ev.data&&ev.data.size) partes.push(ev.data); };
+  _gravador={rec:rec,fluxo:fluxo,esqId:esqId,inicio:Date.now(),relogio:null};
+  rec.onstop=async function(){
+    const g=_gravador; _gravador=null;
+    clearInterval(g.relogio);
+    fluxo.getTracks().forEach(function(t){ t.stop(); });
+    const blob=new Blob(partes,{type:rec.mimeType||tipo||'audio/webm'});
+    const seg=Math.round((Date.now()-g.inicio)/1000);
+    redesenharFicha(esqId);
+    if(seg<1||!blob.size) return;
+    await enviarAudio(esqId,blob,seg);
+  };
+  rec.start(1000);
+  _gravador.relogio=setInterval(function(){
+    const b=document.getElementById('btn-audio-'+esqId);
+    if(b&&_gravador) b.textContent='⏹ Parar ('+fmtSeg(Math.round((Date.now()-_gravador.inicio)/1000))+')';
+  },500);
+  const b=document.getElementById('btn-audio-'+esqId);
+  if(b){ b.textContent='⏹ Parar (0:00)'; b.classList.add('gravando'); }
+}
+function pararAudio(){ if(_gravador&&_gravador.rec.state!=='inactive') _gravador.rec.stop(); }
+function fmtSeg(s){ s=Math.max(0,s|0); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+function extensaoDoAudio(mime){ return /mp4|m4a|aac/.test(mime)?'m4a':/ogg/.test(mime)?'ogg':/mpeg|mp3/.test(mime)?'mp3':'webm'; }
+async function enviarAudio(esqId,blob,seg){
+  const e=esquadriaNaTela(esqId); if(!e) return;
+  status('🎙 Enviando áudio...');
+  try{
+    const tipo=e.tipo||e.tipoPdf||'vao';
+    const nome='audio_'+tipo+'_'+new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)+'.'+extensaoDoAudio(blob.type);
+    const j=await enviarArquivoPrivado(blob,'video',nome);
+    const item={id:novoId(),url:j.secure_url,nome:nome,tamanho:blob.size,duracao:seg||Math.round(j.duration||0),
+                quando:agoraISO(),quem:usuario,login:meuLogin()};
+    const ok=await acrescentarNaEsquadria(esqId,'audios',item,'áudio técnico');
+    if(!ok) excluirArquivoDoAnexo(item.url);
+    else status('🟢 Áudio salvo · '+agoraHora());
+  }catch(err){ aviso('Áudio não enviado',err.message+'\n\nConfira a internet e tente de novo.'); }
+  redesenharFicha(esqId);
+}
+async function recebeuArquivoDeAudio(input){
+  const esqId=input.getAttribute('data-e');
+  const f=input.files&&input.files[0]; input.value='';
+  if(!f||recusarSeConsulta()) return;
+  if(f.size>25*1024*1024){ aviso('Áudio grande demais','O limite é 25 MB.'); return; }
+  await enviarAudio(esqId,f,0);
+}
+async function ouvirAudio(btn){
+  const url=btn.getAttribute('data-url'), nome=btn.getAttribute('data-nome');
+  const lugar=btn.parentNode;
+  btn.disabled=true; btn.textContent='Abrindo...';
+  try{
+    const u=await linkDoAnexo(url,nome,'ver');
+    const r=await fetch(u,{cache:'no-store'});
+    if(!r.ok) throw new Error('áudio '+r.status);
+    const au=document.createElement('audio');
+    au.controls=true; au.src=URL.createObjectURL(await r.blob()); au.style.cssText='width:100%;max-width:320px;height:36px';
+    btn.replaceWith(au);
+    au.play().catch(function(){});
+  }catch(e){ btn.disabled=false; btn.textContent='▶ Ouvir'; aviso('Não consegui abrir o áudio',e.message); }
+}
+
+function htmlMidias(e){
+  const fotos=Array.isArray(e.fotos)?e.fotos:[], audios=Array.isArray(e.audios)?e.audios:[];
+  const so=ehConsulta();
+  let h='<div class="secao"><h4>Fotos do vão'+(fotos.length?' ('+fotos.length+')':'')+'</h4>';
+  if(fotos.length){
+    h+='<div class="fotos">'+fotos.map(function(f){
+      return '<div class="foto"><img data-mini="'+esc(f.url)+'" data-nome="'+esc(f.nome)+'" alt="Foto '+esc(e.tipo||e.tipoPdf)+'" '+
+        'onclick="verFoto(this.getAttribute(\'data-mini\'),this.getAttribute(\'data-nome\'),this.parentNode.querySelector(\'.foto-leg\').innerHTML)">'+
+        '<div class="foto-leg">'+legendaDaFoto(f)+'</div>'+
+        (!so&&podeTirar(f)?'<button class="foto-x" title="Tirar esta foto" onclick="tirarDaEsquadria(\''+e.id+'\',\'fotos\',\''+f.id+'\',\'a foto\')">×</button>':'')+
+      '</div>';
+    }).join('')+'</div>';
+  } else h+='<div class="depois">Nenhuma foto ainda.</div>';
+  if(!so){
+    h+='<div class="midia-botoes">'+
+      '<label class="btn btn-cor btn-sm">📷 Tirar foto<input type="file" accept="image/*" capture="environment" data-e="'+e.id+'" onchange="recebeuFotos(this)" hidden></label>'+
+      '<label class="btn btn-outline btn-sm">🖼 Da galeria<input type="file" accept="image/*" multiple data-e="'+e.id+'" data-galeria="1" onchange="recebeuFotos(this)" hidden></label>'+
+      '</div>';
+  }
+  h+='</div><div class="secao"><h4>Áudios técnicos'+(audios.length?' ('+audios.length+')':'')+'</h4>';
+  if(audios.length){
+    h+=audios.map(function(au){
+      return '<div class="audio-linha"><button class="btn btn-outline btn-sm" data-url="'+esc(au.url)+'" data-nome="'+esc(au.nome)+'" onclick="ouvirAudio(this)">▶ Ouvir</button>'+
+        '<span class="audio-info">'+(au.duracao?fmtSeg(au.duracao)+' · ':'')+esc(fmtQuando(au.quando))+(au.quem?' · '+esc(au.quem):'')+'</span>'+
+        (!so&&podeTirar(au)?'<button class="btn btn-outline btn-sm" title="Tirar este áudio" onclick="tirarDaEsquadria(\''+e.id+'\',\'audios\',\''+au.id+'\',\'o áudio\')">×</button>':'')+
+      '</div>';
+    }).join('');
+  } else h+='<div class="depois">Nenhum áudio ainda.</div>';
+  if(!so){
+    const gravandoAqui=_gravador&&_gravador.esqId===e.id;
+    h+='<div class="midia-botoes"><button class="btn '+(gravandoAqui?'btn-cor gravando':'btn-outline')+' btn-sm" id="btn-audio-'+e.id+'" onclick="gravarAudio(\''+e.id+'\')">'+
+      (gravandoAqui?'⏹ Parar ('+fmtSeg(Math.round((Date.now()-_gravador.inicio)/1000))+')':'🎙 Gravar áudio')+'</button>'+
+      '<input type="file" accept="audio/*" id="audio-arq-'+e.id+'" data-e="'+e.id+'" onchange="recebeuArquivoDeAudio(this)" hidden></div>';
+  }
+  h+='</div>';
+  return h;
+}
+
+// ================= VISITAS (ETAPA 2) =================
+// Cada visita a obra: data, hora, tipo, situacao de cada vao naquele dia,
+// pendencias de terceiros (quem precisa fazer o que antes da nossa
+// instalacao) e fotos. A situacao e um RETRATO do dia — nao muda a ficha.
+const TIPOS_VISITA=['Medição','Acompanhamento','Vistoria','Entrega técnica','Outro'];
+const SITUACOES=[{id:'liberado',nome:'Liberado'},{id:'nao',nome:'Não liberado'},{id:'naovisto',nome:'Não verificado'}];
+let _visita=null, _visitaNovas=[];
+function hojeISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function horaAgora(){ const d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+
+function htmlVisitas(a){
+  const vs=(Array.isArray(a.visitas)?a.visitas:[]).slice().sort(function(x,y){ return String(y.data+y.hora).localeCompare(String(x.data+x.hora)); });
+  let h='<div class="cab"><div class="cab-topo"><div class="cab-titulo" style="font-size:15px">Visitas'+(vs.length?' ('+vs.length+')':'')+'</div>'+
+    (ehConsulta()?'':'<button class="btn btn-cor btn-sm" onclick="abrirVisita(null)">+ Registrar visita</button>')+'</div>';
+  if(!vs.length) h+='<div class="depois">Nenhuma visita registrada ainda.</div>';
+  vs.forEach(function(v){
+    const vaos=v.vaos||[], lib=vaos.filter(function(x){ return x.situacao==='liberado'; }).length;
+    const pend=(v.pendencias||[]).filter(function(p){ return p.texto; });
+    h+='<div class="visita-linha" onclick="abrirVisita(\''+v.id+'\')">'+
+      '<div><b>'+esc(fmtData(v.data))+(v.hora?' '+esc(v.hora):'')+'</b> · '+esc(v.tipo||'Visita')+' · '+esc(v.quem||'')+'</div>'+
+      '<div class="obra-sub">'+(vaos.length?lib+' de '+vaos.length+' vão(s) liberado(s)':'')+
+        (pend.length?' · <span style="color:var(--amber)">'+pend.length+' pendência(s) de terceiros</span>':'')+
+        ((v.fotos||[]).length?' · '+v.fotos.length+' foto(s)':'')+'</div></div>';
+  });
+  h+='</div>';
+  return h;
+}
+
+function abrirVisita(id){
+  const a=acompDaObra(obraAberta); if(!a) return;
+  const ja=id?(a.visitas||[]).find(function(v){ return v.id===id; }):null;
+  if(id&&!ja) return;
+  _visitaNovas=[];
+  if(ja) _visita=copia(ja);
+  else _visita={id:null,data:hojeISO(),hora:horaAgora(),tipo:'Medição',obs:'',fotos:[],pendencias:[{texto:'',de:''}],
+    vaos:a.esquadrias.map(function(e){
+      const c=valor(e,'condicao');
+      return {esqId:e.id,tipo:valor(e,'tipo')||e.tipoPdf,local:valor(e,'local'),situacao:c==='liberado'?'liberado':c==='nao'?'nao':'naovisto',obs:''};
+    })};
+  // Esquadria nova depois da visita: aparece para completar, como "nao verificado".
+  a.esquadrias.forEach(function(e){
+    if(!_visita.vaos.some(function(x){ return x.esqId===e.id; }))
+      _visita.vaos.push({esqId:e.id,tipo:valor(e,'tipo')||e.tipoPdf,local:valor(e,'local'),situacao:'naovisto',obs:''});
+  });
+  desenharVisita();
+  document.getElementById('visita-ov').classList.add('open');
+}
+function desenharVisita(){
+  // Alterar a visita: quem registrou, o gerente ou o administrador. Os demais
+  // abrem para ler.
+  const v=_visita, so=ehConsulta()||(!!v.id&&!podeTirar(v));
+  const dis=so?' disabled':'';
+  let h='<div class="grade grade-visita">'+
+    '<div class="fg"><label>Data</label><input type="date" value="'+esc(v.data)+'"'+dis+' oninput="_visita.data=this.value"></div>'+
+    '<div class="fg"><label>Hora</label><input type="time" value="'+esc(v.hora)+'"'+dis+' oninput="_visita.hora=this.value"></div>'+
+    '<div class="fg"><label>Tipo</label><select'+dis+' onchange="_visita.tipo=this.value">'+TIPOS_VISITA.map(function(t){ return '<option'+(t===v.tipo?' selected':'')+'>'+esc(t)+'</option>'; }).join('')+'</select></div></div>';
+  h+='<div class="secao"><h4>Situação dos vãos neste dia</h4>'+v.vaos.map(function(x,i){
+    return '<div class="vv-linha"><div class="vv-tipo"><b>'+esc(x.tipo)+'</b>'+(x.local?'<br><span>'+esc(x.local)+'</span>':'')+'</div>'+
+      '<div class="fg"><select'+dis+' onchange="_visita.vaos['+i+'].situacao=this.value">'+SITUACOES.map(function(s){ return '<option value="'+s.id+'"'+(s.id===x.situacao?' selected':'')+'>'+esc(s.nome)+'</option>'; }).join('')+'</select></div>'+
+      '<div class="fg"><input placeholder="Obs. (ex.: falta reboco)" value="'+esc(x.obs)+'"'+dis+' oninput="_visita.vaos['+i+'].obs=this.value"></div></div>';
+  }).join('')+'</div>';
+  h+='<div class="secao"><h4>Pendências de terceiros</h4><div class="depois" style="margin-bottom:6px">O que outra equipe precisa fazer antes da nossa instalação (ex.: pedreiro, eletricista, gesseiro).</div>'+
+    v.pendencias.map(function(p,i){
+      return '<div class="grade2" style="grid-template-columns:2fr 1fr auto;margin-bottom:6px">'+
+        '<div class="fg"><input placeholder="O que falta" value="'+esc(p.texto)+'"'+dis+' oninput="_visita.pendencias['+i+'].texto=this.value"></div>'+
+        '<div class="fg"><input placeholder="De quem (ex.: pedreiro)" value="'+esc(p.de)+'"'+dis+' oninput="_visita.pendencias['+i+'].de=this.value"></div>'+
+        (so?'':'<button class="btn btn-outline btn-sm" title="Tirar" onclick="_visita.pendencias.splice('+i+',1);desenharVisita()">×</button>')+'</div>';
+    }).join('')+(so?'':'<button class="btn btn-outline btn-sm" onclick="_visita.pendencias.push({texto:\'\',de:\'\'});desenharVisita()">+ pendência</button>')+'</div>';
+  h+='<div class="secao"><h4>Observações da visita</h4><div class="fg"><textarea'+dis+' oninput="_visita.obs=this.value">'+esc(v.obs)+'</textarea></div></div>';
+  h+='<div class="secao"><h4>Fotos da visita'+(v.fotos.length?' ('+v.fotos.length+')':'')+'</h4>';
+  if(v.fotos.length) h+='<div class="fotos">'+v.fotos.map(function(f){
+    return '<div class="foto"><img data-mini="'+esc(f.url)+'" data-nome="'+esc(f.nome)+'" alt="Foto da visita" '+
+      'onclick="verFoto(this.getAttribute(\'data-mini\'),this.getAttribute(\'data-nome\'),this.parentNode.querySelector(\'.foto-leg\').innerHTML)">'+
+      '<div class="foto-leg">'+legendaDaFoto(f)+'</div>'+
+      (so?'':'<button class="foto-x" title="Tirar esta foto" onclick="tirarFotoDaVisita(\''+f.id+'\')">×</button>')+'</div>';
+  }).join('')+'</div>';
+  if(!so) h+='<div class="midia-botoes">'+
+    '<label class="btn btn-cor btn-sm">📷 Tirar foto<input type="file" accept="image/*" capture="environment" onchange="recebeuFotosDaVisita(this,false)" hidden></label>'+
+    '<label class="btn btn-outline btn-sm">🖼 Da galeria<input type="file" accept="image/*" multiple onchange="recebeuFotosDaVisita(this,true)" hidden></label></div>';
+  h+='</div>';
+  if(v.id) h+='<div class="depois" style="margin-top:10px">Registrada por '+esc(v.quem||'—')+' em '+esc(fmtQuando(v.criadoEm))+(v.editadoPor?' · alterada por '+esc(v.editadoPor)+' em '+esc(fmtQuando(v.editadoEm)):'')+'</div>';
+  document.getElementById('visita-titulo').textContent=v.id?'Visita de '+fmtData(v.data):'Registrar visita';
+  document.getElementById('visita-corpo').innerHTML=h;
+  document.getElementById('visita-pe').innerHTML=
+    (v.id&&!so?'<button class="btn btn-outline" style="margin-right:auto;color:var(--red)" onclick="excluirVisita()">Excluir visita</button>':'')+
+    '<button class="btn btn-outline" onclick="fecharVisita()">'+(so?'Fechar':'Cancelar')+'</button>'+
+    (so?'':'<button class="btn btn-cor" id="btn-salvar-visita" onclick="salvarVisita()">💾 Salvar visita</button>');
+  preencherMiniaturas(document.getElementById('visita-corpo'));
+}
+async function recebeuFotosDaVisita(input,daGaleria){
+  const arquivos=Array.prototype.slice.call(input.files||[]);
+  input.value='';
+  if(!arquivos.length||recusarSeConsulta()) return;
+  const local=daGaleria?null:await pegarLocal();
+  for(let i=0;i<arquivos.length;i++){
+    const f=arquivos[i];
+    status('📷 Enviando foto '+(i+1)+' de '+arquivos.length+'...');
+    try{
+      const reduzida=await reduzirFoto(f);
+      const nome='visita_'+new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)+'_'+(i+1)+'.jpg';
+      const j=await enviarArquivoPrivado(reduzida,'image',nome);
+      const item={id:novoId(),url:j.secure_url,nome:nome,tamanho:reduzida.size,
+        quando:daGaleria&&f.lastModified?new Date(f.lastModified).toISOString():agoraISO(),enviadoEm:agoraISO(),
+        quem:usuario,login:meuLogin(),local:local,daGaleria:daGaleria||undefined};
+      if(!_visita){ excluirArquivoDoAnexo(item.url); return; }
+      _visita.fotos.push(item); _visitaNovas.push(item.url);
+    }catch(err){ aviso('Foto não enviada','"'+(f.name||'foto')+'": '+err.message); }
+  }
+  status('🟡 Foto(s) na visita — falta salvar');
+  if(_visita) desenharVisita();
+}
+function tirarFotoDaVisita(fid){
+  if(!_visita) return;
+  const f=_visita.fotos.find(function(x){ return x.id===fid; }); if(!f) return;
+  if(!podeTirar(f)){ aviso('Não dá para tirar','Só quem pôs a foto, o gerente ou o administrador pode tirar.'); return; }
+  _visita.fotos=_visita.fotos.filter(function(x){ return x.id!==fid; });
+  desenharVisita();
+}
+function fecharVisita(){
+  if(_visitaNovas.length && !confirm('As fotos que você pôs nesta visita serão descartadas. Fechar sem salvar?')) return;
+  // Fotos enviadas e nao salvas: apagadas (ninguem cita, o Worker apaga).
+  _visitaNovas.forEach(function(u){ excluirArquivoDoAnexo(u); });
+  _visitaNovas=[]; _visita=null;
+  document.getElementById('visita-ov').classList.remove('open');
+}
+async function salvarVisita(){
+  const v=_visita; if(!v) return;
+  if(!v.data){ aviso('Falta a data','Preencha a data da visita.'); return; }
+  const btn=document.getElementById('btn-salvar-visita'); if(btn) btn.disabled=true;
+  v.pendencias=v.pendencias.filter(function(p){ return String(p.texto||'').trim()||String(p.de||'').trim(); });
+  const nova=!v.id;
+  const antes=nova?null:((acompDaObra(obraAberta)||{}).visitas||[]).find(function(x){ return x.id===v.id; });
+  const o=obraPorId(obraAberta)||{};
+  const deu=await alterar(function(base){
+    const a=base.acompanhamentos.find(function(x){ return x.ctoId===obraAberta; });
+    if(!a) return false;
+    if(!Array.isArray(a.visitas)) a.visitas=[];
+    const reg=copia(v);
+    if(nova){ reg.id=novoId(); reg.quem=usuario; reg.login=meuLogin(); reg.criadoEm=agoraISO(); a.visitas.push(reg); }
+    else {
+      const i=a.visitas.findIndex(function(x){ return x.id===v.id; });
+      if(i<0) return false;
+      reg.editadoPor=usuario; reg.editadoEm=agoraISO();
+      a.visitas[i]=reg;
+    }
+  },{acao:nova?'registrou visita':'alterou visita', alvo:(o.ct?o.ct+' · ':'')+(o.cliente||''), detalhe:fmtData(v.data)+' · '+v.tipo});
+  if(btn) btn.disabled=false;
+  if(!deu) return;
+  // Foto tirada da visita ao editar (ou posta e tirada antes de salvar): o
+  // arquivo pode ser apagado agora.
+  const ficaram=function(u){ return v.fotos.some(function(x){ return x.url===u; }); };
+  if(antes) (antes.fotos||[]).forEach(function(f){ if(!ficaram(f.url)) excluirArquivoDoAnexo(f.url); });
+  _visitaNovas.forEach(function(u){ if(!ficaram(u)) excluirArquivoDoAnexo(u); });
+  _visitaNovas=[]; _visita=null;
+  document.getElementById('visita-ov').classList.remove('open');
+  render();
+}
+async function excluirVisita(){
+  const v=_visita; if(!v||!v.id) return;
+  if(!confirm('Excluir a visita de '+fmtData(v.data)+'? As fotos dela também saem.')) return;
+  const antes=((acompDaObra(obraAberta)||{}).visitas||[]).find(function(x){ return x.id===v.id; })||v;
+  const o=obraPorId(obraAberta)||{};
+  const deu=await alterar(function(base){
+    const a=base.acompanhamentos.find(function(x){ return x.ctoId===obraAberta; });
+    if(!a||!Array.isArray(a.visitas)) return false;
+    const n=a.visitas.length;
+    a.visitas=a.visitas.filter(function(x){ return x.id!==v.id; });
+    if(a.visitas.length===n) return false;
+  },{acao:'excluiu visita', alvo:(o.ct?o.ct+' · ':'')+(o.cliente||''), detalhe:fmtData(v.data)+' · '+v.tipo});
+  if(!deu) return;
+  (antes.fotos||[]).concat(v.fotos||[]).forEach(function(f){ excluirArquivoDoAnexo(f.url); });
+  _visitaNovas=[]; _visita=null;
+  document.getElementById('visita-ov').classList.remove('open');
+  render();
+}
+
 // ================= MONTAR AS FICHAS A PARTIR DO PDF =================
 function docsDeMedicao(o){ return (o&&Array.isArray(o.docs))?o.docs.filter(function(d){ return d&&d.url; }):[]; }
 function acompDaObra(id){ return (dados.acompanhamentos||[]).find(function(a){ return a.ctoId===id; })||null; }
@@ -943,9 +1442,11 @@ function renderObra(tela){
     return;
   }
   a.esquadrias.forEach(function(e){ if(!baseFichas[e.id]) baseFichas[e.id]=copia(e); });
+  h+=htmlVisitas(a);
   a.esquadrias.forEach(function(e){ h+=htmlFicha(a,e); });
   tela.innerHTML=h;
   a.esquadrias.forEach(function(e){ mostrarDesenho(a,e); });
+  preencherMiniaturas(tela);
   consertarDesenhosVelhos(o,a);
 }
 
@@ -1026,8 +1527,8 @@ function htmlFicha(a,e){
     if(faltas.indexOf('outro')>=0) h+='<div style="margin-top:6px">'+campoTxt(e,'faltaOutro','O que mais falta','Descreva')+'</div>';
   }
   h+='</div>';
-  h+='<div class="secao"><h4>Observações</h4><div class="fg"><textarea data-e="'+e.id+'" data-c="obs" oninput="digitou(this)"'+(ehConsulta()?' disabled':'')+'>'+esc(valor(e,'obs'))+'</textarea></div>'+
-    '<div class="depois">Foto do vão e áudios técnicos: entram na próxima etapa.</div></div>';
+  h+='<div class="secao"><h4>Observações</h4><div class="fg"><textarea data-e="'+e.id+'" data-c="obs" oninput="digitou(this)"'+(ehConsulta()?' disabled':'')+'>'+esc(valor(e,'obs'))+'</textarea></div></div>';
+  h+=htmlMidias(e);
   h+='<div class="secao"><h4>Setor técnico</h4><div class="grade2">'+campoNum(e,'folgaL','Folga L')+campoNum(e,'folgaH','Folga H')+'</div>'+
     '<div class="resultado'+(c.pL===null||c.pH===null?' incompleto':'')+'" id="prod-'+e.id+'">'+htmlProducao(c)+'</div>'+
     (e.visto?'<div style="font-size:12px;color:var(--green);margin-top:6px">✔ Liberado para produção por <b>'+esc(e.visto.quem)+'</b> em '+esc(fmtQuando(e.visto.quando))+'</div>':'')+'</div>';
@@ -1148,6 +1649,7 @@ function redesenharFicha(id){
   const t=document.createElement('div'); t.innerHTML=htmlFicha(a,e);
   el.replaceWith(t.firstChild);
   const d2=document.getElementById('desenho-'+id); if(d2&&img) d2.innerHTML=img;
+  preencherMiniaturas(document.getElementById('ficha-'+id));
   if(foco){ const f=document.querySelector('#ficha-'+id+' [data-c="'+foco+'"]'); if(f) f.focus(); }
 }
 function temRascunho(){ return Object.keys(rascunho).length>0; }
@@ -1240,7 +1742,7 @@ async function salvarObra(){
 }
 
 window.addEventListener('beforeunload',function(ev){
-  if(temRascunho()){ ev.preventDefault(); ev.returnValue=''; }
+  if(temRascunho() || _visitaNovas.length || _gravador){ ev.preventDefault(); ev.returnValue=''; }
 });
 
 // ================= ABERTURA =================
