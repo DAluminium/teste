@@ -385,6 +385,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         </div>
       </div>
 
+      <div class="fg span2" id="ficha-medicao" style="margin-top:14px"></div>
+
       <div id="ficha-linha"></div>
       <div class="hist" id="ficha-hist"></div>
     </div>
@@ -1984,6 +1986,7 @@ async function sincronizar(){
     if(r){ dados=r; gravarLocal(); }
     render();
     status('🟢 Atualizado · '+agoraHora());
+    buscarMedicoes();   // a etiqueta do Acompanhamento chega logo depois
   }catch(e){
     render();
     status('🔴 Sem conexão — dados locais','#ffcccc');
@@ -2073,6 +2076,7 @@ async function atualizarDoBanco(manual){
     const mudou = JSON.stringify(r)!==JSON.stringify(dados);
     if(mudou){ dados=r; gravarLocal(); render(); }
     status((mudou?'🟢 Atualizado · ':'🟢 Em dia · ')+agoraHora());
+    buscarMedicoes();
   }catch(e){
     if(manual) status('🔴 Sem conexão','#ffcccc');
   }
@@ -3216,6 +3220,67 @@ function pillVaos(o){
     c.feitos+'/'+c.total+' instalados'+(c.pendentes?' · '+c.pendentes+' pendente(s)':'')+'</span>';
 }
 
+// ---- MEDIÇÃO DO ACOMPANHAMENTO (etapa 4, 23/10/2026) ----
+// A Fábrica só LÊ: o Worker entrega, por obra, cada esquadria com a etapa da
+// medição e a medida de produção (menor medida do vão - folga). Nada é
+// copiado para cá nem gravado daqui. Falhou a leitura: a Fábrica segue igual
+// a antes, só sem a etiqueta.
+let _medicoes=[];
+async function buscarMedicoes(){
+  try{
+    const r=await fetch(WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7),{cache:'no-store',
+      headers:cabecalhos({'X-Action':'medicao-para-fabrica'})});
+    if(!r.ok) return;
+    const j=await r.json();
+    const novas=(j&&Array.isArray(j.obras))?j.obras:[];
+    const mudou=JSON.stringify(novas)!==JSON.stringify(_medicoes);
+    _medicoes=novas;
+    if(mudou && !telaAbertaParaEdicao()) render();
+  }catch(e){}
+}
+// Liga pelo id do contrato (o mesmo que a Obra usa); sem ele, pelo número do
+// contrato sem zeros à esquerda ("0055" = "55").
+function ctSemZeros(t){ return String(t||'').toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/^CT/,'').replace(/^0+(?=\d)/,''); }
+function medicaoDaObra(o){
+  if(!o) return null;
+  return _medicoes.find(function(m){ return m.ctoId && o.ctoId && m.ctoId===o.ctoId; }) ||
+         _medicoes.find(function(m){ return m.ct && o.obra && ctSemZeros(m.ct)===ctSemZeros(o.obra); }) || null;
+}
+function pillMedicao(o){
+  const m=medicaoDaObra(o);
+  if(!m || !(m.esquadrias||[]).length) return '';
+  const total=m.esquadrias.length;
+  const lib=m.esquadrias.filter(function(e){ return e.etapa==='producao'; }).length;
+  // Na coluna "Medição" do quadro a etiqueta vem forte: é ali que se espera
+  // o vão ser liberado.
+  const naColuna=/medi[cç][aã]o/i.test(etapaNome(o.etapa));
+  const cor=lib>=total?['#eaf7ef','#1e8449']:(naColuna?['#FCE8EF','#A61E4D']:['var(--gray-1)','var(--gray-5)']);
+  return '<span class="pill" style="background:'+cor[0]+';color:'+cor[1]+(naColuna?';font-weight:700':'')+'" '+
+    'title="Vãos liberados para produção no Acompanhamento">&#128208; '+lib+'/'+total+' liberado'+(lib===1?'':'s')+'</span>';
+}
+const NOME_ETAPA_MEDICAO={medir:'A medir',campo:'Medido em campo',tecnico:'No técnico',producao:'Liberado para produção'};
+function renderMedicaoFicha(o){
+  const el=document.getElementById('ficha-medicao');
+  if(!el) return;
+  const m=medicaoDaObra(o);
+  if(!m || !(m.esquadrias||[]).length){ el.innerHTML=''; return; }
+  const lib=m.esquadrias.filter(function(e){ return e.etapa==='producao'; }).length;
+  const mm=function(l,h){ return (l!==null&&l!==undefined&&h!==null&&h!==undefined)?l+' × '+h:'—'; };
+  el.innerHTML='<label>Medição (do Acompanhamento) <span style="font-weight:400;color:var(--gray-4)">— '+lib+' de '+m.esquadrias.length+' liberados para produção</span></label>'+
+    '<div style="overflow-x:auto;margin-top:6px"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<tr style="text-align:left;color:var(--gray-5)"><th style="padding:4px">Tipo</th><th style="padding:4px">Local</th><th style="padding:4px">Etapa</th><th style="padding:4px">Vão (menor)</th><th style="padding:4px">Produção</th><th style="padding:4px">Liberado por</th></tr>'+
+    m.esquadrias.map(function(e){
+      const ok=e.etapa==='producao';
+      return '<tr style="border-top:1px solid var(--gray-2);'+(ok?'background:#eaf7ef':'')+'">'+
+        '<td style="padding:4px;font-weight:600">'+esc(e.tipo)+'</td><td style="padding:4px">'+esc(e.local||'')+'</td>'+
+        '<td style="padding:4px">'+esc(NOME_ETAPA_MEDICAO[e.etapa]||e.etapa)+'</td>'+
+        '<td style="padding:4px;white-space:nowrap">'+mm(e.vaoL,e.vaoH)+'</td>'+
+        '<td style="padding:4px;white-space:nowrap;font-weight:'+(ok?'700':'400')+'">'+mm(e.prodL,e.prodH)+'</td>'+
+        '<td style="padding:4px;white-space:nowrap">'+(e.visto?esc(e.visto.quem)+' · '+esc(fmtQuando(e.visto.quando)):'')+'</td></tr>';
+    }).join('')+'</table></div>'+
+    '<div style="font-size:11px;color:var(--gray-4);margin-top:4px">Medidas em mm. Para corrigir, corrija no Acompanhamento.</div>';
+}
+
 function pillPrazo(o){
   if(o.etapa==='entrega') return '<span class="pill pill-ok">Entregue</span>';
   const d=diasAte(o.prazo);
@@ -3387,6 +3452,7 @@ function htmlCartao(o){
       pillPrazo(o)+
       pillEspera(o)+
       pillVaos(o)+
+      pillMedicao(o)+
       (o.tipo?'<span class="pill pill-tipo">'+esc(o.tipo)+'</span>':'')+
       (o.responsavel?'<span class="pill pill-resp">'+esc(o.responsavel)+'</span>':'')+
       // Clipe com o numero de documentos: mostra de longe quais obras ja tem
@@ -3820,6 +3886,7 @@ function abrirFicha(id){
   renderDocs();
   fichaVaos=Array.isArray(o.vaos)?JSON.parse(JSON.stringify(o.vaos)):[];
   renderVaos();
+  renderMedicaoFicha(o);
   trocouEtapa();          // traz a previsão e a justificativa da etapa atual
   popularNotificarFab();  // começa sempre em "sem notificação"
   document.getElementById('ficha-linha').innerHTML=htmlLinhaEtapas(o);
