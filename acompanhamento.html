@@ -1936,15 +1936,22 @@ async function abrirCargaCroquis(){
 async function iniciarCargaCroquis(input){
   const arquivos=Array.prototype.slice.call(input.files||[]); input.value='';
   const lista=await carregarListaCroquis();
-  const porNome={}; lista.forEach(function(c){ porNome[c.nome.toUpperCase()]=c; });
+  // Compara pelo CODIGO DA NUVEM, nao pelo nome escrito: nome com acento
+  // ("MANUTENÇÃO") sai do zip escrito de outro jeito no Windows, e 4 croquis
+  // ficaram de fora na primeira carga (23/10/2026). O codigo troca todo
+  // caractere estranho por "_" — o acento, de qualquer jeito, vira o mesmo.
+  const porNome={}; lista.forEach(function(c){ porNome[c.id.toUpperCase()]=c; });
+  const idDoArquivo=function(n){ return n.replace(/\.png$/i,'').replace(/[^A-Za-z0-9_-]/g,'_').replace(/_{2,}/g,'_').replace(/^_+|_+$/g,'').toUpperCase(); };
   const subidos=croquisJaSubidos();
   const fila=[]; let foraDaLista=0, achados=0;
   arquivos.forEach(function(f){
     if(!/\.png$/i.test(f.name)) return;
-    const c=porNome[f.name.replace(/\.png$/i,'').toUpperCase()];
+    const c=porNome[idDoArquivo(f.name)];
     if(!c){ foraDaLista++; return; }
     achados++;
-    if(!subidos.has(c.id)) fila.push({f:f,c:c});
+    // O zip traz o mesmo croqui repetido com o acento escrito de varios
+    // jeitos: manda cada codigo uma vez so.
+    if(!subidos.has(c.id) && !fila.some(function(x){ return x.c.id===c.id; })) fila.push({f:f,c:c});
   });
   if(!achados){
     const st0=document.getElementById('carga-status');
