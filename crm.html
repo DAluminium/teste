@@ -2473,7 +2473,7 @@ function abrirFicha(id){
   document.getElementById('o-quem').textContent=quem.join(' · ');
   const gestor=podeGerenciar();
   // Excluir: gerente e admin; a vendedora, so os negocios DELA (16/10/2026).
-  document.getElementById('ficha-btn-excluir').style.display=(!o.excluido && (podeGerenciar() || o.vendedor===usuarioLogin))?'':'none';
+  document.getElementById('ficha-btn-excluir').style.display=(!o.excluido && (podeGerenciar() || (o.vendedor===usuarioLogin && lancouEste(o))))?'':'none';
   document.getElementById('ficha-btn-restaurar').style.display=(gestor&&o.excluido)?'':'none';
   // Limpeza da LGPD e so do administrador (decisao do Ander, 10/10/2026).
   // "Apagar dados pessoais" saiu da ficha a pedido do Ander (14/10/2026): o
@@ -2588,7 +2588,7 @@ async function salvarFicha(){
     let alvo=(base.oportunidades||[]).find(function(x){ return x.id===id; });
     if(!alvo){
       if(!novo){ aviso('Negócio não encontrado','Este negócio não está mais no servidor (pode ter sido passado para outro vendedor). Atualize a tela.'); return false; }
-      alvo={id:id, criadoEm:agoraISO(), criadoPor:usuario, notas:[]};
+      alvo={id:id, criadoEm:agoraISO(), criadoPor:usuario, criadoPorLogin:usuarioLogin, notas:[]};
       base.oportunidades.push(alvo);
     }
     // Copia: esta funcao pode rodar mais de uma vez (gravacao condicional).
@@ -2681,11 +2681,19 @@ async function confirmarEnvioFunil(){
   },{acao:'enviou para o funil de '+para, alvo:alvoDoNegocio(o), detalhe:de+' → '+para+(e?' ('+e.nome+')':'')});
 }
 
+// Quem LANCOU o negocio (27/10/2026, pedido do Ander): a vendedora exclui so o
+// que ela mesma cadastrou. Login gravado desde 27/10/2026; nos antigos, o nome.
+// Mesma regra do Worker (crmLancouEste), que e quem segura de verdade.
+function lancouEste(o){
+  if(!o) return false;
+  if(o.criadoPorLogin) return String(o.criadoPorLogin).toLowerCase()===String(usuarioLogin||'').toLowerCase();
+  return !!o.criadoPor && String(o.criadoPor)===String(usuario||'');
+}
 async function excluirNegocio(){
   const o=(dados.oportunidades||[]).find(function(x){ return x.id===fichaId; });
   if(!o) return;
   if(recusarSeConsulta()) return;
-  if(!podeGerenciar() && o.vendedor!==usuarioLogin){ aviso('Sem permissão','Você só pode excluir os negócios que são seus.'); return; }
+  if(!podeGerenciar() && !(o.vendedor===usuarioLogin && lancouEste(o))){ aviso('Sem permissão','Você só pode excluir os negócios que você mesma lançou.'); return; }
   if(!confirm('Mandar "'+(o.cliente||'este negócio')+'" para a lixeira?\n\nO gerente consegue restaurar depois.')) return;
   const ok=await alterar(function(base){
     const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
