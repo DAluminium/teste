@@ -204,6 +204,15 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
   </div>
 </div>
 
+<div class="overlay" id="pergunta-ov" style="z-index:410">
+  <div class="modal">
+    <div class="modal-head"><div class="modal-title" id="pergunta-titulo">Confirmar</div></div>
+    <div class="modal-body"><div id="pergunta-texto" style="font-size:13.5px;line-height:1.6;white-space:pre-line"></div></div>
+    <div class="modal-foot"><button class="btn btn-outline" id="pergunta-nao" onclick="responderPergunta(false)">Cancelar</button>
+      <button class="btn btn-cor" id="pergunta-sim" onclick="responderPergunta(true)">Confirmar</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="visita-ov" style="z-index:300">
   <div class="modal" style="width:min(680px,100%)">
     <div class="modal-head"><div class="modal-title" id="visita-titulo">Registrar visita</div></div>
@@ -314,6 +323,24 @@ function fecharAviso(){
   document.getElementById('aviso-ov').classList.remove('open');
   const fn=_avisoAoFechar; _avisoAoFechar=null;
   if(fn) fn();
+}
+// Pergunta na janela do proprio sistema (o confirm() do navegador, no
+// celular, parece defeito e as vezes nem aparece). Devolve true no "sim".
+let _perguntaResp=null;
+function perguntar(titulo, texto, sim, perigo){
+  document.getElementById('pergunta-titulo').textContent=titulo||'Confirmar';
+  document.getElementById('pergunta-texto').textContent=texto||'';
+  const b=document.getElementById('pergunta-sim');
+  b.textContent=sim||'Confirmar';
+  b.style.background=perigo?'var(--red)':''; b.style.borderColor=perigo?'var(--red)':'';
+  document.getElementById('pergunta-ov').classList.add('open');
+  setTimeout(function(){ const n=document.getElementById('pergunta-nao'); if(n) n.focus(); },60);
+  return new Promise(function(ok){ _perguntaResp=ok; });
+}
+function responderPergunta(r){
+  document.getElementById('pergunta-ov').classList.remove('open');
+  const fn=_perguntaResp; _perguntaResp=null;
+  if(fn) fn(r);
 }
 
 // ================= CRACHA E SESSAO (igual aos outros modulos) =================
@@ -2437,12 +2464,12 @@ async function zerarFichas(){
   const comMedida=a0.esquadrias.filter(function(e){ return !semNadaDigitado(e); }).length;
   const fotos=a0.esquadrias.reduce(function(s,e){ return s+(e.fotos||[]).length; },0);
   const audios=a0.esquadrias.reduce(function(s,e){ return s+(e.audios||[]).length; },0);
-  if(!confirm('Zerar as '+a0.esquadrias.length+' fichas desta obra?\n\nElas serão apagadas e poderão ser montadas de novo a partir do PDF de medição. As visitas continuam.')) return;
+  if(!await perguntar('Zerar as fichas?','Zerar as '+a0.esquadrias.length+' fichas desta obra?\n\nElas serão apagadas e poderão ser montadas de novo a partir do PDF de medição. As visitas continuam.','Zerar',true)) return;
   if(comMedida||fotos||audios){
-    if(!confirm('ATENÇÃO: já tem coisa digitada que vai ser apagada:\n\n'+
+    if(!await perguntar('Atenção: vai apagar o que foi digitado','Já tem coisa digitada que vai ser apagada:\n\n'+
       (comMedida?'• '+comMedida+' ficha(s) com medida, condição, observação ou folga\n':'')+
       (fotos?'• '+fotos+' foto(s) dos vãos\n':'')+(audios?'• '+audios+' áudio(s)\n':'')+
-      '\nIsso não tem volta pela tela. Confirma mesmo?')) return;
+      '\nIsso não tem volta pela tela. Confirma mesmo?','Sim, zerar tudo',true)) return;
   }
   const arquivos=[];
   const o=obraPorId(obraAberta)||{};
