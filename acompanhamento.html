@@ -1522,7 +1522,7 @@ async function gerarFichaPdf(emBranco){
     pdfRotulo(pdf,'Tipo',14,yb+3.2); pdfValor(pdf,emBranco?(p.tipo||e.tipoPdf):(e.tipo||e.tipoPdf),14,yb+7.6,10,true);
     pdfRotulo(pdf,'Localização',34,yb+3.2); pdfValor(pdf,emBranco?p.local:e.local,34,yb+7.6,9,true);
     pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor.apply(pdf,COR_ROTULO);
-    pdf.text('Medida de projeto: '+(p.dimL&&p.dimH?p.dimL+' × '+p.dimH:txt(p.dimTxt))+' mm'+(p.qtde?'  ·  Qtde '+p.qtde:''),196,yb+6,{align:'right'});
+    pdf.text('Medida de projeto: '+(p.dimL&&p.dimH?p.dimL+' × '+p.dimH:txt(p.dimTxt))+' mm'+(p.unidades?'  ·  unidade '+p.unidade+' de '+p.unidades:(p.qtde?'  ·  Qtde '+p.qtde:'')),196,yb+6,{align:'right'});
     // coluna da esquerda: desenho e projeto
     let ye=yb+12;
     // Croqui escolhido manda sobre o desenho do PDF.
@@ -2051,10 +2051,46 @@ function avisosDaLeitura(o, lido, anterior){
   return avisos;
 }
 
+// Esquadria com quantidade maior que 1 vira uma ficha por unidade. O nome
+// segue o PDF: "J3" com 4 unidades -> J3.1 ... J3.4. As anotacoes do medidor
+// por unidade ("J3.2: 623X523 - WC SUITE") vao so para a unidade certa, e o
+// que vem depois do " - " vira a localizacao dela; anotacao geral ("E: 130")
+// vai para todas.
+function separarUnidades(lista){
+  const saida=[];
+  (lista||[]).forEach(function(e){
+    const n=parseInt(String(e.qtde||'').replace(/\D/g,''),10)||1;
+    if(n<=1){ saida.push(e); return; }
+    const base=String(e.tipo||'').trim();
+    const reUn=new RegExp('^'+base.replace(/[^A-Za-z0-9]/g,'\\$&')+'\\.(\\d+)\\s*:\\s*(.*)$','i');
+    const porUnidade={}, gerais=[];
+    (e.notas||[]).forEach(function(nt){
+      const partes=String(nt.texto||'').split(/\s+·\s+/);
+      const resto=[];
+      partes.forEach(function(p){
+        const m=p.trim().match(reUn);
+        if(m){ const k=parseInt(m[1],10); (porUnidade[k]=porUnidade[k]||[]).push(m[2].trim()); }
+        else resto.push(p);
+      });
+      if(resto.length) gerais.push(Object.assign({},nt,{texto:resto.join(' · ')}));
+    });
+    for(let i=1;i<=n;i++){
+      const anot=porUnidade[i]||[];
+      // "623X523 - WC SUÍTE": a localizacao e o que vem depois do traco.
+      let local=e.local;
+      anot.forEach(function(t){ const m=t.match(/\s[-–]\s*(.+)$/); if(m) local=m[1].trim(); });
+      saida.push(Object.assign({},e,{
+        tipo:base+'.'+i, local:local, qtde:'1', unidade:i, unidades:n, base:base,
+        notas:anot.map(function(t){ return {texto:base+'.'+i+': '+t}; }).concat(gerais)
+      }));
+    }
+  });
+  return saida;
+}
 function esquadriaNova(e, doc){
   return {
     id:novoId(), tipoPdf:e.tipo,
-    projeto:{tipo:e.tipo,local:e.local,qtde:e.qtde,dimL:e.dimL,dimH:e.dimH,dimTxt:e.dimTxt,cor:e.cor,vidro:e.vidro,descricao:e.descricao,linha:e.linha||''},
+    projeto:{tipo:e.tipo,local:e.local,qtde:e.qtde,dimL:e.dimL,dimH:e.dimH,dimTxt:e.dimTxt,cor:e.cor,vidro:e.vidro,descricao:e.descricao,linha:e.linha||'',unidade:e.unidade||0,unidades:e.unidades||0},
     desenho:e.desenho?Object.assign({doc:doc.id},e.desenho):null,
     notas:e.notas,
     tipo:e.tipo, local:e.local,
@@ -2073,7 +2109,10 @@ async function montarFichas(o, releitura){
   let lido;
   try{ lido=await lerMedicaoDaObra(o); }
   catch(e){ status(''); aviso('Não consegui montar as fichas', 'Motivo: '+e.message+'.'); return; }
-  const doc=lido.escolhido.doc, r=lido.escolhido.r;
+  const doc=lido.escolhido.doc;
+  // Uma ficha por UNIDADE (pedido do Ander, 29/10/2026): J3 com qtde 4 vira
+  // J3.1, J3.2, J3.3, J3.4, como o medidor anota no PDF.
+  const r=Object.assign({},lido.escolhido.r,{esquadrias:separarUnidades(lido.escolhido.r.esquadrias)});
   const deu=await alterar(function(base){
     let a=base.acompanhamentos.find(function(x){ return x.ctoId===o.id; });
     const anterior=a?a.origem:null;
@@ -2093,7 +2132,7 @@ async function montarFichas(o, releitura){
       const ja=a.esquadrias.find(function(x){ return !vistos[x.id] && String(x.tipoPdf).toUpperCase()===String(e.tipo).toUpperCase(); });
       if(ja){
         vistos[ja.id]=1;
-        ja.projeto={tipo:e.tipo,local:e.local,qtde:e.qtde,dimL:e.dimL,dimH:e.dimH,dimTxt:e.dimTxt,cor:e.cor,vidro:e.vidro,descricao:e.descricao,linha:e.linha||''};
+        ja.projeto={tipo:e.tipo,local:e.local,qtde:e.qtde,dimL:e.dimL,dimH:e.dimH,dimTxt:e.dimTxt,cor:e.cor,vidro:e.vidro,descricao:e.descricao,linha:e.linha||'',unidade:e.unidade||0,unidades:e.unidades||0};
         ja.desenho=e.desenho?Object.assign({doc:doc.id},e.desenho):null;
         ja.notas=e.notas;
         delete ja.foraDaRevisao;
@@ -2101,7 +2140,14 @@ async function montarFichas(o, releitura){
         const n=esquadriaNova(e,doc); vistos[n.id]=1; a.esquadrias.push(n);
       }
     });
+    // Ficha que saiu do PDF novo: sem nada digitado, sai; com dado, fica
+    // marcada para alguem decidir (nunca se perde medida).
+    a.esquadrias=a.esquadrias.filter(function(x){ return vistos[x.id] || !semNadaDigitado(x); });
     a.esquadrias.forEach(function(x){ if(!vistos[x.id]) x.foraDaRevisao=true; });
+    // Na ordem do PDF; as que sairam dele vao para o fim.
+    const ordem={}; r.esquadrias.forEach(function(e,i){ ordem[String(e.tipo).toUpperCase()]=i; });
+    const pos=function(x){ return x.foraDaRevisao?99999:(ordem[String(x.tipoPdf).toUpperCase()]!==undefined?ordem[String(x.tipoPdf).toUpperCase()]:99998); };
+    a.esquadrias.sort(function(x,y){ return pos(x)-pos(y); });
   }, {acao:releitura?'releu a medição':'montou as fichas', alvo:(o.ct?o.ct+' · ':'')+o.cliente,
       detalhe:r.esquadrias.length+' esquadria(s) · '+(r.proposta||doc.nome)});
   if(deu){ baseFichas={}; rascunho={}; render(); }
@@ -2239,7 +2285,10 @@ function semNadaDigitado(e){
 }
 function consertarDesenhosVelhos(o,a){
   if(_consertoTentado[a.id] || ehConsulta() || temRascunho() || _gravando) return;
-  if(!a.esquadrias.some(function(e){ return desenhoSuspeito(e.desenho) || tipoMalLido(e); })) return;
+  // Tambem remonta (uma vez) a obra montada antes de 29/10/2026 com uma ficha
+  // so para esquadria de qtde maior que 1: agora e uma por unidade.
+  const juntaUnidades=function(e){ const q=parseInt(String((e.projeto||{}).qtde||'').replace(/\D/g,''),10)||1; return q>1 && !(e.projeto||{}).unidades && !e.foraDaRevisao; };
+  if(!a.esquadrias.some(function(e){ return desenhoSuspeito(e.desenho) || tipoMalLido(e) || juntaUnidades(e); })) return;
   _consertoTentado[a.id]=true;
   montarFichas(o,true);
 }
@@ -2289,7 +2338,7 @@ function htmlFicha(a,e){
       '<button class="btn btn-outline btn-sm" onclick="abrirEscolhaCroqui(\''+e.id+'\')">🖼 '+(e.croqui?'Trocar croqui':(e.desenho?'Usar outro croqui':'Escolher croqui'))+'</button>'+
       (e.croqui&&e.desenho?'<button class="btn btn-outline btn-sm" onclick="voltarDesenhoDoPdf(\''+e.id+'\')">↩ Desenho do PDF</button>':
         (e.croqui?'<button class="btn btn-outline btn-sm" onclick="voltarDesenhoDoPdf(\''+e.id+'\')">✕ Tirar croqui</button>':''))+'</div>')+
-    '<div class="proj"><b>Projeto:</b> '+esc(p.dimTxt||((p.dimL||'?')+' x '+(p.dimH||'?')))+(p.qtde?' · Qtde '+esc(p.qtde):'')+'<br>'+
+    '<div class="proj"><b>Projeto:</b> '+esc(p.dimTxt||((p.dimL||'?')+' x '+(p.dimH||'?')))+(p.unidades?' · unidade '+p.unidade+' de '+p.unidades:(p.qtde?' · Qtde '+esc(p.qtde):''))+'<br>'+
       (p.cor?'<b>Cor:</b> '+esc(p.cor)+'<br>':'')+(p.vidro?'<b>Vidro:</b> '+esc(p.vidro)+'<br>':'')+
       (p.descricao?'<b>Descrição:</b> '+esc(p.descricao):'')+'</div>'+
     (e.notas||[]).map(function(n){
