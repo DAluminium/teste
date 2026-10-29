@@ -2245,7 +2245,12 @@ function renderObra(tela){
     if(novos.length) avisos.push('<div class="aviso-linha aviso-azul">📄 Chegou PDF de medição novo na Obra ('+esc(novos.map(function(d){ return d.nome; }).join(', '))+'). '+
       '<button class="btn btn-cor btn-sm" onclick="relerMedicao()">Ler de novo</button></div>');
     if(a.origem) avisos.push('<div class="aviso-linha" style="background:var(--gray-2);color:var(--gray-5)">Fichas montadas de "'+esc(a.origem.nome)+'" ('+esc(a.origem.proposta||'sem nº')+') em '+esc(fmtQuando(a.origem.lidoEm))+' por '+esc(a.origem.lidoPor||'—')+'. '+
-      '<a href="#" onclick="verPdfOriginal();return false">Ver o PDF</a>'+(ehConsulta()?'':' · <a href="#" onclick="relerMedicao();return false">Ler o PDF de novo</a>')+'</div>');
+      '<a href="#" onclick="verPdfOriginal();return false">Ver o PDF</a>'+(ehConsulta()?'':' · <a href="#" onclick="relerMedicao();return false">Ler o PDF de novo</a>')+
+      (podeZerar()?' · <a href="#" style="color:var(--red)" onclick="zerarFichas();return false">Zerar as fichas</a>':'')+'</div>');
+    if(!a.origem && !a.esquadrias.length) avisos.push('<div class="aviso-linha aviso-ambar">As fichas desta obra foram zeradas'+
+      (a.zeradoPor?' por '+esc(a.zeradoPor)+' em '+esc(fmtQuando(a.zeradoEm)):'')+'. '+
+      (docsDeMedicao(o).length&&!ehConsulta()?'<button class="btn btn-cor btn-sm" onclick="montarFichas(obraPorId(obraAberta),true)">Montar as fichas agora</button>':
+        'Anexe o PDF de medição na Obra para montar de novo.')+'</div>');
   }
   if(avisos.length) h+='<div class="avisos">'+avisos.join('')+'</div>';
   if(a) h+='<div class="pdf-botoes" style="margin-top:10px">'+
@@ -2418,6 +2423,44 @@ async function verPdfOriginal(){
   if(!a||!a.origem) return;
   try{ const u=await linkDoAnexo(a.origem.url,a.origem.nome); window.open(u,'_blank'); }
   catch(e){ aviso('Não consegui abrir o PDF', e.message); }
+}
+// ---- ZERAR AS FICHAS (pedido do Ander, 29/10/2026) ----
+// Para recomecar do zero (ex.: PDF errado anexado). Apaga as fichas montadas
+// do PDF, com as medidas, fotos e audios delas; as VISITAS ficam (sao o
+// registro de cada dia). So gerente e admin. Depois, a obra NAO remonta
+// sozinha: da tempo de trocar o PDF na Obra antes de montar de novo.
+function podeZerar(){ return !ehConsulta() && (papel==='admin'||papel==='gerente'); }
+async function zerarFichas(){
+  if(!podeZerar()){ aviso('Só o gerente ou o administrador','Peça a quem gerencia este módulo para zerar as fichas.'); return; }
+  if(temRascunho()){ aviso('Salve antes','Há medidas não salvas. Salve (ou descarte) antes de zerar.'); return; }
+  const a0=acompDaObra(obraAberta); if(!a0) return;
+  const comMedida=a0.esquadrias.filter(function(e){ return !semNadaDigitado(e); }).length;
+  const fotos=a0.esquadrias.reduce(function(s,e){ return s+(e.fotos||[]).length; },0);
+  const audios=a0.esquadrias.reduce(function(s,e){ return s+(e.audios||[]).length; },0);
+  if(!confirm('Zerar as '+a0.esquadrias.length+' fichas desta obra?\n\nElas serão apagadas e poderão ser montadas de novo a partir do PDF de medição. As visitas continuam.')) return;
+  if(comMedida||fotos||audios){
+    if(!confirm('ATENÇÃO: já tem coisa digitada que vai ser apagada:\n\n'+
+      (comMedida?'• '+comMedida+' ficha(s) com medida, condição, observação ou folga\n':'')+
+      (fotos?'• '+fotos+' foto(s) dos vãos\n':'')+(audios?'• '+audios+' áudio(s)\n':'')+
+      '\nIsso não tem volta pela tela. Confirma mesmo?')) return;
+  }
+  const arquivos=[];
+  const o=obraPorId(obraAberta)||{};
+  const deu=await alterar(function(base){
+    const a=base.acompanhamentos.find(function(x){ return x.ctoId===obraAberta; });
+    if(!a||!a.esquadrias.length) return false;
+    a.esquadrias.forEach(function(e){ (e.fotos||[]).concat(e.audios||[]).forEach(function(f){ if(f.url) arquivos.push(f.url); }); });
+    a.esquadrias=[]; delete a.origem; a.avisos=[];
+    a.zeradoPor=usuario; a.zeradoEm=agoraISO();
+  },{acao:'zerou as fichas', alvo:(o.ct?o.ct+' · ':'')+(o.cliente||''),
+     detalhe:a0.esquadrias.length+' ficha(s)'+(comMedida?', '+comMedida+' com medida':'')+(fotos?', '+fotos+' foto(s)':'')+(audios?', '+audios+' áudio(s)':'')});
+  if(!deu) return;
+  // Fotos e audios das fichas apagadas saem da nuvem tambem. O Worker so
+  // apaga o arquivo se nenhum registro citar mais (as fotos das visitas sao
+  // outros arquivos e ficam).
+  arquivos.forEach(function(u){ excluirArquivoDoAnexo(u); });
+  baseFichas={}; rascunho={};
+  render();
 }
 function relerMedicao(){
   if(temRascunho()){ aviso('Salve antes','Há medidas não salvas. Salve (ou descarte) antes de ler o PDF de novo.'); return; }
