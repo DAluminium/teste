@@ -583,10 +583,12 @@ async function carregarCaderno(){
 function desenharCaderno(){
   const v=CADERNO_VISTAS[abaAtual]; if(!v) return;
   const alvo=document.getElementById('cad-lista');
-  const busca=String(document.getElementById('cad-busca').value||'').toLowerCase().trim();
+  // Sem acento e sem diferenca de maiuscula (29/10/2026): "joao" acha "João".
+  const sa=function(t){ return String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(); };
+  const busca=sa(document.getElementById('cad-busca').value||'').trim();
   const lista=_caderno.lista.filter(function(x){
     if(!busca) return true;
-    return [x.n,x.u,x.a,rotuloDaAcao(x.a),x.alvo].join(' ').toLowerCase().indexOf(busca)>=0;
+    return sa([x.n,x.u,x.a,rotuloDaAcao(x.a),x.alvo].join(' ')).indexOf(busca)>=0;
   });
   if(!lista.length){
     alvo.className='vazio';

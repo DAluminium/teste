@@ -3362,16 +3362,32 @@ function clearSearch(){
   render();
 }
 
+// Busca sem acento e sem diferenca de maiuscula (pedido do Ander, 29/10/2026):
+// "flavia" acha "FLÁVIA", "pintura" acha "Pintura". Igual ao Financeiro e ao CRM.
+function paraBusca(t){ return String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(); }
 function matchesSearch(r){
   if(!searchTerm) return true;
-  const fields = [r.obra, r.contrato, r.fornecedor, r.material, r.nrOrc, r.by, r.pix, r.pixNome, r.banco].join(' ').toLowerCase();
-  return fields.includes(searchTerm);
+  const fields = paraBusca([r.obra, r.contrato, r.fornecedor, r.material, r.nrOrc, r.by, r.pix, r.pixNome, r.banco].join(' '));
+  return fields.includes(paraBusca(searchTerm));
 }
 
+// Marca o trecho achado mesmo com acento diferente: compara letra a letra ja
+// sem acento (cada letra acentuada vira UMA letra, entao as posicoes batem).
 function highlight(text){
   if(!searchTerm || !text) return text||'';
-  const re = new RegExp('('+searchTerm.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')', 'gi');
-  return String(text).replace(re,'<span class="highlight">$1</span>');
+  const s=String(text), q=paraBusca(searchTerm);
+  const letras=Array.from(s), norm=letras.map(function(c){ return paraBusca(c); });
+  if(!q || norm.some(function(c){ return c.length!==1; })){
+    const re = new RegExp('('+searchTerm.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')', 'gi');
+    return s.replace(re,'<span class="highlight">$1</span>');
+  }
+  const plano=norm.join('');
+  let out='', i=0, k=plano.indexOf(q);
+  while(k>=0){
+    out+=letras.slice(i,k).join('')+'<span class="highlight">'+letras.slice(k,k+q.length).join('')+'</span>';
+    i=k+q.length; k=plano.indexOf(q,i);
+  }
+  return out+letras.slice(i).join('');
 }
 
 // ---- NOTIFICATION SYSTEM ----

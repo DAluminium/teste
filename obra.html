@@ -2104,8 +2104,11 @@ function preencherListas(){
 //
 // `esconderFinalizadas` e falso no Painel: la o assunto e o retrato geral, e
 // um contador que esconde parte do que conta mente.
+// Busca sem acento e sem diferenca de maiuscula (pedido do Ander, 29/10/2026):
+// "flavia" acha "FLÁVIA", "joao" acha "João". Igual ao Financeiro e ao CRM.
+function paraBusca(t){ return String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(); }
 function filtrados(esconderFinalizadas){
-  const busca=(document.getElementById('busca').value||'').toLowerCase().trim();
+  const busca=paraBusca(document.getElementById('busca').value||'').trim();
   const fs=document.getElementById('f-status-filtro').value;
   const fa=document.getElementById('f-ano-filtro').value;
   const fc=document.getElementById('f-coord-filtro').value;
@@ -2126,7 +2129,7 @@ function filtrados(esconderFinalizadas){
     return [c.ct,ctFormatado(c.ct),ctNormal(c.ct),c.ano,c.cliente,c.coord,c.respCom,c.cidade,c.condominio,
             c.linhas,c.cores,c.vidros,c.status,c.obs]
       .concat(valoresExtras)
-      .join(' ').toLowerCase().indexOf(busca)>=0;
+      .map(paraBusca).join(' ').indexOf(busca)>=0;
   });
 }
 
@@ -2478,7 +2481,7 @@ function historicoBate(x, busca){
     const achados=linha.match(/CT\s+[0-9A-Za-z-]+/g)||[];
     return achados.some(function(t){ return ctNormal(t)===quero; });
   }
-  return linha.toLowerCase().indexOf(busca.toLowerCase())>=0;
+  return paraBusca(linha).indexOf(paraBusca(busca))>=0;
 }
 function htmlHistorico(){
   const busca=((document.getElementById('busca')||{}).value||'').trim();
@@ -6750,10 +6753,10 @@ function fecharAcessos(){ document.getElementById('acs-ov').classList.remove('op
 function renderAcessos(total){
   const el=document.getElementById('acs-lista');
   if(!el) return;
-  const busca=String((document.getElementById('acs-busca')||{}).value||'').toLowerCase().trim();
+  const busca=paraBusca((document.getElementById('acs-busca')||{}).value||'').trim();
   const lista=_acessos.filter(function(x){
     if(!busca) return true;
-    return ((x.n||'')+' '+(x.u||'')+' '+(x.a||'')+' '+(x.alvo||'')).toLowerCase().indexOf(busca)>=0;
+    return paraBusca((x.n||'')+' '+(x.u||'')+' '+(x.a||'')+' '+(x.alvo||'')).indexOf(busca)>=0;
   });
   if(!lista.length){ el.innerHTML='<p style="color:var(--gray-4)">Nada registrado ainda'+(busca?' para essa busca':'')+'.</p>'; return; }
   el.innerHTML='<div class="tabela-cx"><table class="carteira"><thead><tr>'+

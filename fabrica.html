@@ -3297,10 +3297,11 @@ function ativas(){ return dados.obras.filter(function(o){ return !o.excluida; })
 function excluidas(){ return dados.obras.filter(function(o){ return !!o.excluida; }); }
 
 function filtradas(){
-  const q=(document.getElementById('busca')?.value||'').trim().toLowerCase();
+  // Sem acento e sem diferenca de maiuscula (29/10/2026): "flavia" acha "FLÁVIA".
+  const q=semAcento((document.getElementById('busca')?.value||'').trim());
   const base=verExcluidas?excluidas():ativas();
   if(!q) return base;
-  return base.filter(o=>((o.cliente||'')+' '+(o.obra||'')+' '+(o.responsavel||'')).toLowerCase().includes(q));
+  return base.filter(o=>semAcento((o.cliente||'')+' '+(o.obra||'')+' '+(o.responsavel||'')).includes(q));
 }
 
 // ================= TELA =================
@@ -3354,9 +3355,9 @@ function htmlHistoricoGeral(){
   const acoes=Array.isArray(dados.historico)?dados.historico:[];
   const todos=acoes.concat(_sessoesHist||[])
     .sort(function(a,b){ return String(b.ts).localeCompare(String(a.ts)); });
-  const q=((document.getElementById('busca')||{}).value||'').trim().toLowerCase();
+  const q=semAcento(((document.getElementById('busca')||{}).value||'').trim());
   const lista=q ? todos.filter(function(h){
-    return ((h.user||'')+' '+(h.acao||'')+' '+(h.alvo||'')+' '+(h.detalhe||'')).toLowerCase().includes(q);
+    return semAcento((h.user||'')+' '+(h.acao||'')+' '+(h.alvo||'')+' '+(h.detalhe||'')).includes(q);
   }) : todos;
 
   if(!lista.length){
