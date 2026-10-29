@@ -3442,7 +3442,19 @@ function render(){
       (!ehConsulta()?'<button class="btn btn-teal" onclick="novaObra()">Cadastrar primeira obra</button>':'<p style="font-size:12.5px;color:var(--gray-4)">No modo consulta não dá para cadastrar obra.</p>')+'</div>';
     return;
   }
+  // Redesenhar o quadro zera a rolagem e a pessoa voltava para a primeira
+  // coluna a cada etapa trocada. Anota onde estava e devolve depois.
+  const bAnt=alvo.querySelector('.board');
+  const rolagem={x:bAnt?bAnt.scrollLeft:0, cols:{}};
+  alvo.querySelectorAll('.col-body[data-etapa]').forEach(function(c){ rolagem.cols[c.dataset.etapa]=c.scrollTop; });
+  const yPagina=window.scrollY;
   alvo.innerHTML = view==='quadro' ? htmlQuadro(lista) : htmlLista(lista);
+  const bNovo=alvo.querySelector('.board');
+  if(bNovo) bNovo.scrollLeft=rolagem.x;
+  alvo.querySelectorAll('.col-body[data-etapa]').forEach(function(c){
+    if(rolagem.cols[c.dataset.etapa]!=null) c.scrollTop=rolagem.cols[c.dataset.etapa];
+  });
+  window.scrollTo(window.scrollX,yPagina);
 }
 
 function htmlCartao(o){
@@ -3470,7 +3482,7 @@ function htmlQuadro(lista){
   }).map(e=>{
     const its=lista.filter(o=>o.etapa===e.id);
     return '<div class="col"><div class="col-head"><span>'+esc(e.nome)+'</span><span class="col-count">'+its.length+'</span></div>'+
-      '<div class="col-body">'+(its.length?its.map(htmlCartao).join(''):'<div class="col-vazia">vazia</div>')+'</div></div>';
+      '<div class="col-body" data-etapa="'+esc(e.id)+'">'+(its.length?its.map(htmlCartao).join(''):'<div class="col-vazia">vazia</div>')+'</div></div>';
   }).join('')+'</div>';
 }
 
