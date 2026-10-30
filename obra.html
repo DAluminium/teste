@@ -414,7 +414,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
            endereço dele. O rótulo diz o que é o arquivo sem precisar abrir. -->
       <div class="secao">Anexos</div>
       <div class="form-grid">
-        <div class="fg"><label>Rótulo do próximo anexo</label><select id="f-doc-tipo"></select></div>
+        <div class="fg"><label>Rótulo do próximo anexo</label><select id="f-doc-tipo"></select><span class="dica">Listas de material de perfil alumínio, acessórios e vidro seguem automaticamente para Compras após salvar o anexo.</span></div>
         <div class="fg"><label>Arquivo</label>
           <input type="file" id="f-doc-arq" onchange="anexarDoc(event)" style="display:none">
           <button type="button" class="btn btn-outline" id="f-doc-btn" onclick="document.getElementById('f-doc-arq').click()">📎 Anexar arquivo</button>
@@ -2774,6 +2774,8 @@ async function salvarFicha(manterAberta){
     // novo grava o contrato, e o próximo anexo já cai no mesmo registro.
     fichaId=id;
     renderDocs();
+    const salvo=(dados.contratos||[]).find(function(x){ return x.id===id; });
+    if(salvo){ zerarEnvio(); await enviarParaCompras(salvo); mostrarEnvio(); }
     return true;
   }
   fecharFicha();
@@ -4910,7 +4912,10 @@ function fmtTamanho(b){
 }
 
 function tiposDoc(){
-  return (Array.isArray(dados.tiposDoc)&&dados.tiposDoc.length)?dados.tiposDoc:TIPOS_DOC_PADRAO;
+  const tipos=(Array.isArray(dados.tiposDoc)&&dados.tiposDoc.length)?dados.tiposDoc:TIPOS_DOC_PADRAO;
+  return tipos.concat(ROTULOS_LISTA_COMPRAS.filter(function(t){
+    return !tipos.some(function(x){ return normalizarRotuloLista(x)===normalizarRotuloLista(t); });
+  }));
 }
 
 function preencherTiposDoc(){
@@ -6511,14 +6516,9 @@ async function marcarConfirmacoesVistas(){
 // ================= AS COMPRAS =================
 // Duas coisas diferentes acontecem aqui:
 //
-// 1. ESCREVE um lançamento "semente" no Compras, com as TRÊS informações que o
-//    Ander chamou de prioridade: contrato, nome do cliente e data de entrega da
-//    obra. É o que faz a obra nova já aparecer na lista do Compras, para ele
-//    poder cobrar a lista de material sem esperar ninguém digitar nada.
-//
-//    Material, fornecedor, valor e nota ficam vazios de propósito: quem compra
-//    preenche. O pedido de material do Compras mora DENTRO do lançamento, então
-//    sem um lançamento não há como cobrar — era isso que faltava.
+// 1. Cria a demanda somente com uma lista de material salva no contrato.
+//    O arquivo acompanha a demanda na mesma gravacao. Salvar apenas o contrato
+//    ou anexar outro tipo de documento nao cria demanda vazia.
 //
 // 2. LÊ para mostrar na ficha o que já foi comprado para o contrato.
 function cabecalhosCompras(extra){
@@ -6556,7 +6556,32 @@ function acharLancamentoDaObra(comp, idContrato){
   return null;
 }
 
+const ROTULOS_LISTA_COMPRAS=['Lista de material perfil aluminio',
+  'Lista de material acessorios','Lista de material vidro'];
+function normalizarRotuloLista(s){
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
+}
+function listasMaterialCompras(c){
+  return ((c&&c.docs)||[]).filter(function(d){
+    return d.url && ROTULOS_LISTA_COMPRAS.some(function(t){
+      return normalizarRotuloLista(d.tipo)===normalizarRotuloLista(t);
+    });
+  });
+}
+function anexarListasCompras(reg,listas){
+  if(!Array.isArray(reg.attachments)) reg.attachments=[];
+  listas.forEach(function(d){
+    if(!reg.attachments.some(function(a){ return a.url===d.url; })){
+      reg.attachments.push({id:novoId(),url:d.url,name:d.nome,type:mimeDoAnexo(d),size:d.tamanho||0});
+    }
+  });
+}
 async function enviarParaCompras(c){
+  const listas=listasMaterialCompras(c);
+  if(!listas.length){
+    anotarEnvio('comp','aguardando anexo da lista de material','');
+    return;
+  }
   // Contrato finalizado, parado ou pendente não vira cobrança de material.
   // Se o lançamento JÁ existe, continua sendo atualizado.
   // Sem data de entrega não dá: o Compras exige a data, e é dela que sai o
@@ -6565,28 +6590,19 @@ async function enviarParaCompras(c){
   status('🔄 Levando para o Compras...');
   try{
     const comp=await lerCompras();
-    const ja=acharLancamentoDaObra(comp, c.id);
+    const ja=acharLancamentoDaObra(comp, c.id) || lancamentoManualNoCompras(comp, c);
     const deveEntrar=vaiParaProducao(c.status);
     if(!ja && !deveEntrar){
       const m=porqueOStatusNaoVai(c);
       anotarEnvio('comp','não foi para o Compras porque '+m,'status',m);
       return;
     }
-    // Já lançado à mão no Compras com este contrato: não cria outro, e não
-    // mexe no que existe — material, valor e pedido são de quem compra.
-    if(!ja){
-      const manual=lancamentoManualNoCompras(comp, c);
-      if(manual){
-        anotarEnvio('comp','o Compras já tem o contrato '+(manual.reg.contrato||''),'');
-        return;
-      }
-    }
     if(!ja && !c.entrega){
       aviso('Contrato salvo, mas não foi para o Compras',
         'O contrato está guardado aqui. Só não deu para criar o lançamento no '+
         'Compras porque ele exige a DATA DE ENTREGA DA OBRA — é dela que sai o '+
         'alerta de prazo de material.\n\n'+
-        'Preencha a entrega e salve de novo: aí ele vai.');
+        'Preencha a entrega e salve de novo: a lista será enviada junto.');
       anotarEnvio('comp','não foi para o Compras: falta a data de entrega da obra','entrega');
       return;
     }
@@ -6595,9 +6611,12 @@ async function enviarParaCompras(c){
       // Só as três que este módulo manda. Material, fornecedor, valor, nota,
       // anexos, pedido de material e a aba são de quem compra: mexer neles
       // daqui apagaria trabalho dele.
-      ja.reg.obra=c.cliente;
-      ja.reg.contrato=c.ct;
-      if(c.entrega) ja.reg.entrega=c.entrega;
+      if(ja.reg.ctoId===c.id){
+        ja.reg.obra=c.cliente;
+        ja.reg.contrato=c.ct;
+        if(c.entrega) ja.reg.entrega=c.entrega;
+      }
+      anexarListasCompras(ja.reg,listas);
     } else {
       // Campos na mesma forma que o Compras grava, para a tela dele não
       // encontrar buraco nenhum.
@@ -6612,16 +6631,16 @@ async function enviarParaCompras(c){
         status:'Pendente', tipo:'padrao',
         by: usuario,
         pix:'', pixNome:'', banco:'', conta:'',
-        obs:'Obra nova, veio do Gerenciamento de Obra · CT '+(c.ct||'')+'/'+(c.ano||'')+
-            '. Falta lançar o material.',
+        obs:'Lista de material recebida do Gerenciamento de Obra · CT '+(c.ct||'')+'/'+(c.ano||''),
         attachments:[], pedido:null
       });
+      anexarListasCompras(comp.importante[comp.importante.length-1],listas);
       if(!Array.isArray(comp.historico)) comp.historico=[];
       comp.historico.unshift({
         ts: agoraISO(), user: usuario||'—',
-        action:'Obra nova (pelo Gerenciamento de Obra)',
+        action:'Lista de material recebida (pelo Gerenciamento de Obra)',
         obra: c.cliente||'—', contrato: c.ct||'—',
-        detail:'Entrega '+(c.entrega?fmtData(c.entrega):'—')+' · material ainda não lançado'
+        detail:'Entrega '+(c.entrega?fmtData(c.entrega):'—')+' · '+listas.map(function(d){ return d.tipo+': '+d.nome; }).join('; ')
       });
       if(comp.historico.length>500) comp.historico=comp.historico.slice(0,500);
     }
@@ -6685,7 +6704,7 @@ function mostrarCompras(c){
     else if(!c.entrega)
       motivo='Falta a <strong>data de entrega da obra</strong>: sem ela o Compras não entra, porque é dela que sai o alerta de prazo.';
     else
-      motivo='Ao salvar, esta obra entra na lista do Compras para ele cobrar a lista de material.';
+      motivo='A demanda será criada quando uma lista de material de perfil alumínio, acessórios ou vidro for anexada e salva.';
     el.innerHTML='<strong>Compras:</strong> nada lançado para o contrato '+esc(c.ct||'—')+' ainda. '+motivo;
     return;
   }
