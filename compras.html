@@ -2641,6 +2641,8 @@ function blocoPedido(type,i,r){
   const p=r&&r.pedido;
   if(!p||!p.texto) return '';
   const txt=escHtml(p.texto).replace(/\n/g,'<br>');
+  const excluir=podeReabrirPedido()?'<button type="button" onclick="excluirAvisoPedido(\''+type+'\','+i+')" '+
+    'style="margin:5px 0 0 5px;background:#fff;border:1px solid #E6B8B8;border-radius:6px;padding:4px 10px;color:#B71C1C;font-weight:600;font-size:11.5px;cursor:pointer;font-family:inherit">Excluir aviso</button>':'';
   if(p.feito){
     return '<span class="td-by" style="display:block;margin-top:4px;white-space:normal;'+
       'background:#E8F5E9;border:1px solid #A5D6A7;border-radius:6px;padding:5px 7px;color:#2E7D32">'+
@@ -2650,7 +2652,7 @@ function blocoPedido(type,i,r){
       new Date(p.feito.em).toLocaleDateString('pt-BR')+
       '<span style="display:block;color:#558B2F;margin-top:2px">'+txt+'</span>'+
       (podeReabrirPedido() ? '<button type="button" onclick="reabrirPedido(\''+type+'\','+i+')" '+
-        'style="margin-top:5px;background:#fff;border:1px solid #A5D6A7;border-radius:6px;padding:4px 10px;color:#2E7D32;font-weight:600;font-size:11.5px;cursor:pointer;font-family:inherit">Voltar para pendente</button>' : '')+'</span>';
+        'style="margin-top:5px;background:#fff;border:1px solid #A5D6A7;border-radius:6px;padding:4px 10px;color:#2E7D32;font-weight:600;font-size:11.5px;cursor:pointer;font-family:inherit">Voltar para pendente</button>' : '')+excluir+'</span>';
   }
   const cob=((p.cobrancas||[]).length);
   const btnEstilo='border:none;border-radius:6px;padding:4px 10px;font-weight:600;'+
@@ -2670,7 +2672,7 @@ function blocoPedido(type,i,r){
     '⏳ Aguardando <strong>'+escHtml(nomesDoPedido(p))+'</strong> — pedido por '+escHtml(p.por||'—')+' '+textoDias(diasDesde(p.em))+
     (cob?' · '+cob+' cobrança'+(cob>1?'s':''):'')+
     '<span style="display:block;margin:3px 0 6px;color:#6D5600">'+txt+'</span>'+
-    botoes+'</span>';
+    botoes+excluir+'</span>';
 }
 
 // Dentro da janela de editar: diz em que pe esta o pedido daquela obra. Sem
@@ -2723,6 +2725,19 @@ function normNome(s){ return String(s||'').toLowerCase().trim().replace(/\s+/g,'
 function podeReabrirPedido(){
   const papel=papelDoCracha();
   return papel==='admin'||papel==='gerente';
+}
+function excluirAvisoPedido(type,i){
+  if(!podeReabrirPedido()){
+    alert('Só o gerente ou o administrador pode excluir o aviso.'); return;
+  }
+  const r=(data[type]||[])[i], p=r&&r.pedido;
+  if(!p||!p.texto) return;
+  if(!confirm('Excluir o aviso de "'+r.obra+'"?\n\n'+p.texto+
+    '\n\nSomente o aviso será retirado. A compra e os anexos serão mantidos. A exclusão ficará registrada no histórico.')) return;
+  logAction(usuarioLogado()||'—','Excluiu aviso de material',r,
+    (p.feito?'Concluído':'Pendente')+' — pedido por '+(p.por||'—')+': '+p.texto);
+  r.pedido=null;
+  persist(); render();
 }
 function reabrirPedido(type,i){
   if(!podeReabrirPedido()){
