@@ -471,6 +471,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <select id="f-status"><option value="Pendente">Pendente</option><option value="Atrasada">Atrasada</option><option value="Aguardando cliente">Aguardando cliente</option><option value="OK">OK</option></select>
         </div>
         <div class="form-group"><label>Data do orçamento</label><input id="f-dataorc" type="date"></div>
+        <div class="form-group"><label>Transportadora</label><input id="f-transportadora" type="text" placeholder="Nome da transportadora"></div>
+        <div class="form-group"><label>Código de rastreio</label><input id="f-rastreio" type="text" placeholder="Código informado pela transportadora"></div>
         <div class="form-group span2"><label>Observação</label><textarea id="f-obs" rows="2" placeholder="Ex: aguardando o cliente concluir a alvenaria — prazo a redefinir" style="width:100%;padding:8px 10px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box"></textarea></div>
         <div class="section-divider" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding:10px 0 6px;margin-top:2px;border-top:1px solid var(--gray-2);grid-column:1/-1">Dados para pagamento (opcional)</div>
         <div class="form-group span2"><label>Chave Pix</label><input id="f-pix" type="text" placeholder="CNPJ, CPF, e-mail, telefone ou chave aleatória"></div>
@@ -911,8 +913,9 @@ function renderTable(type,isPago){
       <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
       ${hasFiles?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
     </button></td>`;
+    const detalhesBtn=isPago?`<button class="act" onclick="abrirDetalhesPago(${i})" title="Ver detalhes da compra">🔎</button>`:'';
     const actions=isPago
-      ?`<td class="td-actions"><button class="act act-del" onclick="removeEntry('${type}',${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`
+      ?`<td class="td-actions">${detalhesBtn}<button class="act act-del" onclick="removeEntry('${type}',${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`
       :`<td class="td-actions">
         <button class="act" onclick="editEntry('${type}',${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
         <button class="act" onclick="duplicateEntry('${type}',${i})" title="Duplicar (outro fornecedor, mesma obra)"><svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
@@ -1107,6 +1110,8 @@ function openModal(type,idx=null){
     document.getElementById('f-banco').value=r.banco||'';
     document.getElementById('f-conta').value=r.conta||'';
     document.getElementById('f-obs').value=r.obs||'';
+    document.getElementById('f-transportadora').value=r.transportadora||'';
+    document.getElementById('f-rastreio').value=r.rastreio||'';
     // O campo do pedido abre sempre vazio, e ao lado dele fica o aviso de que
     // ja existe um pedido em aberto. Trazer o texto de volta faria a pessoa
     // reenviar o mesmo pedido sem perceber, so por ter salvado outra coisa.
@@ -1117,6 +1122,8 @@ function openModal(type,idx=null){
     document.getElementById('modal-title').textContent='Editar orçamento';
   } else {
     ['f-obra','f-contrato','f-material','f-nrorc','f-fornecedor','f-valor','f-dataorc','f-entrega','f-datapag','f-pix','f-pix-nome','f-banco','f-conta','f-medicao','f-obs'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('f-transportadora').value='';
+    document.getElementById('f-rastreio').value='';
     document.getElementById('f-medicao-resultado').textContent='—';
     document.getElementById('f-dias-uteis').value='';
     popularNotificarSelect();
@@ -1149,7 +1156,7 @@ function duplicateEntry(type,idx){
   openModal(type,idx);
   editId=null;                       // grava como lancamento novo, nao por cima
   duplicandoDe=r;
-  ['f-fornecedor','f-nrorc','f-valor','f-pix','f-pix-nome','f-banco','f-conta','f-pedido']
+  ['f-fornecedor','f-nrorc','f-valor','f-pix','f-pix-nome','f-banco','f-conta','f-pedido','f-transportadora','f-rastreio']
     .forEach(function(id){ document.getElementById(id).value=''; });
   document.getElementById('f-status').value='Pendente';
   document.getElementById('f-by').value=usuarioLogado()||r.by||'';
@@ -1184,6 +1191,8 @@ function saveEntry(){
     banco:document.getElementById('f-banco').value.trim(),
     conta:document.getElementById('f-conta').value.trim(),
     obs:document.getElementById('f-obs').value.trim(),
+    transportadora:document.getElementById('f-transportadora').value.trim(),
+    rastreio:document.getElementById('f-rastreio').value.trim(),
     attachments: editId!==null ? (data[modalType][editId].attachments||[]) : [],
     // O pedido de material vem junto do registro antigo. Este objeto e montado
     // do zero a cada gravacao: sem esta linha, editar qualquer campo apagaria
@@ -1270,7 +1279,63 @@ function saveEntry(){
     }catch(e){ console.warn('Erro notificação:', e); }
   }
 }
-function editEntry(type,idx){ openModal(type,idx); }
+let compraPagaAberta=null;
+function podeCorrigirContratoPago(){
+  const p=papelDoCracha();
+  return p==='gerente'||p==='admin';
+}
+function fecharDetalhesPago(){
+  const el=document.getElementById('detalhes-pago-overlay');
+  if(el) el.remove();
+  compraPagaAberta=null;
+}
+function abrirDetalhesPago(idx){
+  fecharDetalhesPago();
+  const r=(data.pago||[])[idx];
+  if(!r) return;
+  compraPagaAberta=r;
+  const campos=[['Obra / Cliente',r.obra],['Material',r.material],['Fornecedor',r.fornecedor],
+    ['Nº do orçamento',r.nrOrc],['Valor','R$ '+fmtBR(r.valor)],['Data do orçamento',fmtDate(r.dataOrc)],
+    ['Entrega da obra',fmtDate(r.entrega)],['Data do pagamento',fmtDate(r.dataPag)],
+    ['Tipo de projeto',r.tipo==='especial'?'Especial':'Padrão'],['Lançado por',r.by],
+    ['Data de medição',fmtDate(r.medicao)],['Dias úteis',r.diasUteis],
+    ['Chave Pix',r.pix],['Favorecido',r.pixNome],['Banco',r.banco],['Agência / Conta',r.conta],
+    ['Observação',r.obs],['Pedido de material',r.pedido&&r.pedido.texto]];
+  const el=document.createElement('div');
+  el.id='detalhes-pago-overlay'; el.className='modal-overlay open';
+  el.innerHTML='<div class="modal"><div class="modal-header"><div class="modal-title">Detalhes da compra paga</div>'+
+    '<button class="act" onclick="fecharDetalhesPago()" aria-label="Fechar">✕</button></div><div class="modal-body">'+
+    '<table style="width:100%;border-collapse:collapse">'+campos.map(function(c){
+      return '<tr><th style="text-align:left;vertical-align:top;padding:7px;width:35%">'+escHtml(c[0])+'</th>'+
+        '<td style="padding:7px;white-space:pre-wrap;overflow-wrap:anywhere">'+escHtml(c[1]==null||c[1]===''?'—':c[1])+'</td></tr>';
+    }).join('')+'</table><div class="form-grid" style="margin-top:16px">'+
+    '<div class="form-group span2"><label>Nº do contrato</label><input id="pago-contrato" value="'+escHtml(r.contrato||'')+'" '+
+      (podeCorrigirContratoPago()?'':'readonly')+'><span class="note">Correção disponível para gerente e administrador.</span></div>'+
+    '<div class="form-group"><label>Transportadora</label><input id="pago-transportadora" value="'+escHtml(r.transportadora||'')+'" '+(ehConsulta()?'readonly':'')+'></div>'+
+    '<div class="form-group"><label>Código de rastreio</label><input id="pago-rastreio" value="'+escHtml(r.rastreio||'')+'" '+(ehConsulta()?'readonly':'')+'></div>'+
+    '</div></div><div class="modal-footer"><button class="btn btn-outline" onclick="fecharDetalhesPago()">Fechar</button>'+
+    (!ehConsulta()?'<button class="btn btn-teal" onclick="salvarDetalhesPago()">Salvar alterações</button>':'')+'</div></div>';
+  document.body.appendChild(el);
+}
+function salvarDetalhesPago(){
+  if(ehConsulta()||!papelDoCracha()) return;
+  const r=compraPagaAberta;
+  if(!r||(data.pago||[]).indexOf(r)<0){
+    alert('A lista foi atualizada. Feche e abra os detalhes novamente.'); return;
+  }
+  const contrato=document.getElementById('pago-contrato').value.trim();
+  if(podeCorrigirContratoPago()&&!contrato){ alert('Informe o número do contrato.'); return; }
+  const anterior=r.contrato;
+  if(podeCorrigirContratoPago()&&contrato!==anterior &&
+    !confirm('Corrigir o contrato de "'+r.obra+'" de '+(anterior||'—')+' para '+contrato+'?')) return;
+  if(podeCorrigirContratoPago()) r.contrato=contrato;
+  r.transportadora=document.getElementById('pago-transportadora').value.trim();
+  r.rastreio=document.getElementById('pago-rastreio').value.trim();
+  logAction(usuarioLogado()||'—','Atualizou compra paga',r,
+    'Transportadora e rastreio atualizados'+(r.contrato!==anterior?' — contrato: '+(anterior||'—')+' → '+r.contrato:''));
+  persist(); render(); fecharDetalhesPago();
+}
+function editEntry(type,idx){ if(type==='pago'){ abrirDetalhesPago(idx); return; } openModal(type,idx); }
 function removeEntry(type,idx){
   if(recusarExcluir()) return;
   const r=data[type][idx];
