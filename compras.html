@@ -1193,6 +1193,10 @@ function saveEntry(){
     obs:document.getElementById('f-obs').value.trim(),
     transportadora:document.getElementById('f-transportadora').value.trim(),
     rastreio:document.getElementById('f-rastreio').value.trim(),
+    ...(editId!==null && data[modalType][editId].ctoId ? {
+      ctoId:data[modalType][editId].ctoId,
+      comprasGrupo:data[modalType][editId].comprasGrupo||'juntas'
+    } : {}),
     attachments: editId!==null ? (data[modalType][editId].attachments||[]) : [],
     // O pedido de material vem junto do registro antigo. Este objeto e montado
     // do zero a cada gravacao: sem esta linha, editar qualquer campo apagaria
