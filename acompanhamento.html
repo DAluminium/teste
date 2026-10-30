@@ -273,7 +273,7 @@ const FALTAS=[
 // Os campos que a pessoa digita em cada esquadria. E por esta lista que a
 // gravacao junta campo a campo o que eu mudei e o que um colega mudou.
 const CAMPOS_FICHA={
-  tipo:'Tipo', local:'Localização',
+  tipo:'Tipo', local:'Localização', espessuraAlvenaria:'Espessura da alvenaria (mm)', sentidoAbertura:'Sentido de abertura da porta',
   lCima:'Largura em cima', lMeio:'Largura no meio', lBaixo:'Largura embaixo',
   hEsq:'Altura à esquerda', hCentro:'Altura no centro', hDir:'Altura à direita',
   d1:'Diagonal 1', d2:'Diagonal 2',
@@ -2122,7 +2122,7 @@ function esquadriaNova(e, doc){
     notas:e.notas,
     tipo:e.tipo, local:e.local,
     lCima:'',lMeio:'',lBaixo:'',hEsq:'',hCentro:'',hDir:'',d1:'',d2:'',
-    condicao:'', faltas:'', faltaOutro:'', obs:'', folgaL:'', folgaH:'',
+    condicao:'', faltas:'', faltaOutro:'', obs:'', espessuraAlvenaria:'', sentidoAbertura:'', folgaL:'', folgaH:'',
     etapa:'medir', visto:null, historico:[]
   };
 }
@@ -2311,7 +2311,7 @@ function desenhoSuspeito(d){ return !!d && (d.w>250 || d.x+d.w>300); }
 // modelo do SmartCEM lido pelo leitor antigo (antes de 22/10/2026).
 function tipoMalLido(e){ return /^\S+\s+\d+\s+\d+\s+\d+/.test(String(e.tipoPdf||'')); }
 function semNadaDigitado(e){
-  const campos=['lCima','lMeio','lBaixo','hEsq','hCentro','hDir','d1','d2','condicao','faltas','faltaOutro','obs','folgaL','folgaH'];
+  const campos=['lCima','lMeio','lBaixo','hEsq','hCentro','hDir','d1','d2','condicao','faltas','faltaOutro','obs','espessuraAlvenaria','sentidoAbertura','folgaL','folgaH'];
   return campos.every(function(c){ return !e[c]; }) && !(e.fotos||[]).length && !(e.audios||[]).length && !e.croqui &&
     (!e.etapa||e.etapa==='medir') && String(e.tipo||'')===String(e.tipoPdf||'') && String(e.local||'')===String((e.projeto||{}).local||'');
 }
@@ -2378,6 +2378,7 @@ function htmlFicha(a,e){
     }).join('')+
   '</div><div>';
   h+='<div class="grade2">'+campoTxt(e,'tipo','Tipo','Ex.: P1')+campoTxt(e,'local','Localização','Ex.: Corredor')+'</div>';
+  h+='<div class="secao"><h4>Informações da instalação (opcional)</h4><div class="grade2">'+campoNum(e,'espessuraAlvenaria','Espessura da alvenaria (mm)')+campoTxt(e,'sentidoAbertura','Sentido de abertura da porta','Ex.: abre para dentro, dobradiças à direita, vista externa')+'</div><div class="dica">Espessura apenas informativa. Para portas, descreva a abertura e informe se está olhando pelo lado interno ou externo.</div></div>';
   h+='<div class="secao"><h4>Largura (mm)</h4><div class="grade">'+campoNum(e,'lCima','Em cima')+campoNum(e,'lMeio','No meio')+campoNum(e,'lBaixo','Embaixo')+'</div></div>';
   h+='<div class="secao"><h4>Altura (mm)</h4><div class="grade">'+campoNum(e,'hEsq','Esquerda')+campoNum(e,'hCentro','Centro')+campoNum(e,'hDir','Direita')+'</div></div>';
   h+='<div class="secao"><h4>Diagonais (mm)</h4><div class="grade2">'+campoNum(e,'d1','Diagonal 1')+campoNum(e,'d2','Diagonal 2')+'</div></div>';
