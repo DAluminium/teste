@@ -1218,9 +1218,10 @@ function saveEntry(){
   // nenhuma concorrencia entre pessoas envolvida.
   // Duplicando para outro fornecedor, a mesma obra/contrato/material e o
   // esperado; so avisa se o fornecedor tambem for o mesmo do original.
+  // Fornecedor nao e obrigatorio ao duplicar (pedido do Ander, 03/11/2026):
+  // a cotacao pode ser lancada antes de saber quem vai fornecer.
   if(duplicandoDe){
-    if(!entry.fornecedor){ alert('Informe o fornecedor desta nova cotação.'); document.getElementById('f-fornecedor').focus(); return; }
-    if(normalizarTxt(entry.fornecedor)===normalizarTxt(duplicandoDe.fornecedor) &&
+    if(entry.fornecedor && normalizarTxt(entry.fornecedor)===normalizarTxt(duplicandoDe.fornecedor) &&
        !confirm('O fornecedor é o mesmo do orçamento original ('+duplicandoDe.fornecedor+').\n\nCadastrar mesmo assim?')) return;
   } else if(achaDuplicataExistente(entry, isEdit?entry.id:null)){
     const ok=confirm('Já existe um lançamento para "'+entry.obra+'" — Contrato '+entry.contrato+
