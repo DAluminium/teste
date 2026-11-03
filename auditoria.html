@@ -880,18 +880,21 @@ async function carregarResumo(){
 // Os textos procurados sao montados em pedacos para esta propria pagina, que
 // tambem e publica, nao acusar a si mesma.
 const VIS_ORG='DAluminium';
-const VIS_REPOS=['portal','gestaodecompras','financeiro','obra','fabrica','crm','teste'];
-const VIS_COM_CRACHA=['compras','financeiro','fabrica','obra','crm','cadastros','compras_teste','financeiro_teste',
-  'fabrica_teste','obra_teste','crm_teste','cadastros_teste','sessions','lembretes','lembretes_teste'];
+const VIS_REPOS=['portal','gestaodecompras','financeiro','obra','fabrica','crm','acompanhamento','teste'];
+const VIS_COM_CRACHA=['compras','financeiro','fabrica','obra','crm','cadastros','acompanhamento','compras_teste','financeiro_teste',
+  'fabrica_teste','obra_teste','crm_teste','cadastros_teste','acompanhamento_teste','sessions','lembretes','lembretes_teste'];
 const VIS_RECUSADOS=['senhas','senhas_teste','login_bloqueio','acessos','crm_teste&select=data','CRM','cadastro_teste','nome_inventado'];
 // As acoes do Worker (fora o login). Acao nova no Worker: acrescentar aqui.
 const VIS_ACOES=['definir-senha','anotar-acesso','ler-acessos','ler-backups','fazer-backup','auditoria-abrir','sessao-entrar','sessao-sinal','sessao-sair',
-  'sessao-outras','sessao-lista','sessao-derrubar','assinar-envio','abrir-anexo','proteger-anexos','varrer-anexos','excluir-anexo'];
+  'sessao-outras','sessao-lista','sessao-derrubar','assinar-envio','abrir-anexo','proteger-anexos','varrer-anexos','excluir-anexo',
+  'obras-do-acompanhamento','medicao-para-fabrica','croquis-links','ver-como'];
 // Ja conhecidos e aceitos: exemplos de campo, CNPJ e e-mail das proprias empresas.
 const VIS_ACEITOS=['69 99999-9999','69999999999','000.000.000-00','00.000.000/0000-00','17.183.753/0001-82','22.714.305/0001-06',
   'financeirodaluminio@gmail.com','cliente@email.com','vendas@fornecedor.com.br'];
 // Arquivos que ja existem de proposito e nao sao alerta.
-const VIS_ARQUIVOS_OK=['teste/criar-fabrica-teste.sql','teste/dar-id-aos-registros-compras.sql','portal/versao.json','teste/versao.json'];
+// croquis-lista.json = so o nome dos desenhos do SmartCEM (as imagens ficam no Cloudinary privado).
+const VIS_ARQUIVOS_OK=['teste/criar-fabrica-teste.sql','teste/dar-id-aos-registros-compras.sql','portal/versao.json','teste/versao.json',
+  'teste/croquis-lista.json','acompanhamento/croquis-lista.json'];
 const VIS_TIPOS_PERIGOSOS=/\.(sql|csv|xlsx|xls|pdf|txt|json|env)$/i;
 function visPadroes(){
   const segredos=['sb_'+'secret_','sk_'+'live','eyJhbGci'+'Oi','-----'+'BEGIN','api_'+'secret'];
@@ -1010,9 +1013,9 @@ async function rodarVistoria(){
 
     // ---- PASSO 3: a copia que fica no navegador ----
     progresso('Conferindo a limpeza ao sair...');
-    const telas=['portal/index.html','gestaodecompras/index.html','financeiro/index.html','fabrica/index.html','obra/index.html','crm/index.html',
+    const telas=['portal/index.html','gestaodecompras/index.html','financeiro/index.html','fabrica/index.html','obra/index.html','crm/index.html','acompanhamento/index.html',
       'portal/auditoria.html',
-      'teste/index.html','teste/compras.html','teste/financeiro.html','teste/fabrica.html','teste/obra.html','teste/crm.html','teste/auditoria.html'];
+      'teste/index.html','teste/compras.html','teste/financeiro.html','teste/fabrica.html','teste/obra.html','teste/crm.html','teste/acompanhamento.html','teste/auditoria.html'];
     telas.forEach(function(t){
       const c=conteudos[t];
       if(c===undefined){ anota(3,t,'apaga ao sair','não consegui testar',true,true); return; }
