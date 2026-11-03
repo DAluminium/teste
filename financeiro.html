@@ -763,7 +763,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </div>
       <div class="form-grid">
         <div class="form-group"><label>Tipo <span style="color:var(--red)">*</span></label>
-          <select id="lc-tipo">
+          <select id="lc-tipo" onchange="popularPlanoLanc()">
             <option value="entrada">Entrada (dinheiro entrou)</option>
             <option value="saida">Saída (dinheiro saiu)</option>
           </select>
@@ -780,6 +780,10 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         </div>
         <div class="form-group"><label>Valor <span style="color:var(--red)">*</span></label><input id="lc-valor" type="text" placeholder="Ex: 1.500,00"></div>
         <div class="form-group"><label>Data <span style="color:var(--red)">*</span></label><input id="lc-data" type="date"></div>
+        <div class="form-group span2"><label>Plano de conta</label>
+          <select id="lc-plano"></select>
+          <small style="color:var(--gray-4);font-size:10px">Devolução e retirada da sócia entram no resumo "Conta da sócia", na aba Relatório</small>
+        </div>
         <div class="form-group span2"><label>Descrição <span style="color:var(--red)">*</span></label><input id="lc-desc" type="text" placeholder="Ex: Aporte da sócia Aretusa"></div>
         <div class="form-group span2"><label>Observação</label><input id="lc-obs" type="text" placeholder="opcional"></div>
       </div>
@@ -5150,7 +5154,7 @@ function movimentosDoCaixa(){
     if(m.tipo==='entrada'||m.tipo==='saida'){
       // leva o id: e por ele que a lixeira sabe o que apagar
       movs.push({id:m.id, data:m.data, desc:m.desc||'Lançamento no banco',
-        tipo:m.tipo==='entrada'?'Outra entrada':'Outra saída', conta:m.conta,
+        tipo:planoLabelMov(m)||(m.tipo==='entrada'?'Outra entrada':'Outra saída'), conta:m.conta,
         entrada:m.tipo==='entrada'?(Number(m.valor)||0):0,
         saida:m.tipo==='saida'?(Number(m.valor)||0):0});
     }
@@ -5431,7 +5435,50 @@ function closeTransf(){ document.getElementById('transf-overlay').classList.remo
 // Dinheiro que entrou ou saiu sem ser venda. Fica em data.movimentos, ao lado
 // das transferencias, e conta no fluxo de caixa e no saldo da conta — e so
 // neles: "Recebido do mes" e "A receber" continuam sendo de cliente.
+// ---- PLANO DE CONTA DO LANCAMENTO NO BANCO (pedido do Ander, 03/11/2026) ----
+// A socia Aretusa faz retiradas e depois devolve o dinheiro, como um
+// emprestimo. A retirada ja tinha plano de conta (despesa "Retirada socia");
+// a devolucao nao tinha onde ser classificada, e a auditoria pede as duas.
+// Entrada usa a lista abaixo; saida usa as mesmas categorias das despesas.
+// O campo e opcional: lancamento antigo, sem plano, continua igual.
+const PLANO_ENTRADA=[
+  {id:'devolucao-retirada-socia', label:'Devolução de retirada sócia'},
+  {id:'aporte-socio',             label:'Aporte de sócio'},
+  {id:'emprestimo',               label:'Empréstimo recebido'},
+  {id:'reembolso',                label:'Reembolso'},
+  {id:'outras-entradas',          label:'Outras entradas'}
+];
+const PLANO_DEVOLUCAO='devolucao-retirada-socia';
+// Retirada da socia: a categoria padrao e qualquer outra cadastrada com nome
+// comecando por "Retirada" (o cadastro de categorias e livre).
+function ehCatRetirada(id){
+  if(!id) return false;
+  if(id==='retirada-socia') return true;
+  const l=String(CAT_LABEL[id]||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+  return l.indexOf('retirada')===0;
+}
+function planoLabelMov(m){
+  if(!m||!m.plano) return '';
+  if(m.tipo==='entrada'){
+    const p=PLANO_ENTRADA.find(function(x){ return x.id===m.plano; });
+    return p?p.label:m.plano;
+  }
+  return CAT_LABEL[m.plano]||m.plano;
+}
+function popularPlanoLanc(){
+  const sel=document.getElementById('lc-plano');
+  if(!sel) return;
+  const tipo=document.getElementById('lc-tipo').value;
+  const lista = tipo==='entrada'
+    ? PLANO_ENTRADA
+    : getCategorias().filter(function(c){ return c.ativo!==false; });
+  sel.innerHTML='<option value="">— sem plano de conta —</option>'+
+    lista.map(function(c){ return '<option value="'+c.id+'">'+c.label+'</option>'; }).join('');
+}
+
 function openModalLancamento(){
+  popularPlanoLanc();
+  document.getElementById('lc-plano').value='';
   document.getElementById('lc-data').value=today();
   document.getElementById('lc-valor').value='';
   document.getElementById('lc-desc').value='';
@@ -5474,10 +5521,13 @@ async function saveLanc(){
     if(q){ alert('Data inválida ('+q+').\n\nConfira o ano: o certo é algo como '+today().slice(0,4)+'.'); return; }
   }
   if(!data.movimentos) data.movimentos=[];
-  data.movimentos.push({id:genId(), tipo:tipo, conta:conta, valor:valor, data:dt,
-    desc:desc, obs:document.getElementById('lc-obs').value.trim()});
+  const novo={id:genId(), tipo:tipo, conta:conta, valor:valor, data:dt,
+    desc:desc, obs:document.getElementById('lc-obs').value.trim()};
+  const plano=document.getElementById('lc-plano').value;
+  if(plano) novo.plano=plano;
+  data.movimentos.push(novo);
   logFin(tipo==='entrada'?'Entrada no banco':'Saída do banco',
-    desc+' · '+CONTA_LABEL[conta], 'R$ '+fmtBR(valor)+' · '+fmtDate(dt));
+    desc+(plano?' ('+planoLabelMov(novo)+')':'')+' · '+CONTA_LABEL[conta], 'R$ '+fmtBR(valor)+' · '+fmtDate(dt));
   await persist(); closeLanc(); render();
 }
 async function saveTransf(){
@@ -5588,7 +5638,67 @@ function renderRelatorio(){
     ${['pagbank','inter','sicredi','caixa','transitorio'].map(c=>`<div class="rel-row"><span>${CONTA_LABEL[c]}</span><span style="font-weight:600;color:${calcSaldoConta(c)>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(calcSaldoConta(c))}</span></div>`).join('')}
     <div class="rel-row total"><span>SALDO TOTAL</span><span style="font-weight:700;color:${calcSaldoTotal()>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(calcSaldoTotal())}</span></div>
   </div>`;
+  html+=secaoContaSocia(mes);
   document.getElementById('relatorio-content').innerHTML=html;
+}
+
+// ---- CONTA DA SOCIA: retiradas x devolucoes (pedido do Ander, 03/11/2026) ----
+// Retirada = despesa paga com categoria "Retirada socia" (cada baixa, com a
+// sua data) + lancamento no banco de SAIDA com esse plano.
+// Devolucao = lancamento no banco de ENTRADA com plano "Devolucao de retirada
+// socia". Nada aqui muda saldo nem receita: e so a conta do que saiu e voltou.
+function movimentosSocia(){
+  const itens=[];
+  (data.pagar||[]).forEach(function(r){
+    if(!ehCatRetirada(r.cat)) return;
+    baixasDe(r,'pagar').forEach(function(b){
+      if(!b.data) return;
+      itens.push({data:b.data, desc:(r.desc||r.forn||'Retirada')+(r.parcelaDesc&&r.totalParcelas>1?' · '+r.parcelaDesc:''),
+        retirada:Number(b.valor)||0, devolucao:0});
+    });
+  });
+  (data.movimentos||[]).forEach(function(m){
+    if(!m.data) return;
+    if(m.tipo==='saida' && ehCatRetirada(m.plano))
+      itens.push({data:m.data, desc:m.desc||'Retirada', retirada:Number(m.valor)||0, devolucao:0});
+    if(m.tipo==='entrada' && m.plano===PLANO_DEVOLUCAO)
+      itens.push({data:m.data, desc:m.desc||'Devolução', retirada:0, devolucao:Number(m.valor)||0});
+  });
+  itens.sort(function(a,b){ return a.data.localeCompare(b.data); });
+  return itens;
+}
+function secaoContaSocia(mes){
+  const fimMes=mes+'-31';            // datas sao texto AAAA-MM-DD: comparar como texto basta
+  const inicioAno=mes.slice(0,4)+'-01-01';
+  const todos=movimentosSocia().filter(function(i){ return i.data<=fimMes; });
+  function soma(lista,campo){ return lista.reduce(function(a,i){ return a+i[campo]; },0); }
+  const doMes=todos.filter(function(i){ return i.data.slice(0,7)===mes; });
+  const doAno=todos.filter(function(i){ return i.data>=inicioAno; });
+  const falta=soma(todos,'retirada')-soma(todos,'devolucao');
+  const nomeMes=mesLabel(mes+'-01');
+  let h=`
+  <div class="rel-section">
+    <div class="rel-title">👤 CONTA DA SÓCIA — RETIRADAS × DEVOLUÇÕES</div>`;
+  if(!todos.length){
+    return h+`
+    <div class="rel-row" style="color:var(--gray-4)"><span>Nenhuma retirada ou devolução até ${nomeMes}. A retirada é a despesa com plano "Retirada sócia"; a devolução é o Lançamento no banco (aba Fluxo de Caixa) de entrada com plano "Devolução de retirada sócia".</span><span></span></div>
+  </div>`;
+  }
+  h+=`
+    <div class="rel-row"><span>Retirado em ${nomeMes}</span><span class="rel-neg">R$ ${fmtBR(soma(doMes,'retirada'))}</span></div>
+    <div class="rel-row"><span>Devolvido em ${nomeMes}</span><span class="rel-pos">R$ ${fmtBR(soma(doMes,'devolucao'))}</span></div>
+    <div class="rel-row"><span>Retirado em ${mes.slice(0,4)} (até ${nomeMes})</span><span class="rel-neg">R$ ${fmtBR(soma(doAno,'retirada'))}</span></div>
+    <div class="rel-row"><span>Devolvido em ${mes.slice(0,4)} (até ${nomeMes})</span><span class="rel-pos">R$ ${fmtBR(soma(doAno,'devolucao'))}</span></div>
+    <div class="rel-row total"><span>${falta>=-0.004?'FALTA DEVOLVER (todo o período, até '+nomeMes+')':'DEVOLVEU A MAIS (todo o período, até '+nomeMes+')'}</span><span style="color:${falta>0.004?'var(--red)':'var(--green)'};font-weight:700">R$ ${fmtBR(Math.abs(falta))}</span></div>
+  </div>`;
+  if(doAno.length){
+    h+=`
+  <div class="rel-section">
+    <div class="rel-title">👤 EXTRATO DA SÓCIA — ${mes.slice(0,4)} (até ${nomeMes.toUpperCase()})</div>
+    ${doAno.map(function(i){ return `<div class="rel-row"><span>${fmtDate(i.data)} · ${i.retirada?'Retirada':'Devolução'} · ${i.desc}</span><span class="${i.retirada?'rel-neg':'rel-pos'}">${i.retirada?'- ':'+ '}R$ ${fmtBR(i.retirada||i.devolucao)}</span></div>`; }).join('')}
+  </div>`;
+  }
+  return h;
 }
 
 function printRelatorio(){ window.print(); }
