@@ -138,6 +138,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="aba" data-aba="tempo" onclick="irPara('tempo')">Tempo de uso</button>
       <button class="aba" data-aba="entradas" onclick="irPara('entradas')">Entradas</button>
       <button class="aba" data-aba="senhas" onclick="irPara('senhas')">Senhas erradas</button>
+      <button class="aba" data-aba="tentativas" onclick="irPara('tentativas')">Tentativas de invasão</button>
       <button class="aba" data-aba="acessos" onclick="irPara('acessos')">Quem abriu o quê</button>
       <button class="aba" data-aba="backups" onclick="irPara('backups')">Backups</button>
       <button class="aba" data-aba="vistoria" onclick="irPara('vistoria')">Vistoria</button>
@@ -204,6 +205,33 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <input id="cad-busca" class="campo busca" placeholder="Filtrar por pessoa, contrato, negócio..." oninput="desenharCaderno()">
         </div>
         <div id="cad-lista" class="vazio">Carregando...</div>
+      </div>
+    </section>
+
+    <!-- TENTATIVAS DE INVASAO (pedido do Ander, 03/11/2026) -->
+    <section id="v-tentativas" style="display:none">
+      <div class="caixa" style="margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <h2>Tentativas de invasão</h2>
+          <select id="tent-periodo" class="campo" onchange="carregarTentativas()">
+            <option value="7">Últimos 7 dias</option>
+            <option value="30">Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+          </select>
+        </div>
+        <p class="explica">Tudo o que alguém tentou e o sistema <b>recusou</b>: senha errada, pedido de dados sem login, crachá falso, procura pelas senhas ou pelo caderno, usuário desligado tentando usar e quem tentou abrir o que o acesso dele não inclui.
+          O "endereço" é a internet de onde veio, embaralhado. Quando alguém da equipe já entrou daquele endereço, ele aparece como <b>conhecido</b>; os <b>desconhecidos</b> vêm primeiro.
+          Na segunda de manhã aparecem batidas do seu próprio endereço: é a vistoria semanal testando as portas.</p>
+        <div class="cards" id="tent-cards" style="margin-bottom:0"><div class="vazio">Carregando...</div></div>
+      </div>
+      <div class="caixa" style="margin-bottom:1rem">
+        <h2>De onde vieram</h2>
+        <p class="explica">Uma linha por endereço. <b>Rajada</b> = 5 ou mais tentativas em 15 minutos. <b>Madrugada</b> = entre meia-noite e 5h.</p>
+        <div id="tent-enderecos" class="vazio">Carregando...</div>
+      </div>
+      <div class="caixa">
+        <h2>Uma por uma</h2>
+        <div id="tent-lista" class="vazio">Carregando...</div>
       </div>
     </section>
 
@@ -522,7 +550,14 @@ const ACAO_ROTULO={
   'codigo do autenticador errado':'Código do autenticador errado',
   'barrado por muitas tentativas':'Barrado: muitas tentativas',
   'codigo da auditoria errado':'Código errado na Auditoria',
-  'abriu a auditoria':'Abriu a Auditoria'
+  'abriu a auditoria':'Abriu a Auditoria',
+  // Batidas na porta, recusadas pelo Worker (03/11/2026)
+  'pedido sem cracha':'Pediu dados sem login',
+  'cracha falso':'Crachá falso ou adulterado',
+  'pediu registro interno':'Procurou as senhas ou o caderno',
+  'pediu registro que nao existe':'Pediu um registro inventado',
+  'usuario desligado tentou usar':'Usuário desligado tentou usar',
+  'tentou abrir o que nao pode':'Tentou abrir o que não pode'
 };
 function rotuloDaAcao(a){ return ACAO_ROTULO[a]||a||'—'; }
 
@@ -539,7 +574,7 @@ const CADERNO_VISTAS={
 function irPara(aba){
   abaAtual=aba;
   document.querySelectorAll('.aba').forEach(function(b){ b.classList.toggle('ativa',b.dataset.aba===aba); });
-  ['resumo','agora','tempo','caderno','backups','vistoria','emergencia'].forEach(function(v){
+  ['resumo','agora','tempo','caderno','tentativas','backups','vistoria','emergencia'].forEach(function(v){
     const el=document.getElementById('v-'+v);
     if(el) el.style.display=(v===aba||(v==='caderno'&&CADERNO_VISTAS[aba]))?'':'none';
   });
@@ -548,7 +583,8 @@ function irPara(aba){
   if(aba==='agora'){ carregarAgora(); _relogioAgora=setInterval(carregarAgora,10000); }
   if(aba==='tempo') carregarTempo();
   if(aba==='backups') carregarBackups(false);
-  if(aba==='vistoria' && !document.getElementById('vis-resultado').innerHTML)
+  if(aba==='tentativas') carregarTentativas();
+  if(aba==='vistoria' &&!document.getElementById('vis-resultado').innerHTML)
     document.getElementById('vis-resultado').innerHTML='<div class="vazio">Clique em "Fazer a vistoria agora".</div>';
   if(CADERNO_VISTAS[aba]){
     const v=CADERNO_VISTAS[aba];
@@ -612,6 +648,140 @@ function desenharCaderno(){
     '<div class="rodape">'+lista.length+' de '+_caderno.lista.length+' mostrados'+
       (_caderno.total?' · '+_caderno.total+' no total para esta busca':'')+
       (_caderno.lista.length<_caderno.total?' · mostra os 2.000 mais recentes; para ver os mais antigos, use as datas':'')+'.</div>';
+}
+
+// ================= TENTATIVAS DE INVASAO (pedido do Ander, 03/11/2026) =================
+// Responde duas perguntas: alguem tentou entrar sem poder? E foi barrado?
+// Le do caderno as recusas (grupo 'tentativas': senhas erradas e batidas na
+// porta, anotadas pelo Worker) e as entradas de 90 dias, para separar o
+// endereco de quem trabalha aqui do de um estranho.
+const ACOES_TENTATIVA=['senha errada','codigo do autenticador errado','barrado por muitas tentativas','codigo da auditoria errado',
+  'pedido sem cracha','cracha falso','pediu registro interno','pediu registro que nao existe','usuario desligado tentou usar','tentou abrir o que nao pode'];
+const ACOES_SENHA_ERRADA=['senha errada','codigo do autenticador errado','codigo da auditoria errado'];
+const ACOES_SEM_LOGIN=['pedido sem cracha','cracha falso','pediu registro interno','pediu registro que nao existe'];
+const ACOES_DE_DENTRO=['usuario desligado tentou usar','tentou abrir o que nao pode'];
+function enderecoDe(alvo){ const m=/endereco ([0-9a-f]{8})/.exec(String(alvo||'')); return m?m[1]:''; }
+
+async function lerTentativas(dias){
+  const r=await Promise.all([
+    lerDoCaderno({quantos:2000,grupo:'tentativas',de:diaISO(dias)}),
+    lerDoCaderno({quantos:2000,grupo:'entradas',de:diaISO(90)})
+  ]);
+  const bruta=r[0].lista||[], entradas=r[1].lista||[];
+  // O Worker de antes de 03/11 nao conhece o grupo e devolve o caderno inteiro, misturado.
+  const workerVelho=bruta.some(function(x){ return ACOES_TENTATIVA.indexOf(x.a)<0; });
+  const lista=bruta.filter(function(x){ return ACOES_TENTATIVA.indexOf(x.a)>=0; });
+  // Quem ja entrou de cada endereco nos ultimos 90 dias.
+  const conhecidos={};
+  entradas.forEach(function(x){ const k=enderecoDe(x.alvo); if(k) (conhecidos[k]=conhecidos[k]||{})[x.n||x.u||'?']=1; });
+  // O unico jeito de uma tentativa "passar": errar a senha 3 vezes ou mais e
+  // entrar logo depois (1 hora), do mesmo endereco. Quase sempre e a propria
+  // pessoa lembrando a senha, mas so ela pode confirmar.
+  const suspeitas=[], desde=Date.now()-dias*86400000;
+  entradas.forEach(function(en){
+    const k=enderecoDe(en.alvo), tE=new Date(en.t).getTime();
+    if(!k||tE<desde) return;
+    const erros=lista.filter(function(x){ const tx=new Date(x.t).getTime();
+      return enderecoDe(x.alvo)===k && ACOES_SENHA_ERRADA.indexOf(x.a)>=0 && tx<tE && tE-tx<3600000; });
+    if(erros.length>=3) suspeitas.push({entrada:en,erros:erros});
+  });
+  return {lista:lista,conhecidos:conhecidos,suspeitas:suspeitas,workerVelho:workerVelho};
+}
+
+async function carregarTentativas(){
+  const cx=['tent-cards','tent-enderecos','tent-lista'].map(function(id){ return document.getElementById(id); });
+  cx.forEach(function(a){ a.className='vazio'; a.textContent='Carregando...'; });
+  const dias=parseInt(document.getElementById('tent-periodo').value,10)||7;
+  let d;
+  try{ d=await lerTentativas(dias); }catch(e){ cx.forEach(function(a){ mostrarErro(a,e); }); return; }
+  if(d.workerVelho){
+    cx.forEach(function(a){ a.className=''; a.innerHTML=''; });
+    cx[0].innerHTML='<div class="erro">O Worker publicado no Cloudflare ainda não separa as tentativas. Falta publicar o Worker novo (de 03/11/2026).</div>';
+    return;
+  }
+  const L=d.lista, tem=function(lista){ return function(x){ return lista.indexOf(x.a)>=0; }; };
+  const senhas=L.filter(tem(ACOES_SENHA_ERRADA)).length;
+  const bloqueios=L.filter(function(x){ return x.a==='barrado por muitas tentativas'; }).length;
+  const semLogin=L.filter(tem(ACOES_SEM_LOGIN));
+  const deDentro=L.filter(tem(ACOES_DE_DENTRO)).length;
+
+  // Agrupa por endereco.
+  const grupos={};
+  L.forEach(function(x){
+    const k=enderecoDe(x.alvo)||'';
+    const g=grupos[k]=grupos[k]||{k:k,itens:[],tipos:{},quem:{}};
+    g.itens.push(x); g.tipos[x.a]=(g.tipos[x.a]||0)+1;
+    if(x.n||x.u) g.quem[x.n||x.u]=1;
+  });
+  const lista=Object.keys(grupos).map(function(k){
+    const g=grupos[k];
+    const ts=g.itens.map(function(x){ return new Date(x.t).getTime(); }).sort(function(a,b){ return a-b; });
+    g.primeira=ts[0]; g.ultima=ts[ts.length-1];
+    g.conhecido=!!(k&&d.conhecidos[k]);
+    g.rajada=false;
+    for(let i=0,j=0;i<ts.length;i++){ while(ts[i]-ts[j]>15*60000) j++; if(i-j+1>=5){ g.rajada=true; break; } }
+    g.madrugada=ts.some(function(t){ return new Date(t).getHours()<5; });
+    return g;
+  }).sort(function(a,b){ return (a.conhecido-b.conhecido)||(b.itens.length-a.itens.length); });
+  const desconhecidos=lista.filter(function(g){ return g.k&&!g.conhecido; });
+  const graveDeFora=semLogin.some(function(x){ return (x.a==='cracha falso'||x.a==='pediu registro interno') && !d.conhecidos[enderecoDe(x.alvo)]; });
+
+  const cartao=function(classe,n,t,s){
+    return '<div class="card '+classe+'" style="cursor:default"><div class="card-n">'+esc(n)+'</div><div class="card-t">'+esc(t)+'</div><div class="card-s">'+esc(s)+'</div></div>';
+  };
+  cx[0].className='cards'; cx[0].style.marginBottom='0';
+  cx[0].innerHTML=[
+    d.suspeitas.length
+      ? cartao('atencao',String(d.suspeitas.length),'Errou e depois entrou','Confira abaixo se foi a própria pessoa lembrando a senha.')
+      : cartao('ok','Nenhuma','Tentativa que passou',L.length?'Todas as '+L.length+' foram barradas pelo sistema.':'Ninguém tentou nada no período.'),
+    cartao(bloqueios||senhas>=10?'atencao':'ok',String(senhas),'Senhas ou códigos errados',
+      bloqueios?bloqueios+' bloqueio(s) automático(s) por errar demais.':'Nenhum bloqueio automático.'),
+    cartao(graveDeFora?'alerta':(semLogin.length?'atencao':'ok'),String(semLogin.length),'Pedidos sem login',
+      graveDeFora?'Alguém de fora tentou crachá falso ou procurou as senhas. Foi recusado.':'Pedidos de dados sem crachá. Todos recusados.'),
+    cartao(deDentro?'atencao':'ok',String(deDentro),'De dentro','Usuário desligado ou alguém tentando abrir o que o acesso não inclui.'),
+    cartao(desconhecidos.length?'atencao':'ok',String(desconhecidos.length),'Endereços desconhecidos','De onde ninguém da equipe entrou nos últimos 90 dias.')
+  ].join('');
+
+  // De onde vieram
+  let html='';
+  if(d.suspeitas.length){
+    html+='<div class="man-box" style="background:var(--amber-light);border-color:#f0d9a8;font-size:13px;margin-bottom:10px"><b>Errou a senha e depois entrou, do mesmo endereço:</b><ul style="margin:6px 0 0 18px">'+
+      d.suspeitas.map(function(s){
+        return '<li>'+esc(dataHora(s.entrada.t))+': '+s.erros.length+' erro(s) e depois entrou como <b>'+esc(s.entrada.n||s.entrada.u||'?')+'</b> (endereço '+esc(enderecoDe(s.entrada.alvo))+'). Se não foi essa pessoa, troque a senha dela.</li>';
+      }).join('')+'</ul></div>';
+  }
+  if(!lista.length){
+    cx[1].className='vazio'; cx[1].textContent='Nenhuma tentativa neste período.';
+  } else {
+    cx[1].className='';
+    cx[1].innerHTML=html+'<div class="tabela-cx"><table class="tab"><thead><tr><th>Endereço</th><th>Quem já entrou daqui</th><th>O que tentou</th><th>Quando</th><th>Sinais</th><th>Resultado</th></tr></thead><tbody>'+
+      lista.map(function(g){
+        const nomes=g.conhecido?Object.keys(d.conhecidos[g.k]).join(', '):'';
+        const tipos=Object.keys(g.tipos).map(function(a){ return esc(rotuloDaAcao(a))+(g.tipos[a]>1?' <b>×'+g.tipos[a]+'</b>':''); }).join('<br>');
+        const quando=dataHora(g.primeira)+(g.ultima!==g.primeira?' a '+dataHora(g.ultima):'');
+        const sinais=(g.rajada?'<span class="pill pill-vermelho">Rajada</span> ':'')+(g.madrugada?'<span class="pill pill-ambar">Madrugada</span>':'');
+        return '<tr><td style="white-space:nowrap"><code>'+esc(g.k||'sem endereço')+'</code><br>'+
+          (g.k?(g.conhecido?'<span class="pill pill-verde">Conhecido</span>':'<span class="pill pill-vermelho">Desconhecido</span>'):'')+'</td>'+
+          '<td>'+(nomes?esc(nomes):'<span class="sub">ninguém</span>')+'</td>'+
+          '<td>'+tipos+(Object.keys(g.quem).length?'<div class="sub">como: '+esc(Object.keys(g.quem).join(', '))+'</div>':'')+'</td>'+
+          '<td>'+esc(quando)+'</td><td>'+(sinais||'—')+'</td>'+
+          '<td><span class="pill pill-verde">Barrado ✓</span></td></tr>';
+      }).join('')+'</tbody></table></div>';
+  }
+
+  // Uma por uma
+  if(!L.length){ cx[2].className='vazio'; cx[2].textContent='Nada anotado neste período.'; return; }
+  const mostra=L.slice(0,300);
+  cx[2].className='';
+  cx[2].innerHTML='<div class="tabela-cx"><table class="tab"><thead><tr><th>Quando</th><th>Quem</th><th>O que</th><th>Detalhe</th><th>Resultado</th></tr></thead><tbody>'+
+    mostra.map(function(x){
+      return '<tr><td style="white-space:nowrap">'+esc(dataHora(x.t))+'</td>'+
+        '<td>'+esc(x.n||x.u||'—')+'</td>'+
+        '<td>'+esc(rotuloDaAcao(x.a))+'</td>'+
+        '<td class="sub">'+esc(x.alvo||'—')+'</td>'+
+        '<td><span class="pill pill-verde">'+(x.a==='barrado por muitas tentativas'?'Bloqueado ✓':'Barrado ✓')+'</span></td></tr>';
+    }).join('')+'</tbody></table></div>'+
+    '<div class="rodape">'+mostra.length+' de '+L.length+' mostradas. Pedidos sem login repetidos do mesmo endereço são anotados no máximo uma vez a cada 10 minutos, para o caderno não encher.</div>';
 }
 
 // ================= AGORA NO SISTEMA =================
@@ -850,6 +1020,12 @@ async function carregarResumo(){
       return cartao(barrados?'alerta':(n>=10?'atencao':'ok'),String(n),'Senhas erradas · 7 dias',
         barrados?barrados+' vez(es) alguém foi barrado por errar demais.':(n?'Confira se foi engano de quem trabalha aqui.':'Nenhuma.'),'senhas');
     }).catch(function(e){ return cartao('alerta','?','Senhas erradas',e.message,'senhas'); }),
+    lerTentativas(7).then(function(d){
+      if(d.workerVelho) return cartao('atencao','?','Tentativas de invasão','Falta publicar o Worker novo no Cloudflare.','tentativas');
+      const n=d.lista.length;
+      return cartao(d.suspeitas.length?'atencao':'ok',String(n),'Tentativas de invasão · 7 dias',
+        d.suspeitas.length?d.suspeitas.length+' caso(s) de errou a senha e depois entrou: confira.':(n?'Todas barradas pelo sistema.':'Nenhuma.'),'tentativas');
+    }).catch(function(e){ return cartao('alerta','?','Tentativas de invasão',e.message,'tentativas'); }),
     lerDoCaderno({quantos:2000,grupo:'entradas',de:diaISO(0)}).then(function(j){
       const pessoas={}; (j.lista||[]).forEach(function(x){ pessoas[x.u||x.n]=1; });
       return cartao('','' + (j.total||0),'Entradas hoje',Object.keys(pessoas).length+' pessoa(s) diferente(s).','entradas');
