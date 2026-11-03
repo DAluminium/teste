@@ -414,7 +414,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
            endereço dele. O rótulo diz o que é o arquivo sem precisar abrir. -->
       <div class="secao">Anexos</div>
       <div class="form-grid">
-        <div class="fg"><label>Pedidos no Compras</label><select id="f-compras-agrupamento"><option value="juntas">Todas as listas em um pedido</option><option value="separadas">Pedidos separados por tipo de material</option></select><span class="dica">Escolha antes de anexar. Vale para listas ainda não enviadas; pedidos existentes são mantidos.</span></div>
+        <div class="fg"><label>Pedidos no Compras</label><select id="f-compras-agrupamento"><option value="juntas">Todas as listas em um pedido</option><option value="separadas">Pedidos separados por tipo de material</option><option value="porlista">Um pedido para cada lista</option></select><span class="dica">Escolha antes de anexar. Vale para listas ainda não enviadas; pedidos existentes são mantidos.</span></div>
         <div class="fg"><label>Rótulo do próximo anexo</label><select id="f-doc-tipo"></select><span class="dica">Listas de material de perfil alumínio, acessórios e vidro seguem automaticamente para Compras após salvar o anexo.</span></div>
         <div class="fg"><label>Arquivo</label>
           <input type="file" id="f-doc-arq" onchange="anexarDoc(event)" style="display:none">
@@ -2631,7 +2631,7 @@ function abrirFicha(id){
   anotarAcesso('abriu a ficha', alvoDoContrato(c));
   fichaId=id;
   _manual={projEntrada:!!c.projEntrada, entrega:!!c.entrega};
-  document.getElementById('f-compras-agrupamento').value=c.comprasAgrupamento==='separadas'?'separadas':'juntas';
+  document.getElementById('f-compras-agrupamento').value=AGRUPAMENTOS_COMPRAS.indexOf(c.comprasAgrupamento)>=0?c.comprasAgrupamento:'juntas';
   fichaDocs=Array.isArray(c.docs)?JSON.parse(JSON.stringify(c.docs)):[];
   docsApagados={};
   preencherTiposDoc(); renderDocs();
@@ -2687,7 +2687,10 @@ function fecharFicha(){
 async function salvarFicha(manterAberta){
   if(!podeLancar()){ aviso('Modo consulta','Você está no modo consulta: pode olhar, mas não alterar.'); return false; }
   const c=lerFicha();
-  c.comprasAgrupamento=document.getElementById('f-compras-agrupamento').value==='separadas'?'separadas':'juntas';
+  c.comprasAgrupamento=(function(){
+    const v=document.getElementById('f-compras-agrupamento').value;
+    return AGRUPAMENTOS_COMPRAS.indexOf(v)>=0?v:'juntas';
+  })();
   if(!c.ct){ aviso('Falta o contrato','Preencha o número do contrato (CT).'); document.getElementById('f-ct').focus(); return false; }
   if(!c.ano){ aviso('Falta o ano','Preencha o ano do contrato.'); document.getElementById('f-ano').focus(); return false; }
   if(!c.cliente){ aviso('Falta o cliente','Preencha o cliente ou o nome da obra.'); document.getElementById('f-cliente').focus(); return false; }
@@ -5190,10 +5193,23 @@ async function tirarAnexoDoCompras(c, d){
     aviso('Não estava lá','"'+d.nome+'" não está no lançamento desta obra no Compras.');
     return;
   }
+  // O pedido nasceu aqui, ficou sem nenhum arquivo e ninguem do Compras mexeu
+  // nele (sem fornecedor, sem valor, sem orcamento, sem pedido de material):
+  // sai junto, senao ficaria lixo na tela de quem compra. Se o Compras editou
+  // o pedido, a marca "nascidaNoObra" se perde na gravacao dele — e ai o
+  // pedido FICA, porque ja tem trabalho de outra pessoa dentro.
+  let pedidoRemovido=false;
+  if(reg.nascidaNoObra && !reg.attachments.length &&
+     !String(reg.fornecedor||'').trim() && !Number(reg.valor||0) &&
+     !String(reg.nrOrc||'').trim() && !reg.pedido){
+    comp[alvo.aba]=(comp[alvo.aba]||[]).filter(function(x){ return x!==reg; });
+    pedidoRemovido=true;
+  }
   if(!Array.isArray(comp.historico)) comp.historico=[];
   comp.historico.unshift({
     ts: agoraISO(), user: usuario||'—',
-    action:'Anexo retirado (pelo Gerenciamento de Obra)',
+    action:pedidoRemovido?'Pedido vazio retirado (pelo Gerenciamento de Obra)'
+                         :'Anexo retirado (pelo Gerenciamento de Obra)',
     obra: reg.obra||c.cliente||'—', contrato: reg.contrato||c.ct||'—',
     detail:(d.tipo?d.tipo+' · ':'')+d.nome });
   if(comp.historico.length>500) comp.historico=comp.historico.slice(0,500);
@@ -5211,15 +5227,30 @@ async function tirarAnexoDoCompras(c, d){
   if(confere.atualizadoEm!==carimbo && !(new Date(String(confere.atualizadoEm).slice(0,24)).getTime()>new Date(carimbo).getTime())) throw new Error('o Compras não gravou');
   _comprasDados=confere;
   aviso('Pronto','"'+d.nome+'" não aparece mais no lançamento desta obra no Compras.\n\n'+
+    (pedidoRemovido
+      ? 'O pedido ficou sem nenhum arquivo e ninguém do Compras tinha mexido nele, '+
+        'então ele saiu da tela do Compras também.\n\n'
+      : '')+
     'O arquivo continua aqui no contrato.');
 }
 
 async function mandarAnexoParaFabrica(c, d){
   status('🔄 Mandando para a Fábrica...');
   const fab=await lerFabrica();
-  const o=(fab.obras||[]).find(function(x){ return x.ctoId===c.id; }) ||
-          obraManualNaFabrica(fab.obras, c);
-  if(!o) throw new Error('esta obra ainda não está no quadro da Fábrica');
+  let o=(fab.obras||[]).find(function(x){ return x.ctoId===c.id; }) ||
+        obraManualNaFabrica(fab.obras, c);
+  let criadaAqui=false;
+  if(!o){
+    // Nao esta no quadro: cria aqui mesmo, na primeira etapa do fluxo — antes
+    // o botao so dava erro (pedido do Ander, 03/11/2026). A condicao e a
+    // MESMA do salvar da ficha: contrato finalizado, parado ou sem status nao
+    // entra no quadro de quem produz.
+    if(!vaiParaProducao(c.status)) throw new Error(porqueOStatusNaoVai(c)+', então não criei a obra no quadro da Fábrica');
+    const etapa=primeiraEtapa(fab);
+    if(!etapa) throw new Error('não consegui ler as etapas do fluxo da Fábrica para colocar a obra na primeira delas');
+    o=criarObraNaFabrica(fab, c, etapa);
+    criadaAqui=true;
+  }
   if(!Array.isArray(o.docs)) o.docs=[];
   if(o.docs.some(function(x){ return x.url===d.url; })){
     _fabricaObras=fab.obras||[];
@@ -5253,32 +5284,73 @@ async function mandarAnexoParaFabrica(c, d){
   const confere=await lerFabrica();
   if(confere.atualizadoEm!==carimbo && !(new Date(String(confere.atualizadoEm).slice(0,24)).getTime()>new Date(carimbo).getTime())) throw new Error('a Fábrica não gravou');
   _fabricaObras=confere.obras||[];
-  aviso('Pronto','"'+d.nome+'" agora aparece na ficha desta obra na Fábrica.');
+  aviso('Pronto', criadaAqui
+    ? 'Criei a obra no quadro da Fábrica, na primeira etapa, com "'+d.nome+'" dentro.'
+    : '"'+d.nome+'" agora aparece na ficha desta obra na Fábrica.');
 }
 
 async function mandarAnexoParaCompras(c, d){
   status('🔄 Mandando para o Compras...');
   const comp=await lerCompras();
-  const alvo=acharLancamentoDaObra(comp, c.id, d.url) || acharLancamentoDaObra(comp, c.id) || lancamentoManualNoCompras(comp, c);
-  if(!alvo) throw new Error('esta obra ainda não tem lançamento no Compras');
+  // Onde este arquivo deve entrar, nesta ordem:
+  //   1. no pedido que JA tem este mesmo arquivo (nada a fazer);
+  //   2. sendo lista de material, no pedido do grupo DELA — e por isso que a
+  //      opcao "um pedido para cada lista" vale tambem pelo botao;
+  //   3. nao sendo lista, em qualquer pedido desta obra, como era antes.
+  const ehLista=ehListaMaterial(d);
+  const grupo=ehLista?grupoDaLista(c,d):null;
+  const acharPorGrupo=function(){
+    for(let i=0;i<ABAS_COMPRAS.length;i++){
+      const aba=ABAS_COMPRAS[i];
+      const achado=(comp[aba]||[]).find(function(r){ return r.ctoId===c.id && (r.comprasGrupo||'juntas')===grupo; });
+      if(achado) return {aba:aba, reg:achado};
+    }
+    return null;
+  };
+  let alvo=acharLancamentoDaObra(comp, c.id, d.url) ||
+           (ehLista ? (acharPorGrupo() || lancamentoManualNoCompras(comp, c))
+                    : (acharLancamentoDaObra(comp, c.id) || lancamentoManualNoCompras(comp, c)));
+  // Nao e lista de material e nao existe pedido: nao invento um. Pedido de
+  // material que nasce de uma Proposta so enche a tela de quem compra
+  // (decisao do Ander, 03/11/2026).
+  if(!alvo && !ehLista){
+    throw new Error('esta obra ainda não tem pedido no Compras, e este arquivo não é '+
+      'uma lista de material. Mande primeiro uma das listas de material — ela abre o '+
+      'pedido — e depois este arquivo');
+  }
+  let criado=false;
+  if(!alvo){
+    // Abre o pedido aqui mesmo. As duas condicoes abaixo sao as MESMAS do
+    // salvar da ficha: contrato finalizado, parado ou sem status nao vira
+    // cobranca de material, e o Compras exige a data de entrega da obra — e
+    // dela que sai o alerta de prazo de material.
+    if(!vaiParaProducao(c.status)) throw new Error(porqueOStatusNaoVai(c)+', então não abri pedido no Compras');
+    if(!c.entrega) throw new Error('falta a DATA DE ENTREGA DA OBRA. O Compras exige essa data — é dela que sai o alerta de prazo de material. Preencha a entrega, salve, e mande o arquivo de novo');
+    alvo={aba:'importante', reg:criarLancamentoNoCompras(comp, c, grupo, [d])};
+    criado=true;
+  }
   const reg=alvo.reg;
   if(!Array.isArray(reg.attachments)) reg.attachments=[];
-  if(reg.attachments.some(function(a){ return a.url===d.url; })){
-    _comprasDados=comp;
-    aviso('Já estava lá','"'+d.nome+'" já está no lançamento desta obra no Compras.');
-    return;
+  // Pedido que acabou de nascer ja veio com o arquivo dentro e com a sua
+  // linha no historico: aqui so faltava gravar.
+  if(!criado){
+    if(reg.attachments.some(function(a){ return a.url===d.url; })){
+      _comprasDados=comp;
+      aviso('Já estava lá','"'+d.nome+'" já está no lançamento desta obra no Compras.');
+      return;
+    }
+    // O Compras guarda o anexo com outros nomes de campo (name, size, type) e
+    // usa o campo type para saber se abre como PDF ou como imagem.
+    reg.attachments.push({id:novoId(), url:d.url, name:d.nome,
+      type:mimeDoAnexo(d), size:d.tamanho||0});
+    if(!Array.isArray(comp.historico)) comp.historico=[];
+    comp.historico.unshift({
+      ts: agoraISO(), user: usuario||'—',
+      action:'Anexo recebido (pelo Gerenciamento de Obra)',
+      obra: reg.obra||c.cliente||'—', contrato: reg.contrato||c.ct||'—',
+      detail:(d.tipo?d.tipo+' · ':'')+d.nome });
+    if(comp.historico.length>500) comp.historico=comp.historico.slice(0,500);
   }
-  // O Compras guarda o anexo com outros nomes de campo (name, size, type) e
-  // usa o campo type para saber se abre como PDF ou como imagem.
-  reg.attachments.push({id:novoId(), url:d.url, name:d.nome,
-    type:mimeDoAnexo(d), size:d.tamanho||0});
-  if(!Array.isArray(comp.historico)) comp.historico=[];
-  comp.historico.unshift({
-    ts: agoraISO(), user: usuario||'—',
-    action:'Anexo recebido (pelo Gerenciamento de Obra)',
-    obra: reg.obra||c.cliente||'—', contrato: reg.contrato||c.ct||'—',
-    detail:(d.tipo?d.tipo+' · ':'')+d.nome });
-  if(comp.historico.length>500) comp.historico=comp.historico.slice(0,500);
   // Versao lida, para a gravacao condicional (20/10/2026): se outra pessoa
   // gravou no meio, o Worker recusa e nada e gravado por cima.
   const versaoLidaOutro=String(comp.atualizadoEm||'');
@@ -5292,7 +5364,10 @@ async function mandarAnexoParaCompras(c, d){
   const confere=await lerCompras();
   if(confere.atualizadoEm!==carimbo && !(new Date(String(confere.atualizadoEm).slice(0,24)).getTime()>new Date(carimbo).getTime())) throw new Error('o Compras não gravou');
   _comprasDados=confere;
-  aviso('Pronto','"'+d.nome+'" agora aparece no lançamento desta obra no Compras.');
+  aviso('Pronto', criado
+    ? 'Abri um pedido novo desta obra no Compras, na aba Importantes, com "'+d.nome+'" dentro.'+
+      '\n\nQuem compra ainda precisa preencher fornecedor, valor e orçamento por lá.'
+    : '"'+d.nome+'" agora aparece no lançamento desta obra no Compras.');
 }
 
 async function anexarDoc(ev){
@@ -5908,6 +5983,32 @@ function mostrarEnvio(){
   status((problema?'🟡 Salvo · ':'🟢 Salvo · ')+meio+agoraHora(), problema?'#ffe9b0':null);
 }
 
+// Cria a obra no quadro da Fabrica, nos mesmos campos que a Fabrica grava.
+// Usada pelos DOIS caminhos: o salvar da ficha e o botao "-> Fabrica" da linha
+// do anexo (03/11/2026). Ficar em um lugar so e o que garante que os dois
+// criem exatamente igual.
+function criarObraNaFabrica(fab, c, etapa){
+  if(!Array.isArray(fab.obras)) fab.obras=[];
+  const o={
+    id: novoId(), ctoId: c.id,
+    cliente: c.cliente, obra: c.ct, tipo:'',
+    resp: c.coord||'', prazo: c.entrega||'',
+    etapa: etapa, prev:'', just:'',
+    obs: 'Veio do Gerenciamento de Obra · CT '+(c.ct||'')+'/'+(c.ano||''),
+    criadoEm: agoraISO(), criadoPor: usuario
+  };
+  fab.obras.push(o);
+  if(!Array.isArray(fab.historico)) fab.historico=[];
+  fab.historico.unshift({
+    id: Math.random().toString(36).slice(2)+Date.now().toString(36),
+    ts: agoraISO(), user: usuario||'—',
+    acao:'cadastrou (pelo Gerenciamento de Obra)',
+    alvo: c.cliente||'', detalhe:'CT '+(c.ct||'')
+  });
+  if(fab.historico.length>500) fab.historico=fab.historico.slice(0,500);
+  return o;
+}
+
 async function enviarParaFabrica(c, ehNovo){
   // Contrato finalizado, parado ou com pendência não entra no quadro de quem
   // produz — a planilha tem dezenas de contratos antigos e eles entupiriam a
@@ -5951,22 +6052,7 @@ async function enviarParaFabrica(c, ehNovo){
       jaExiste.atualizadoEm=agoraISO();
       jaExiste.atualizadoPor=usuario;
     } else {
-      fab.obras.push({
-        id: novoId(), ctoId: c.id,
-        cliente: c.cliente, obra: c.ct, tipo:'',
-        resp: c.coord||'', prazo: c.entrega||'',
-        etapa: etapa, prev:'', just:'',
-        obs: 'Veio do Gerenciamento de Obra · CT '+(c.ct||'')+'/'+(c.ano||''),
-        criadoEm: agoraISO(), criadoPor: usuario
-      });
-      if(!Array.isArray(fab.historico)) fab.historico=[];
-      fab.historico.unshift({
-        id: Math.random().toString(36).slice(2)+Date.now().toString(36),
-        ts: agoraISO(), user: usuario||'—',
-        acao:'cadastrou (pelo Gerenciamento de Obra)',
-        alvo: c.cliente||'', detalhe:'CT '+(c.ct||'')
-      });
-      if(fab.historico.length>500) fab.historico=fab.historico.slice(0,500);
+      criarObraNaFabrica(fab, c, etapa);
     }
     // Versao lida, para a gravacao condicional (20/10/2026): se outra pessoa
     // gravou no meio, o Worker recusa e nada e gravado por cima.
@@ -6562,15 +6648,35 @@ function acharLancamentoDaObra(comp, idContrato, url){
 
 const ROTULOS_LISTA_COMPRAS=['Lista de material perfil aluminio',
   'Lista de material acessorios','Lista de material vidro'];
+// As escolhas do campo "Pedidos no Compras" da ficha. Qualquer outro valor
+// gravado (ou vazio) vale como 'juntas', que e como o modulo sempre funcionou.
+const AGRUPAMENTOS_COMPRAS=['juntas','separadas','porlista'];
 function normalizarRotuloLista(s){
   return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
 }
+// Este anexo e uma das tres listas de material? So elas viram cobranca de
+// material no Compras — uma Proposta ou uma foto nao.
+function ehListaMaterial(d){
+  return !!(d && d.url && ROTULOS_LISTA_COMPRAS.some(function(t){
+    return normalizarRotuloLista(d.tipo)===normalizarRotuloLista(t);
+  }));
+}
 function listasMaterialCompras(c){
-  return ((c&&c.docs)||[]).filter(function(d){
-    return d.url && ROTULOS_LISTA_COMPRAS.some(function(t){
-      return normalizarRotuloLista(d.tipo)===normalizarRotuloLista(t);
-    });
-  });
+  return ((c&&c.docs)||[]).filter(function(d){ return ehListaMaterial(d); });
+}
+// Em qual pedido do Compras esta lista entra, conforme o campo "Pedidos no
+// Compras" da ficha:
+//   juntas    — um pedido so, para todas as listas do contrato;
+//   separadas — um pedido por tipo de material (perfil, acessorios, vidro);
+//   porlista  — um pedido para CADA lista (pedido do Ander, 03/11/2026). A
+//               chave e o endereco do arquivo, que e a identidade que os dois
+//               modulos ja usam para saber se a lista chegou la. Duas listas
+//               do mesmo tipo, de etapas diferentes, deixam de cair juntas.
+function grupoDaLista(c,d){
+  const modo=(c||{}).comprasAgrupamento;
+  if(modo==='porlista')  return 'lista:'+d.url;
+  if(modo==='separadas') return normalizarRotuloLista(d.tipo);
+  return 'juntas';
 }
 function anexarListasCompras(reg,listas){
   if(!Array.isArray(reg.attachments)) reg.attachments=[];
@@ -6579,6 +6685,43 @@ function anexarListasCompras(reg,listas){
       reg.attachments.push({id:novoId(),url:d.url,name:d.nome,type:mimeDoAnexo(d),size:d.tamanho||0});
     }
   });
+}
+// Cria o pedido no Compras, nos mesmos campos que o Compras grava — a tela
+// dele nao pode encontrar buraco nenhum. Usada pelos DOIS caminhos: o salvar
+// da ficha e o botao "-> Compras" da linha do anexo (03/11/2026). Ficar em um
+// lugar so e o que garante que os dois criem exatamente igual.
+// "nascidaNoObra" marca que o pedido nasceu aqui e ninguem do Compras mexeu
+// nele ainda: e so por causa dessa marca que o desfazer pode apagar um pedido
+// que ficou vazio. Editar o pedido no Compras TIRA a marca, e ai ele fica.
+function criarLancamentoNoCompras(comp, c, chave, listas){
+  if(!Array.isArray(comp.importante)) comp.importante=[];
+  const reg={
+    id: novoId(),
+    ctoId: c.id,
+    comprasGrupo: chave,
+    obra: c.cliente,
+    contrato: c.ct,
+    entrega: c.entrega,
+    material: chave==='juntas'?'':String((listas[0]||{}).tipo||'').replace(/^Lista de material\s*/i,''), nrOrc:'', fornecedor:'', valor:0, dataOrc:'',
+    medicao:'', diasUteis:0,
+    status:'Pendente', tipo:'padrao',
+    by: usuario,
+    pix:'', pixNome:'', banco:'', conta:'',
+    obs:'Lista de material recebida do Gerenciamento de Obra · CT '+(c.ct||'')+'/'+(c.ano||''),
+    attachments:[], pedido:null,
+    nascidaNoObra:true
+  };
+  comp.importante.push(reg);
+  anexarListasCompras(reg,listas);
+  if(!Array.isArray(comp.historico)) comp.historico=[];
+  comp.historico.unshift({
+    ts: agoraISO(), user: usuario||'—',
+    action:'Lista de material recebida (pelo Gerenciamento de Obra)',
+    obra: c.cliente||'—', contrato: c.ct||'—',
+    detail:'Entrega '+(c.entrega?fmtData(c.entrega):'—')+' · '+listas.map(function(d){ return d.tipo+': '+d.nome; }).join('; ')
+  });
+  if(comp.historico.length>500) comp.historico=comp.historico.slice(0,500);
+  return reg;
 }
 async function enviarParaCompras(c){
   const listas=listasMaterialCompras(c);
@@ -6606,7 +6749,7 @@ async function enviarParaCompras(c){
     if(!novas.length){ anotarEnvio('comp','listas já estão no Compras',''); return; }
     const grupos=[];
     novas.forEach(function(d){
-      const chave=c.comprasAgrupamento==='separadas'?normalizarRotuloLista(d.tipo):'juntas';
+      const chave=grupoDaLista(c,d);
       let grupo=grupos.find(function(g){ return g.chave===chave; });
       if(!grupo){ grupo={chave:chave,listas:[]}; grupos.push(grupo); }
       grupo.listas.push(d);
@@ -6644,32 +6787,7 @@ async function enviarParaCompras(c){
       }
       anexarListasCompras(ja,grupo.listas);
     } else {
-      // Campos na mesma forma que o Compras grava, para a tela dele não
-      // encontrar buraco nenhum.
-      comp.importante.push({
-        id: novoId(),
-        ctoId: c.id,
-        comprasGrupo:grupo.chave,
-        obra: c.cliente,
-        contrato: c.ct,
-        entrega: c.entrega,
-        material:grupo.chave==='juntas'?'':grupo.listas[0].tipo.replace(/^Lista de material\s*/i,''), nrOrc:'', fornecedor:'', valor:0, dataOrc:'',
-        medicao:'', diasUteis:0,
-        status:'Pendente', tipo:'padrao',
-        by: usuario,
-        pix:'', pixNome:'', banco:'', conta:'',
-        obs:'Lista de material recebida do Gerenciamento de Obra · CT '+(c.ct||'')+'/'+(c.ano||''),
-        attachments:[], pedido:null
-      });
-      anexarListasCompras(comp.importante[comp.importante.length-1],grupo.listas);
-      if(!Array.isArray(comp.historico)) comp.historico=[];
-      comp.historico.unshift({
-        ts: agoraISO(), user: usuario||'—',
-        action:'Lista de material recebida (pelo Gerenciamento de Obra)',
-        obra: c.cliente||'—', contrato: c.ct||'—',
-        detail:'Entrega '+(c.entrega?fmtData(c.entrega):'—')+' · '+grupo.listas.map(function(d){ return d.tipo+': '+d.nome; }).join('; ')
-      });
-      if(comp.historico.length>500) comp.historico=comp.historico.slice(0,500);
+      criarLancamentoNoCompras(comp, c, grupo.chave, grupo.listas);
     }
     });
 
