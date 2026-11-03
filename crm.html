@@ -333,7 +333,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <button type="button" class="btn btn-outline btn-sm" onclick="anexarLinkCrm()">🔗 Anexar link</button>
         <span id="o-doc-status" class="dica" style="font-size:12px;color:var(--gray-5)"></span>
       </div>
-      <div class="dica" id="o-docs-dica" style="font-size:11.5px;color:var(--gray-4);margin-top:4px">Arquivo até 10 MB. Para arquivo maior (um projeto pesado, por exemplo), guarde no Drive ou no WeTransfer e use <b>Anexar link</b>.</div>
+      <div class="dica" id="o-docs-dica" style="font-size:11.5px;color:var(--gray-4);margin-top:4px">Arquivo até 100 MB (arquivo grande demora mais para subir).</div>
 
       <div class="secao">Observações e autorização</div>
       <div class="form-grid">
@@ -2040,17 +2040,33 @@ function anotar(){
 // grande. Os anexos ficam dentro do cofre do CRM (nome e link costumam ter o
 // nome do cliente). Anexar: quem pode editar o negocio. Tirar: so o gerente.
 const PASTA_ARQUIVOS_CRM='daluminium_crm';
-const MAX_ARQUIVO_CRM=10*1024*1024;
+// Arquivo grande (03/11/2026): o servico de arquivos recusa acima de 10 MB.
+// Acima disso o arquivo sobe em pedacos de 9 MB e o Worker entrega colado
+// (ver enviarArquivoEmPedacos). Teto de 100 MB para nao estourar a cota do mes.
+const MAX_ARQUIVO_CRM=100*1024*1024;
+const MAX_UM_ENVIO_CRM=10*1024*1024;
+const PEDACO_CRM=9*1024*1024;
 function fmtTamanho(b){
   b=Number(b)||0;
   if(b>=1048576) return (b/1048576).toFixed(1).replace('.',',')+' MB';
   if(b>=1024) return Math.round(b/1024)+' KB';
   return b+' B';
 }
+// Os pedacos do arquivo grande, achados pelo endereco do primeiro.
+function partesDoAnexo(url){
+  const os=(dados&&dados.oportunidades)||[];
+  for(let i=0;i<os.length;i++){
+    const d=(os[i].docs||[]).find(function(x){ return x.url===url && Array.isArray(x.partes) && x.partes.length>1; });
+    if(d) return d.partes;
+  }
+  return null;
+}
 async function linkDoAnexo(url,nome,modo,para){
+  const corpo={url:url,nome:nome||'',modo:modo||'',para:para||''};
+  const partes=partesDoAnexo(url); if(partes) corpo.partes=partes;
   const r=await fetch(WORKER,{method:'POST',cache:'no-store',
     headers:cabecalhos({'Content-Type':'application/json','X-Action':'abrir-anexo'}),
-    body:JSON.stringify({url:url,nome:nome||'',modo:modo||'',para:para||''})});
+    body:JSON.stringify(corpo)});
   let j=null; try{ j=await r.json(); }catch(e){}
   if(!r.ok||!j||!j.url) throw new Error((j&&j.erro)||('erro '+r.status+' no servidor'));
   return j.abrir||j.url;
@@ -2242,6 +2258,26 @@ async function excluirArquivoDoAnexo(url){
       body:JSON.stringify({url:url})});
   }catch(e){ console.warn('Não consegui apagar o arquivo no servidor de arquivos:',e); }
 }
+// Sobe o arquivo grande em pedacos, um por um (cada pedaco tenta 2 vezes).
+// Se um falhar de vez, apaga os que ja subiram: nao fica pedaco solto.
+async function enviarArquivoEmPedacos(arq,aoAvancar){
+  const total=Math.ceil(arq.size/PEDACO_CRM), partes=[];
+  try{
+    for(let i=0;i<total;i++){
+      if(aoAvancar) aoAvancar(i+1,total);
+      const pedaco=new File([arq.slice(i*PEDACO_CRM, Math.min(arq.size,(i+1)*PEDACO_CRM))],'pedaco'+(i+1)+'.bin',{type:'application/octet-stream'});
+      let j=null;
+      try{ j=await enviarArquivoPrivado(pedaco, PASTA_ARQUIVOS_CRM, 'raw'); }
+      catch(e){ j=await enviarArquivoPrivado(pedaco, PASTA_ARQUIVOS_CRM, 'raw'); }
+      if(!j||!j.secure_url) throw new Error('o servidor não devolveu o endereço da parte '+(i+1));
+      partes.push(j.secure_url);
+    }
+  }catch(e){
+    partes.forEach(function(u){ excluirArquivoDoAnexo(u); });
+    throw e;
+  }
+  return partes;
+}
 function negocioDaFicha(){ return (dados.oportunidades||[]).find(function(x){ return x.id===fichaId; })||null; }
 function renderDocsCrm(o){
   const el=document.getElementById('o-docs');
@@ -2256,7 +2292,7 @@ function renderDocsCrm(o){
       '</div>';
     }).join(''):'<div class="dica" style="font-size:12px;color:var(--gray-4)">Nenhum anexo.</div>';
     document.getElementById('o-docs-acoes').style.display=ehConsulta()?'none':'flex';
-    document.getElementById('o-docs-dica').innerHTML='Pode escolher <b>vários arquivos de uma vez</b>. Eles sobem quando você clicar em <b>Salvar</b>. Até 10 MB cada; arquivo maior, guarde no Drive ou no WeTransfer e use <b>Anexar link</b>.';
+    document.getElementById('o-docs-dica').innerHTML='Pode escolher <b>vários arquivos de uma vez</b>. Eles sobem quando você clicar em <b>Salvar</b>. Até 100 MB cada (arquivo grande demora mais para subir).';
     return;
   }
   const docs=Array.isArray(o.docs)?o.docs:[];
@@ -2271,7 +2307,7 @@ function renderDocsCrm(o){
   }).join(''):'<div class="dica" style="font-size:12px;color:var(--gray-4)">Nenhum anexo.</div>';
   const podeAnexar=!!o && !o.excluido && podeEditarNegocio(o) && !ehConsulta();
   document.getElementById('o-docs-acoes').style.display=podeAnexar?'flex':'none';
-  document.getElementById('o-docs-dica').innerHTML='Pode escolher <b>vários arquivos de uma vez</b>. Até 10 MB cada; para arquivo maior (um projeto pesado, por exemplo), guarde no Drive ou no WeTransfer e use <b>Anexar link</b>.';
+  document.getElementById('o-docs-dica').innerHTML='Pode escolher <b>vários arquivos de uma vez</b>. Até 100 MB cada (arquivo grande, como um projeto pesado, demora mais para subir).';
 }
 function abrirDocCrm(id){
   const o=negocioDaFicha(); if(!o) return;
@@ -2318,7 +2354,7 @@ function separarGrandes(arqs){
   if(grandes.length){
     aviso(grandes.length===1?'Arquivo muito grande':'Arquivos muito grandes',
       grandes.map(function(a){ return '• '+a.name+' ('+fmtTamanho(a.size)+')'; }).join('\n')+
-      '\n\nO limite é 10 MB por arquivo'+(arqs.length>grandes.length?'; os outros seguem normalmente':'')+'.\n'+
+      '\n\nO limite é 100 MB por arquivo'+(arqs.length>grandes.length?'; os outros seguem normalmente':'')+'.\n'+
       'Guarde o arquivo grande no Drive ou no WeTransfer e use "Anexar link".');
   }
   return arqs.filter(function(a){ return a.size<=MAX_ARQUIVO_CRM; });
@@ -2329,8 +2365,14 @@ async function enviarVariosArquivos(arqs){
   const docs=[], falhas=[];
   for(let i=0;i<arqs.length;i++){
     const arq=arqs[i];
-    st.textContent='Enviando '+(arqs.length>1?(i+1)+' de '+arqs.length+': ':'')+arq.name+'...';
+    const rotulo='Enviando '+(arqs.length>1?(i+1)+' de '+arqs.length+': ':'')+arq.name;
+    st.textContent=rotulo+'...';
     try{
+      if(arq.size>MAX_UM_ENVIO_CRM){
+        const partes=await enviarArquivoEmPedacos(arq,function(n,t){ st.textContent=rotulo+' (parte '+n+' de '+t+')...'; });
+        docs.push({id:novoId(), nome:arq.name, url:partes[0], partes:partes, tamanho:arq.size, mime:arq.type||'', quem:usuario, quemLogin:meuLoginDeAnexo(), quando:agoraISO()});
+        continue;
+      }
       const ehPdf=arq.type==='application/pdf';
       const j=await enviarArquivoPrivado(arq, PASTA_ARQUIVOS_CRM, ehPdf?'raw':'auto');
       if(!j||!j.secure_url) throw new Error('o servidor não devolveu o endereço do arquivo');
@@ -2406,7 +2448,7 @@ async function removerDocCrm(id){
   const novo=negocioDaFicha();
   renderDocsCrm(novo); renderNotas(novo);
   // Gravado sem o anexo: agora apaga o arquivo (o link de Drive nao e nosso).
-  if(ok && d.url && !d.link) excluirArquivoDoAnexo(d.url);
+  if(ok && d.url && !d.link) (Array.isArray(d.partes)&&d.partes.length?d.partes:[d.url]).forEach(function(u){ excluirArquivoDoAnexo(u); });
 }
 
 function novoNegocio(){
