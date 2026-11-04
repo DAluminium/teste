@@ -739,7 +739,9 @@ async function lerSmartCem(doc){
   const rotulos=itens.filter(function(i){ return /^tipo:?$/i.test(i.t); })
     .sort(function(a,b){ return a.p-b.p || a.y-b.y; });
   // Onde comeca o conteudo de cada pagina: depois do cabecalho da proposta.
-  const CABECALHO=/^(prazo de execu|validade|emitido por|obra:|proposta|cliente:|contato:|end\. obra|cidade:|cep:|cpf:|telefone:|e-mail:)/i;
+  // (o Djalma tem "Endereco:", "Tratamento:" geral e "Medidas de L x H
+  // referem-se ao: Marco" no cabecalho — esta ultima vem por ultimo)
+  const CABECALHO=/^(prazo de execu|validade|emitido por|obra:|proposta|cliente:|contato:|end\. obra|endere[cç]o:|cidade:|cep:|cpf:|telefone:|e-mail:|medidas de l)/i;
   const inicioPagina={};
   rotulos.forEach(function(r){
     if(inicioPagina[r.p]!==undefined) return;
@@ -750,19 +752,51 @@ async function lerSmartCem(doc){
     const rod=itens.filter(function(i){ return i.p===p && /smartcem|alumisoft/i.test(i.t); }).map(function(i){ return i.y; });
     return (rod.length?Math.min.apply(null,rod):alturaPag[p]||842)-20;
   };
+  // Modelo B com linhas de unidade (proposta do Djalma, 04/11/2026): logo
+  // abaixo da linha do "Tipo" vem uma linha por unidade ("1/1", "1/3",
+  // "2/3"...), e o medidor anota em cima delas. O bloco vai ate a ultima
+  // dessas linhas — antes acabava na linha do "Tipo" e as anotacoes caiam na
+  // esquadria de baixo.
+  const ehLinhaDeUnidade=function(i,r){ return /^\d+\/\d+$/.test(i.t) && i.x<r.x-30; };
+  const fimDasUnidades=function(r,p,desde){
+    let fim=desde;
+    for(;;){
+      const u=itens.find(function(i){ return i.p===p && ehLinhaDeUnidade(i,r) && i.y>=fim-6 && i.y<=fim+16; });
+      if(!u) return fim;
+      fim=u.y+12;
+    }
+  };
+  const fimDoBlocoB=function(r){ return fimDasUnidades(r,r.p,r.y+22); };
+  // Linha do "Tipo" no pe da pagina, com os valores e as unidades no alto da
+  // pagina seguinte (a P7 do Djalma): esse pedaco de cima ("cauda") e dela.
+  const caudas={};
+  rotulos.forEach(function(r){
+    const temValor=itens.some(function(i){ return i.p===r.p && i.y>r.y+6 && i.y<r.y+30 && Math.abs(i.x-r.x)<=15; });
+    if(temValor || r.p>=pdf.numPages) return;
+    const p=r.p+1, ini=inicioPagina[p]!==undefined?inicioPagina[p]:0;
+    const primeira=itens.filter(function(i){ return i.p===p && i.y>=ini && i.y<=ini+30 && /^CEM$/i.test(i.t) && i.x<r.x-30; })
+      .sort(function(a,c){ return a.y-c.y; })[0];
+    if(!primeira) return;
+    caudas[rotulos.indexOf(r)]={p:p,y0:ini,y1:fimDasUnidades(r,p,primeira.y+12),vy:primeira.y};
+  });
+  const fimDaCauda={};
+  Object.keys(caudas).forEach(function(k){ fimDaCauda[caudas[k].p]=caudas[k].y1; });
   const blocos=rotulos.map(function(r,k){
     const linha=itens.filter(function(i){ return i.p===r.p && igual(i.y,r.y) && i.x>r.x; });
     const modeloB=linha.some(function(i){ return /^(l|h|qtd):?$/i.test(i.t); });
     const ant=rotulos[k-1], prox=rotulos[k+1];
     if(modeloB){
-      return {r:r,p:r.p,modelo:'B',linha:linha,
-        y0:(ant&&ant.p===r.p)?ant.y+22:inicioPagina[r.p],
-        y1:r.y+22};
+      const c=caudas[k]||null;
+      return {r:r,p:r.p,modelo:'B',linha:linha,cauda:c,
+        valores:c?{p:c.p,y0:c.vy-6,y1:c.vy+6}:null,
+        y0:(ant&&ant.p===r.p)?fimDoBlocoB(ant):Math.max(inicioPagina[r.p]||0,fimDaCauda[r.p]||0),
+        y1:fimDoBlocoB(r)};
     }
     return {r:r,p:r.p,modelo:'A',linha:linha,
       y0:r.y-12, y1:(prox&&prox.p===r.p)?prox.y-12:fimPagina(r.p)};
   });
-  const noBloco=function(b){ return itens.filter(function(i){ return i.p===b.p && i.y>=b.y0 && i.y<b.y1; }); };
+  const naCauda=function(b,i){ return !!b.cauda && i.p===b.cauda.p && i.y>=b.cauda.y0 && i.y<b.cauda.y1; };
+  const noBloco=function(b){ return itens.filter(function(i){ return (i.p===b.p && i.y>=b.y0 && i.y<b.y1) || naCauda(b,i); }); };
   // Junta pedacos da mesma linha; sem espaco quando um encosta no outro
   // ("J0" + "4" = "J04").
   const juntar=function(lista){
@@ -785,12 +819,16 @@ async function lerSmartCem(doc){
       return {txt:juntar(v),r:r};
     };
     let tipo='', local='', qtde='', dimL='', dimH='', dimTxt='', cor='', vidro='', descricao='', linhaProd='';
-    const linhaValores=its.filter(function(i){ return i.y>b.r.y+6 && i.y<b.r.y+30 && i.h<LETRA_ANOTACAO; });
+    const lv=b.valores||{p:b.p,y0:b.r.y+6,y1:b.r.y+30};
+    const linhaValores=its.filter(function(i){ return i.p===lv.p && i.y>lv.y0 && i.y<lv.y1 && i.h<LETRA_ANOTACAO; });
+    const notasDoBloco=[];
     const naColuna=function(de,ate){ return linhaValores.filter(function(i){ return i.x>=de && i.x<ate; }).sort(function(a,c){ return a.x-c.x; }); };
     linhaValores.forEach(function(i){ usados.add(i); });
     b.linha.forEach(function(i){ usados.add(i); }); usados.add(b.r);
     if(b.modelo==='B'){
-      const col=function(re,padrao){ const i=b.linha.find(function(x){ return re.test(x.t); }); return i?i.x:padrao; };
+      // Rotulo repetido (no Djalma ha L e H do Contramarco e da Esquadria):
+      // vale o da direita, o da Esquadria.
+      const col=function(re,padrao){ const i=b.linha.filter(function(x){ return re.test(x.t); }).sort(function(a,c){ return c.x-a.x; })[0]; return i?i.x:padrao; };
       const xQtd=col(/^qtd/i,b.r.x+60), xL=col(/^l:?$/i,xQtd+57), xH=col(/^h:?$/i,xL+48), xLin=col(/^linha/i,xH+62), xLoc=col(/^localiza/i,xLin+90);
       tipo=juntar(naColuna(b.r.x-15,xQtd-6));
       qtde=juntar(naColuna(xQtd-8,xL-8));
@@ -799,19 +837,54 @@ async function lerSmartCem(doc){
       linhaProd=juntar(naColuna(xLin-10,xLoc-20));
       local=juntar(naColuna(xLoc-20,99999));
       dimTxt=dimL&&dimH?dimL+' x '+dimH:'';
-      const ac=aoLado(/^acabamento/i);
+      // No Djalma a cor vem como "Tratamento:", e ha "Linha:" e "Obs:" em cima
+      // (os rotulos de cima: acima da linha do "Tipo").
+      const acima=its.filter(function(i){ return i.p===b.p && i.y<b.r.y-4; });
+      const rotAcima=function(re){ return acima.find(function(i){ return re.test(i.t); })||null; };
+      let ac=aoLado(/^acabamento/i);
+      if(!ac.r && rotAcima(/^tratamento:?$/i)) ac=aoLado(/^tratamento:?$/i);
       cor=ac.txt;
       const vi=aoLado(/^vidros?:?$/i);
       vidro=vi.txt;
       if(!vidro){ const sv=its.find(function(i){ return /^sem vidros?$/i.test(i.t); }); if(sv){ vidro='Sem vidros'; usados.add(sv); } }
-      // Descricao: o texto de cima, antes do "Acabamento:" (pode ter varias linhas).
-      const limite=ac.r?ac.r.y-2:b.r.y-2;
+      const ladoDe=function(r){
+        if(!r) return ''; usados.add(r);
+        const v=its.filter(function(i){ return i.p===r.p && igual(i.y,r.y) && i.x>r.x && i.h<LETRA_ANOTACAO; }).sort(function(a,c){ return a.x-c.x; });
+        v.forEach(function(i){ usados.add(i); }); return juntar(v);
+      };
+      const li=ladoDe(rotAcima(/^linha:?$/i)); if(!linhaProd) linhaProd=li;
+      const obs=ladoDe(rotAcima(/^obs:?$/i));
+      // Descricao: o texto de cima, antes do primeiro rotulo ("Acabamento:",
+      // "Vidros:"...) — pode ter varias linhas.
+      const rotsDeCima=[ac.r,vi.r,rotAcima(/^linha:?$/i),rotAcima(/^obs:?$/i)].filter(Boolean).map(function(i){ return i.y; });
+      const limite=rotsDeCima.length?Math.min.apply(null,rotsDeCima)-2:b.r.y-2;
       const desc=its.filter(function(i){
-        return i.y<limite && i.x>=b.r.x-10 && i.h<LETRA_ANOTACAO && !usados.has(i) && !/:$/.test(i.t);
+        return i.p===b.p && i.y<limite && i.x>=b.r.x-10 && i.h<LETRA_ANOTACAO && !usados.has(i) && !/:$/.test(i.t);
       }).sort(function(a,c){ return a.y-c.y || a.x-c.x; });
       const porLinha=[]; desc.forEach(function(i){ const l=porLinha.find(function(x){ return igual(x.y,i.y); }); if(l) l.its.push(i); else porLinha.push({y:i.y,its:[i]}); });
       descricao=porLinha.map(function(l){ return juntar(l.its); }).join(' ');
       desc.forEach(function(i){ usados.add(i); });
+      if(obs) descricao+=' · Obs: '+obs;
+      // Anotacao feita em cima de uma linha de unidade ("2/3"): vira
+      // "J3.2: 601X752 - MEIO", como o medidor escreve nos outros PDFs, para
+      // a ficha da unidade receber a anotacao dela. Com uma unidade so:
+      // "Medido: 1460X4311 - FACHADA".
+      its.filter(function(i){ return ehLinhaDeUnidade(i,b.r); }).sort(function(a,c){ return a.p-c.p || a.y-c.y; }).forEach(function(u){
+        const m=u.t.match(/^(\d+)\/(\d+)$/), un=parseInt(m[1],10), de=parseInt(m[2],10);
+        const gr=its.filter(function(i){ return i.p===u.p && igual(i.y,u.y) && i.h>=LETRA_ANOTACAO; }).sort(function(a,c){ return a.x-c.x; });
+        if(!gr.length) return;
+        gr.forEach(function(i){ usados.add(i); });
+        let q='', nums=[], resto=[];
+        gr.forEach(function(i,k){
+          if(k===0 && /^\d+$/.test(i.t) && i.x<xL-40) q=i.t;
+          else if(/^\d+$/.test(i.t) && nums.length<2 && !resto.length) nums.push(i.t);
+          else resto.push(i.t);
+        });
+        let t=nums.length===2?nums[0]+'X'+nums[1]:nums.join(' ');
+        if(resto.length) t+=(t?' - ':'')+resto.join(' ');
+        if(q && q!=='1') t+=' (qtde '+q+')';
+        notasDoBloco.push({texto:(de>1?(tipo||'?')+'.'+un+': ':'Medido: ')+t});
+      });
     } else {
       const cab=function(re){ return b.linha.find(function(i){ return re.test(i.t); }); };
       const cLoc=cab(/^localiza/i), cDim=cab(/^dimens/i), cQtd=cab(/^qtde?/i);
@@ -846,19 +919,22 @@ async function lerSmartCem(doc){
     let desenho=null;
     if(cand){
       const x0=Math.max(0,cand.x), x1=Math.min(cand.x+cand.w,b.r.x-3);
-      const y0=Math.max(cand.y,b.y0-4), y1=Math.min(cand.y+cand.h,b.y1);
+      // Primeira esquadria da pagina: o desenho pode subir um pouco alem do
+      // fim do cabecalho (a PV_1 do Djalma); folga maior para nao cortar.
+      const folga=(b.y0===inicioPagina[b.p])?16:4;
+      const y0=Math.max(cand.y,b.y0-folga), y1=Math.min(cand.y+cand.h,b.y1);
       if(x1-x0>=30 && y1-y0>=30) desenho={p:cand.p,x:x0,y:y0,w:x1-x0,h:y1-y0};
     }
     return {
       tipo:tipo, local:local, qtde:qtde, linha:linhaProd,
       dimL:dimL, dimH:dimH, dimTxt:dimTxt,
       cor:cor, vidro:vidro, descricao:descricao.replace(/\s+/g,' ').trim(),
-      desenho:desenho, notas:[]
+      desenho:desenho, notas:notasDoBloco
     };
   });
   // Anotacoes: texto em letra maior que nao e de nenhum campo e cai DENTRO de
   // um bloco. Pedacos vizinhos viram uma nota so.
-  const blocoDe=function(i){ return blocos.findIndex(function(b){ return b.p===i.p && i.y>=b.y0 && i.y<b.y1; }); };
+  const blocoDe=function(i){ return blocos.findIndex(function(b){ return (b.p===i.p && i.y>=b.y0 && i.y<b.y1) || naCauda(b,i); }); };
   const soltos=itens.filter(function(i){ return !usados.has(i) && i.h>=LETRA_ANOTACAO && blocoDe(i)>=0; })
     .sort(function(a,b){ return a.p-b.p || a.y-b.y || a.x-b.x; });
   const notas=[];
