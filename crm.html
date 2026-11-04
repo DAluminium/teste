@@ -1738,7 +1738,8 @@ function htmlRelatorio(){
       Object.keys(origens).sort().map(function(x){ return opt(x,x,_rel.origem); }).join('')+'</select>'+
     '<select class="filtro" onchange="mudarRelatorio(\'situacao\',this.value)" title="Vale para a lista de negócios no fim">'+
       opt('','Todas as situações',_rel.situacao)+opt('aberta','Em aberto',_rel.situacao)+opt('ganho','Fechados',_rel.situacao)+opt('perdido','Perdidos',_rel.situacao)+'</select>'+
-    (podeGerenciar()?'<button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="exportarPlanilha()" title="Baixa a lista de negócios do relatório (sem telefone e e-mail)">⬇ Baixar planilha</button>':'')+
+    (podeGerenciar()?'<button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="imprimirRelatorio()" title="Imprime o relatório como está na tela, ou salva em PDF">🖨 Imprimir / PDF</button>':'')+
+    (podeGerenciar()?'<button class="btn btn-outline btn-sm" onclick="exportarPlanilha()" title="Baixa a lista de negócios do relatório (sem telefone e e-mail)">⬇ Baixar planilha</button>':'')+
   '</div></div>';
 
   h+='<div class="cards">'+
@@ -1848,6 +1849,96 @@ function exportarPlanilha(){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function(){ URL.revokeObjectURL(a.href); },5000);
   anotarAcesso('baixou a planilha do relatório', 'CRM · '+lista.length+' negócio(s)');
+}
+
+// O relatorio em papel — ou em PDF, escolhendo "Salvar como PDF" no destino da
+// janela de impressao. NAO monta o relatorio de novo: copia o que esta na
+// tela, senao o papel poderia contar uma historia diferente da que o gestor
+// acabou de ver. Telefone e e-mail nao saem porque a tela do relatorio nao
+// mostra nenhum dos dois — a mesma regra da planilha.
+function imprimirRelatorio(){
+  if(!podeGerenciar()){ aviso('Só gerente','O relatório em PDF é emitido só pelo gerente ou pelo administrador.'); return; }
+  if(view!=='relatorio') setView('relatorio');
+  const el=document.getElementById('conteudo');
+  if(!el || !el.children.length){ aviso('Nada para imprimir','Não há nada no relatório para sair em papel.'); return; }
+  const w=window.open('','_blank');
+  if(!w){ aviso('Janela bloqueada','O navegador bloqueou a janela de impressão. Libere janelas para este site e tente de novo.'); return; }
+
+  const copia=el.cloneNode(true);
+  // A primeira caixa e a barra de filtros. No papel ela nao serve (sao caixas
+  // de escolha); vira a linha escrita do cabecalho, que diz a mesma coisa.
+  const primeira=copia.querySelector('.bloco');
+  if(primeira && primeira.querySelector('select')) primeira.remove();
+  copia.querySelectorAll('button,select,input').forEach(function(x){ x.remove(); });
+  copia.querySelectorAll('[onclick]').forEach(function(x){ x.removeAttribute('onclick'); });
+
+  // De que recorte este papel saiu. Sem isso, dois relatorios de periodos
+  // diferentes viram duas folhas iguais em cima da mesa.
+  const p=periodoDoRelatorio();
+  const periodo=(p.de<'2000'&&p.ate>'9000')?'todo o período':(fmtData(p.de)+' a '+fmtData(p.ate));
+  const filtros=[];
+  const busca=((document.getElementById('busca')||{}).value||'').trim();
+  if(busca) filtros.push('busca: "'+busca+'"');
+  const sv=document.getElementById('f-vendedor');
+  if(sv && sv.value && sv.selectedIndex>=0) filtros.push('vendedor: '+sv.options[sv.selectedIndex].text);
+  if(_rel.origem) filtros.push('origem: '+_rel.origem);
+  if(_rel.situacao) filtros.push('situação: '+({aberta:'em aberto',ganho:'fechados',perdido:'perdidos'}[_rel.situacao]||_rel.situacao));
+
+  // Folha propria, com o CSS escrito aqui dentro: a janela nova nao herda nada
+  // da tela. As cores sao as mesmas do sistema, em numero, porque o var() do
+  // :root abaixo e que alimenta os cartoes e as barrinhas copiados da tela.
+  const css='@page{size:A4 portrait;margin:12mm}'+
+    ':root{--teal:#1FB6CF;--teal-dark:#0E8FA6;--teal-light:#E6F8FB;--red:#C0392B;--red-light:#FDF0EE;'+
+    '--amber:#B9770E;--amber-light:#FEF7E6;--green:#1A7A45;--green-light:#EDFAF3;--purple:#7B2D8B;'+
+    '--purple-light:#F3E8FF;--blue:#1F5FA8;--blue-light:#E8F1FB;--gray-1:#F7F8F9;--gray-2:#EEF0F2;'+
+    '--gray-3:#DEE1E5;--gray-4:#9AA1AB;--gray-5:#5A6370;--gray-6:#23282F}'+
+    '*{box-sizing:border-box;margin:0;padding:0}'+
+    'body{font-family:Arial,Helvetica,sans-serif;color:#23282F;font-size:10px;'+
+      '-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+    'h1{font-size:15px;margin:0 0 3px}'+
+    '.sub{font-size:9px;color:#5A6370;line-height:1.55;margin-bottom:10px;'+
+      'border-bottom:1px solid #DEE1E5;padding-bottom:7px}'+
+    '.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}'+
+    '.card{border:1px solid #DEE1E5;border-left:4px solid #DEE1E5;border-radius:6px;'+
+      'padding:7px 9px;page-break-inside:avoid}'+
+    '.card-n{font-size:16px;font-weight:700;line-height:1.1}'+
+    '.card-t{font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:#5A6370;font-weight:700;margin-top:2px}'+
+    '.card-s{font-size:8.5px;color:#5A6370;margin-top:1px}'+
+    '.bloco{border:1px solid #DEE1E5;border-radius:6px;margin-bottom:9px;overflow:visible}'+
+    '.bloco-head{padding:5px 9px;font-size:9px;font-weight:700;text-transform:uppercase;'+
+      'letter-spacing:.05em;background:#F7F8F9;border-bottom:1px solid #EEF0F2;'+
+      'display:flex;justify-content:space-between;gap:8px}'+
+    '.bloco-body{padding:6px 9px}'+
+    '.tabela-cx{overflow:visible}'+
+    'table.tab{border-collapse:collapse;width:100%;font-size:9px}'+
+    'table.tab th{background:#F7F8F9;text-align:left;padding:4px 6px;font-size:8px;'+
+      'text-transform:uppercase;letter-spacing:.04em;color:#5A6370;font-weight:700;'+
+      'border-bottom:1.5px solid #DEE1E5}'+
+    'table.tab td{padding:4px 6px;border-bottom:1px solid #EEF0F2;vertical-align:top}'+
+    'table.tab tr{page-break-inside:avoid}'+
+    'table.tab thead{display:table-header-group}'+
+    '.neg-linha{color:#5A6370;font-size:8.5px;margin-top:1px}'+
+    '.pill{display:inline-block;padding:1px 6px;border-radius:20px;font-size:8px;font-weight:700;white-space:nowrap}'+
+    '.pill-cinza{background:#EEF0F2;color:#5A6370}'+
+    '.pill-vermelho{background:#FDF0EE;color:#C0392B}'+
+    '.pill-ambar{background:#FEF7E6;color:#B9770E}'+
+    '.pill-verde{background:#EDFAF3;color:#1A7A45}'+
+    '.pill-azul{background:#E8F1FB;color:#1F5FA8}'+
+    '.pill-roxo{background:#F3E8FF;color:#7B2D8B}'+
+    '.pill-teal{background:#E6F8FB;color:#0E8FA6}';
+
+  w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">'+
+    '<title>CRM · Relatório comercial</title><style>'+css+'</style></head><body>'+
+    '<h1>D\'Aluminium · CRM — Relatório comercial</h1>'+
+    '<div class="sub"><b>Período:</b> '+esc(periodo)+' · '+(filtros.length?esc(filtros.join(' · ')):'sem filtros')+
+      '<br>Emitido por '+esc(usuario||'—')+' em '+esc(new Date().toLocaleString('pt-BR'))+
+      ' · sem telefone e sem e-mail</div>'+
+    copia.innerHTML+
+    '</body></html>');
+  w.document.close();
+  w.focus();
+  setTimeout(function(){ w.print(); },300);
+  anotarAcesso('emitiu o relatório em PDF', 'CRM · '+periodo);
 }
 
 function vazio(t,s){ return '<div class="vazio"><div class="vazio-t">'+t+'</div><div>'+s+'</div></div>'; }
