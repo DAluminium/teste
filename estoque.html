@@ -740,7 +740,8 @@ function botoesDeLancar(){
   if(ehConsulta()||ehEspelho()) return '<span class="pill">Só consulta</span>';
   return '<button class="btn btn-verde" onclick="abrirMovimento(\'entrada\')">+ Entrada</button>'+
     '<button class="btn btn-verm" onclick="abrirMovimento(\'saida\')">− Saída</button>'+
-    '<button class="btn btn-outline" onclick="abrirMaterial()">Cadastrar material</button>';
+    '<button class="btn btn-outline" onclick="abrirMaterial()">Cadastrar material</button>'+
+    '<button class="btn btn-outline" onclick="abrirImportacao()" title="Cadastrar os perfis e componentes da Lista de materiais do SmartCEM">📄 Importar do PDF</button>';
 }
 function bateBusca(q, campos){
   if(!q) return true;
@@ -782,7 +783,8 @@ function telaSaldo(){
     '<label><input type="checkbox"'+(filtro.zerados?' checked':'')+' onchange="filtro.zerados=this.checked;render()"> Mostrar os que zeraram</label>'+
     '<span style="color:var(--gray-5)">'+linhas.length+' linha(s)</span></div>';
   if(!dados.materiais.length){
-    h+='<div class="vazio">Nenhum material cadastrado ainda.<br><br>Comece por <b>Cadastrar material</b>, ou procure o perfil na aba <b>Figuras dos perfis</b> e cadastre de lá.</div>';
+    h+='<div class="vazio">Nenhum material cadastrado ainda.<br><br>O jeito mais rápido: <b>📄 Importar do PDF</b> com a Lista de materiais de uma obra do SmartCEM.<br>'+
+      'Também dá para usar <b>Cadastrar material</b>, ou achar o perfil na aba <b>Figuras dos perfis</b>.</div>';
     return h;
   }
   if(!linhas.length) return h+'<div class="vazio">Nada encontrado com esse filtro.</div>';
@@ -792,7 +794,9 @@ function telaSaldo(){
     let pill='';
     if(l.minimo!==null && l.saldo<l.minimo) pill='<span class="pill pill-ambar">abaixo do mínimo ('+fmtNum(l.minimo)+')</span>';
     else if(l.minimo!==null) pill='<span class="pill pill-verde">mínimo '+fmtNum(l.minimo)+'</span>';
-    const cls=(l.minimo!==null&&l.saldo<l.minimo)?'baixo':(l.saldo<=0?'zerado':'ok');
+    // Vermelho e para o que ACABOU; o que nunca teve lancamento fica cinza
+    // (senao os 157 recem-importados do PDF apareciam todos em vermelho).
+    const cls=(l.minimo!==null&&l.saldo<l.minimo)?'baixo':(l.saldo>0?'ok':(l.ultimo?'zerado':''));
     return '<div class="linha '+cls+'" onclick="abrirDetalhe(\''+l.m.id+'\')">'+
       (l.m.tipo==='perfil'?caixaFigura(l.m.codigo):'<div class="fig" style="font-size:22px">🔩</div>')+
       '<div style="min-width:0"><div class="cod">'+esc(l.m.codigo)+'</div>'+
@@ -970,8 +974,11 @@ function abrirMaterial(matId, codigoSugerido, depois){
     '<div id="mt-fig"></div>'+
     '<div class="fg"><label>Descrição</label><input id="mt-desc" value="'+esc(m?m.descricao:'')+'" placeholder="Ex.: MARCO, FOLHA, ROLDANA 80KG"></div>'+
     '<div class="grade2"><div class="fg" id="mt-barra-g"><label>Comprimento da barra (mm)</label><input id="mt-barra" inputmode="numeric" value="'+esc(m&&m.barraMm?m.barraMm:6000)+'"></div>'+
-    '<div class="fg" id="mt-un-g"><label>Unidade</label><select id="mt-un">'+UNIDADES_COMPONENTE.map(function(u){
+    // Unidade que veio de um PDF e nao esta na lista: entra na lista, senao
+    // salvar o cadastro trocaria a unidade sem a pessoa perceber.
+    '<div class="fg" id="mt-un-g"><label>Unidade</label><select id="mt-un">'+UNIDADES_COMPONENTE.concat(m&&m.unidade&&UNIDADES_COMPONENTE.indexOf(m.unidade)<0?[m.unidade]:[]).map(function(u){
       return '<option value="'+u+'"'+((m&&m.unidade===u)?' selected':'')+'>'+u+' — '+NOME_UNIDADE[u]+'</option>'; }).join('')+'</select></div></div>'+
+    (m&&m.origem&&m.origem.arquivo?'<div class="sub" style="margin-bottom:8px">Veio do PDF '+esc(m.origem.arquivo)+(m.origem.proposta?' ('+esc(m.origem.proposta)+')':'')+'</div>':'')+
     (m?'<div class="fg"><label><input type="checkbox" id="mt-inativo"'+(m.inativo?' checked':'')+'> Não uso mais este material (some da lista; o histórico fica)</label></div>':'');
   abrirJanela(m?'Editar '+m.codigo:'Cadastrar material', h,
     '<button class="btn btn-outline" onclick="fecharJanela()">Cancelar</button><button class="btn btn-cor" id="mt-salvar">Salvar</button>');
@@ -1227,6 +1234,231 @@ async function salvarUsoSobra(id){
     if(obs) s.saiu.obs=obs;
   },{acao:'usou sobra',alvo:(m?m.codigo:'')+(s0&&s0.cor?' · '+s0.cor:''),detalhe:(s0?fmtNum(s0.mm)+' mm':'')+(o?' · obra '+rotuloObra(o):'')});
   if(deu) fecharJanela();
+}
+
+// ================= LER A "LISTA DE MATERIAIS" DO SMARTCEM =================
+// O relatorio "Relacao de Materiais" traz PERFIS (codigo, descricao, cor,
+// barra em mm...) e COMPONENTES (codigo, descricao, qtde com unidade...).
+// Daqui sai so o CADASTRO: a lista diz o que a obra precisa, nao o que ha no
+// deposito. Leitura pela POSICAO (medida no PDF de 04/11/2026):
+//  - o codigo fica na coluna "Codigo"; uma linha so conta se tiver tambem a
+//    barra (perfil) ou a quantidade (componente) na mesma altura;
+//  - a descricao comeca na coluna "Descricao" e, quando e longa, continua nas
+//    linhas de baixo (ex.: "(PORTFOLIO)", "BAAN 657200604");
+//  - barra e quantidade sao alinhadas pela DIREITA, sob o titulo da coluna.
+// paginas = [[{s,x,y,w}]] (y cresce para cima, como no PDF).
+// BEGIN-LEITOR (o teste no computador copia daqui ate END-LEITOR)
+function lerListaDeMateriais(paginas){
+  const tudo=[].concat.apply([],paginas.map(function(p){ return p; }));
+  const ehLista=tudo.some(function(t){ return /Rela[cç][aã]o de Materiais/i.test(t.s); });
+  const res={ehLista:ehLista, proposta:'', cliente:'', perfis:[], componentes:[]};
+  const orc=tudo.find(function(t){ return /^ORC-[\w-]+$/.test(t.s.trim()); }); if(orc) res.proposta=orc.s.trim();
+  const cabCli=tudo.find(function(t){ return t.s.trim()==='Cliente:'; });
+  if(cabCli){ const v=tudo.filter(function(t){ return Math.abs(t.y-cabCli.y)<2 && t.x>cabCli.x+cabCli.w; }).sort(function(a,b){ return a.x-b.x; })[0]; if(v) res.cliente=v.s.trim(); }
+  const SECOES={'PERFIS':'perfis','COMPONENTES':'componentes','VIDROS':'fora','SUPERFÍCIES':'fora','SUPERFICIES':'fora'};
+  let secao=null, col=null;
+  const porCodigo={perfis:{}, componentes:{}};
+  const perto=function(a,b,tol){ return Math.abs(a-b)<=tol; };
+  paginas.forEach(function(pg){
+    const itens=pg.slice().sort(function(a,b){ return b.y-a.y || a.x-b.x; });
+    // Titulos de secao e cabecalhos desta pagina, de cima para baixo.
+    const marcos=[];
+    itens.forEach(function(t){
+      const s=t.s.trim();
+      if(SECOES[s] && t.x>250) marcos.push({y:t.y, secao:SECOES[s]});
+      if(s==='Código') marcos.push({y:t.y, cab:itens.filter(function(u){ return perto(u.y,t.y,1.5); })});
+    });
+    // Codigos candidatos (coluna da esquerda), em ordem de cima para baixo.
+    const eventos=[];
+    marcos.forEach(function(m){ eventos.push({y:m.y, marco:m}); });
+    itens.forEach(function(t){ eventos.push({y:t.y, item:t}); });
+    eventos.sort(function(a,b){ return b.y-a.y || (a.marco?-1:1); });
+    const linhasDeCodigo=[];
+    eventos.forEach(function(ev){
+      if(ev.marco){
+        if(ev.marco.secao){ secao=ev.marco.secao; col=null; }
+        if(ev.marco.cab && (secao==='perfis'||secao==='componentes')){
+          const achar=function(rx){ return ev.marco.cab.find(function(u){ return rx.test(u.s.trim()); }); };
+          const cod=achar(/^C[oó]digo$/), desc=achar(/^Descri[cç][aã]o$/), barra=achar(/^Barra$/), qtde=achar(/^Qtde$/), trat=achar(/^Tratamento/);
+          if(cod && desc) col={secao:secao, codX:cod.x, descX:desc.x, tratX:trat?trat.x:null,
+            barraDir:barra?barra.x+barra.w:null, qtdeDir:qtde?qtde.x+qtde.w:null};
+        }
+        return;
+      }
+      const t=ev.item;
+      if(!col || col.secao!==secao) return;
+      const s=t.s.trim();
+      if(!perto(t.x,col.codX,3) || !/^[A-Z0-9][A-Z0-9 ._\/()-]*$/i.test(s) || /^(Obra|C[oó]digo|Total:?)$/i.test(s)) return;
+      const mesma=itens.filter(function(u){ return u!==t && perto(u.y,t.y,1.5); });
+      const dir=secao==='perfis'?col.barraDir:col.qtdeDir;
+      const valor=dir===null?null:mesma.find(function(u){ return u.x+u.w>=dir-7 && u.x+u.w<=dir+9; });
+      if(!valor) return;
+      linhasDeCodigo.push({t:t, mesma:mesma, valor:valor, secao:secao, col:col});
+    });
+    linhasDeCodigo.forEach(function(L,i){
+      // Para no proximo codigo OU no proximo titulo/cabecalho (no ultimo perfil,
+      // o "Descricao" do cabecalho dos componentes entrava na descricao dele).
+      let abaixo=(i+1<linhasDeCodigo.length)?linhasDeCodigo[i+1].t.y:-1;
+      marcos.forEach(function(mk){ if(mk.y<L.t.y-1.5 && mk.y>abaixo) abaixo=mk.y; });
+      // Descricao: tudo que COMECA na coluna Descricao, da linha do codigo ate
+      // a proxima linha de codigo (as continuacoes ficam embaixo).
+      const partes=itens.filter(function(u){ return perto(u.x,L.col.descX,10) && u.y<=L.t.y+1.5 && u.y>abaixo+1.5 && u.y>70; })
+        .sort(function(a,b){ return b.y-a.y; }).map(function(u){ return u.s.trim(); });
+      const codigo=L.t.s.trim().replace(/\s+/g,' ').toUpperCase();
+      const descricao=partes.join(' ').replace(/\s+/g,' ').trim();
+      if(L.secao==='perfis'){
+        const barra=parseInt(String(L.valor.s).replace(/\D/g,''),10)||null;
+        const cor=L.col.tratX===null?'':(L.mesma.filter(function(u){ return perto(u.x,L.col.tratX,10); }).map(function(u){ return u.s.trim(); }).join(' '));
+        const ja=porCodigo.perfis[codigo];
+        if(ja){ if(cor && ja.cores.indexOf(cor)<0) ja.cores.push(cor); if(!ja.descricao) ja.descricao=descricao; return; }
+        porCodigo.perfis[codigo]={codigo:codigo, descricao:descricao, barraMm:barra, cores:cor?[cor]:[]};
+        res.perfis.push(porCodigo.perfis[codigo]);
+      } else {
+        const m=String(L.valor.s).trim().match(/([A-Za-z]{1,4})\.?$/);
+        const unidade=m?m[1].toUpperCase():'PC';
+        if(porCodigo.componentes[codigo]) return;
+        porCodigo.componentes[codigo]={codigo:codigo, descricao:descricao, unidade:unidade};
+        res.componentes.push(porCodigo.componentes[codigo]);
+      }
+    });
+  });
+  return res;
+}
+// END-LEITOR
+
+// pdf.js: o mesmo do Acompanhamento (mesma versao e mesmo selo de conferencia).
+const PDFJS_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_SELO='sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e';
+const PDFJS_AJUDANTE_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const PDFJS_AJUDANTE_SELO='sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2';
+let _pdfjs=null;
+function carregarPdfJs(){
+  if(_pdfjs) return _pdfjs;
+  _pdfjs=new Promise(function(ok,falhou){
+    const s=document.createElement('script');
+    s.src=PDFJS_URL; s.integrity=PDFJS_SELO; s.crossOrigin='anonymous';
+    s.onload=async function(){
+      try{
+        const lib=window.pdfjsLib;
+        if(!lib) throw new Error('o leitor de PDF não carregou direito');
+        const r=await fetch(PDFJS_AJUDANTE_URL,{integrity:PDFJS_AJUDANTE_SELO,mode:'cors'});
+        if(!r.ok) throw new Error('não consegui baixar o leitor de PDF');
+        lib.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([await r.text()],{type:'text/javascript'}));
+        ok(lib);
+      }catch(e){ _pdfjs=null; falhou(e); }
+    };
+    s.onerror=function(){ _pdfjs=null; falhou(new Error('não consegui baixar o leitor de PDF (confira a internet)')); };
+    document.head.appendChild(s);
+  });
+  return _pdfjs;
+}
+async function pedacosDoPdf(arquivo){
+  const lib=await carregarPdfJs();
+  const doc=await lib.getDocument({data:new Uint8Array(await arquivo.arrayBuffer())}).promise;
+  const paginas=[];
+  for(let p=1;p<=doc.numPages;p++){
+    const tc=await (await doc.getPage(p)).getTextContent();
+    paginas.push(tc.items.filter(function(i){ return i.str&&i.str.trim(); }).map(function(i){
+      return {s:i.str, x:Math.round(i.transform[4]*10)/10, y:Math.round(i.transform[5]*10)/10, w:Math.round(i.width*10)/10};
+    }));
+  }
+  return paginas;
+}
+
+// ---- Janela "Importar cadastro do PDF" ----
+let _importacao=null;   // {arquivo, lido, novos:[], completar:[], iguais:n}
+function abrirImportacao(){
+  if(recusarSeConsulta()) return;
+  _janelaAtual=null; _importacao=null;
+  abrirJanela('Importar cadastro do PDF',
+    '<div style="font-size:13.5px;line-height:1.6">Escolha a <b>Lista de materiais</b> de uma obra, tirada do SmartCEM (o relatório "Relação de Materiais").<br>'+
+    'O sistema cadastra os <b>perfis e componentes</b> que ainda não estão no estoque, com código, descrição, barra e unidade.<br>'+
+    '<span class="sub">Não entra quantidade: a lista diz o que a obra precisa, não o que há no depósito. Vidros e superfícies ficam de fora.</span></div>'+
+    '<div style="margin-top:12px"><label class="btn btn-cor">📄 Escolher o PDF<input type="file" accept="application/pdf,.pdf" hidden onchange="lerPdfParaImportar(this)"></label></div>'+
+    '<div id="imp-resultado" style="margin-top:12px"></div>', '', 720);
+}
+async function lerPdfParaImportar(input){
+  const f=(input.files||[])[0]; input.value='';
+  const caixa=document.getElementById('imp-resultado'); if(!f||!caixa) return;
+  caixa.innerHTML='<div class="vazio">Lendo "'+esc(f.name)+'"...</div>';
+  let lido;
+  try{ lido=lerListaDeMateriais(await pedacosDoPdf(f)); }
+  catch(e){ caixa.innerHTML='<div class="aviso-linha aviso-verm">Não consegui ler este PDF: '+esc(e.message)+'</div>'; return; }
+  if(!lido.ehLista){
+    caixa.innerHTML='<div class="aviso-linha aviso-ambar">"'+esc(f.name)+'" não é a <b>Lista de materiais</b> do SmartCEM.<br>'+
+      'Use o relatório que começa com o título "Relação de Materiais" (os de "Relação de Barras" e "Relação de Componentes" têm outro formato).</div>';
+    return;
+  }
+  if(!lido.perfis.length && !lido.componentes.length){
+    caixa.innerHTML='<div class="aviso-linha aviso-ambar">Não achei perfis nem componentes neste PDF. Confira se é o arquivo original do SmartCEM.</div>';
+    return;
+  }
+  _importacao={arquivo:f.name, lido:lido};
+  desenharImportacao();
+}
+// O que a importacao faria, comparando com o cadastro de AGORA (base = banco
+// na hora de gravar, ou a tela na previa).
+function planoDeImportacao(lido, base){
+  const plano={novos:[], completar:[], iguais:0};
+  lido.perfis.map(function(p){ return Object.assign({tipo:'perfil'},p); })
+    .concat(lido.componentes.map(function(c){ return Object.assign({tipo:'componente'},c); }))
+    .forEach(function(x){
+      const m=materialPorCodigo(x.codigo, base);
+      if(!m){ plano.novos.push(x); return; }
+      if(m.tipo!==x.tipo){ plano.iguais++; return; }   // mesmo codigo com outro tipo: nao mexe
+      if(!m.descricao && x.descricao){ plano.completar.push({m:m, x:x}); return; }
+      plano.iguais++;
+    });
+  return plano;
+}
+function desenharImportacao(){
+  const caixa=document.getElementById('imp-resultado'); if(!caixa||!_importacao) return;
+  const L=_importacao.lido, plano=planoDeImportacao(L);
+  const novosP=plano.novos.filter(function(x){ return x.tipo==='perfil'; }), novosC=plano.novos.filter(function(x){ return x.tipo==='componente'; });
+  let h='<div class="aviso-linha aviso-azul"><b>'+esc(_importacao.arquivo)+'</b>'+(L.proposta?' · '+esc(L.proposta):'')+(L.cliente?' · '+esc(L.cliente):'')+'<br>'+
+    'No PDF: <b>'+L.perfis.length+'</b> perfis e <b>'+L.componentes.length+'</b> componentes.<br>'+
+    'Novos para cadastrar: <b>'+novosP.length+'</b> perfis e <b>'+novosC.length+'</b> componentes'+
+    (plano.completar.length?' · '+plano.completar.length+' já cadastrado(s) ganham a descrição':'')+
+    (plano.iguais?' · '+plano.iguais+' já estavam cadastrados (ficam como estão)':'')+'.</div>';
+  if(!plano.novos.length && !plano.completar.length){
+    caixa.innerHTML=h+'<div class="vazio">Nada novo: tudo deste PDF já está no estoque.</div>'; return;
+  }
+  const linha=function(x){
+    return '<tr><td>'+(x.tipo==='perfil'?caixaFigura(x.codigo).replace('class="fig"','class="fig" style="width:56px;height:42px"'):'')+'</td>'+
+      '<td><b>'+esc(x.codigo)+'</b></td><td>'+esc(x.descricao||'—')+'</td>'+
+      '<td class="num">'+(x.tipo==='perfil'?fmtNum(x.barraMm||6000)+' mm':esc(x.unidade))+'</td></tr>';
+  };
+  if(novosP.length) h+='<div class="secao"><h4>Perfis novos ('+novosP.length+')</h4><div class="rola"><table class="tabela"><tbody>'+novosP.map(linha).join('')+'</tbody></table></div></div>';
+  if(novosC.length) h+='<div class="secao"><h4>Componentes novos ('+novosC.length+')</h4><div class="rola"><table class="tabela"><tbody>'+novosC.map(linha).join('')+'</tbody></table></div></div>';
+  h+='<div class="modal-foot" style="padding:12px 0 0;border:0"><button class="btn btn-outline" onclick="fecharJanela()">Cancelar</button>'+
+    '<button class="btn btn-cor" id="imp-salvar" onclick="gravarImportacao()">Cadastrar '+plano.novos.length+' material(is)</button></div>';
+  caixa.innerHTML=h;
+  preencherFiguras(caixa);
+}
+async function gravarImportacao(){
+  if(!_importacao) return;
+  const L=_importacao.lido, arq=_importacao.arquivo;
+  const btn=document.getElementById('imp-salvar'); if(btn) btn.disabled=true;
+  let feitos=0, completados=0;
+  const deu=await alterar(function(base){
+    // Refeito em cima do banco: um colega pode ter cadastrado algum no meio.
+    const plano=planoDeImportacao(L, base);
+    feitos=0; completados=0;
+    const quando=agoraISO();
+    plano.novos.forEach(function(x){
+      const n={id:novoId(),tipo:x.tipo,codigo:x.codigo,descricao:x.descricao||'',minimos:{},criadoPor:usuario,criadoEm:quando,
+        origem:{arquivo:arq,proposta:L.proposta||''}};
+      if(x.tipo==='perfil') n.barraMm=x.barraMm||6000; else n.unidade=x.unidade||'PC';
+      base.materiais.push(n); feitos++;
+    });
+    plano.completar.forEach(function(c){
+      const b=base.materiais.find(function(m){ return m.id===c.m.id; });
+      if(b && !b.descricao){ b.descricao=c.x.descricao; b.editadoPor=usuario; b.editadoEm=quando; completados++; }
+    });
+    if(!feitos && !completados) return 'Nada novo: tudo deste PDF já está no estoque.';
+  },function(){ return {acao:'importou cadastro do PDF',alvo:arq,detalhe:feitos+' novo(s)'+(completados?', '+completados+' com descrição':'')+(L.proposta?' · '+L.proposta:'')}; });
+  if(btn) btn.disabled=false;
+  if(deu){ fecharJanela(); aviso('Cadastro importado',feitos+' material(is) cadastrado(s)'+(completados?' e '+completados+' ganharam a descrição':'')+'.\n\nO saldo de todos começa em zero: lance as entradas conforme o material chegar.'); }
 }
 
 // ================= ABA: FIGURAS DOS PERFIS =================
