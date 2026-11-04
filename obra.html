@@ -417,8 +417,9 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg"><label>Pedidos no Compras</label><select id="f-compras-agrupamento"><option value="juntas">Todas as listas em um pedido</option><option value="separadas">Pedidos separados por tipo de material</option><option value="porlista">Um pedido para cada lista</option></select><span class="dica">Escolha antes de anexar. Vale para listas ainda não enviadas; pedidos existentes são mantidos.</span></div>
         <div class="fg"><label>Rótulo do próximo anexo</label><select id="f-doc-tipo"></select><span class="dica">Listas de material de perfil alumínio, acessórios e vidro seguem automaticamente para Compras após salvar o anexo.</span></div>
         <div class="fg"><label>Arquivo</label>
-          <input type="file" id="f-doc-arq" onchange="anexarDoc(event)" style="display:none">
+          <input type="file" id="f-doc-arq" multiple onchange="anexarDoc(event)" style="display:none">
           <button type="button" class="btn btn-outline" id="f-doc-btn" onclick="document.getElementById('f-doc-arq').click()">📎 Anexar arquivo</button>
+          <span class="dica">Dá para escolher vários de uma vez: aí você diz o rótulo de cada um.</span>
           <span class="dica" id="f-doc-status"></span>
         </div>
       </div>
@@ -726,6 +727,29 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="btn btn-outline" onclick="fecharClausulaDoContrato()">Cancelar</button>
       <button class="btn btn-outline" id="clz-padrao" onclick="voltarClausulaAoPadrao()" style="display:none">Voltar ao padrão</button>
       <button class="btn btn-teal" onclick="salvarClausulaDoContrato()">Salvar só neste contrato</button>
+    </div>
+  </div>
+</div>
+
+<!-- VARIOS ANEXOS DE UMA VEZ (pedido do Ander, 04/11/2026). Escolhendo dois
+     ou mais arquivos, esta janela deixa dar um rotulo a CADA um antes de
+     subir — e e o rotulo que decide para onde o arquivo vai no Compras.
+     Fica ANTES do aviso no arquivo de proposito: assim o aviso aparece por
+     cima desta janela, e nao atras. -->
+<div class="overlay" id="anexos-ov">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-head">
+      <div class="modal-title">Anexar vários arquivos</div>
+      <button class="btn btn-outline btn-sm" onclick="fecharAnexosVarios()">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <div class="dica" style="margin-bottom:10px">Confira o rótulo de cada arquivo — é ele que decide para onde o arquivo vai. Com o campo <b>Pedidos no Compras</b> em <b>Um pedido para cada lista</b>, cada lista de material abre o seu próprio pedido lá.</div>
+      <div id="anexos-lista" style="display:flex;flex-direction:column;gap:6px"></div>
+      <div id="anexos-status" style="font-size:12px;color:var(--gray-4);margin-top:10px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button class="btn btn-outline" id="anexos-cancelar" onclick="fecharAnexosVarios()">Cancelar</button>
+        <button class="btn btn-teal" id="anexos-ok" onclick="subirVariosAnexos()">Anexar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -4925,14 +4949,19 @@ function tiposDoc(){
   }));
 }
 
+// Os rotulos que ESTA pessoa pode usar. Rotulo com a palavra 'contrato'
+// (Contrato, Contrato Assinado...) tem dados do cliente: so o gerente anexa —
+// o Worker descarta e nao entrega esses anexos a quem nao e gerente. Proposta
+// e liberada (Ander, 14/10/2026).
+function tiposDocPermitidos(){
+  return tiposDoc().filter(function(t){ return podeGerenciar() || !/contrato/i.test(String(t)); });
+}
+
 function preencherTiposDoc(){
   const el=document.getElementById('f-doc-tipo');
   if(!el) return;
   const antes=el.value;
-  // Rotulo com a palavra 'contrato' (Contrato, Contrato Assinado...) tem dados
-  // do cliente: so o gerente anexa — o Worker descarta e nao entrega esses
-  // anexos a quem nao e gerente. Proposta e liberada (Ander, 14/10/2026).
-  const tipos=tiposDoc().filter(function(t){ return podeGerenciar() || !/contrato/i.test(String(t)); });
+  const tipos=tiposDocPermitidos();
   el.innerHTML=tipos.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('');
   if(tipos.indexOf(antes)>=0) el.value=antes;
 }
@@ -5370,31 +5399,89 @@ async function mandarAnexoParaCompras(c, d){
     : '"'+d.nome+'" agora aparece no lançamento desta obra no Compras.');
 }
 
-async function anexarDoc(ev){
-  const arq=ev.target.files && ev.target.files[0];
-  ev.target.value='';           // permite anexar o mesmo arquivo de novo
-  if(!arq) return;
-  if(!podeLancar()){ aviso('Modo consulta','Você está no modo consulta: pode olhar, mas não anexar.'); return; }
+// ---- VARIOS ANEXOS DE UMA VEZ (pedido do Ander, 04/11/2026) ----
+// Antes era um arquivo por vez, com o rotulo do campo valendo para esse um.
+// Agora da para escolher varios: com dois ou mais, abre a janela anexos-ov com
+// UM rotulo por arquivo. Com um so, nada muda.
+let _filaAnexos=[];
 
-  // Avisar antes é melhor do que deixar a pessoa esperar o envio para levar
-  // erro no fim.
-  if(arq.size>MAX_ARQUIVO){
-    aviso('Arquivo muito grande','O arquivo tem '+fmtTamanho(arq.size)+'.\n\n'+
-          'O limite é 10 MB. Se for um PDF de projeto, tente salvar em qualidade menor.');
-    return;
+// Chute do rotulo pelo nome do arquivo, so para poupar clique — quem cadastra
+// confere e troca na janela antes de subir. 'art' e 'foto' pedem a palavra
+// inteira, senao "quarto.pdf" viraria ART.
+function adivinharRotulo(nome, padrao){
+  const n=normalizarRotuloLista(nome);
+  const permitidos=tiposDocPermitidos();
+  const tem=function(t){ return permitidos.indexOf(t)>=0; };
+  const pares=[
+    ['perfil',   'Lista de material perfil aluminio'],
+    ['aluminio', 'Lista de material perfil aluminio'],
+    ['acessorio','Lista de material acessorios'],
+    ['vidro',    'Lista de material vidro'],
+    ['proposta', 'Proposta'],
+    ['projeto',  'Projeto'],
+    ['medicao',  'Medição'],
+    ['nota',     'Nota fiscal'],
+    ['contrato', 'Contrato']
+  ];
+  for(let i=0;i<pares.length;i++){
+    if(n.indexOf(pares[i][0])>=0 && tem(pares[i][1])) return pares[i][1];
   }
+  if(/\bart\b/.test(n)  && tem('ART'))  return 'ART';
+  if(/\bfoto\b/.test(n) && tem('Foto')) return 'Foto';
+  return padrao;
+}
 
-  const st=document.getElementById('f-doc-status');
-  const btn=document.getElementById('f-doc-btn');
-  btn.disabled=true;
-  st.textContent='Enviando '+arq.name+'...';
+function renderFilaAnexos(){
+  const el=document.getElementById('anexos-lista');
+  if(!el) return;
+  const tipos=tiposDocPermitidos();
+  el.innerHTML=_filaAnexos.map(function(f,ix){
+    return '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:6px 8px;'+
+      'background:var(--gray-1);border:1px solid var(--gray-3);border-radius:8px">'+
+      '<span style="flex:1;min-width:150px;font-size:12px;color:var(--gray-6);overflow:hidden;'+
+        'text-overflow:ellipsis;white-space:nowrap" title="'+esc(f.arq.name)+'">'+esc(f.arq.name)+'</span>'+
+      '<span style="font-size:10.5px;color:var(--gray-4);white-space:nowrap">'+fmtTamanho(f.arq.size||0)+'</span>'+
+      '<select data-ix="'+ix+'" onchange="trocarRotuloDaFila(this)" style="font-size:12px;max-width:230px">'+
+        tipos.map(function(t){ return '<option value="'+esc(t)+'"'+(t===f.tipo?' selected':'')+'>'+esc(t)+'</option>'; }).join('')+
+      '</select>'+
+      '<button type="button" data-ix="'+ix+'" onclick="tirarDaFila(this)" title="Tirar este arquivo da lista"'+
+        ' style="border:0;background:transparent;color:var(--red);cursor:pointer;font-size:15px;padding:0 3px">&times;</button>'+
+      '</div>';
+  }).join('');
+  const ok=document.getElementById('anexos-ok');
+  if(ok){
+    ok.textContent=_filaAnexos.length===1?'Anexar 1 arquivo':('Anexar os '+_filaAnexos.length+' arquivos');
+    ok.disabled=!_filaAnexos.length;
+  }
+}
+function trocarRotuloDaFila(sel){
+  const i=Number(sel.dataset.ix);
+  if(_filaAnexos[i]) _filaAnexos[i].tipo=sel.value;
+}
+function tirarDaFila(bt){
+  const i=Number(bt.dataset.ix);
+  _filaAnexos.splice(i,1);
+  if(!_filaAnexos.length){ fecharAnexosVarios(); return; }
+  renderFilaAnexos();
+}
+function fecharAnexosVarios(){
+  _filaAnexos=[];
+  const ov=document.getElementById('anexos-ov');
+  if(ov) ov.classList.remove('open');
+  const st=document.getElementById('anexos-status');
+  if(st) st.textContent='';
+}
+
+// Sobe UM arquivo e pendura na ficha. Devolve '' quando deu certo, ou o motivo
+// do erro. Um lugar so para os dois caminhos (um arquivo e varios).
+async function subirUmAnexo(arq, tipo){
   try{
     const ehPdf=arq.type==='application/pdf';
     const j=await enviarArquivoPrivado(arq,PASTA_ARQUIVOS,ehPdf?'raw':'auto');
     if(!j||!j.secure_url) throw new Error('o servidor não devolveu o endereço do arquivo');
     juntarDoc({
       id:novoId(),
-      tipo:document.getElementById('f-doc-tipo').value,
+      tipo:tipo,
       nome:arq.name,
       url:j.secure_url,
       tamanho:arq.size,
@@ -5402,30 +5489,99 @@ async function anexarDoc(ev){
       quem:usuario, quemLogin:meuLoginDeAnexo(),
       quando:agoraISO()
     });
+    return '';
+  }catch(e){ return e.message||'erro'; }
+}
+
+async function anexarDoc(ev){
+  const escolhidos=Array.prototype.slice.call((ev.target&&ev.target.files)||[]);
+  ev.target.value='';           // permite anexar o mesmo arquivo de novo
+  if(!escolhidos.length) return;
+  if(!podeLancar()){ aviso('Modo consulta','Você está no modo consulta: pode olhar, mas não anexar.'); return; }
+
+  // Avisar antes é melhor do que deixar a pessoa esperar o envio para levar
+  // erro no fim. Os grandes ficam de fora; os outros seguem.
+  const grandes=escolhidos.filter(function(a){ return a.size>MAX_ARQUIVO; });
+  const bons=escolhidos.filter(function(a){ return a.size<=MAX_ARQUIVO; });
+  if(grandes.length){
+    aviso('Arquivo muito grande',
+      (grandes.length===1?'Este arquivo passa':'Estes arquivos passam')+' de 10 MB e não '+
+      (grandes.length===1?'vai':'vão')+':\n\n'+
+      grandes.map(function(a){ return '• '+a.name+' ('+fmtTamanho(a.size)+')'; }).join('\n')+
+      '\n\nSe for PDF de projeto, tente salvar em qualidade menor.');
+    if(!bons.length) return;
+  }
+
+  const padrao=document.getElementById('f-doc-tipo').value;
+  // UM arquivo escolhido: segue direto com o rotulo do campo, como sempre foi.
+  // Repare que a conta e sobre o que a pessoa ESCOLHEU, nao sobre o que
+  // sobrou: quem escolheu dois e perdeu um no limite de 10 MB continua vendo a
+  // janela do rotulo, senao o arquivo entraria calado com o rotulo do campo.
+  if(escolhidos.length===1){ await anexarAgora([{arq:bons[0], tipo:padrao}]); return; }
+  // Dois ou mais: a pessoa diz o rotulo de cada um antes de subir, porque e o
+  // rotulo que separa os pedidos no Compras.
+  _filaAnexos=bons.map(function(a){ return {arq:a, tipo:adivinharRotulo(a.name, padrao)}; });
+  const st=document.getElementById('anexos-status');
+  if(st) st.textContent='';
+  document.getElementById('anexos-ov').classList.add('open');
+  renderFilaAnexos();
+}
+
+async function subirVariosAnexos(){
+  const fila=_filaAnexos.slice();
+  if(!fila.length) return;
+  const ok=document.getElementById('anexos-ok'), cancelar=document.getElementById('anexos-cancelar');
+  ok.disabled=true; cancelar.disabled=true;
+  await anexarAgora(fila, document.getElementById('anexos-status'));
+  ok.disabled=false; cancelar.disabled=false;
+  fecharAnexosVarios();
+}
+
+// Sobe a fila inteira, um arquivo de cada vez, e grava a ficha UMA vez no fim.
+// Um arquivo que falha nao derruba os outros: no fim a tela diz quais nao
+// foram. O que ja subiu precisa ser gravado de qualquer jeito — o arquivo ja
+// esta na nuvem, e fechar a tela sem gravar deixaria o trabalho perdido.
+async function anexarAgora(fila, elStatus){
+  const stFinal=document.getElementById('f-doc-status');
+  const st=elStatus||stFinal;
+  const btn=document.getElementById('f-doc-btn');
+  btn.disabled=true;
+  const falhas=[];
+  let entraram=0;
+  for(let i=0;i<fila.length;i++){
+    st.textContent='Enviando '+(fila.length>1?('('+(i+1)+' de '+fila.length+') '):'')+fila[i].arq.name+'...';
+    const erro=await subirUmAnexo(fila[i].arq, fila[i].tipo);
+    if(erro) falhas.push('• '+fila[i].arq.name+' — '+erro); else entraram++;
     renderDocs();
-    // O arquivo já subiu. Fechar a ficha sem salvar o deixaria sem dono, com o
-    // trabalho perdido — então grava na hora. No celular o botão Salvar fica
-    // lá embaixo e a pessoa fecha achando que já foi.
-    if(fichaId){
-      st.textContent='Salvando no contrato...';
-      const gravou=await salvarFicha(true);
-      if(!gravou) aviso('Anexado, mas NÃO salvo',
-        'O arquivo foi anexado à ficha, mas a gravação falhou.\n\n'+
-        'Não feche esta tela: toque em Salvar para tentar de novo.');
-      st.textContent='';
-    } else {
-      // Contrato ainda não existe no banco, então não há onde gravar o anexo.
-      // O aviso precisa ficar visível: fechar agora perde o arquivo.
-      st.innerHTML='<b style="color:var(--amber)">Anexado. Toque em Salvar para guardar.</b>';
-      btn.disabled=false;
-      return;
-    }
-  }catch(e){
+  }
+  if(!entraram){
     st.textContent='';
-    aviso('Não consegui anexar','O envio falhou: '+e.message+
-          '\n\nO documento NÃO foi guardado. Tente de novo.');
+    btn.disabled=false;
+    aviso('Não consegui anexar','O envio falhou:\n\n'+falhas.join('\n')+
+      '\n\nNenhum documento foi guardado. Tente de novo.');
+    return;
+  }
+  // O arquivo já subiu. Fechar a ficha sem salvar o deixaria sem dono, com o
+  // trabalho perdido — então grava na hora. No celular o botão Salvar fica
+  // lá embaixo e a pessoa fecha achando que já foi.
+  if(fichaId){
+    st.textContent='Salvando no contrato...';
+    const gravou=await salvarFicha(true);
+    st.textContent='';
+    if(!gravou) aviso('Anexado, mas NÃO salvo',
+      (entraram>1?('Os '+entraram+' arquivos foram anexados'):'O arquivo foi anexado')+
+      ' à ficha, mas a gravação falhou.\n\n'+
+      'Não feche esta tela: toque em Salvar para tentar de novo.');
+  } else {
+    // Contrato ainda não existe no banco, então não há onde gravar o anexo.
+    // O aviso precisa ficar visível: fechar agora perde o arquivo.
+    st.textContent='';
+    stFinal.innerHTML='<b style="color:var(--amber)">Anexado. Toque em Salvar para guardar.</b>';
   }
   btn.disabled=false;
+  if(falhas.length) aviso('Alguns não foram',
+    entraram+' de '+fila.length+' arquivos foram anexados.\n\nNão foram:\n'+falhas.join('\n')+
+    '\n\nTente anexar esses de novo.');
 }
 
 // ---- ANEXO QUE A PROPRIA PESSOA ENVIOU (pedido da gerente Nikoly, 20/10/2026) ----
