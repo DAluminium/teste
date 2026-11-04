@@ -70,10 +70,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .faltas label{display:flex;align-items:center;gap:5px;cursor:pointer}
 .nota-pdf{background:#FFF8E1;border-left:3px solid var(--amber);padding:6px 10px;border-radius:4px;font-size:12.5px;margin-top:6px}
 .nota-pdf.conjunto{background:#FDECEA;border-left-color:var(--red)}
+.nota-pdf{position:relative;padding-right:34px}
+.nota-x{position:absolute;top:50%;right:4px;transform:translateY(-50%);width:26px;height:26px;border:1px solid var(--gray-3,#ccc);border-radius:50%;background:#fff;color:var(--red);font-size:16px;line-height:1;cursor:pointer;padding:0}
 .depois{font-size:12px;color:var(--gray-4);font-style:italic}
 .fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
 .foto{position:relative;background:var(--gray-1);border:1px solid var(--gray-2);border-radius:8px;overflow:hidden}
-.foto img{display:block;width:100%;height:110px;object-fit:cover;cursor:zoom-in;background:var(--gray-2)}
+.foto img{display:block;width:100%;height:110px;object-fit:contain;cursor:zoom-in;background:var(--gray-2)}
 .foto-leg{font-size:10.5px;color:var(--gray-5);padding:4px 6px;line-height:1.35}
 .foto-leg a{color:var(--cor-dark)}
 .foto-x{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:16px;line-height:26px;cursor:pointer}
@@ -1061,6 +1063,34 @@ async function tirarDaEsquadria(esqId, lista, itemId, rotulo){
   if(deu){ excluirArquivoDoAnexo(it.url); redesenharFicha(esqId); }
 }
 
+// ---- ANOTACAO DO PDF QUE VEIO ERRADA (pedido de 04/11/2026) ----
+// O leitor as vezes pega a anotacao da esquadria vizinha. A anotacao nao e
+// apagada da lista: o texto vai para "notasTiradas" e some da tela e dos PDFs.
+// Assim continua tirada mesmo quando alguem le o PDF de novo.
+function notaTirada(e,n){ return (e.notasTiradas||[]).indexOf(String(n.texto||''))>=0; }
+function notasVisiveis(e){ return (e.notas||[]).filter(function(n){ return !notaTirada(e,n); }); }
+async function tirarNota(esqId, i){
+  if(recusarSeConsulta()) return;
+  const a0=acompDaObra(obraAberta);
+  const e0=a0&&a0.esquadrias.find(function(x){ return x.id===esqId; });
+  const n0=e0&&(e0.notas||[])[i];
+  if(!n0) return;
+  const texto=String(n0.texto||'');
+  if(!await perguntar('Tirar esta anotação?','"'+texto+'"\n\nEla some desta ficha e dos PDFs. Use quando a anotação veio de outra esquadria.','Tirar',true)) return;
+  const o=obraPorId(obraAberta)||{};
+  const deu=await alterar(function(base){
+    const a=base.acompanhamentos.find(function(x){ return x.ctoId===obraAberta; });
+    const e=a&&a.esquadrias.find(function(x){ return x.id===esqId; });
+    if(!e) return false;
+    if(!Array.isArray(e.notasTiradas)) e.notasTiradas=[];
+    if(e.notasTiradas.indexOf(texto)>=0) return false;
+    e.notasTiradas.push(texto);
+    if(!Array.isArray(e.historico)) e.historico=[];
+    e.historico.push({quando:agoraISO(),quem:usuario,campo:'anotação do PDF',de:texto,para:'(tirada)'});
+  },{acao:'tirou anotação do PDF', alvo:(o.ct?o.ct+' · ':'')+(o.cliente||''), detalhe:(e0.tipo||e0.tipoPdf||'')+': '+texto});
+  if(deu) redesenharFicha(esqId);
+}
+
 async function recebeuFotos(input){
   const esqId=input.getAttribute('data-e'), daGaleria=input.getAttribute('data-galeria')==='1';
   const arquivos=Array.prototype.slice.call(input.files||[]);
@@ -1448,7 +1478,10 @@ function nomeArquivo(t){ return String(t||'').normalize('NFD').replace(/[̀-ͯ]/
 function txt(v){ return v==null?'':String(v); }
 // Carrega uma imagem (dataURL ou endereco local) ja RECORTADA na proporcao
 // pedida, como foto de quadro: preenche tudo, corta as sobras.
-function imagemRecortada(src,proporcao,larguraPx){
+// inteira=true: nao corta nada; a imagem cabe inteira no espaco, com faixas
+// cinza claro nas sobras (foto do vao: a data e a hora que o aplicativo de
+// camera escreve embaixo nao podem sumir — pedido de 04/11/2026).
+function imagemRecortada(src,proporcao,larguraPx,inteira){
   return new Promise(function(ok,falhou){
     const im=new Image();
     im.onload=function(){
@@ -1457,6 +1490,12 @@ function imagemRecortada(src,proporcao,larguraPx){
       const g=c.getContext('2d');
       const ri=im.naturalWidth/im.naturalHeight;
       let sw=im.naturalWidth, sh=im.naturalHeight, sx=0, sy=0;
+      if(inteira){
+        let dw=W, dh=W/ri; if(dh>H){ dh=H; dw=H*ri; }
+        g.fillStyle='#eef0f2'; g.fillRect(0,0,W,H);
+        g.drawImage(im,0,0,sw,sh,(W-dw)/2,(H-dh)/2,dw,dh);
+        ok(c.toDataURL('image/jpeg',0.82)); return;
+      }
       if(ri>proporcao){ sw=sh*proporcao; sx=(im.naturalWidth-sw)/2; } else { sh=sw/proporcao; sy=(im.naturalHeight-sh)/2; }
       g.fillStyle='#fff'; g.fillRect(0,0,W,H);
       g.drawImage(im,sx,sy,sw,sh,0,0,W,H);
@@ -1497,7 +1536,7 @@ function pdfMarca(pdf,x,y,marcado,rot){
   pdf.setFont('helvetica','normal'); pdf.setFontSize(8.5); pdf.setTextColor.apply(pdf,COR_TEXTO); pdf.text(rot,x+4,y);
 }
 async function fotoParaPdf(f,proporcao){
-  try{ const u=await miniatura(f.url,f.nome); return await imagemRecortada(u,proporcao,900); }catch(e){ return null; }
+  try{ const u=await miniatura(f.url,f.nome); return await imagemRecortada(u,proporcao,900,true); }catch(e){ return null; }
 }
 function baixarPdf(pdf,nome){ pdf.save(nome); }
 
@@ -1568,7 +1607,7 @@ async function gerarFichaPdf(emBranco){
     ye+=40;
     const bloco=function(rot,val){ if(!val) return; pdfRotulo(pdf,rot,12,ye); ye+=3.6; const n=pdfValor(pdf,val,12,ye,8,false,58); ye+=n*3.4+1.5; };
     bloco('Descrição',p.descricao); bloco('Cor',p.cor); bloco('Vidro',p.vidro);
-    (e.notas||[]).forEach(function(n){
+    notasVisiveis(e).forEach(function(n){
       const t=n.conjunto?('Conjunto '+n.conjunto.join(' + ')+' · '+n.texto):('Anotado na proposta: '+n.texto);
       pdf.setFont('helvetica',n.conjunto?'bold':'normal'); pdf.setFontSize(7.5);
       const linhas=pdf.splitTextToSize(t,55);
@@ -2373,8 +2412,10 @@ function htmlFicha(a,e){
     '<div class="proj"><b>Projeto:</b> '+esc(p.dimTxt||((p.dimL||'?')+' x '+(p.dimH||'?')))+(p.unidades?' · unidade '+p.unidade+' de '+p.unidades:(p.qtde?' · Qtde '+esc(p.qtde):''))+'<br>'+
       (p.cor?'<b>Cor:</b> '+esc(p.cor)+'<br>':'')+(p.vidro?'<b>Vidro:</b> '+esc(p.vidro)+'<br>':'')+
       (p.descricao?'<b>Descrição:</b> '+esc(p.descricao):'')+'</div>'+
-    (e.notas||[]).map(function(n){
-      return '<div class="nota-pdf'+(n.conjunto?' conjunto':'')+'">'+(n.conjunto?'<b>CONJUNTO '+esc(n.conjunto.join(' + '))+':</b> ':'<b>Anotação no PDF:</b> ')+esc(n.texto)+'</div>';
+    (e.notas||[]).map(function(n,i){
+      if(notaTirada(e,n)) return '';
+      return '<div class="nota-pdf'+(n.conjunto?' conjunto':'')+'">'+(n.conjunto?'<b>CONJUNTO '+esc(n.conjunto.join(' + '))+':</b> ':'<b>Anotação no PDF:</b> ')+esc(n.texto)+
+        (ehConsulta()?'':'<button class="nota-x" title="Tirar esta anotação (veio errada do PDF)" onclick="tirarNota(\''+e.id+'\','+i+')">×</button>')+'</div>';
     }).join('')+
   '</div><div>';
   h+='<div class="grade2">'+campoTxt(e,'tipo','Tipo','Ex.: P1')+campoTxt(e,'local','Localização','Ex.: Corredor')+'</div>';
