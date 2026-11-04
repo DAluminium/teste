@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estoque · Daluminium</title>
+<style>
+:root{--cor:#0E7C86;--cor-dark:#0A5C63;--cor-light:#E3F4F5;--red:#C0392B;--red-light:#FDF0EE;--amber:#B9770E;--amber-light:#FEF7E6;--green:#1A7A45;--green-light:#EDFAF3;--gray-1:#F7F8F9;--gray-2:#EEF0F2;--gray-3:#DEE1E5;--gray-4:#9AA1AB;--gray-5:#5A6370;--gray-6:#23282F;--radius:8px;--shadow:0 1px 4px rgba(0,0,0,0.07),0 0 0 0.5px rgba(0,0,0,0.05)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--gray-1);color:var(--gray-6);font-size:14px;min-height:100vh}
+.topbar{background:var(--cor-dark);color:#fff;padding:0 1rem;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:50;box-shadow:0 1px 6px rgba(0,0,0,.15);gap:8px}
+.topbar-logo{font-size:16px;font-weight:600;display:flex;align-items:center;gap:10px;min-width:0}
+.topbar-logo span{opacity:.75;font-weight:400;font-size:13px}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+#sync{font-size:12px;color:rgba(255,255,255,.85);white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 14px;border-radius:var(--radius);border:1px solid transparent;font-size:13px;font-family:inherit;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.25)}
+.btn-outline{background:#fff;color:var(--gray-6);border-color:var(--gray-3)}.btn-outline:hover{background:var(--gray-1)}
+.btn-cor{background:var(--cor);color:#fff;border-color:var(--cor-dark)}.btn-cor:hover{background:var(--cor-dark)}
+.btn-verde{background:var(--green);color:#fff;border-color:#14532d}
+.btn-verm{background:var(--red);color:#fff;border-color:#922b21}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn[disabled]{opacity:.5;cursor:default}
+.main{max-width:1150px;margin:0 auto;padding:1rem 1rem 5rem}
+.abas{display:flex;gap:4px;border-bottom:2px solid var(--gray-3);margin-bottom:12px;overflow-x:auto}
+.aba{padding:9px 16px;border:0;background:none;font-family:inherit;font-size:14px;font-weight:600;color:var(--gray-5);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}
+.aba.on{color:var(--cor-dark);border-bottom-color:var(--cor)}
+.barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.barra .busca{flex:1;min-width:200px;margin:0}
+.busca{width:100%;padding:9px 12px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:14px;background:#fff}
+.filtros{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:13px;margin-bottom:10px;align-items:center}
+.filtros label{display:flex;gap:5px;align-items:center;cursor:pointer}
+.filtros select{padding:5px 8px;border:1px solid var(--gray-3);border-radius:6px;font-family:inherit;font-size:13px;background:#fff}
+.resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}
+.resumo div{background:#fff;border-radius:10px;box-shadow:var(--shadow);padding:10px 12px}
+.resumo b{display:block;font-size:20px;color:var(--cor-dark)}
+.resumo span{font-size:12px;color:var(--gray-5)}
+.resumo .alerta b{color:var(--amber)}
+.lista{display:flex;flex-direction:column;gap:6px}
+.linha{background:#fff;border-radius:10px;box-shadow:var(--shadow);padding:8px 12px;display:grid;grid-template-columns:84px 1fr auto;gap:12px;align-items:center;cursor:pointer;border-left:4px solid var(--gray-3)}
+.linha:hover{background:var(--cor-light)}
+.linha.baixo{border-left-color:var(--amber)}
+.linha.zerado{border-left-color:var(--red)}
+.linha.ok{border-left-color:var(--green)}
+.fig{width:84px;height:63px;background:var(--gray-1);border:1px solid var(--gray-2);border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:10px;color:var(--gray-4);text-align:center}
+.fig img{width:100%;height:100%;object-fit:contain;background:#fff}
+.fig.grande{width:100%;max-width:370px;height:auto;aspect-ratio:370/278;margin:0 auto}
+.cod{font-weight:700;font-size:14px;color:var(--cor-dark)}
+.desc{font-size:13px;margin-top:1px}
+.sub{font-size:12px;color:var(--gray-5);margin-top:2px}
+.saldo{text-align:right;min-width:90px}
+.saldo b{font-size:20px;display:block;line-height:1.1}
+.saldo span{font-size:11px;color:var(--gray-5)}
+.pill{display:inline-block;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600;background:var(--gray-2);color:var(--gray-5);white-space:nowrap}
+.pill-cor{background:var(--cor-light);color:var(--cor-dark)}
+.pill-verde{background:var(--green-light);color:var(--green)}
+.pill-ambar{background:var(--amber-light);color:var(--amber)}
+.pill-verm{background:var(--red-light);color:var(--red)}
+.vazio{text-align:center;color:var(--gray-4);padding:30px 10px;font-style:italic}
+.rola{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px;box-shadow:var(--shadow)}
+.rola .tabela{box-shadow:none}
+.tabela{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:var(--shadow);font-size:13px}
+.tabela th{background:var(--gray-2);text-align:left;padding:7px 9px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-5)}
+.tabela td{padding:7px 9px;border-top:1px solid var(--gray-2);vertical-align:top}
+.tabela tr.estornado td{color:var(--gray-4);text-decoration:line-through}
+.tabela tr.estornado td.acoes{text-decoration:none}
+.num{text-align:right;white-space:nowrap}
+.mais{color:var(--green);font-weight:700}.menos{color:var(--red);font-weight:700}
+.figs-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:10px}
+.fig-cel{border:1px solid var(--gray-3);border-radius:8px;background:#fff;padding:4px;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:stretch;gap:3px;text-align:left}
+.fig-cel:hover{border-color:var(--cor);background:var(--cor-light)}
+.fig-cel img,.fig-cel .falta{width:100%;aspect-ratio:370/278;object-fit:contain;background:#fff}
+.fig-cel .falta{display:flex;align-items:center;justify-content:center;background:var(--gray-1);color:var(--gray-4);font-size:10.5px;font-style:italic}
+.fig-cel span{font-size:11.5px;font-weight:600;color:var(--gray-6);word-break:break-all}
+.fig-cel small{font-size:10.5px;color:var(--green)}
+.paginas{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:.6rem}
+.overlay.open{display:flex}
+.modal{background:#fff;border-radius:12px;width:min(560px,100%);max-height:92vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.modal-head{padding:14px 18px;border-bottom:1px solid var(--gray-2);display:flex;align-items:center;gap:8px}
+.modal-title{font-size:15px;font-weight:700;flex:1}
+.modal-body{padding:14px 18px}
+.modal-foot{padding:12px 18px;border-top:1px solid var(--gray-2);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.grade2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.fg{margin-bottom:10px}
+.fg label{display:block;font-size:12px;color:var(--gray-5);margin-bottom:3px;font-weight:600}
+.fg input,.fg select,.fg textarea{width:100%;padding:8px 9px;border:1px solid var(--gray-3);border-radius:7px;font-family:inherit;font-size:14px;background:#fff}
+.fg textarea{min-height:56px;resize:vertical}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--cor)}
+.fg small{display:block;font-size:11.5px;color:var(--gray-4);margin-top:3px}
+.escolhido{display:flex;gap:10px;align-items:center;background:var(--cor-light);border-radius:8px;padding:6px 8px;margin-bottom:10px}
+.escolhido .fig{width:72px;height:54px}
+.aviso-linha{border-radius:8px;padding:8px 12px;font-size:13px;line-height:1.5;margin-bottom:8px}
+.aviso-ambar{background:var(--amber-light);color:#7a4e07;border:1px solid #F5D98A}
+.aviso-azul{background:var(--cor-light);color:var(--cor-dark);border:1px solid #B7E0E3}
+.aviso-verm{background:var(--red-light);color:var(--red);border:1px solid #F3C7C1}
+.secao{margin-top:14px}
+.secao h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gray-5);margin-bottom:6px}
+.cor-linha{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--gray-2);font-size:13px}
+.cor-linha input{width:80px;padding:5px 7px;border:1px solid var(--gray-3);border-radius:6px;font-family:inherit;font-size:13px}
+.bloqueio{display:flex;align-items:center;justify-content:center;min-height:80vh;padding:24px;text-align:center;color:var(--gray-5)}
+@media (max-width:700px){
+  .topbar-logo span{display:none}
+  .linha{grid-template-columns:64px 1fr auto;gap:8px}
+  .linha .fig{width:64px;height:48px}
+  .tabela .some-cel{display:none}
+  .grade2{grid-template-columns:1fr}
+}
+@media (max-width:480px){
+  .topbar{padding:0 .6rem}
+  .topbar-logo{font-size:15px;white-space:nowrap}
+  .topbar-actions{gap:5px}
+  #sync{font-size:10.5px;max-width:84px;white-space:normal;line-height:1.2;text-align:right}
+  .main{padding:.7rem .7rem 5rem}
+}
+</style>
+<script>
+// ---- MODO ESPELHO ("Ver como", pedido do Ander, 16/10/2026) ----
+// Mesmo bloco dos outros modulos: na aba em que o admin ve o sistema como
+// outra pessoa, nada le, grava nem apaga o armazenamento que as abas dividem.
+try{ if(sessionStorage.getItem('dalum-espelho')){ (function(){
+  const L=window.localStorage, P=Storage.prototype, ler=P.getItem, gravar=P.setItem, tirar=P.removeItem, limpar=P.clear;
+  P.getItem=function(k){ return this===L?null:ler.call(this,k); };
+  P.setItem=function(k,v){ if(this!==L) return gravar.call(this,k,v); };
+  P.removeItem=function(k){ if(this!==L) return tirar.call(this,k); };
+  P.clear=function(){ if(this!==L) return limpar.call(this); };
+})(); } }catch(e){}
+
+// Marca que este modulo esta aberto DENTRO do portal, para o CSS esconder a
+// faixa duplicada.
+try{ if(window.self!==window.top) document.documentElement.classList.add('dentro-do-portal'); }
+catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
+</script>
+</head>
+<body>
+<!-- ================================================================
+     AVISO DE AMBIENTE DE TESTE
+     Este bloco existe SOMENTE nos arquivos de teste. Ao levar um
+     arquivo daqui para producao, ELE PRECISA SAIR — junto com a troca
+     do identificador do sistema.
+     Motivo: em 11/08/2026 contas reais foram lancadas aqui achando que
+     era producao, porque as duas telas eram identicas.
+     ================================================================ -->
+<div id="faixa-teste">Ambiente de teste &middot; o que voce lancar aqui nao vale</div>
+<style>
+  #faixa-teste{position:fixed;top:0;left:0;right:0;height:30px;z-index:100000;
+    background:repeating-linear-gradient(45deg,#B9770E 0 14px,#8a5a0a 14px 28px);
+    color:#fff;font:700 12px/30px system-ui,-apple-system,"Segoe UI",sans-serif;
+    letter-spacing:.08em;text-align:center;text-transform:uppercase;
+    box-shadow:0 1px 6px rgba(0,0,0,.3);pointer-events:none}
+  body{padding-top:30px}
+  .topbar{top:30px !important;background:#B9770E !important}
+  .bloqueio{padding-top:30px}
+  html.dentro-do-portal #faixa-teste{display:none}
+  html.dentro-do-portal body{padding-top:0}
+  html.dentro-do-portal .topbar{top:0 !important}
+  html.dentro-do-portal .bloqueio{padding-top:0}
+  @media print{
+    #faixa-teste{position:static;background:none;color:#000;border:2px solid #000;
+      box-shadow:none;line-height:1.6;margin-bottom:8px}
+    body{padding-top:0}
+    .topbar{top:0 !important}
+  }
+</style>
+
+<div class="bloqueio" id="bloqueio">Abrindo...</div>
+
+<div id="app" style="display:none">
+  <div class="topbar">
+    <div class="topbar-logo">&#128230; Estoque <span>perfis e componentes</span></div>
+    <div class="topbar-actions">
+      <span id="sync"></span>
+      <button class="btn btn-ghost btn-sm" id="btn-sair" onclick="sairDoModulo()">Sair</button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="abas" id="abas"></div>
+    <div id="tela"></div>
+  </div>
+</div>
+
+<div class="overlay" id="aviso-ov" style="z-index:400">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-head"><div class="modal-title" id="aviso-titulo">Aviso</div></div>
+    <div class="modal-body"><div id="aviso-texto" style="font-size:13.5px;line-height:1.6;white-space:pre-line"></div></div>
+    <div class="modal-foot"><button class="btn btn-cor" id="aviso-btn" onclick="fecharAviso()">Entendi</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="pergunta-ov" style="z-index:410">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-head"><div class="modal-title" id="pergunta-titulo">Confirmar</div></div>
+    <div class="modal-body"><div id="pergunta-texto" style="font-size:13.5px;line-height:1.6;white-space:pre-line"></div></div>
+    <div class="modal-foot"><button class="btn btn-outline" id="pergunta-nao" onclick="responderPergunta(false)">Cancelar</button>
+      <button class="btn btn-cor" id="pergunta-sim" onclick="responderPergunta(true)">Confirmar</button></div>
+  </div>
+</div>
+
+<!-- Janela de uso geral (movimento, material, sobra, detalhe) -->
+<div class="overlay" id="janela-ov" style="z-index:300">
+  <div class="modal" id="janela-modal">
+    <div class="modal-head"><div class="modal-title" id="janela-titulo"></div>
+      <button class="btn btn-outline btn-sm" onclick="fecharJanela()">Fechar</button></div>
+    <div class="modal-body" id="janela-corpo"></div>
+    <div class="modal-foot" id="janela-pe"></div>
+  </div>
+</div>
+
+<script>
+// ================= CONFIG =================
+const WORKER='https://daluminium-api.daluminium2.workers.dev';
+// Identificador do sistema no banco: SEM acento (vai num cabecalho HTTP).
+// Producao: 'estoque'.
+const SUPA_SISTEMA='estoque_teste';
+// ATENCAO: muda de teste para producao, igual ao SUPA_SISTEMA acima.
+// Producao: https://daluminium.github.io/portal/
+const PORTAL_URL='https://daluminium.github.io/teste/';
+const AMBIENTE = /_teste$/.test(SUPA_SISTEMA) ? 'teste' : 'producao';
+const LS_KEY='dalum-estoque';
+const LS_OBRAS='dalum-estoque-obras';
+const TOKEN_KEY='dalum-token';
+// Copia local de TODOS os modulos (mesmo endereco, mesmo armazenamento): sair
+// de qualquer um limpa todos. Lista igual a dos outros, mais as deste modulo.
+const DADOS_LOCAIS=['dalum-data','fin-data','dalum-fabrica','dalum-obra','dalum-crm','dalum-crm-para-obra','dalum-crm-abrir',
+  'portal-admin-passes','dalum-admin-passes','fin-admin-passes','dalum-acomp','dalum-acomp-obras',LS_KEY,LS_OBRAS];
+
+// Perfil e contado em BARRAS por codigo + cor (decisao do Ander, 29/10/2026);
+// a sobra (retalho) fica a parte, cada peca com o seu comprimento.
+// Componente e contado na unidade do SmartCEM (PC, MT, PR...).
+const UNIDADES_COMPONENTE=['PC','MT','PR','RL','TB','PT','CX','KG','LT','UN'];
+const NOME_UNIDADE={BARRA:'barra(s)',PC:'peça(s)',MT:'metro(s)',PR:'par(es)',RL:'rolo(s)',TB:'tubo(s)',PT:'pacote(s)',CX:'caixa(s)',KG:'kg',LT:'litro(s)',UN:'unidade(s)'};
+const CORES_PADRAO=['NATURAL','PINTURA PRETO FOSCO - RAL9005F','PINTURA BRANCA','PINTURA MARROM FOSCO - RAL8014','ANODIZADO FOSCO-1000 (A23)','BRONZE','PRETO','BRANCO'];
+const PASTA_PERFIS='daluminium_perfis';
+
+let dados={materiais:[],movimentos:[],sobras:[],historico:[]};
+let obras=[];              // recorte da Obra (CT, cliente, ORC) que o Worker entrega
+let usuario='', papel='', login='';
+let aba='saldo';
+let filtro={busca:'',tipo:'',situacao:'',zerados:false};
+let filtroHist={busca:'',tipo:''};
+let filtroSobras={busca:''};
+let _gravando=0, _versaoLocal=0;
+
+// ================= UTILIDADES =================
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function novoId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function agoraISO(){ return new Date().toISOString(); }
+function agoraHora(){ return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+function diaLocal(iso){
+  const d=new Date(iso); if(isNaN(d)) return String(iso||'').slice(0,10);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function fmtQuando(iso){ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?iso:d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+function semAcento(t){ return String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
+function status(txt,cor){ const e=document.getElementById('sync'); if(e){ e.textContent=txt; e.style.color=cor||'rgba(255,255,255,.85)'; } }
+// Quantidade: aceita "12", "66,28", "1.250,5" e "1.250" (= mil duzentos e
+// cinquenta, como se escreve aqui — no teste de 04/11 o "1.250" virava 1,25 mm).
+// Devolve null se nao for numero.
+function numero(v){
+  let t=String(v==null?'':v).trim().replace(/\s+/g,''); if(!t) return null;
+  if(t.indexOf(',')>=0) t=t.replace(/\./g,'').replace(',','.');
+  else if(/^-?\d{1,3}(\.\d{3})+$/.test(t)) t=t.replace(/\./g,'');
+  const n=parseFloat(t); return isFinite(n)?n:null;
+}
+function arred(n){ return Math.round(n*1000)/1000; }
+function fmtNum(n){ return (Math.round((n||0)*1000)/1000).toLocaleString('pt-BR',{maximumFractionDigits:3}); }
+// Codigo como o SmartCEM escreve: maiusculo, sem espaco sobrando.
+function normCodigo(c){ return String(c||'').trim().replace(/\s+/g,' ').toUpperCase(); }
+function normCor(c){ return String(c||'').trim().replace(/\s+/g,' ').toUpperCase(); }
+function chave(matId,cor){ return matId+'|'+normCor(cor); }
+// Texto dentro de onclick="...": vira string de JavaScript e depois atributo
+// de HTML. So o esc() nao basta (o &#39; volta a ser ' antes do JavaScript ler).
+function jsArg(v){ return esc(JSON.stringify(String(v==null?'':v))); }
+
+// ================= AVISOS NA TELA =================
+let _avisoAoFechar=null;
+function aviso(titulo, texto, aoFechar){
+  document.getElementById('aviso-titulo').textContent=titulo||'Aviso';
+  document.getElementById('aviso-texto').textContent=texto||'';
+  _avisoAoFechar=aoFechar||null;
+  document.getElementById('aviso-ov').classList.add('open');
+  setTimeout(function(){ const b=document.getElementById('aviso-btn'); if(b) b.focus(); },60);
+}
+function fecharAviso(){
+  document.getElementById('aviso-ov').classList.remove('open');
+  const fn=_avisoAoFechar; _avisoAoFechar=null;
+  if(fn) fn();
+}
+// Pergunta na janela do proprio sistema (o confirm() do navegador, no
+// celular, parece defeito e as vezes nem aparece). Devolve true no "sim".
+let _perguntaResp=null;
+function perguntar(titulo, texto, sim, perigo){
+  document.getElementById('pergunta-titulo').textContent=titulo||'Confirmar';
+  document.getElementById('pergunta-texto').textContent=texto||'';
+  const b=document.getElementById('pergunta-sim');
+  b.textContent=sim||'Confirmar';
+  b.style.background=perigo?'var(--red)':''; b.style.borderColor=perigo?'var(--red)':'';
+  document.getElementById('pergunta-ov').classList.add('open');
+  setTimeout(function(){ const n=document.getElementById('pergunta-nao'); if(n) n.focus(); },60);
+  return new Promise(function(ok){ _perguntaResp=ok; });
+}
+function responderPergunta(r){
+  document.getElementById('pergunta-ov').classList.remove('open');
+  const fn=_perguntaResp; _perguntaResp=null;
+  if(fn) fn(r);
+}
+function abrirJanela(titulo, corpo, pe, largura){
+  document.getElementById('janela-titulo').textContent=titulo;
+  document.getElementById('janela-corpo').innerHTML=corpo;
+  document.getElementById('janela-pe').innerHTML=pe||'';
+  document.getElementById('janela-pe').style.display=pe?'flex':'none';
+  document.getElementById('janela-modal').style.width='min('+(largura||560)+'px,100%)';
+  document.getElementById('janela-ov').classList.add('open');
+}
+function fecharJanela(){ document.getElementById('janela-ov').classList.remove('open'); _janelaAtual=null; }
+let _janelaAtual=null;   // o que a janela mostra, para redesenhar depois de gravar
+
+// ================= CRACHA E SESSAO (igual aos outros modulos) =================
+function loginGuardaLer(chave){
+  try{ const v=sessionStorage.getItem(chave); if(v!==null) return v; }catch(e){}
+  try{ return localStorage.getItem(chave); }catch(e){ return null; }
+}
+function loginGuardaApagar(chave){
+  let meu=null;
+  try{ meu=sessionStorage.getItem(chave); }catch(e){}
+  try{ sessionStorage.removeItem(chave); }catch(e){}
+  try{ if(meu===null || localStorage.getItem(chave)===meu) localStorage.removeItem(chave); }catch(e){}
+}
+function lerSSO(){
+  try{
+    const s=JSON.parse(loginGuardaLer('dalum-sso')||'null');
+    if(!s||!s.nome) return null;
+    if(Date.now()-s.ts>8*60*60*1000){ loginGuardaApagar('dalum-sso'); return null; }
+    return s;
+  }catch(e){ return null; }
+}
+function b64urlParaTexto(s){
+  const b64=s.replace(/-/g,'+').replace(/_/g,'/');
+  const bin=atob(b64+'==='.slice((b64.length+3)%4));
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+function lerToken(){
+  try{
+    const t=loginGuardaLer(TOKEN_KEY);
+    if(!t) return null;
+    const partes=t.split('.');
+    if(partes.length!==2) return null;
+    const d=JSON.parse(b64urlParaTexto(partes[0]));
+    if(!d||!d.exp||Date.now()>=d.exp){ loginGuardaApagar(TOKEN_KEY); return null; }
+    return {token:t,dados:d};
+  }catch(e){ loginGuardaApagar(TOKEN_KEY); return null; }
+}
+function cabecalhos(extra){
+  const h=Object.assign({'X-Sistema':SUPA_SISTEMA},extra||{});
+  const t=lerToken();
+  if(t) h['Authorization']='Bearer '+t.token;
+  return h;
+}
+function apagarDadosLocais(){ DADOS_LOCAIS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} }); }
+function soAdmin(){ return papel==='admin'; }
+function gerenteOuAdmin(){ return papel==='admin'||papel==='gerente'; }
+// Consulta, ou o Estoque marcado "so ver" no cadastro da pessoa: so olha.
+// Quem trava de verdade e o Worker; aqui a tela so evita que a pessoa digite
+// e perca.
+function ehConsulta(){
+  if(papel==='consulta') return true;
+  try{ const t=lerToken(); const v=(t&&t.dados&&Array.isArray(t.dados.v))?t.dados.v:[]; return v.indexOf('estoque')>=0; }catch(e){ return false; }
+}
+function ehEspelho(){ try{ return !!sessionStorage.getItem('dalum-espelho'); }catch(e){ return false; } }
+function recusarSeConsulta(){
+  if(ehEspelho()){
+    aviso('Modo espelho','Você está vendo o sistema como outra pessoa, só para olhar.\n\nNada foi gravado.');
+    return true;
+  }
+  if(!ehConsulta()) return false;
+  aviso('Modo consulta','Você pode olhar, mas não alterar.\n\nNada foi gravado.');
+  return true;
+}
+
+let _sessionId=(function(){
+  try{
+    let i=sessionStorage.getItem('dalum-sessao');
+    if(!i){ i=Math.random().toString(36).slice(2)+Date.now().toString(36); sessionStorage.setItem('dalum-sessao',i); }
+    return i;
+  }catch(e){ return 'tela'+Date.now(); }
+})();
+async function acaoSessao(nome, corpo){
+  const r=await fetch(WORKER,{method:'POST',
+    headers:Object.assign(cabecalhos({'Content-Type':'application/json','X-Action':nome}),{'X-Sistema':'sessions'}),
+    body:JSON.stringify(Object.assign({sessionId:_sessionId, ambiente:AMBIENTE}, corpo||{}))});
+  if(!r.ok) throw new Error('worker '+r.status);
+  return r.json();
+}
+let _checkSessao=null;
+async function checkForceLogout(){
+  let r=null;
+  try{ r=await acaoSessao('sessao-sinal',{sistema:'estoque'}); }catch(e){ return; }
+  if(!r||!r.derrubado) return;
+  alert(r.motivo==='outro-login'
+    ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
+    :'Sua sessão foi encerrada pelo administrador.');
+  loginGuardaApagar(TOKEN_KEY); loginGuardaApagar('dalum-sso'); apagarDadosLocais();
+  location.reload();
+}
+async function sairDoModulo(){
+  if(_carga && !_carga.parar && !_carga.fim && !confirm('As figuras ainda estão subindo. Sair mesmo assim?')) return;
+  if(!confirm('Deseja sair?')) return;
+  try{ await acaoSessao('sessao-sair',{}); }catch(e){}
+  loginGuardaApagar(TOKEN_KEY); loginGuardaApagar('dalum-sso'); apagarDadosLocais();
+  if(window.self!==window.top) window.parent.postMessage('logout','*');
+  location.reload();
+}
+function sessaoExpirada(){
+  if(window.__sessaoExpirada) return;
+  window.__sessaoExpirada=true;
+  try{ loginGuardaApagar(TOKEN_KEY); loginGuardaApagar('dalum-sso'); }catch(e){} apagarDadosLocais();
+  aviso('Sessão expirada','O acesso vale 8 horas e o seu venceu. O que você já tinha salvo continua guardado.\n\nVamos voltar para a tela de entrada.',
+    function(){
+      if(window.self!==window.top){ try{ window.parent.postMessage('logout','*'); }catch(e){} setTimeout(function(){ location.reload(); },800); return; }
+      location.reload();
+    });
+}
+function telaBloqueio(titulo, texto){
+  document.getElementById('app').style.display='none';
+  const b=document.getElementById('bloqueio');
+  b.style.display='flex';
+  b.innerHTML='<div style="max-width:480px"><div style="font-size:42px;margin-bottom:12px">&#128274;</div>'+
+    '<h1 style="font-size:19px;color:#1f2937;margin-bottom:10px">'+esc(titulo)+'</h1>'+
+    '<p style="line-height:1.6">'+esc(texto)+'</p></div>';
+}
+
+// ---- AVISO DE VERSAO NOVA (igual aos outros modulos) ----
+let _versaoQuandoAbriu=null, _avisouVersaoNova=false;
+async function conferirVersao(){
+  if(_avisouVersaoNova) return;
+  let v=null;
+  try{
+    const base=(AMBIENTE==='teste')?'https://daluminium.github.io/teste/versao.json':'https://daluminium.github.io/portal/versao.json';
+    const r=await fetch(base+'?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok) return;
+    v=(await r.json()).versao;
+  }catch(e){ return; }
+  if(!v) return;
+  if(_versaoQuandoAbriu===null){ _versaoQuandoAbriu=v; return; }
+  if(v===_versaoQuandoAbriu) return;
+  _avisouVersaoNova=true;
+  const b=document.createElement('div');
+  b.style.cssText='position:fixed;left:0;right:0;top:0;z-index:10050;background:#FFFBEA;border-bottom:2px solid #E6B800;'+
+    'font-size:13.5px;padding:10px 14px;display:flex;align-items:center;gap:12px;justify-content:center;flex-wrap:wrap';
+  b.innerHTML='<span><b>Saiu uma versão nova do sistema.</b> Termine o que estiver fazendo e atualize a página.</span>'+
+    '<button type="button" class="btn btn-cor btn-sm" id="barra-versao-ok">Atualizar agora</button>'+
+    '<button type="button" class="btn btn-outline btn-sm" id="barra-versao-x">Agora não</button>';
+  document.body.appendChild(b);
+  b.querySelector('#barra-versao-ok').onclick=function(){
+    if(_carga && !_carga.parar && !_carga.fim && !confirm('As figuras ainda estão subindo. Atualizar mesmo assim?')) return;
+    try{ if(window.self!==window.top){ window.parent.postMessage('atualizar-versao','*'); return; } }catch(e){}
+    location.replace(location.pathname+'?v='+encodeURIComponent(v));
+  };
+  b.querySelector('#barra-versao-x').onclick=function(){ b.remove(); };
+}
+setTimeout(conferirVersao,1500);
+setInterval(conferirVersao,5*60*1000);
+
+// ================= DADOS DO PROPRIO MODULO =================
+function arrumar(j){
+  if(!j||typeof j!=='object'||Array.isArray(j)) j={};
+  ['materiais','movimentos','sobras','historico'].forEach(function(k){ if(!Array.isArray(j[k])) j[k]=[]; });
+  return j;
+}
+// Ler sempre sem cache: no-store e um parametro que muda a cada chamada.
+async function buscarRemoto(){
+  const r=await fetch(WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7),{cache:'no-store',headers:cabecalhos()});
+  if(r.status===503){ telaBloqueio('Sistema em manutenção','Estamos ajustando o sistema. Seus dados estão guardados.'); throw new Error('manutencao'); }
+  if(r.status===403){ telaBloqueio('Sem acesso a este módulo','Seu acesso não inclui o Estoque' + (AMBIENTE==='teste'?' (ou este é o ambiente de teste, que é só para administradores e gerentes)':'') + '. Peça ao administrador para liberar.'); throw new Error('Acesso negado'); }
+  if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
+  if(!r.ok) throw new Error('Worker '+r.status);
+  const j=await r.json();
+  // Registro inexistente: o Worker devolve null. Nao e "vazio de verdade".
+  if(!j||typeof j!=='object'||Array.isArray(j)) return null;
+  return arrumar(j);
+}
+// A Obra, pelo recorte do Worker: so CT, ano, cliente, status e ORC. O
+// Estoque nunca grava na Obra.
+async function buscarObras(){
+  const r=await fetch(WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7),{cache:'no-store',
+    headers:cabecalhos({'X-Action':'obras-do-estoque'})});
+  if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
+  if(!r.ok) throw new Error('Obra '+r.status);
+  const j=await r.json();
+  return (j&&Array.isArray(j.contratos))?j.contratos:[];
+}
+// GRAVACAO CONDICIONAL (20/10/2026): manda a versao que leu (X-Base). Se outra
+// pessoa gravou no meio, o Worker responde 409 e nada e gravado por cima.
+async function enviarRemoto(payload, versaoLida){
+  const extra={'Content-Type':'application/json'};
+  if(versaoLida) extra['X-Base']=versaoLida;
+  const r=await fetch(WORKER,{method:'PATCH',headers:cabecalhos(extra),body:JSON.stringify({data:payload})});
+  if(r.status===401){ sessaoExpirada(); throw new Error('Sessao expirada'); }
+  if(r.status===409) return 'conflito';
+  if(!r.ok) throw new Error('Worker '+r.status);
+  return 'ok';
+}
+function logGeral(base, acao, alvo, detalhe){
+  if(!Array.isArray(base.historico)) base.historico=[];
+  base.historico.unshift({id:novoId(), ts:agoraISO(), user:usuario||'—', acao:acao, alvo:alvo||'—', detalhe:detalhe||''});
+  if(base.historico.length>500) base.historico=base.historico.slice(0,500);
+}
+function lerLocal(){
+  try{ const s=localStorage.getItem(LS_KEY); if(s) dados=JSON.parse(s); }catch(e){}
+  dados=arrumar(dados);
+  try{ const o=JSON.parse(localStorage.getItem(LS_OBRAS)||'null'); if(Array.isArray(o)) obras=o; }catch(e){}
+}
+function gravarLocal(){
+  try{ localStorage.setItem(LS_KEY,JSON.stringify(dados)); localStorage.setItem(LS_OBRAS,JSON.stringify(obras)); }catch(e){}
+}
+
+// Toda alteracao passa por aqui: rele o banco, aplica a mudanca em cima do que
+// esta la e grava com X-Base. O saldo nunca e gravado: sai da soma dos
+// movimentos, entao duas pessoas lancando juntas nao se apagam. Confere depois
+// pelo carimbo, porque o Worker ja respondeu "ok" sem gravar.
+// fn(base) devolve false para desistir, ou uma frase de erro para recusar.
+async function alterar(fn, registro){
+  if(recusarSeConsulta()) return false;
+  _versaoLocal++; _gravando++;
+  try{ return await gravarAlteracao(fn, registro); }
+  finally{ _gravando--; }
+}
+async function gravarAlteracao(fn, registro){
+  status('🔄 Salvando...');
+  try{
+    let base=null, carimbo='';
+    for(let tentativa=0; tentativa<4; tentativa++){
+      base=null;
+      try{ base=await buscarRemoto(); }catch(e){ base=null; }
+      // Sem conseguir ler o banco NAO grava: gravar a copia local por cima
+      // poderia apagar o que um colega salvou.
+      if(!base) throw new Error('sem leitura');
+      const versaoLida=String(base.atualizadoEm||'');
+      const ok=fn(base);
+      if(ok===false){ status('🟡 Nada salvo'); return false; }
+      if(typeof ok==='string'){ status('🟡 Nada salvo'); aviso('Não foi salvo',ok); return false; }
+      if(registro){
+        try{ const r=(typeof registro==='function')?registro(base):registro; if(r&&r.acao) logGeral(base,r.acao,r.alvo,r.detalhe); }catch(e){}
+      }
+      carimbo=agoraISO();
+      base.atualizadoEm=carimbo; base.atualizadoPor=usuario;
+      const deu=await enviarRemoto(base, versaoLida);
+      if(deu!=='conflito') break;
+      status('🔀 Outra pessoa salvou junto — juntando...');
+      if(tentativa===3) throw new Error('conflito');
+      await new Promise(function(ok){ setTimeout(ok,300+Math.random()*700); });
+    }
+    let confere=null;
+    try{ confere=await buscarRemoto(); }catch(e){ confere=null; }
+    const depoisDeMim=!!confere && confere.atualizadoEm!==carimbo &&
+      new Date(confere.atualizadoEm).getTime()>new Date(carimbo).getTime();
+    if(!confere || (confere.atualizadoEm!==carimbo && !depoisDeMim)){
+      status('🔴 NÃO gravou no servidor','#ffcccc');
+      aviso('NÃO foi salvo','O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+
+        'Não continue: avise o responsável pelo sistema.');
+      return false;
+    }
+    dados=confere; gravarLocal();
+    status('🟢 Salvo · '+agoraHora());
+    render();
+    return true;
+  }catch(e){
+    status('🔴 Não salvou','#ffcccc');
+    aviso('Não foi possível salvar','Verifique a internet e tente de novo.\n\nNada foi lançado.');
+    return false;
+  }
+}
+
+async function sincronizar(){
+  if(_gravando) return;
+  const versao=_versaoLocal;
+  status('🔄 Buscando...');
+  try{
+    const [d,o]=await Promise.all([buscarRemoto(), buscarObras().catch(function(){ return null; })]);
+    if(_gravando || versao!==_versaoLocal) return;
+    if(d) dados=d;
+    if(o) obras=o;
+    gravarLocal();
+    render();
+    status('🟢 Atualizado · '+agoraHora());
+  }catch(e){
+    render();
+    status('🔴 Sem conexão — dados locais','#ffcccc');
+  }
+}
+async function atualizarDoBanco(){
+  if(_gravando) return;
+  // Janela aberta ou campo em uso: nao redesenha por baixo de quem digita.
+  if(document.getElementById('janela-ov').classList.contains('open')) return;
+  const foco=document.activeElement;
+  if(foco && /INPUT|TEXTAREA|SELECT/.test(foco.tagName)) return;
+  sincronizar();
+}
+
+// ================= CONTAS =================
+function materialPorId(id){ return dados.materiais.find(function(m){ return m.id===id; })||null; }
+function materialPorCodigo(cod, base){
+  const c=normCodigo(cod); if(!c) return null;
+  return ((base||dados).materiais).find(function(m){ return normCodigo(m.codigo)===c && !m.inativo; })||null;
+}
+function unidadeDe(m){ return m&&m.tipo==='perfil'?'BARRA':((m&&m.unidade)||'PC'); }
+function nomeUnidade(m,n){ const u=unidadeDe(m); return NOME_UNIDADE[u]||u.toLowerCase(); }
+// Saldo de cada material + cor = soma dos movimentos (entrada +, saida -,
+// acerto +/-, estorno = o contrario do movimento estornado).
+function calcularSaldos(base){
+  const b=base||dados, s={};
+  b.movimentos.forEach(function(mv){
+    const k=chave(mv.matId,mv.cor);
+    if(!s[k]) s[k]={matId:mv.matId,cor:normCor(mv.cor),saldo:0,ultimo:''};
+    s[k].saldo=arred(s[k].saldo+(Number(mv.delta)||0));
+    if(String(mv.quando)>s[k].ultimo) s[k].ultimo=mv.quando;
+  });
+  return s;
+}
+function saldoDe(matId,cor,base){ const s=calcularSaldos(base)[chave(matId,cor)]; return s?s.saldo:0; }
+function sobrasLivres(base){ return (base||dados).sobras.filter(function(x){ return !x.saiu; }); }
+function minimoDe(m,cor){ const mi=(m&&m.minimos)||{}; const v=mi[normCor(cor)]; return (typeof v==='number')?v:null; }
+// As linhas da tela de saldo: toda cor que ja teve movimento, toda cor com
+// minimo marcado, e o material sem cor nenhuma quando ainda nao teve nada.
+function linhasDeSaldo(){
+  const saldos=calcularSaldos(), linhas={};
+  Object.keys(saldos).forEach(function(k){ linhas[k]=saldos[k]; });
+  dados.materiais.forEach(function(m){
+    if(m.inativo) return;
+    Object.keys(m.minimos||{}).forEach(function(cor){ const k=chave(m.id,cor); if(!linhas[k]) linhas[k]={matId:m.id,cor:cor,saldo:0,ultimo:''}; });
+  });
+  const sob={};
+  sobrasLivres().forEach(function(x){ const k=chave(x.matId,x.cor); sob[k]=(sob[k]||0)+1; });
+  Object.keys(sob).forEach(function(k){ if(!linhas[k]){ const p=k.split('|'); linhas[k]={matId:p[0],cor:p.slice(1).join('|'),saldo:0,ultimo:''}; } });
+  const comLinha={}; Object.keys(linhas).forEach(function(k){ comLinha[linhas[k].matId]=1; });
+  dados.materiais.forEach(function(m){ if(!m.inativo && !comLinha[m.id]) linhas[chave(m.id,'')]={matId:m.id,cor:'',saldo:0,ultimo:''}; });
+  return Object.keys(linhas).map(function(k){
+    const l=linhas[k], m=materialPorId(l.matId);
+    if(!m||m.inativo) return null;
+    const min=minimoDe(m,l.cor);
+    let sit='ok';
+    if(l.saldo<=0) sit='zerado';
+    else if(min!==null && l.saldo<min) sit='baixo';
+    return {m:m, cor:l.cor, saldo:l.saldo, minimo:min, sobras:sob[k]||0, situacao:sit, ultimo:l.ultimo};
+  }).filter(Boolean);
+}
+function coresConhecidas(){
+  const c={};
+  CORES_PADRAO.forEach(function(x){ c[x]=1; });
+  dados.movimentos.forEach(function(x){ if(x.cor) c[normCor(x.cor)]=1; });
+  dados.sobras.forEach(function(x){ if(x.cor) c[normCor(x.cor)]=1; });
+  return Object.keys(c).sort();
+}
+function obraPorId(id){ return obras.find(function(o){ return o.id===id; })||null; }
+function rotuloObra(o){ if(!o) return ''; return (o.ct?o.ct+' · ':'')+(o.cliente||'')+(o.proposta?' ('+o.proposta+')':''); }
+
+// ================= FIGURAS DOS PERFIS =================
+// A biblioteca do SmartCEM (15.360 figuras, Figuras-Perf.rar de 29/10/2026)
+// fica no Cloudinary PRIVADO, pasta daluminium_perfis, com o codigo limpo como
+// nome. A LISTA [codigo, nome na nuvem] fica em perfis-lista.json, ao lado
+// deste arquivo. O endereco de cada figura vem do Worker ('perfis-links').
+let _listaPerfis=null, _mapaPerfis=null;
+function carregarListaPerfis(){
+  if(_listaPerfis) return _listaPerfis;
+  _listaPerfis=fetch('perfis-lista.json',{cache:'no-store'}).then(function(r){
+    if(!r.ok) throw new Error('lista de figuras não encontrada ('+r.status+')');
+    return r.json();
+  }).then(function(j){
+    const l=(j.itens||[]).map(function(i){ return {codigo:i[0], id:i[1]}; });
+    _mapaPerfis={}; l.forEach(function(x){ _mapaPerfis[x.codigo]=x.id; });
+    return l;
+  });
+  _listaPerfis.catch(function(){ _listaPerfis=null; });
+  return _listaPerfis;
+}
+function figuraDoCodigo(cod){ return _mapaPerfis?(_mapaPerfis[normCodigo(cod)]||null):null; }
+const _figLink={};
+async function linksDeFiguras(ids){
+  const faltam=ids.filter(function(id,i){ return id && !_figLink[id] && ids.indexOf(id)===i; });
+  for(let i=0;i<faltam.length;i+=60){
+    const lote=faltam.slice(i,i+60);
+    const r=await fetch(WORKER,{method:'POST',cache:'no-store',
+      headers:cabecalhos({'Content-Type':'application/json','X-Action':'perfis-links'}),
+      body:JSON.stringify({ids:lote})});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(r.status===401){ sessaoExpirada(); throw new Error('sessão expirada'); }
+    if(!r.ok||!j||!j.links) throw new Error((j&&j.erro)||('erro '+r.status));
+    Object.keys(j.links).forEach(function(k){ _figLink[k]=j.links[k]; });
+  }
+  return ids.map(function(id){ return _figLink[id]; });
+}
+// Caixa da figura: <div class="fig" data-cod="LG068">. Depois de desenhar a
+// tela, preencherFiguras() troca o texto pela imagem.
+function caixaFigura(cod, extra){
+  return '<div class="fig'+(extra?' '+extra:'')+'" data-cod="'+esc(normCodigo(cod))+'">…</div>';
+}
+async function preencherFiguras(raiz){
+  const caixas=Array.prototype.slice.call((raiz||document).querySelectorAll('.fig[data-cod]:not([data-ok])'));
+  if(!caixas.length) return;
+  try{ await carregarListaPerfis(); }catch(e){ caixas.forEach(function(c){ c.textContent='sem lista'; }); return; }
+  const ids=[];
+  caixas.forEach(function(c){
+    const id=figuraDoCodigo(c.getAttribute('data-cod'));
+    c.setAttribute('data-ok','1');
+    if(!id){ c.textContent='sem figura'; return; }
+    c.setAttribute('data-fig',id); ids.push(id);
+  });
+  if(!ids.length) return;
+  try{
+    await linksDeFiguras(ids);
+    caixas.forEach(function(c){
+      const id=c.getAttribute('data-fig'); if(!id||!_figLink[id]) return;
+      const im=new Image(); im.alt=''; im.loading='lazy';
+      im.onerror=function(){ c.textContent='figura ainda não carregada'; };
+      im.src=_figLink[id];
+      c.textContent=''; c.appendChild(im);
+    });
+  }catch(e){ caixas.forEach(function(c){ if(c.textContent==='…') c.textContent='—'; }); }
+}
+
+// ================= TELAS =================
+function render(){
+  if(document.getElementById('app').style.display==='none') return;
+  const abas=[['saldo','Saldo'],['sobras','Sobras'],['historico','Histórico'],['figuras','Figuras dos perfis']];
+  document.getElementById('abas').innerHTML=abas.map(function(a){
+    return '<button class="aba'+(aba===a[0]?' on':'')+'" onclick="trocarAba(\''+a[0]+'\')">'+a[1]+'</button>';
+  }).join('');
+  const t=document.getElementById('tela');
+  if(aba==='saldo') t.innerHTML=telaSaldo();
+  else if(aba==='sobras') t.innerHTML=telaSobras();
+  else if(aba==='historico') t.innerHTML=telaHistorico();
+  else { t.innerHTML='<div id="figuras-corpo"></div>'; desenharFiguras(); }
+  if(aba!=='figuras') preencherFiguras(t);
+  if(_janelaAtual) _janelaAtual();
+}
+function trocarAba(a){ aba=a; try{ sessionStorage.setItem('dalum-estoque-aba',a); }catch(e){} render(); }
+function botoesDeLancar(){
+  if(ehConsulta()||ehEspelho()) return '<span class="pill">Só consulta</span>';
+  return '<button class="btn btn-verde" onclick="abrirMovimento(\'entrada\')">+ Entrada</button>'+
+    '<button class="btn btn-verm" onclick="abrirMovimento(\'saida\')">− Saída</button>'+
+    '<button class="btn btn-outline" onclick="abrirMaterial()">Cadastrar material</button>';
+}
+function bateBusca(q, campos){
+  if(!q) return true;
+  const alvo=semAcento(campos.join(' '));
+  return q.split(/\s+/).every(function(p){ return alvo.indexOf(p)>=0; });
+}
+
+function telaSaldo(){
+  const todas=linhasDeSaldo();
+  const q=semAcento(filtro.busca).trim();
+  const linhas=todas.filter(function(l){
+    if(filtro.tipo && l.m.tipo!==filtro.tipo) return false;
+    if(filtro.situacao==='baixo' && !(l.situacao==='baixo'||(l.situacao==='zerado'&&l.minimo!==null))) return false;
+    if(filtro.situacao==='sobras' && !l.sobras) return false;
+    if(!filtro.zerados && !q && !filtro.situacao && l.saldo===0 && !l.sobras && l.minimo===null && l.ultimo) return false;
+    return bateBusca(q,[l.m.codigo,l.m.descricao,l.cor]);
+  }).sort(function(a,b){
+    const p={baixo:0,zerado:1,ok:2};
+    const pa=(a.minimo!==null&&a.situacao!=='ok')?0:1, pb=(b.minimo!==null&&b.situacao!=='ok')?0:1;
+    return pa-pb || normCodigo(a.m.codigo).localeCompare(normCodigo(b.m.codigo)) || a.cor.localeCompare(b.cor) || (p[a.situacao]-p[b.situacao]);
+  });
+  const nPerfis=dados.materiais.filter(function(m){ return !m.inativo&&m.tipo==='perfil'; }).length;
+  const nComp=dados.materiais.filter(function(m){ return !m.inativo&&m.tipo!=='perfil'; }).length;
+  const nBaixo=todas.filter(function(l){ return l.minimo!==null && l.saldo<l.minimo; }).length;
+  const nSobras=sobrasLivres().length;
+  let h='<div class="resumo">'+
+    '<div><b>'+nPerfis+'</b><span>perfis cadastrados</span></div>'+
+    '<div><b>'+nComp+'</b><span>componentes cadastrados</span></div>'+
+    '<div class="'+(nBaixo?'alerta':'')+'" style="cursor:pointer" onclick="filtro.situacao=\'baixo\';render()"><b>'+nBaixo+'</b><span>abaixo do mínimo</span></div>'+
+    '<div style="cursor:pointer" onclick="trocarAba(\'sobras\')"><b>'+nSobras+'</b><span>sobras guardadas</span></div></div>';
+  h+='<div class="barra"><input class="busca" id="busca-saldo" placeholder="Buscar por código, descrição ou cor (ex.: LG068, marco, preto)" value="'+esc(filtro.busca)+'" '+
+    'oninput="filtro.busca=this.value;clearTimeout(window._tB);window._tB=setTimeout(redesenharMantendoFoco,250)">'+botoesDeLancar()+'</div>';
+  h+='<div class="filtros"><select onchange="filtro.tipo=this.value;render()">'+
+    '<option value="">Perfis e componentes</option><option value="perfil"'+(filtro.tipo==='perfil'?' selected':'')+'>Só perfis</option>'+
+    '<option value="componente"'+(filtro.tipo==='componente'?' selected':'')+'>Só componentes</option></select>'+
+    '<select onchange="filtro.situacao=this.value;render()"><option value="">Todas as situações</option>'+
+    '<option value="baixo"'+(filtro.situacao==='baixo'?' selected':'')+'>Abaixo do mínimo</option>'+
+    '<option value="sobras"'+(filtro.situacao==='sobras'?' selected':'')+'>Com sobras</option></select>'+
+    '<label><input type="checkbox"'+(filtro.zerados?' checked':'')+' onchange="filtro.zerados=this.checked;render()"> Mostrar os que zeraram</label>'+
+    '<span style="color:var(--gray-5)">'+linhas.length+' linha(s)</span></div>';
+  if(!dados.materiais.length){
+    h+='<div class="vazio">Nenhum material cadastrado ainda.<br><br>Comece por <b>Cadastrar material</b>, ou procure o perfil na aba <b>Figuras dos perfis</b> e cadastre de lá.</div>';
+    return h;
+  }
+  if(!linhas.length) return h+'<div class="vazio">Nada encontrado com esse filtro.</div>';
+  const MAX=300;
+  h+='<div class="lista">'+linhas.slice(0,MAX).map(function(l){
+    const un=nomeUnidade(l.m);
+    let pill='';
+    if(l.minimo!==null && l.saldo<l.minimo) pill='<span class="pill pill-ambar">abaixo do mínimo ('+fmtNum(l.minimo)+')</span>';
+    else if(l.minimo!==null) pill='<span class="pill pill-verde">mínimo '+fmtNum(l.minimo)+'</span>';
+    const cls=(l.minimo!==null&&l.saldo<l.minimo)?'baixo':(l.saldo<=0?'zerado':'ok');
+    return '<div class="linha '+cls+'" onclick="abrirDetalhe(\''+l.m.id+'\')">'+
+      (l.m.tipo==='perfil'?caixaFigura(l.m.codigo):'<div class="fig" style="font-size:22px">🔩</div>')+
+      '<div style="min-width:0"><div class="cod">'+esc(l.m.codigo)+'</div>'+
+      '<div class="desc">'+esc(l.m.descricao||'')+'</div>'+
+      '<div class="sub">'+(l.cor?esc(l.cor):'<i>sem cor</i>')+(l.m.tipo==='perfil'&&l.m.barraMm?' · barra de '+fmtNum(l.m.barraMm)+' mm':'')+' '+pill+
+      (l.sobras?' <span class="pill pill-cor">'+l.sobras+' sobra(s)</span>':'')+'</div></div>'+
+      '<div class="saldo"><b class="'+(l.saldo<0?'menos':'')+'">'+fmtNum(l.saldo)+'</b><span>'+esc(un)+'</span></div></div>';
+  }).join('')+'</div>';
+  if(linhas.length>MAX) h+='<div class="vazio">Mostrando '+MAX+' de '+linhas.length+'. Use a busca para achar o resto.</div>';
+  return h;
+}
+// Redesenha sem tirar o cursor do campo de busca.
+function redesenharMantendoFoco(){
+  const id=document.activeElement&&document.activeElement.id;
+  render();
+  if(id){ const e=document.getElementById(id); if(e&&e.setSelectionRange){ e.focus(); e.setSelectionRange(e.value.length,e.value.length); } }
+}
+
+function telaSobras(){
+  const q=semAcento(filtroSobras.busca).trim();
+  const livres=sobrasLivres().filter(function(s){
+    const m=materialPorId(s.matId);
+    return bateBusca(q,[m?m.codigo:'',m?m.descricao:'',s.cor,s.local||'']);
+  }).sort(function(a,b){
+    const ma=materialPorId(a.matId), mb=materialPorId(b.matId);
+    return normCodigo(ma&&ma.codigo).localeCompare(normCodigo(mb&&mb.codigo)) || a.cor.localeCompare(b.cor) || (b.mm-a.mm);
+  });
+  let h='<div class="barra"><input class="busca" id="busca-sobras" placeholder="Buscar sobra por código, cor ou local" value="'+esc(filtroSobras.busca)+'" '+
+    'oninput="filtroSobras.busca=this.value;clearTimeout(window._tB);window._tB=setTimeout(redesenharMantendoFoco,250)">'+
+    ((ehConsulta()||ehEspelho())?'':'<button class="btn btn-cor" onclick="abrirSobra()">+ Guardar sobra</button>')+'</div>';
+  h+='<div class="aviso-linha aviso-azul">Sobra é o pedaço de perfil que voltou do corte. Cada peça fica com o seu comprimento e <b>não conta</b> no saldo de barras.</div>';
+  if(!livres.length) return h+'<div class="vazio">Nenhuma sobra guardada'+(q?' com essa busca':'')+'.</div>';
+  h+='<div class="rola"><table class="tabela"><thead><tr><th></th><th>Perfil</th><th>Cor</th><th class="num">Comprimento</th><th class="some-cel">Local</th><th class="some-cel">Guardada</th><th></th></tr></thead><tbody>'+
+    livres.map(function(s){
+      const m=materialPorId(s.matId)||{codigo:'?',descricao:''};
+      return '<tr><td style="width:72px">'+caixaFigura(m.codigo).replace('class="fig"','class="fig" style="width:64px;height:48px"')+'</td>'+
+        '<td><b>'+esc(m.codigo)+'</b><div class="sub">'+esc(m.descricao||'')+'</div></td><td>'+esc(s.cor||'—')+'</td>'+
+        '<td class="num"><b>'+fmtNum(s.mm)+' mm</b></td><td class="some-cel">'+esc(s.local||'—')+'</td>'+
+        '<td class="some-cel">'+esc(fmtQuando(s.entrou&&s.entrou.quando))+'<div class="sub">'+esc((s.entrou&&s.entrou.quem)||'')+(s.entrou&&s.entrou.obra?' · de '+esc(rotuloObra(s.entrou.obra)):'')+'</div>'+(s.obs?'<div class="sub">'+esc(s.obs)+'</div>':'')+'</td>'+
+        '<td class="acoes">'+((ehConsulta()||ehEspelho())?'':'<button class="btn btn-outline btn-sm" onclick="abrirUsoSobra(\''+s.id+'\')">Usar</button>')+'</td></tr>';
+    }).join('')+'</tbody></table></div>';
+  return h;
+}
+
+const NOME_TIPO_MOV={entrada:'Entrada',saida:'Saída',ajuste:'Acerto de contagem',estorno:'Estorno'};
+function telaHistorico(){
+  const q=semAcento(filtroHist.busca).trim();
+  const movs=dados.movimentos.filter(function(mv){
+    if(filtroHist.tipo && mv.tipo!==filtroHist.tipo) return false;
+    const m=materialPorId(mv.matId);
+    return bateBusca(q,[m?m.codigo:'',m?m.descricao:'',mv.cor,mv.quem,mv.obs||'',mv.nota||'',mv.obra?rotuloObra(mv.obra):'']);
+  }).sort(function(a,b){ return String(b.quando).localeCompare(String(a.quando)); });
+  let h='<div class="barra"><input class="busca" id="busca-hist" placeholder="Buscar por código, obra, pessoa, nota..." value="'+esc(filtroHist.busca)+'" '+
+    'oninput="filtroHist.busca=this.value;clearTimeout(window._tB);window._tB=setTimeout(redesenharMantendoFoco,250)">'+
+    '<select class="busca" style="flex:0 0 auto;width:auto" onchange="filtroHist.tipo=this.value;render()"><option value="">Todos os lançamentos</option>'+
+    ['entrada','saida','ajuste','estorno'].map(function(t){ return '<option value="'+t+'"'+(filtroHist.tipo===t?' selected':'')+'>'+NOME_TIPO_MOV[t]+'</option>'; }).join('')+'</select></div>';
+  if(!movs.length) return h+'<div class="vazio">Nenhum lançamento'+(q||filtroHist.tipo?' com esse filtro':' ainda')+'.</div>';
+  const MAX=400;
+  h+=tabelaMovimentos(movs.slice(0,MAX),true);
+  if(movs.length>MAX) h+='<div class="vazio">Mostrando os '+MAX+' mais recentes de '+movs.length+'.</div>';
+  return h;
+}
+function tabelaMovimentos(movs, comMaterial){
+  return '<div class="rola"><table class="tabela"><thead><tr><th>Quando</th>'+(comMaterial?'<th>Material</th>':'')+'<th>O quê</th><th class="num">Qtde</th><th class="some-cel">Detalhe</th><th></th></tr></thead><tbody>'+
+    movs.map(function(mv){
+      const m=materialPorId(mv.matId)||{codigo:'?'};
+      const d=Number(mv.delta)||0;
+      const detalhe=[mv.obra?'Obra '+rotuloObra(mv.obra):'', mv.nota?'Nota/fornecedor: '+mv.nota:'', mv.tipo==='ajuste'?'Contado: '+fmtNum(mv.contado)+' (era '+fmtNum(mv.antes)+')':'', mv.obs||'',
+        mv.estornoDe?'Desfaz o lançamento de '+fmtQuando((dados.movimentos.find(function(x){ return x.id===mv.estornoDe; })||{}).quando):''].filter(Boolean);
+      const estornado=!!mv.estornadoPor;
+      return '<tr'+(estornado?' class="estornado" title="Estornado por '+esc(mv.estornadoPor.quem)+' em '+esc(fmtQuando(mv.estornadoPor.quando))+'"':'')+'>'+
+        '<td>'+esc(fmtQuando(mv.quando))+'<div class="sub">'+esc(mv.quem||'')+'</div></td>'+
+        (comMaterial?'<td><a href="#" onclick="abrirDetalhe(\''+mv.matId+'\');return false"><b>'+esc(m.codigo)+'</b></a><div class="sub">'+esc(mv.cor||'sem cor')+'</div></td>':'')+
+        '<td>'+NOME_TIPO_MOV[mv.tipo]+(comMaterial?'':'<div class="sub">'+esc(mv.cor||'sem cor')+'</div>')+'</td>'+
+        '<td class="num '+(d>=0?'mais':'menos')+'">'+(d>0?'+':'')+fmtNum(d)+'</td>'+
+        '<td class="some-cel">'+detalhe.map(esc).join('<br>')+(estornado?'<div class="sub">Estornado por '+esc(mv.estornadoPor.quem)+'</div>':'')+'</td>'+
+        '<td class="acoes">'+(podeEstornar(mv)?'<button class="btn btn-outline btn-sm" onclick="estornar(\''+mv.id+'\')" title="Desfazer este lançamento">Estornar</button>':'')+'</td></tr>';
+    }).join('')+'</tbody></table></div>';
+}
+// Ninguem apaga lancamento: quem errou estorna (um lancamento ao contrario,
+// que fica no historico). Quem lancou estorna o proprio no mesmo dia;
+// gerente e admin, qualquer um.
+function podeEstornar(mv){
+  if(ehConsulta()||ehEspelho()) return false;
+  if(mv.tipo==='estorno' || mv.estornadoPor) return false;
+  if(gerenteOuAdmin()) return true;
+  return mv.login && mv.login===login && diaLocal(mv.quando)===diaLocal(agoraISO());
+}
+async function estornar(id){
+  const mv=dados.movimentos.find(function(x){ return x.id===id; }); if(!mv) return;
+  const m=materialPorId(mv.matId)||{codigo:'?'};
+  if(!await perguntar('Estornar lançamento',NOME_TIPO_MOV[mv.tipo]+' de '+fmtNum(Math.abs(mv.delta))+' '+nomeUnidade(m)+' de '+m.codigo+(mv.cor?' ('+mv.cor+')':'')+
+    ', em '+fmtQuando(mv.quando)+' por '+mv.quem+'.\n\nO sistema lança o contrário e os dois ficam no histórico.','Estornar',true)) return;
+  await alterar(function(base){
+    const o=base.movimentos.find(function(x){ return x.id===id; });
+    if(!o) return 'Este lançamento não existe mais.';
+    if(o.estornadoPor) return 'Este lançamento já foi estornado por '+o.estornadoPor.quem+'.';
+    const novo={id:novoId(),matId:o.matId,cor:o.cor,tipo:'estorno',delta:arred(-(Number(o.delta)||0)),estornoDe:o.id,quando:agoraISO(),quem:usuario,login:login};
+    o.estornadoPor={quem:usuario,quando:novo.quando,movId:novo.id};
+    base.movimentos.push(novo);
+  },{acao:'estornou lançamento',alvo:m.codigo+(mv.cor?' · '+mv.cor:''),detalhe:NOME_TIPO_MOV[mv.tipo]+' '+fmtNum(mv.delta)});
+}
+
+// ================= JANELA: DETALHE DO MATERIAL =================
+function abrirDetalhe(matId){
+  _janelaAtual=function(){ desenharDetalhe(matId); };
+  desenharDetalhe(matId);
+}
+function desenharDetalhe(matId){
+  const m=materialPorId(matId);
+  if(!m){ fecharJanela(); return; }
+  const saldos=calcularSaldos();
+  const cores={};
+  Object.keys(saldos).forEach(function(k){ if(saldos[k].matId===m.id) cores[saldos[k].cor]=saldos[k].saldo; });
+  Object.keys(m.minimos||{}).forEach(function(c){ if(!(c in cores)) cores[c]=0; });
+  sobrasLivres().forEach(function(s){ if(s.matId===m.id && !(normCor(s.cor) in cores)) cores[normCor(s.cor)]=0; });
+  const ro=ehConsulta()||ehEspelho();
+  const un=nomeUnidade(m);
+  let h='<div style="display:grid;grid-template-columns:minmax(0,1fr);gap:10px">'+
+    (m.tipo==='perfil'?caixaFigura(m.codigo,'grande'):'')+
+    '<div><div class="cod" style="font-size:18px">'+esc(m.codigo)+'</div><div class="desc">'+esc(m.descricao||'')+'</div>'+
+    '<div class="sub">'+(m.tipo==='perfil'?'Perfil · barra de '+fmtNum(m.barraMm||6000)+' mm':'Componente · em '+esc(un))+
+    (m.criadoPor?' · cadastrado por '+esc(m.criadoPor):'')+'</div></div></div>';
+  h+='<div class="secao"><h4>Saldo por cor</h4>';
+  const lista=Object.keys(cores).sort();
+  if(!lista.length) h+='<div class="vazio" style="padding:10px">Ainda sem nenhum lançamento.</div>';
+  h+=lista.map(function(c){
+    const min=minimoDe(m,c), s=cores[c], baixo=min!==null&&s<min;
+    const nSob=sobrasLivres().filter(function(x){ return x.matId===m.id&&normCor(x.cor)===c; }).length;
+    return '<div class="cor-linha"><div><b>'+(c?esc(c):'<i>sem cor</i>')+'</b>'+(nSob?' <span class="pill pill-cor">'+nSob+' sobra(s)</span>':'')+
+      (baixo?' <span class="pill pill-ambar">abaixo do mínimo</span>':'')+'</div>'+
+      '<div class="num"><b class="'+(s<0?'menos':'')+'">'+fmtNum(s)+'</b> <span class="sub">'+esc(un)+'</span></div>'+
+      '<div title="Estoque mínimo desta cor">'+(ro?(min!==null?'mín. '+fmtNum(min):''):
+        '<span class="sub">mín.</span> <input type="text" inputmode="decimal" placeholder="mínimo" value="'+(min!==null?fmtNum(min):'')+'" onchange="gravarMinimo(\''+m.id+'\','+jsArg(c)+',this.value)">')+'</div></div>';
+  }).join('')+'</div>';
+  const movs=dados.movimentos.filter(function(x){ return x.matId===m.id; }).sort(function(a,b){ return String(b.quando).localeCompare(String(a.quando)); });
+  h+='<div class="secao"><h4>Lançamentos'+(movs.length>30?' (30 mais recentes de '+movs.length+')':'')+'</h4>'+
+    (movs.length?tabelaMovimentos(movs.slice(0,30),false):'<div class="vazio" style="padding:10px">Nenhum.</div>')+'</div>';
+  const pe=ro?'':
+    '<button class="btn btn-outline" onclick="abrirMaterial(\''+m.id+'\')">Editar cadastro</button>'+
+    '<button class="btn btn-outline" onclick="abrirAjuste(\''+m.id+'\')">Acertar contagem</button>'+
+    (m.tipo==='perfil'?'<button class="btn btn-outline" onclick="abrirSobra(\''+m.id+'\')">+ Sobra</button>':'')+
+    '<button class="btn btn-verm" onclick="abrirMovimento(\'saida\',\''+m.id+'\')">− Saída</button>'+
+    '<button class="btn btn-verde" onclick="abrirMovimento(\'entrada\',\''+m.id+'\')">+ Entrada</button>';
+  abrirJanela(m.codigo, h, pe, 680);
+  preencherFiguras(document.getElementById('janela-corpo'));
+}
+async function gravarMinimo(matId, cor, valor){
+  const v=String(valor).trim()===''?null:numero(valor);
+  if(v!==null && (v<0)){ aviso('Mínimo inválido','O mínimo precisa ser um número igual ou maior que zero.'); render(); return; }
+  if(String(valor).trim()!=='' && v===null){ aviso('Mínimo inválido','Digite só o número (ex.: 10).'); render(); return; }
+  const m=materialPorId(matId);
+  await alterar(function(base){
+    const b=base.materiais.find(function(x){ return x.id===matId; });
+    if(!b) return 'Este material não existe mais.';
+    if(!b.minimos) b.minimos={};
+    const c=normCor(cor);
+    if(v===null){ if(!(c in b.minimos)) return false; delete b.minimos[c]; }
+    else { if(b.minimos[c]===v) return false; b.minimos[c]=v; }
+    b.editadoPor=usuario; b.editadoEm=agoraISO();
+  },{acao:'mudou o mínimo',alvo:(m?m.codigo:'')+(cor?' · '+cor:''),detalhe:v===null?'sem mínimo':fmtNum(v)});
+}
+
+// ================= JANELA: CADASTRO DE MATERIAL =================
+function abrirMaterial(matId, codigoSugerido, depois){
+  if(recusarSeConsulta()) return;
+  const m=matId?materialPorId(matId):null;
+  const tipo=m?m.tipo:'perfil';
+  _janelaAtual=null;
+  const h='<div class="grade2"><div class="fg"><label>Tipo</label><select id="mt-tipo" onchange="ajustarCamposMaterial()"'+(m?' disabled':'')+'>'+
+      '<option value="perfil"'+(tipo==='perfil'?' selected':'')+'>Perfil (conta em barras)</option>'+
+      '<option value="componente"'+(tipo==='componente'?' selected':'')+'>Componente (peça, metro...)</option></select>'+
+      (m?'<small>O tipo não muda depois de cadastrado.</small>':'')+'</div>'+
+    '<div class="fg"><label>Código</label><input id="mt-cod" value="'+esc(m?m.codigo:(codigoSugerido||''))+'" placeholder="Ex.: LG068" oninput="mostrarFiguraDoCadastro()" autocomplete="off"></div></div>'+
+    '<div id="mt-fig"></div>'+
+    '<div class="fg"><label>Descrição</label><input id="mt-desc" value="'+esc(m?m.descricao:'')+'" placeholder="Ex.: MARCO, FOLHA, ROLDANA 80KG"></div>'+
+    '<div class="grade2"><div class="fg" id="mt-barra-g"><label>Comprimento da barra (mm)</label><input id="mt-barra" inputmode="numeric" value="'+esc(m&&m.barraMm?m.barraMm:6000)+'"></div>'+
+    '<div class="fg" id="mt-un-g"><label>Unidade</label><select id="mt-un">'+UNIDADES_COMPONENTE.map(function(u){
+      return '<option value="'+u+'"'+((m&&m.unidade===u)?' selected':'')+'>'+u+' — '+NOME_UNIDADE[u]+'</option>'; }).join('')+'</select></div></div>'+
+    (m?'<div class="fg"><label><input type="checkbox" id="mt-inativo"'+(m.inativo?' checked':'')+'> Não uso mais este material (some da lista; o histórico fica)</label></div>':'');
+  abrirJanela(m?'Editar '+m.codigo:'Cadastrar material', h,
+    '<button class="btn btn-outline" onclick="fecharJanela()">Cancelar</button><button class="btn btn-cor" id="mt-salvar">Salvar</button>');
+  document.getElementById('mt-salvar').onclick=function(){ salvarMaterial(matId, depois); };
+  ajustarCamposMaterial(); mostrarFiguraDoCadastro();
+  setTimeout(function(){ const c=document.getElementById(m?'mt-desc':'mt-cod'); if(c) c.focus(); },60);
+}
+function ajustarCamposMaterial(){
+  const t=document.getElementById('mt-tipo').value;
+  document.getElementById('mt-barra-g').style.display=t==='perfil'?'':'none';
+  document.getElementById('mt-un-g').style.display=t==='perfil'?'none':'';
+  mostrarFiguraDoCadastro();
+}
+function mostrarFiguraDoCadastro(){
+  const d=document.getElementById('mt-fig'); if(!d) return;
+  const cod=normCodigo(document.getElementById('mt-cod').value);
+  if(document.getElementById('mt-tipo').value!=='perfil'||!cod){ d.innerHTML=''; return; }
+  clearTimeout(window._tFig);
+  window._tFig=setTimeout(async function(){
+    try{ await carregarListaPerfis(); }catch(e){}
+    if(normCodigo(document.getElementById('mt-cod').value)!==cod) return;
+    d.innerHTML=figuraDoCodigo(cod)?'<div class="escolhido">'+caixaFigura(cod)+'<div class="sub">Figura do SmartCEM para <b>'+esc(cod)+'</b></div></div>':
+      '<div class="sub" style="margin-bottom:8px">Sem figura na biblioteca para <b>'+esc(cod)+'</b> (pode cadastrar assim mesmo).</div>';
+    preencherFiguras(d);
+  },300);
+}
+async function salvarMaterial(matId, depois){
+  const tipo=document.getElementById('mt-tipo').value;
+  const codigo=normCodigo(document.getElementById('mt-cod').value);
+  const descricao=document.getElementById('mt-desc').value.trim();
+  const barra=numero(document.getElementById('mt-barra').value);
+  const unidade=document.getElementById('mt-un').value;
+  const inativo=!!(document.getElementById('mt-inativo')&&document.getElementById('mt-inativo').checked);
+  if(!codigo){ aviso('Falta o código','Digite o código do material (o mesmo do SmartCEM).'); return; }
+  if(tipo==='perfil' && !(barra>0)){ aviso('Comprimento da barra','Digite o comprimento da barra em milímetros (ex.: 6000).'); return; }
+  let novoId_=matId||novoId();
+  const deu=await alterar(function(base){
+    const repetido=base.materiais.find(function(x){ return x.id!==matId && !x.inativo && normCodigo(x.codigo)===codigo; });
+    if(repetido) return 'Já existe um material com o código '+codigo+' ('+(repetido.descricao||'sem descrição')+').';
+    if(matId){
+      const b=base.materiais.find(function(x){ return x.id===matId; });
+      if(!b) return 'Este material não existe mais.';
+      b.codigo=codigo; b.descricao=descricao;
+      if(b.tipo==='perfil') b.barraMm=barra; else b.unidade=unidade;
+      if(inativo) b.inativo=true; else delete b.inativo;
+      b.editadoPor=usuario; b.editadoEm=agoraISO();
+    } else {
+      const n={id:novoId_,tipo:tipo,codigo:codigo,descricao:descricao,minimos:{},criadoPor:usuario,criadoEm:agoraISO()};
+      if(tipo==='perfil') n.barraMm=barra; else n.unidade=unidade;
+      base.materiais.push(n);
+    }
+  },{acao:matId?'editou material':'cadastrou material',alvo:codigo,detalhe:descricao});
+  if(!deu) return;
+  fecharJanela();
+  if(depois) depois(novoId_); else abrirDetalhe(novoId_);
+}
+
+// ================= JANELA: ENTRADA / SAIDA =================
+let _mov=null;   // {tipo, matId}
+function abrirMovimento(tipo, matId){
+  if(recusarSeConsulta()) return;
+  _mov={tipo:tipo, matId:matId||null};
+  _janelaAtual=null;
+  const lista=dados.materiais.filter(function(m){ return !m.inativo; }).sort(function(a,b){ return normCodigo(a.codigo).localeCompare(normCodigo(b.codigo)); });
+  const m=matId?materialPorId(matId):null;
+  const obrasOrdem=obras.slice().sort(function(a,b){ return String(b.ct||'').localeCompare(String(a.ct||''),undefined,{numeric:true}); });
+  let h='<datalist id="mv-lista">'+lista.map(function(x){ return '<option value="'+esc(x.codigo)+'">'+esc(x.descricao||'')+'</option>'; }).join('')+'</datalist>'+
+    '<datalist id="mv-cores">'+coresConhecidas().map(function(c){ return '<option value="'+esc(c)+'">'; }).join('')+'</datalist>'+
+    '<div class="fg"><label>Código do material</label><input id="mv-cod" list="mv-lista" value="'+esc(m?m.codigo:'')+'" placeholder="Digite o código (ex.: LG068)" autocomplete="off" oninput="mostrarEscolhidoMov()"></div>'+
+    '<div id="mv-escolhido"></div>'+
+    '<div class="grade2"><div class="fg"><label>Cor / tratamento</label><input id="mv-cor" list="mv-cores" placeholder="Ex.: PINTURA PRETO FOSCO - RAL9005F" autocomplete="off" oninput="mostrarEscolhidoMov()"><small>Componente sem cor: deixe em branco.</small></div>'+
+    '<div class="fg"><label>Quantidade</label><input id="mv-qtd" inputmode="decimal" placeholder="0"><small id="mv-un"></small></div></div>';
+  if(tipo==='saida') h+='<div class="fg"><label>Para qual obra</label><select id="mv-obra"><option value="">Sem obra (uso interno, perda, conserto...)</option>'+
+    obrasOrdem.map(function(o){ return '<option value="'+esc(o.id)+'">'+esc(rotuloObra(o))+'</option>'; }).join('')+'</select>'+
+    (obras.length?'':'<small>A lista de obras não chegou. Confira a internet.</small>')+'</div>';
+  else h+='<div class="fg"><label>Nota fiscal / fornecedor (opcional)</label><input id="mv-nota" placeholder="Ex.: NF 1234 · Alumínio Real"></div>';
+  h+='<div class="fg"><label>Observação (opcional)</label><input id="mv-obs"></div>';
+  abrirJanela(tipo==='entrada'?'Entrada no estoque':'Saída do estoque', h,
+    '<button class="btn btn-outline" onclick="fecharJanela()">Cancelar</button><button class="btn '+(tipo==='entrada'?'btn-verde':'btn-verm')+'" id="mv-salvar" onclick="salvarMovimento()">'+(tipo==='entrada'?'Lançar entrada':'Lançar saída')+'</button>');
+  mostrarEscolhidoMov();
+  setTimeout(function(){ const c=document.getElementById(m?'mv-cor':'mv-cod'); if(c) c.focus(); },60);
+}
+function mostrarEscolhidoMov(){
+  const d=document.getElementById('mv-escolhido'); if(!d) return;
+  const cod=normCodigo(document.getElementById('mv-cod').value);
+  const m=materialPorCodigo(cod);
+  const un=document.getElementById('mv-un');
+  if(!cod){ d.innerHTML=''; if(un) un.textContent=''; return; }
+  if(!m){
+    d.innerHTML='<div class="aviso-linha aviso-ambar"><b>'+esc(cod)+'</b> ainda não está cadastrado. '+
+      '<button class="btn btn-outline btn-sm" onclick="cadastrarDaMovimentacao()">Cadastrar agora</button></div>';
+    if(un) un.textContent='';
+    return;
+  }
+  const cor=normCor(document.getElementById('mv-cor').value);
+  const s=saldoDe(m.id,cor);
+  if(un) un.textContent=nomeUnidade(m)+(m.tipo==='perfil'?' de '+fmtNum(m.barraMm||6000)+' mm':'');
+  const antes=d.getAttribute('data-cod');
+  const texto='<div><div class="cod">'+esc(m.codigo)+'</div><div class="desc">'+esc(m.descricao||'')+'</div>'+
+    '<div class="sub">Saldo agora'+(cor?' em '+esc(cor):' sem cor')+': <b>'+fmtNum(s)+'</b> '+esc(nomeUnidade(m))+'</div></div>';
+  if(antes===m.codigo && d.querySelector('.escolhido')){ d.querySelector('.escolhido > div:last-child').outerHTML=texto; return; }
+  d.setAttribute('data-cod',m.codigo);
+  d.innerHTML='<div class="escolhido">'+(m.tipo==='perfil'?caixaFigura(m.codigo):'<div class="fig" style="font-size:20px">🔩</div>')+texto+'</div>';
+  preencherFiguras(d);
+}
+function cadastrarDaMovimentacao(){
+  const cod=normCodigo(document.getElementById('mv-cod').value);
+  const cor=document.getElementById('mv-cor').value, qtd=document.getElementById('mv-qtd').value;
+  const tipo=_mov.tipo;
+  abrirMaterial(null, cod, function(id){
+    abrirMovimento(tipo, id);
+    document.getElementById('mv-cor').value=cor; document.getElementById('mv-qtd').value=qtd;
+    mostrarEscolhidoMov();
+  });
+}
+async function salvarMovimento(){
+  const tipo=_mov.tipo;
+  const m=materialPorCodigo(document.getElementById('mv-cod').value);
+  if(!m){ aviso('Escolha o material','Digite um código já cadastrado, ou cadastre antes.'); return; }
+  const cor=normCor(document.getElementById('mv-cor').value);
+  const q=numero(document.getElementById('mv-qtd').value);
+  if(!(q>0)){ aviso('Quantidade','Digite uma quantidade maior que zero.'); return; }
+  if(m.tipo==='perfil' && Math.round(q)!==q){ aviso('Quantidade de barras','Perfil é contado em barras inteiras.\n\nPedaço de barra entra como sobra (aba Sobras).'); return; }
+  if(m.tipo==='perfil' && !cor && !await perguntar('Sem cor','Perfil quase sempre tem cor ou tratamento (NATURAL, PINTURA...).\n\nLançar sem cor mesmo assim?','Lançar sem cor')) return;
+  const obraId=tipo==='saida'?document.getElementById('mv-obra').value:'';
+  const o=obraId?obraPorId(obraId):null;
+  const nota=tipo==='entrada'?document.getElementById('mv-nota').value.trim():'';
+  const obs=document.getElementById('mv-obs').value.trim();
+  const btn=document.getElementById('mv-salvar'); btn.disabled=true;
+  const deu=await alterar(function(base){
+    const b=base.materiais.find(function(x){ return x.id===m.id; });
+    if(!b) return 'Este material não existe mais.';
+    // O saldo e conferido no que esta NO BANCO agora, nao no que a tela viu:
+    // um colega pode ter tirado do estoque no meio.
+    if(tipo==='saida'){
+      const s=saldoDe(m.id,cor,base);
+      if(q>s) return 'Saldo insuficiente: há '+fmtNum(s)+' '+nomeUnidade(m)+' de '+m.codigo+(cor?' ('+cor+')':' sem cor')+' e a saída é de '+fmtNum(q)+'.\n\n'+
+        'Se a contagem física está diferente, use "Acertar contagem" no material.';
+    }
+    const mv={id:novoId(),matId:m.id,cor:cor,tipo:tipo,delta:tipo==='entrada'?q:-q,quando:agoraISO(),quem:usuario,login:login};
+    if(o) mv.obra={id:o.id,ct:o.ct||'',cliente:o.cliente||'',proposta:o.proposta||''};
+    if(nota) mv.nota=nota;
+    if(obs) mv.obs=obs;
+    base.movimentos.push(mv);
+  },{acao:tipo==='entrada'?'entrada':'saída',alvo:m.codigo+(cor?' · '+cor:''),detalhe:fmtNum(q)+' '+nomeUnidade(m)+(o?' · obra '+rotuloObra(o):'')});
+  if(btn) btn.disabled=false;
+  if(deu){ fecharJanela(); status('🟢 '+(tipo==='entrada'?'Entrada':'Saída')+' lançada · '+agoraHora()); }
+}
+
+// ================= JANELA: ACERTAR CONTAGEM =================
+function abrirAjuste(matId){
+  if(recusarSeConsulta()) return;
+  const m=materialPorId(matId); if(!m) return;
+  _janelaAtual=null;
+  const h='<div class="escolhido">'+(m.tipo==='perfil'?caixaFigura(m.codigo):'<div class="fig" style="font-size:20px">🔩</div>')+
+    '<div><div class="cod">'+esc(m.codigo)+'</div><div class="desc">'+esc(m.descricao||'')+'</div></div></div>'+
+    '<datalist id="aj-cores">'+coresConhecidas().map(function(c){ return '<option value="'+esc(c)+'">'; }).join('')+'</datalist>'+
+    '<div class="aviso-linha aviso-azul">Use quando a contagem física não bate com o sistema. Digite <b>quanto tem de verdade</b>: o sistema lança a diferença e guarda no histórico.</div>'+
+    '<div class="grade2"><div class="fg"><label>Cor / tratamento</label><input id="aj-cor" list="aj-cores" autocomplete="off" oninput="mostrarSaldoAjuste(\''+m.id+'\')"></div>'+
+    '<div class="fg"><label>Quanto tem contado</label><input id="aj-qtd" inputmode="decimal"><small id="aj-saldo"></small></div></div>'+
+    '<div class="fg"><label>Motivo</label><input id="aj-obs" placeholder="Ex.: inventário de novembro"></div>';
+  abrirJanela('Acertar contagem', h, '<button class="btn btn-outline" onclick="fecharJanela()">Cancelar</button><button class="btn btn-cor" id="aj-salvar" onclick="salvarAjuste(\''+m.id+'\')">Acertar</button>');
+  preencherFiguras(document.getElementById('janela-corpo'));
+  mostrarSaldoAjuste(m.id);
+}
+function mostrarSaldoAjuste(matId){
+  const m=materialPorId(matId), cor=normCor(document.getElementById('aj-cor').value);
+  document.getElementById('aj-saldo').textContent='No sistema: '+fmtNum(saldoDe(matId,cor))+' '+nomeUnidade(m)+(cor?'':' (sem cor)');
+}
+async function salvarAjuste(matId){
+  const m=materialPorId(matId);
+  const cor=normCor(document.getElementById('aj-cor').value);
+  const contado=numero(document.getElementById('aj-qtd').value);
+  const obs=document.getElementById('aj-obs').value.trim();
+  if(contado===null||contado<0){ aviso('Quantidade','Digite quanto tem de verdade (zero ou mais).'); return; }
+  if(m.tipo==='perfil' && Math.round(contado)!==contado){ aviso('Quantidade de barras','Perfil é contado em barras inteiras.'); return; }
+  if(!obs){ aviso('Falta o motivo','Escreva o motivo do acerto (ex.: inventário, barra danificada).'); return; }
+  let dif=0;
+  const deu=await alterar(function(base){
+    const antes=saldoDe(matId,cor,base);
+    dif=arred(contado-antes);
+    if(!dif) return 'O sistema já mostra '+fmtNum(antes)+'. Nada a acertar.';
+    base.movimentos.push({id:novoId(),matId:matId,cor:cor,tipo:'ajuste',delta:dif,contado:contado,antes:antes,obs:obs,quando:agoraISO(),quem:usuario,login:login});
+  },function(){ return {acao:'acertou contagem',alvo:m.codigo+(cor?' · '+cor:''),detalhe:'contado '+fmtNum(contado)+' ('+(dif>0?'+':'')+fmtNum(dif)+')'}; });
+  if(deu) abrirDetalhe(matId);
+}
+
+// ================= JANELA: SOBRAS =================
+function abrirSobra(matId){
+  if(recusarSeConsulta()) return;
+  const m=matId?materialPorId(matId):null;
+  _janelaAtual=null;
+  const perfis=dados.materiais.filter(function(x){ return !x.inativo && x.tipo==='perfil'; }).sort(function(a,b){ return normCodigo(a.codigo).localeCompare(normCodigo(b.codigo)); });
+  const h='<datalist id="sb-lista">'+perfis.map(function(x){ return '<option value="'+esc(x.codigo)+'">'+esc(x.descricao||'')+'</option>'; }).join('')+'</datalist>'+
+    '<datalist id="sb-cores">'+coresConhecidas().map(function(c){ return '<option value="'+esc(c)+'">'; }).join('')+'</datalist>'+
+    '<div class="fg"><label>Perfil</label><input id="sb-cod" list="sb-lista" value="'+esc(m?m.codigo:'')+'" placeholder="Código do perfil" autocomplete="off"></div>'+
+    '<div class="grade2"><div class="fg"><label>Cor / tratamento</label><input id="sb-cor" list="sb-cores" autocomplete="off"></div>'+
+    '<div class="fg"><label>Comprimento (mm)</label><input id="sb-mm" inputmode="numeric" placeholder="Ex.: 1250"></div></div>'+
+    '<div class="grade2"><div class="fg"><label>Quantas peças desse tamanho</label><input id="sb-n" inputmode="numeric" value="1"></div>'+
+    '<div class="fg"><label>Onde está guardada (opcional)</label><input id="sb-local" placeholder="Ex.: prateleira 3"></div></div>'+
+    '<div class="fg"><label>Sobrou de qual obra (opcional)</label><select id="sb-obra"><option value="">—</option>'+
+      obras.slice().sort(function(a,b){ return String(b.ct||'').localeCompare(String(a.ct||''),undefined,{numeric:true}); }).map(function(o){ return '<option value="'+esc(o.id)+'">'+esc(rotuloObra(o))+'</option>'; }).join('')+'</select></div>'+
+    '<div class="fg"><label>Observação (opcional)</label><input id="sb-obs"></div>';
+  abrirJanela('Guardar sobra', h, '<button class="btn btn-outline" onclick="fecharJanela()">Cancelar</button><button class="btn btn-cor" id="sb-salvar" onclick="salvarSobra()">Guardar</button>');
+  setTimeout(function(){ const c=document.getElementById(m?'sb-cor':'sb-cod'); if(c) c.focus(); },60);
+}
+async function salvarSobra(){
+  const m=materialPorCodigo(document.getElementById('sb-cod').value);
+  if(!m||m.tipo!=='perfil'){ aviso('Escolha o perfil','Digite o código de um perfil já cadastrado.'); return; }
+  const cor=normCor(document.getElementById('sb-cor').value);
+  const mm=numero(document.getElementById('sb-mm').value);
+  const n=numero(document.getElementById('sb-n').value);
+  if(!(mm>0)){ aviso('Comprimento','Digite o comprimento da sobra em milímetros.'); return; }
+  if(m.barraMm && mm>=m.barraMm){ aviso('Comprimento','A sobra ('+fmtNum(mm)+' mm) não pode ser do tamanho da barra inteira ('+fmtNum(m.barraMm)+' mm).\n\nBarra inteira entra como Entrada.'); return; }
+  if(!(n>=1) || Math.round(n)!==n || n>200){ aviso('Quantidade de peças','Digite quantas peças (de 1 a 200).'); return; }
+  const local=document.getElementById('sb-local').value.trim(), obs=document.getElementById('sb-obs').value.trim();
+  const oid=document.getElementById('sb-obra').value, o=oid?obraPorId(oid):null;
+  const deu=await alterar(function(base){
+    if(!base.materiais.find(function(x){ return x.id===m.id; })) return 'Este perfil não existe mais.';
+    const quando=agoraISO();
+    for(let i=0;i<n;i++){
+      const s={id:novoId(),matId:m.id,cor:cor,mm:mm,entrou:{quem:usuario,login:login,quando:quando},saiu:null};
+      if(o) s.entrou.obra={id:o.id,ct:o.ct||'',cliente:o.cliente||''};
+      if(local) s.local=local;
+      if(obs) s.obs=obs;
+      base.sobras.push(s);
+    }
+  },{acao:'guardou sobra',alvo:m.codigo+(cor?' · '+cor:''),detalhe:n+' × '+fmtNum(mm)+' mm'});
+  if(deu){ fecharJanela(); if(aba!=='sobras') trocarAba('sobras'); }
+}
+function abrirUsoSobra(id){
+  if(recusarSeConsulta()) return;
+  const s=dados.sobras.find(function(x){ return x.id===id; }); if(!s) return;
+  const m=materialPorId(s.matId)||{codigo:'?'};
+  _janelaAtual=null;
+  const h='<div class="escolhido">'+caixaFigura(m.codigo)+'<div><div class="cod">'+esc(m.codigo)+'</div><div class="sub">'+esc(s.cor||'sem cor')+' · <b>'+fmtNum(s.mm)+' mm</b></div></div></div>'+
+    '<div class="fg"><label>Para qual obra</label><select id="us-obra"><option value="">Sem obra (descartada, uso interno...)</option>'+
+    obras.slice().sort(function(a,b){ return String(b.ct||'').localeCompare(String(a.ct||''),undefined,{numeric:true}); }).map(function(o){ return '<option value="'+esc(o.id)+'">'+esc(rotuloObra(o))+'</option>'; }).join('')+'</select></div>'+
+    '<div class="fg"><label>Observação (opcional)</label><input id="us-obs"></div>';
+  abrirJanela('Usar sobra', h, '<button class="btn btn-outline" onclick="fecharJanela()">Cancelar</button><button class="btn btn-cor" onclick="salvarUsoSobra(\''+id+'\')">Usar esta sobra</button>');
+  preencherFiguras(document.getElementById('janela-corpo'));
+}
+async function salvarUsoSobra(id){
+  const oid=document.getElementById('us-obra').value, o=oid?obraPorId(oid):null;
+  const obs=document.getElementById('us-obs').value.trim();
+  const s0=dados.sobras.find(function(x){ return x.id===id; }), m=s0&&materialPorId(s0.matId);
+  const deu=await alterar(function(base){
+    const s=base.sobras.find(function(x){ return x.id===id; });
+    if(!s) return 'Esta sobra não existe mais.';
+    if(s.saiu) return 'Esta sobra já foi usada por '+s.saiu.quem+' em '+fmtQuando(s.saiu.quando)+'.';
+    s.saiu={quem:usuario,login:login,quando:agoraISO()};
+    if(o) s.saiu.obra={id:o.id,ct:o.ct||'',cliente:o.cliente||''};
+    if(obs) s.saiu.obs=obs;
+  },{acao:'usou sobra',alvo:(m?m.codigo:'')+(s0&&s0.cor?' · '+s0.cor:''),detalhe:(s0?fmtNum(s0.mm)+' mm':'')+(o?' · obra '+rotuloObra(o):'')});
+  if(deu) fecharJanela();
+}
+
+// ================= ABA: FIGURAS DOS PERFIS =================
+let _figs={busca:'',fam:'',pagina:0,cadastrados:false};
+const FIGS_POR_PAGINA=48;
+function familia(cod){ const m=String(cod).toUpperCase().match(/^[A-Z]+/); return m?m[0]:'NÚMEROS'; }
+async function desenharFiguras(){
+  const corpo=document.getElementById('figuras-corpo'); if(!corpo) return;
+  let lista;
+  try{ lista=await carregarListaPerfis(); }
+  catch(e){ corpo.innerHTML='<div class="vazio">Não consegui abrir a lista de figuras: '+esc(e.message)+'</div>'; return; }
+  if(!document.getElementById('figuras-corpo')) return;
+  const cadastrados={}; dados.materiais.forEach(function(m){ if(!m.inativo) cadastrados[normCodigo(m.codigo)]=m.id; });
+  const contagem={}; lista.forEach(function(c){ const f=familia(c.codigo); contagem[f]=(contagem[f]||0)+1; });
+  const fams=Object.keys(contagem).sort(function(a,b){ return contagem[b]-contagem[a] || a.localeCompare(b); });
+  const q=semAcento(_figs.busca).toUpperCase().replace(/[^A-Z0-9]+/g,'');
+  const filtrados=lista.filter(function(c){
+    if(_figs.fam && familia(c.codigo)!==_figs.fam) return false;
+    if(_figs.cadastrados && !cadastrados[c.codigo]) return false;
+    if(q && c.codigo.replace(/[^A-Z0-9]+/g,'').indexOf(q)<0) return false;
+    return true;
+  });
+  // Quem digita "LG0" quer os LG0... antes dos KAW-LG0...: igual primeiro,
+  // depois os que comecam com o que foi digitado, depois o resto.
+  if(q){
+    const peso=function(c){ const k=c.codigo.replace(/[^A-Z0-9]+/g,''); return k===q?0:(k.indexOf(q)===0?1:2); };
+    filtrados.sort(function(a,b){ return peso(a)-peso(b) || a.codigo.localeCompare(b.codigo); });
+  }
+  const paginas=Math.max(1,Math.ceil(filtrados.length/FIGS_POR_PAGINA));
+  if(_figs.pagina>=paginas) _figs.pagina=paginas-1;
+  const pag=filtrados.slice(_figs.pagina*FIGS_POR_PAGINA,(_figs.pagina+1)*FIGS_POR_PAGINA);
+  let h='<div class="barra"><input class="busca" id="figs-busca" placeholder="Buscar pelo código (ex.: LG068, FA-200, SU)" value="'+esc(_figs.busca)+'" '+
+      'oninput="_figs.busca=this.value;_figs.pagina=0;clearTimeout(window._tF);window._tF=setTimeout(desenharFiguras,300)">'+
+    '<select class="busca" style="flex:0 0 auto;width:auto" onchange="_figs.fam=this.value;_figs.pagina=0;desenharFiguras()">'+
+      '<option value="">Todas as famílias ('+lista.length+')</option>'+fams.map(function(f){ return '<option value="'+esc(f)+'"'+(f===_figs.fam?' selected':'')+'>'+esc(f)+' ('+contagem[f]+')</option>'; }).join('')+'</select>'+
+    (soAdmin()&&!ehEspelho()?'<button class="btn btn-outline" onclick="abrirCargaPerfis()">☁ Subir figuras para a nuvem</button>':'')+'</div>'+
+    '<div class="filtros"><label><input type="checkbox"'+(_figs.cadastrados?' checked':'')+' onchange="_figs.cadastrados=this.checked;_figs.pagina=0;desenharFiguras()"> Só os já cadastrados no estoque</label>'+
+    '<span style="color:var(--gray-5)">'+filtrados.length+' figura(s)'+(paginas>1?' · página '+(_figs.pagina+1)+' de '+paginas:'')+'</span></div>';
+  h+='<div class="figs-grade">'+pag.map(function(c){
+    const mid=cadastrados[c.codigo];
+    return '<button class="fig-cel" onclick="'+(mid?'abrirDetalhe(\''+mid+'\')':'cadastrarDaFigura('+jsArg(c.codigo)+')')+'" title="'+esc(c.codigo)+'">'+
+      '<img data-fig="'+esc(c.id)+'" alt=""><span>'+esc(c.codigo)+'</span>'+(mid?'<small>✓ no estoque</small>':'')+'</button>';
+  }).join('')+'</div>';
+  if(!pag.length) h+='<div class="vazio">Nenhuma figura com esse código.</div>';
+  if(paginas>1) h+='<div class="paginas">'+
+    '<button class="btn btn-outline btn-sm"'+(_figs.pagina?'':' disabled')+' onclick="_figs.pagina--;desenharFiguras()">← anteriores</button>'+
+    '<button class="btn btn-outline btn-sm"'+(_figs.pagina<paginas-1?'':' disabled')+' onclick="_figs.pagina++;desenharFiguras()">próximas →</button></div>';
+  const foco=document.activeElement&&document.activeElement.id==='figs-busca';
+  corpo.innerHTML=h;
+  if(foco){ const b=document.getElementById('figs-busca'); b.focus(); b.setSelectionRange(b.value.length,b.value.length); }
+  try{
+    const links=await linksDeFiguras(pag.map(function(c){ return c.id; }));
+    pag.forEach(function(c,i){
+      const im=corpo.querySelector('img[data-fig="'+c.id+'"]'); if(!im) return;
+      im.onerror=function(){ im.replaceWith(Object.assign(document.createElement('div'),{className:'falta',textContent:'ainda não carregada'})); };
+      im.src=links[i];
+    });
+  }catch(err){ corpo.insertAdjacentHTML('afterbegin','<div class="aviso-linha aviso-verm">Não consegui mostrar as figuras: '+esc(err.message)+'</div>'); }
+}
+async function cadastrarDaFigura(cod){
+  if(ehConsulta()||ehEspelho()){ aviso('Só consulta','Este perfil ainda não está cadastrado no estoque.'); return; }
+  if(!await perguntar('Cadastrar '+cod,'O perfil '+cod+' ainda não está no estoque.\n\nCadastrar agora?','Cadastrar')) return;
+  abrirMaterial(null, cod);
+}
+
+// ---- Subir a biblioteca para a nuvem (so admin, uma vez) ----
+// A pessoa escolhe a PASTA C:\Daluminium\figuras-perfis (figuras ja
+// reduzidas, nome = codigo limpo). O Worker assina com overwrite=false: subir
+// de novo o que ja esta la nao estraga nada, e o navegador lembra o que ja foi
+// (localStorage), para recomecar de onde parou.
+const LS_PERFIS_SUBIDOS='dalum-perfis-subidos';
+let _carga=null;
+function perfisJaSubidos(){ try{ return new Set(JSON.parse(localStorage.getItem(LS_PERFIS_SUBIDOS)||'[]')); }catch(e){ return new Set(); } }
+function guardarSubidos(s){ try{ localStorage.setItem(LS_PERFIS_SUBIDOS,JSON.stringify(Array.from(s))); }catch(e){} }
+async function abrirCargaPerfis(){
+  if(!soAdmin()){ aviso('Só o administrador','Só o administrador carrega a biblioteca de figuras.'); return; }
+  let lista; try{ lista=await carregarListaPerfis(); }catch(e){ aviso('Lista de figuras',e.message); return; }
+  const subidos=perfisJaSubidos();
+  const ja=lista.filter(function(c){ return subidos.has(c.id); }).length;
+  _janelaAtual=null;
+  abrirJanela('Figuras dos perfis na nuvem','<div style="font-size:13.5px;line-height:1.6">'+
+    'A lista tem <b>'+lista.length+'</b> figuras. Por este computador já subiram <b>'+ja+'</b>.<br><br>'+
+    '1. Clique em <b>Escolher a pasta</b> e selecione a pasta <b>C:\\Daluminium\\figuras-perfis</b>.<br>'+
+    '2. O navegador pergunta se pode enviar os arquivos: confirme.<br>'+
+    '3. Deixe esta tela aberta até terminar (uns 30 a 40 minutos). Se parar, é só fazer de novo: continua de onde parou.</div>'+
+    '<div style="margin-top:12px"><label class="btn btn-cor">📁 Escolher a pasta<input type="file" webkitdirectory multiple hidden onchange="iniciarCargaPerfis(this)"></label></div>'+
+    '<div id="carga-status" style="margin-top:12px"></div>', '', 560);
+  if(_carga && !_carga.fim) mostrarCarga();
+}
+function mostrarCarga(){
+  const st=document.getElementById('carga-status'); if(!st||!_carga) return;
+  const pct=_carga.total?Math.round(_carga.feitos*100/_carga.total):100;
+  st.innerHTML='<div style="background:var(--gray-2);border-radius:6px;height:12px;overflow:hidden"><div style="background:var(--cor);height:12px;width:'+pct+'%"></div></div>'+
+    '<div style="font-size:13px;margin-top:6px">'+_carga.feitos+' de '+_carga.total+' enviadas ('+pct+'%)'+(_carga.erros.length?' · <span style="color:var(--red)">'+_carga.erros.length+' com erro</span>':'')+
+    (_carga.fora?' · '+_carga.fora+' arquivo(s) fora da lista (ignorados)':'')+'</div>'+
+    (_carga.parar||_carga.fim?'':'<button class="btn btn-outline btn-sm" style="margin-top:6px" onclick="_carga.parar=true">Pausar</button>')+
+    (_carga.fim?'<div class="aviso-linha '+(_carga.parar?'aviso-ambar':'aviso-azul')+'" style="margin-top:8px">'+(_carga.parar?'Pausado. Para continuar, escolha a pasta de novo.':
+      'Terminado. '+_carga.feitos+' figura(s) enviada(s)'+(_carga.erros.length?'; '+_carga.erros.length+' com erro — escolha a pasta de novo para tentar só essas.':'.'))+'</div>':'');
+}
+async function iniciarCargaPerfis(input){
+  const arquivos=Array.prototype.slice.call(input.files||[]); input.value='';
+  const lista=await carregarListaPerfis();
+  const porId={}; lista.forEach(function(c){ porId[c.id.toUpperCase()]=c; });
+  const subidos=perfisJaSubidos();
+  const fila=[]; let fora=0, achados=0;
+  arquivos.forEach(function(f){
+    if(!/\.png$/i.test(f.name)) return;
+    const c=porId[f.name.replace(/\.png$/i,'').toUpperCase()];
+    if(!c){ fora++; return; }
+    achados++;
+    if(!subidos.has(c.id)) fila.push({f:f,c:c});
+  });
+  const st=document.getElementById('carga-status');
+  if(!achados){
+    if(st) st.innerHTML='<div class="aviso-linha aviso-ambar">Não achei figuras nesta pasta ('+arquivos.length+' arquivo(s)). Escolha a pasta <b>figuras-perfis</b>.</div>';
+    return;
+  }
+  if(!fila.length){ if(st) st.innerHTML='<div class="aviso-linha aviso-azul">Nada a enviar: todas as '+achados+' figuras desta pasta já estão na nuvem.</div>'; return; }
+  _carga={total:fila.length, feitos:0, erros:[], parar:false, fim:false, fora:fora};
+  mostrarCarga();
+  let i=0;
+  const trabalhador=async function(){
+    while(i<fila.length && !_carga.parar){
+      const it=fila[i++];
+      try{
+        const r=await fetch(WORKER,{method:'POST',cache:'no-store',
+          headers:cabecalhos({'Content-Type':'application/json','X-Action':'assinar-envio'}),
+          body:JSON.stringify({pasta:PASTA_PERFIS, publicId:it.c.id})});
+        let a=null; try{ a=await r.json(); }catch(e){}
+        if(r.status===401){ sessaoExpirada(); _carga.parar=true; return; }
+        if(!r.ok||!a||!a.signature) throw new Error((a&&a.erro)||('assinatura '+r.status));
+        const fd=new FormData();
+        fd.append('file',it.f); fd.append('api_key',a.api_key); fd.append('timestamp',a.timestamp);
+        fd.append('signature',a.signature); fd.append('public_id',a.public_id); fd.append('overwrite',a.overwrite); fd.append('type',a.type);
+        const up=await fetch('https://api.cloudinary.com/v1_1/'+a.conta+'/image/upload',{method:'POST',body:fd});
+        if(!up.ok){
+          let t=''; try{ t=await up.text(); }catch(e){}
+          // overwrite=false: a figura ja estava la (outro computador subiu). Conta como feita.
+          if(!/already exists/i.test(t)) throw new Error('nuvem '+up.status+' '+t.slice(0,80));
+        }
+        subidos.add(it.c.id);
+        _carga.feitos++;
+        if(_carga.feitos%50===0) guardarSubidos(subidos);
+      }catch(err){ _carga.erros.push(it.c.codigo+': '+err.message); }
+      mostrarCarga();
+    }
+  };
+  await Promise.all([trabalhador(),trabalhador(),trabalhador(),trabalhador(),trabalhador(),trabalhador()]);
+  guardarSubidos(subidos);
+  _carga.fim=true;
+  mostrarCarga();
+  if(_carga.erros.length) console.warn('Figuras com erro:',_carga.erros);
+}
+
+window.addEventListener('beforeunload',function(ev){
+  if(_carga && !_carga.parar && !_carga.fim){ ev.preventDefault(); ev.returnValue=''; }
+});
+
+// ================= ABERTURA =================
+function abrirApp(nome,papelDoUsuario){
+  usuario=nome;
+  papel=String(papelDoUsuario||'').toLowerCase();
+  const t=lerToken(); login=(t&&t.dados&&t.dados.u)?String(t.dados.u).toLowerCase():'';
+  acaoSessao('sessao-entrar',{sistema:'estoque'}).catch(function(){});
+  if(!_checkSessao) _checkSessao=setInterval(checkForceLogout,5000);
+  document.getElementById('bloqueio').style.display='none';
+  document.getElementById('app').style.display='block';
+  try{ const a=sessionStorage.getItem('dalum-estoque-aba'); if(a) aba=a; }catch(e){}
+  lerLocal();
+  carregarListaPerfis().then(function(){ if(aba!=='figuras') preencherFiguras(document.getElementById('tela')); }).catch(function(){});
+  render();
+  sincronizar();
+  document.getElementById('aviso-ov').addEventListener('click',function(e){ if(e.target===this) fecharAviso(); });
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape') return;
+    if(document.getElementById('aviso-ov').classList.contains('open')) fecharAviso();
+    else if(document.getElementById('pergunta-ov').classList.contains('open')) responderPergunta(false);
+    else if(document.getElementById('janela-ov').classList.contains('open')) fecharJanela();
+  });
+  // Busca lancamentos de colegas a cada 60 s (sem redesenhar por baixo de
+  // quem esta digitando numa janela).
+  setInterval(function(){ atualizarDoBanco(); },60000);
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden) atualizarDoBanco(); });
+}
+
+(function iniciar(){
+  const t=lerToken();
+  if(t){ abrirApp(t.dados.n||t.dados.u||'usuário', t.dados.r); return; }
+  const sso=lerSSO();
+  if(sso){ abrirApp(sso.nome, sso.role); return; }
+  // Sem cracha: vai para o portal, o unico lugar onde se entra.
+  try{ (window.top||window).location.replace(PORTAL_URL); }
+  catch(e){ window.location.replace(PORTAL_URL); }
+})();
+</script>
+</body>
+</html>
