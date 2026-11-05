@@ -47,6 +47,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .fig{width:84px;height:63px;background:var(--gray-1);border:1px solid var(--gray-2);border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:10px;color:var(--gray-4);text-align:center}
 .fig img{width:100%;height:100%;object-fit:contain;background:#fff}
 .fig.grande{width:100%;max-width:370px;height:auto;aspect-ratio:370/278;margin:0 auto}
+/* Figura ampliada para conferir antes de cadastrar (pedido do Ander,
+   04/11/2026). A imagem tem 370px; ampliada ate a largura da janela. */
+.fig.enorme{width:min(100%,720px,75vh);height:auto;aspect-ratio:370/278;margin:0 auto;border:0;background:#fff}
 .cod{font-weight:700;font-size:14px;color:var(--cor-dark)}
 .desc{font-size:13px;margin-top:1px}
 .sub{font-size:12px;color:var(--gray-5);margin-top:2px}
@@ -1651,10 +1654,17 @@ async function desenharFiguras(){
     });
   }catch(err){ corpo.insertAdjacentHTML('afterbegin','<div class="aviso-linha aviso-verm">Não consegui mostrar as figuras: '+esc(err.message)+'</div>'); }
 }
-async function cadastrarDaFigura(cod){
-  if(ehConsulta()||ehEspelho()){ aviso('Só consulta','Este perfil ainda não está cadastrado no estoque.'); return; }
-  if(!await perguntar('Cadastrar '+cod,'O perfil '+cod+' ainda não está no estoque.\n\nCadastrar agora?','Cadastrar')) return;
-  abrirMaterial(null, cod);
+// Perfil ainda nao cadastrado: primeiro mostra a figura grande, para a pessoa
+// conferir se e o perfil certo, e so depois oferece cadastrar.
+function cadastrarDaFigura(cod){
+  _janelaAtual=null;
+  const ro=ehConsulta()||ehEspelho();
+  abrirJanela(cod, caixaFigura(cod,'enorme')+
+    '<div style="text-align:center;margin-top:10px"><div class="cod" style="font-size:18px">'+esc(cod)+'</div>'+
+    '<div class="sub">Ainda não está no estoque.</div></div>',
+    '<button class="btn btn-outline" onclick="fecharJanela()">Fechar</button>'+
+    (ro?'':'<button class="btn btn-cor" onclick="abrirMaterial(null,'+jsArg(cod)+')">Cadastrar '+esc(cod)+'</button>'), 780);
+  preencherFiguras(document.getElementById('janela-corpo'));
 }
 
 // ---- Subir a biblioteca para a nuvem (so admin, uma vez) ----
