@@ -723,7 +723,7 @@ async function preencherFiguras(raiz){
 // ================= TELAS =================
 function render(){
   if(document.getElementById('app').style.display==='none') return;
-  const abas=[['saldo','Saldo'],['sobras','Sobras'],['historico','Histórico'],['figuras','Figuras dos perfis']];
+  const abas=[['saldo','Saldo'],['sobras','Sobras'],['historico','Histórico'],['figuras','Figuras']];
   document.getElementById('abas').innerHTML=abas.map(function(a){
     return '<button class="aba'+(aba===a[0]?' on':'')+'" onclick="trocarAba(\''+a[0]+'\')">'+a[1]+'</button>';
   }).join('');
@@ -784,7 +784,7 @@ function telaSaldo(){
     '<span style="color:var(--gray-5)">'+linhas.length+' linha(s)</span></div>';
   if(!dados.materiais.length){
     h+='<div class="vazio">Nenhum material cadastrado ainda.<br><br>O jeito mais rápido: <b>📥 Importar</b> a Lista de materiais de uma obra do SmartCEM, ou uma planilha do Excel.<br>'+
-      'Também dá para usar <b>Cadastrar material</b>, ou achar o perfil na aba <b>Figuras dos perfis</b>.</div>';
+      'Também dá para usar <b>Cadastrar material</b>, ou achar o perfil na aba <b>Figuras</b>.</div>';
     return h;
   }
   if(!linhas.length) return h+'<div class="vazio">Nada encontrado com esse filtro.</div>';
@@ -1662,7 +1662,7 @@ async function abrirCargaPerfis(){
   const subidos=perfisJaSubidos();
   const ja=lista.filter(function(c){ return subidos.has(c.id); }).length;
   _janelaAtual=null;
-  abrirJanela('Figuras dos perfis na nuvem','<div style="font-size:13.5px;line-height:1.6">'+
+  abrirJanela('Figuras na nuvem','<div style="font-size:13.5px;line-height:1.6">'+
     'A lista tem <b>'+lista.length+'</b> figuras. Por este computador já subiram <b>'+ja+'</b>.<br><br>'+
     '1. Clique em <b>Escolher a pasta</b> e selecione a pasta <b>C:\\Daluminium\\figuras-perfis</b>.<br>'+
     '2. O navegador pergunta se pode enviar os arquivos: confirme.<br>'+
