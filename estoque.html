@@ -612,6 +612,14 @@ function materialPorCodigo(cod, base){
 }
 function unidadeDe(m){ return m&&m.tipo==='perfil'?'BARRA':((m&&m.unidade)||'PC'); }
 function nomeUnidade(m,n){ const u=unidadeDe(m); return NOME_UNIDADE[u]||u.toLowerCase(); }
+// Peso de N barras (pedido do Ander, 05/11/2026): barras x comprimento da
+// barra (m) x kg/m. So informacao — a contagem continua em barras. Perfil sem
+// kg/m no cadastro (ou componente) nao tem peso: devolve ''.
+function pesoDe(m, barras){
+  if(!m || m.tipo!=='perfil' || !(m.kgM>0) || !isFinite(barras)) return '';
+  const kg=Math.abs(barras)*((m.barraMm||6000)/1000)*m.kgM;
+  return '≈ '+kg.toLocaleString('pt-BR',{minimumFractionDigits:kg<100?2:1,maximumFractionDigits:kg<100?2:1})+' kg';
+}
 // Saldo de cada material + cor = soma dos movimentos (entrada +, saida -,
 // acerto +/-, estorno = o contrario do movimento estornado).
 function calcularSaldos(base){
@@ -835,7 +843,8 @@ function telaSaldo(){
       '<div class="desc">'+esc(l.m.descricao||'')+'</div>'+
       '<div class="sub">'+(l.cor?esc(l.cor):'<i>sem cor</i>')+(l.m.tipo==='perfil'&&l.m.barraMm?' · barra de '+fmtNum(l.m.barraMm)+' mm':'')+' '+pill+
       (l.sobras?' <span class="pill pill-cor">'+l.sobras+' sobra(s)</span>':'')+'</div></div>'+
-      '<div class="saldo"><b class="'+(l.saldo<0?'menos':'')+'">'+fmtNum(l.saldo)+'</b><span>'+esc(un)+'</span></div></div>';
+      '<div class="saldo"><b class="'+(l.saldo<0?'menos':'')+'">'+fmtNum(l.saldo)+'</b><span>'+esc(un)+'</span>'+
+      (l.saldo>0&&pesoDe(l.m,l.saldo)?'<span style="display:block">'+pesoDe(l.m,l.saldo)+'</span>':'')+'</div></div>';
   }).join('')+'</div>';
   if(linhas.length>MAX) h+='<div class="vazio">Mostrando '+MAX+' de '+linhas.length+'. Use a busca para achar o resto.</div>';
   return h;
@@ -908,7 +917,7 @@ function tabelaMovimentos(movs, comMaterial){
         '<td>'+esc(fmtQuando(mv.quando))+'<div class="sub">'+esc(mv.quem||'')+'</div></td>'+
         (comMaterial?'<td><a href="#" onclick="abrirDetalhe(\''+mv.matId+'\');return false"><b>'+esc(m.codigo)+'</b></a><div class="sub">'+esc(mv.cor||'sem cor')+'</div></td>':'')+
         '<td>'+NOME_TIPO_MOV[mv.tipo]+(comMaterial?'':'<div class="sub">'+esc(mv.cor||'sem cor')+'</div>')+'</td>'+
-        '<td class="num '+(d>=0?'mais':'menos')+'">'+(d>0?'+':'')+fmtNum(d)+'</td>'+
+        '<td class="num '+(d>=0?'mais':'menos')+'">'+(d>0?'+':'')+fmtNum(d)+(pesoDe(m,d)?'<div class="sub" style="font-weight:400">'+pesoDe(m,d)+'</div>':'')+'</td>'+
         '<td class="some-cel">'+detalhe.map(esc).join('<br>')+(estornado?'<div class="sub">Estornado por '+esc(mv.estornadoPor.quem)+'</div>':'')+'</td>'+
         '<td class="acoes">'+(podeEstornar(mv)?'<button class="btn btn-outline btn-sm" onclick="estornar(\''+mv.id+'\')" title="Desfazer este lançamento">Estornar</button>':'')+'</td></tr>';
     }).join('')+'</tbody></table></div>';
@@ -979,7 +988,8 @@ function desenharDetalhe(matId){
     const nSob=sobrasLivres().filter(function(x){ return x.matId===m.id&&normCor(x.cor)===c; }).length;
     return '<div class="cor-linha"><div><b>'+(c?esc(c):'<i>sem cor</i>')+'</b>'+(nSob?' <span class="pill pill-cor">'+nSob+' sobra(s)</span>':'')+
       (baixo?' <span class="pill pill-ambar">abaixo do mínimo</span>':'')+'</div>'+
-      '<div class="num"><b class="'+(s<0?'menos':'')+'">'+fmtNum(s)+'</b> <span class="sub">'+esc(un)+'</span></div>'+
+      '<div class="num"><b class="'+(s<0?'menos':'')+'">'+fmtNum(s)+'</b> <span class="sub">'+esc(un)+'</span>'+
+        (s>0&&pesoDe(m,s)?'<div class="sub">'+pesoDe(m,s)+'</div>':'')+'</div>'+
       '<div title="Estoque mínimo desta cor">'+(ro?(min!==null?'mín. '+fmtNum(min):''):
         '<span class="sub">mín.</span> <input type="text" inputmode="decimal" placeholder="mínimo" value="'+(min!==null?fmtNum(min):'')+'" onchange="gravarMinimo(\''+m.id+'\','+jsArg(c)+',this.value)">')+'</div></div>';
   }).join('')+'</div>';
@@ -1230,7 +1240,7 @@ function abrirMovimento(tipo, matId){
     '<div class="fg"><label>Código do material</label><input id="mv-cod" list="mv-lista" value="'+esc(m?m.codigo:'')+'" placeholder="Digite o código (ex.: LG068)" autocomplete="off" oninput="mostrarEscolhidoMov()"></div>'+
     '<div id="mv-escolhido"></div>'+
     '<div class="grade2"><div class="fg"><label>Cor / tratamento</label><input id="mv-cor" list="mv-cores" placeholder="Ex.: PINTURA PRETO FOSCO - RAL9005F" autocomplete="off" oninput="mostrarEscolhidoMov()"><small>Componente sem cor: deixe em branco.</small></div>'+
-    '<div class="fg"><label>Quantidade</label><input id="mv-qtd" inputmode="decimal" placeholder="0"><small id="mv-un"></small></div></div>';
+    '<div class="fg"><label>Quantidade</label><input id="mv-qtd" inputmode="decimal" placeholder="0" oninput="mostrarPesoMov()"><small id="mv-un"></small><small id="mv-peso" style="color:var(--cor-dark);font-weight:600"></small></div></div>';
   if(tipo==='saida') h+='<div class="fg"><label>Para qual obra</label><select id="mv-obra"><option value="">Sem obra (uso interno, perda, conserto...)</option>'+
     obrasOrdem.map(function(o){ return '<option value="'+esc(o.id)+'">'+esc(rotuloObra(o))+'</option>'; }).join('')+'</select>'+
     (obras.length?'':'<small>A lista de obras não chegou. Confira a internet.</small>')+'</div>';
@@ -1241,7 +1251,13 @@ function abrirMovimento(tipo, matId){
   mostrarEscolhidoMov();
   setTimeout(function(){ const c=document.getElementById(m?'mv-cor':'mv-cod'); if(c) c.focus(); },60);
 }
+function mostrarPesoMov(){
+  const e=document.getElementById('mv-peso'); if(!e) return;
+  const m=materialPorCodigo(document.getElementById('mv-cod').value), q=numero(document.getElementById('mv-qtd').value);
+  e.textContent=(m&&q>0)?pesoDe(m,q):'';
+}
 function mostrarEscolhidoMov(){
+  mostrarPesoMov();
   const d=document.getElementById('mv-escolhido'); if(!d) return;
   const cod=normCodigo(document.getElementById('mv-cod').value);
   const m=materialPorCodigo(cod);
