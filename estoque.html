@@ -969,7 +969,7 @@ function desenharDetalhe(matId){
   let h='<div style="display:grid;grid-template-columns:minmax(0,1fr);gap:10px">'+
     figuraDoMaterial(m,'grande')+botoesFigura+
     '<div><div class="cod" style="font-size:18px">'+esc(m.codigo)+'</div><div class="desc">'+esc(m.descricao||'')+'</div>'+
-    '<div class="sub">'+(m.tipo==='perfil'?'Perfil · barra de '+fmtNum(m.barraMm||6000)+' mm':'Componente · em '+esc(un))+
+    '<div class="sub">'+(m.tipo==='perfil'?'Perfil · barra de '+fmtNum(m.barraMm||6000)+' mm'+(m.kgM?' · '+fmtNum(m.kgM)+' kg/m':''):'Componente · em '+esc(un))+
     (m.criadoPor?' · cadastrado por '+esc(m.criadoPor):'')+'</div></div></div>';
   h+='<div class="secao"><h4>Saldo por cor</h4>';
   const lista=Object.keys(cores).sort();
@@ -1559,24 +1559,42 @@ const UNIDADE_DA_PLANILHA={PC:'PC','PÇ':'PC',PCS:'PC',PECA:'PC','PEÇA':'PC',PE
 function lerPlanilhaDeMateriais(linhas){
   const limpo=function(v){ return String(v==null?'':v).normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); };
   const res={ehLista:true, proposta:'', cliente:'', perfis:[], componentes:[], ignoradas:[], cabecalho:false};
+  // Cabecalho = a primeira linha (ate a 20a) com uma coluna de CODIGO e uma de
+  // DESCRICAO juntas. 05/11/2026: a exportacao do "Cadastro de Perfis" do
+  // SmartCEM tem "Referência:" (o fornecedor) sozinho no topo, e so exigir o
+  // codigo fazia essa linha virar cabecalho — "GRUPO:", "LINHA:" e
+  // "PRÉ-NATIVO:" entravam como materiais. "Codigo" de verdade vence
+  // "Referencia"; Referencia so vale quando nao ha coluna Codigo.
+  const RX_COD=/^(codigo|cod|cod produto|codigo do produto)$/, RX_REF=/^(referencia|ref)$/;
+  const RX_DESC=/^(descricao|desc|nome|produto|material)/;
+  const ehCabecalho=function(l){
+    const c=(l||[]).map(limpo);
+    return c.some(function(x){ return RX_COD.test(x)||RX_REF.test(x); }) && c.some(function(x){ return RX_DESC.test(x); });
+  };
   let iCab=-1;
-  for(let i=0;i<Math.min(linhas.length,15);i++){
-    if((linhas[i]||[]).some(function(c){ return /^(codigo|cod|cod produto|codigo do produto|referencia|ref)$/.test(limpo(c)); })){ iCab=i; break; }
-  }
+  for(let i=0;i<Math.min(linhas.length,20);i++){ if(ehCabecalho(linhas[i])){ iCab=i; break; } }
+  // Sem descricao em lugar nenhum: aceita a linha com "Codigo" sozinho.
+  if(iCab<0) for(let i=0;i<Math.min(linhas.length,20);i++){ if((linhas[i]||[]).some(function(c){ return RX_COD.test(limpo(c)); })){ iCab=i; break; } }
   if(iCab<0) return res;
   res.cabecalho=true;
   const cab=linhas[iCab].map(limpo);
   const coluna=function(rx){ return cab.findIndex(function(c){ return rx.test(c); }); };
-  const cCod=coluna(/^(codigo|cod|cod produto|codigo do produto|referencia|ref)$/);
-  const cDesc=coluna(/^(descricao|desc|nome|produto|material)/);
+  let cCod=coluna(RX_COD); if(cCod<0) cCod=coluna(RX_REF);
+  const cDesc=coluna(RX_DESC);
   const cTipo=coluna(/^(tipo|categoria)$/);
   const cUn=coluna(/^(unidade|un|und|unid|medida)$/);
   const cBarra=coluna(/^(barra|barra mm|comprimento|comprimento mm|comprimento da barra|comprimento da barra mm|tamanho da barra)$/);
+  // Peso por metro: so perfil tem. Sem coluna Tipo, kg/m preenchido = perfil.
+  const cKg=coluna(/^(kg m|kg mt|kg metro|peso m|peso kg m|peso por metro|peso metro)$/);
   const vistos={};
   for(let i=iCab+1;i<linhas.length;i++){
     const l=linhas[i]||[];
+    // Relatorio exportado repete o cabecalho no topo de cada pagina: pula.
+    if(ehCabecalho(l)) continue;
     const codigo=String(l[cCod]==null?'':l[cCod]).trim().replace(/\s+/g,' ').toUpperCase();
-    if(!codigo){ if(l.some(function(c){ return String(c==null?'':c).trim(); })) res.ignoradas.push({linha:i+1, motivo:'sem código'}); continue; }
+    // Sem codigo: so avisa se a linha tem descricao (parece material). Titulo,
+    // total e rodape ("Daluminium Esquadrias", "SmartCEM...") passam calados.
+    if(!codigo){ if(cDesc>=0 && String(l[cDesc]==null?'':l[cDesc]).trim()) res.ignoradas.push({linha:i+1, motivo:'sem código'}); continue; }
     if(vistos[codigo]){ res.ignoradas.push({linha:i+1, motivo:codigo+' repetido (vale a linha '+vistos[codigo]+')'}); continue; }
     vistos[codigo]=i+1;
     const descricao=cDesc<0?'':String(l[cDesc]==null?'':l[cDesc]).trim().replace(/\s+/g,' ');
@@ -1584,12 +1602,17 @@ function lerPlanilhaDeMateriais(linhas){
     const unTxt=cUn<0?'':String(l[cUn]==null?'':l[cUn]).trim().toUpperCase().replace(/\.$/,'');
     const barraTxt=cBarra<0?'':String(l[cBarra]==null?'':l[cBarra]).replace(/\D/g,'');
     const barra=barraTxt?parseInt(barraTxt,10):null;
+    // kg/m vem "0.824" (Excel) ou "0,824" (digitado aqui).
+    const kgTxt=cKg<0?'':String(l[cKg]==null?'':l[cKg]).trim().replace(',','.');
+    const kgM=/^\d+(\.\d+)?$/.test(kgTxt)&&parseFloat(kgTxt)>0?parseFloat(kgTxt):null;
     let tipo;
     if(/^perf/.test(tipoTxt)) tipo='perfil';
     else if(/^(comp|aces|ferr|outro)/.test(tipoTxt)) tipo='componente';
-    else tipo=(unTxt==='BARRA'||unTxt==='BR'||unTxt==='BARRAS'||(barra&&barra>=1000))?'perfil':'componente';
+    else tipo=(unTxt==='BARRA'||unTxt==='BR'||unTxt==='BARRAS'||(barra&&barra>=1000)||kgM)?'perfil':'componente';
     if(tipo==='perfil'){
-      res.perfis.push({codigo:codigo, descricao:descricao, barraMm:(barra&&barra>=500&&barra<=12000)?barra:6000, cores:[]});
+      const p={codigo:codigo, descricao:descricao, barraMm:(barra&&barra>=500&&barra<=12000)?barra:6000, cores:[]};
+      if(kgM) p.kgM=kgM;
+      res.perfis.push(p);
     } else {
       const un=UNIDADE_DA_PLANILHA[unTxt]||(/^[A-Z]{1,4}$/.test(unTxt)?unTxt:'PC');
       res.componentes.push({codigo:codigo, descricao:descricao, unidade:un});
@@ -1707,7 +1730,8 @@ function planoDeImportacao(lido, base){
       const m=materialPorCodigo(x.codigo, base);
       if(!m){ plano.novos.push(x); return; }
       if(m.tipo!==x.tipo){ plano.iguais++; return; }   // mesmo codigo com outro tipo: nao mexe
-      if(!m.descricao && x.descricao){ plano.completar.push({m:m, x:x}); return; }
+      // Ja cadastrado: so completa o que falta (descricao vazia, perfil sem kg/m).
+      if((!m.descricao && x.descricao) || (m.tipo==='perfil' && !m.kgM && x.kgM)){ plano.completar.push({m:m, x:x}); return; }
       plano.iguais++;
     });
   return plano;
@@ -1719,7 +1743,7 @@ function desenharImportacao(){
   let h='<div class="aviso-linha aviso-azul"><b>'+esc(_importacao.arquivo)+'</b>'+(L.proposta?' · '+esc(L.proposta):'')+(L.cliente?' · '+esc(L.cliente):'')+'<br>'+
     'No arquivo: <b>'+L.perfis.length+'</b> perfis e <b>'+L.componentes.length+'</b> componentes.<br>'+
     'Novos para cadastrar: <b>'+novosP.length+'</b> perfis e <b>'+novosC.length+'</b> componentes'+
-    (plano.completar.length?' · '+plano.completar.length+' já cadastrado(s) ganham a descrição':'')+
+    (plano.completar.length?' · '+plano.completar.length+' já cadastrado(s) ganham o que faltava (descrição ou kg/m)':'')+
     (plano.iguais?' · '+plano.iguais+' já estavam cadastrados (ficam como estão)':'')+'.</div>';
   if(L.ignoradas&&L.ignoradas.length) h+='<div class="aviso-linha aviso-ambar"><b>'+L.ignoradas.length+' linha(s) da planilha ficaram de fora:</b><br>'+
     L.ignoradas.slice(0,15).map(function(g){ return 'linha '+g.linha+': '+esc(g.motivo); }).join('<br>')+(L.ignoradas.length>15?'<br>…':'')+'</div>';
@@ -1729,7 +1753,7 @@ function desenharImportacao(){
   const linha=function(x){
     return '<tr><td>'+((x.tipo==='perfil'||figuraDoCodigo(x.codigo,'componente'))?caixaFigura(x.codigo,'',x.tipo).replace('class="fig"','class="fig" style="width:56px;height:42px"'):'')+'</td>'+
       '<td><b>'+esc(x.codigo)+'</b></td><td>'+esc(x.descricao||'—')+'</td>'+
-      '<td class="num">'+(x.tipo==='perfil'?fmtNum(x.barraMm||6000)+' mm':esc(x.unidade))+'</td></tr>';
+      '<td class="num">'+(x.tipo==='perfil'?fmtNum(x.barraMm||6000)+' mm'+(x.kgM?'<div class="sub">'+fmtNum(x.kgM)+' kg/m</div>':''):esc(x.unidade))+'</td></tr>';
   };
   if(novosP.length) h+='<div class="secao"><h4>Perfis novos ('+novosP.length+')</h4><div class="rola"><table class="tabela"><tbody>'+novosP.map(linha).join('')+'</tbody></table></div></div>';
   if(novosC.length) h+='<div class="secao"><h4>Componentes novos ('+novosC.length+')</h4><div class="rola"><table class="tabela"><tbody>'+novosC.map(linha).join('')+'</tbody></table></div></div>';
@@ -1751,17 +1775,21 @@ async function gravarImportacao(){
     plano.novos.forEach(function(x){
       const n={id:novoId(),tipo:x.tipo,codigo:x.codigo,descricao:x.descricao||'',minimos:{},criadoPor:usuario,criadoEm:quando,
         origem:{arquivo:arq,proposta:L.proposta||''}};
-      if(x.tipo==='perfil') n.barraMm=x.barraMm||6000; else n.unidade=x.unidade||'PC';
+      if(x.tipo==='perfil'){ n.barraMm=x.barraMm||6000; if(x.kgM) n.kgM=x.kgM; } else n.unidade=x.unidade||'PC';
       base.materiais.push(n); feitos++;
     });
     plano.completar.forEach(function(c){
       const b=base.materiais.find(function(m){ return m.id===c.m.id; });
-      if(b && !b.descricao){ b.descricao=c.x.descricao; b.editadoPor=usuario; b.editadoEm=quando; completados++; }
+      if(!b) return;
+      let mudou=false;
+      if(!b.descricao && c.x.descricao){ b.descricao=c.x.descricao; mudou=true; }
+      if(b.tipo==='perfil' && !b.kgM && c.x.kgM){ b.kgM=c.x.kgM; mudou=true; }
+      if(mudou){ b.editadoPor=usuario; b.editadoEm=quando; completados++; }
     });
     if(!feitos && !completados) return 'Nada novo: tudo deste PDF já está no estoque.';
-  },function(){ return {acao:/\.pdf$/i.test(arq)?'importou cadastro do PDF':'importou cadastro da planilha',alvo:arq,detalhe:feitos+' novo(s)'+(completados?', '+completados+' com descrição':'')+(L.proposta?' · '+L.proposta:'')}; });
+  },function(){ return {acao:/\.pdf$/i.test(arq)?'importou cadastro do PDF':'importou cadastro da planilha',alvo:arq,detalhe:feitos+' novo(s)'+(completados?', '+completados+' completado(s)':'')+(L.proposta?' · '+L.proposta:'')}; });
   if(btn) btn.disabled=false;
-  if(deu){ fecharJanela(); aviso('Cadastro importado',feitos+' material(is) cadastrado(s)'+(completados?' e '+completados+' ganharam a descrição':'')+'.\n\nO saldo de todos começa em zero: lance as entradas conforme o material chegar.'); }
+  if(deu){ fecharJanela(); aviso('Cadastro importado',feitos+' material(is) cadastrado(s)'+(completados?' e '+completados+' já cadastrado(s) ganharam o que faltava (descrição ou kg/m)':'')+'.\n\nO saldo de todos começa em zero: lance as entradas conforme o material chegar.'); }
 }
 
 // ================= ABA: FIGURAS DOS PERFIS =================
