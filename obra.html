@@ -1548,6 +1548,21 @@ function arrumar(d){
   if(!d.layoutCarteira||typeof d.layoutCarteira!=='object') d.layoutCarteira={};
   if(!Array.isArray(d.layoutCarteira.ordem)) d.layoutCarteira.ordem=[];
   if(!Array.isArray(d.layoutCarteira.ocultas)) d.layoutCarteira.ocultas=[];
+  // Os rotulos de lista de material encurtaram em 05/11/2026. A conversao fica
+  // AQUI, na leitura, e nao numa gravacao propria: a tela ja mostra o nome
+  // curto, e a proxima gravacao qualquer leva o nome curto junto, de carona.
+  // Nenhum arquivo se perde — so a etiqueta muda de texto.
+  d.tiposDoc=d.tiposDoc.map(encurtarRotulo).filter(function(t,i,todos){
+    // Dois rotulos que viraram o mesmo nome deixam de ser dois.
+    return todos.findIndex(function(x){
+      return normalizarRotuloLista(x)===normalizarRotuloLista(t);
+    })===i;
+  });
+  d.contratos.forEach(function(c){
+    (c&&Array.isArray(c.docs)?c.docs:[]).forEach(function(doc){
+      if(doc && doc.tipo) doc.tipo=encurtarRotulo(doc.tipo);
+    });
+  });
   return d;
 }
 function lerLocal(){
@@ -5474,10 +5489,10 @@ function adivinharRotulo(nome, padrao){
   const permitidos=tiposDocPermitidos();
   const tem=function(t){ return permitidos.indexOf(t)>=0; };
   const pares=[
-    ['perfil',   'Lista de material perfil aluminio'],
-    ['aluminio', 'Lista de material perfil aluminio'],
-    ['acessorio','Lista de material acessorios'],
-    ['vidro',    'Lista de material vidro'],
+    ['perfil',   'Lista perfil alumínio'],
+    ['aluminio', 'Lista perfil alumínio'],
+    ['acessorio','Lista acessórios'],
+    ['vidro',    'Lista vidro'],
     ['proposta', 'Proposta'],
     ['projeto',  'Projeto'],
     ['medicao',  'Medição'],
@@ -5866,8 +5881,13 @@ async function moverStatus(nome, passo){
 // pedido. Eles nem ficam gravados em dados.tiposDoc — o tiposDoc() acrescenta.
 // Por isso Editar e Tirar neles nao faziam nada, caladamente (05/11/2026).
 function ehRotuloFixo(t){
+  const k=normalizarRotuloLista(t);
+  // O nome comprido de antes de 05/11/2026 continua valendo: a conversao da
+  // leitura ja troca o texto, mas um anexo que chegue por outro caminho tem
+  // de continuar sendo reconhecido como lista de material.
+  if(Object.prototype.hasOwnProperty.call(ROTULOS_ANTIGOS,k)) return true;
   return ROTULOS_LISTA_COMPRAS.some(function(x){
-    return normalizarRotuloLista(x)===normalizarRotuloLista(t);
+    return normalizarRotuloLista(x)===k;
   });
 }
 function porqueRotuloFixo(){
@@ -6917,8 +6937,31 @@ function acharLancamentoDaObra(comp, idContrato, url){
   return null;
 }
 
-const ROTULOS_LISTA_COMPRAS=['Lista de material perfil aluminio',
-  'Lista de material acessorios','Lista de material vidro'];
+// Encurtados em 05/11/2026 a pedido do Ander. O reconhecimento passa pelo
+// normalizarRotuloLista (sem acento, sem maiuscula), entao escrever
+// "lista perfil aluminio" continua valendo — o que muda e so como aparece.
+const ROTULOS_LISTA_COMPRAS=['Lista perfil alumínio',
+  'Lista acessórios','Lista vidro'];
+// Como os tres se chamavam antes. Serve para converter o que ja esta gravado:
+// o anexo guarda o texto do rotulo, e sem isto os arquivos antigos ficariam
+// com o nome comprido para sempre — e, pior, deixariam de ser reconhecidos
+// como lista de material pelo botao "→ Compras".
+const ROTULOS_ANTIGOS={
+  'lista de material perfil aluminio':'Lista perfil alumínio',
+  'lista de material acessorios':'Lista acessórios',
+  'lista de material vidro':'Lista vidro'
+};
+// Devolve o nome que o rotulo deve ter hoje. Tambem acerta a grafia: quem
+// tinha criado "Lista perfil aluminio" na mao (sem acento) passa a ver o nome
+// oficial, em vez de dois rotulos iguais na lista.
+function encurtarRotulo(t){
+  const k=normalizarRotuloLista(t);
+  if(Object.prototype.hasOwnProperty.call(ROTULOS_ANTIGOS,k)) return ROTULOS_ANTIGOS[k];
+  const oficial=ROTULOS_LISTA_COMPRAS.filter(function(x){
+    return normalizarRotuloLista(x)===k;
+  })[0];
+  return oficial||t;
+}
 // As escolhas do campo "Pedidos no Compras" da ficha. Qualquer outro valor
 // gravado (ou vazio) vale como 'juntas', que e como o modulo sempre funcionou.
 const AGRUPAMENTOS_COMPRAS=['juntas','separadas','porlista'];
@@ -6927,10 +6970,10 @@ function normalizarRotuloLista(s){
 }
 // Este anexo e uma das tres listas de material? So elas viram cobranca de
 // material no Compras — uma Proposta ou uma foto nao.
+// Um lugar so para decidir o que e lista de material: antes esta conta
+// estava escrita aqui e dentro do ehRotuloFixo, e as duas podiam divergir.
 function ehListaMaterial(d){
-  return !!(d && d.url && ROTULOS_LISTA_COMPRAS.some(function(t){
-    return normalizarRotuloLista(d.tipo)===normalizarRotuloLista(t);
-  }));
+  return !!(d && d.url && ehRotuloFixo(d.tipo));
 }
 function listasMaterialCompras(c){
   return ((c&&c.docs)||[]).filter(function(d){ return ehListaMaterial(d); });
@@ -6973,7 +7016,10 @@ function criarLancamentoNoCompras(comp, c, chave, listas){
     obra: c.cliente,
     contrato: c.ct,
     entrega: c.entrega,
-    material: chave==='juntas'?'':String((listas[0]||{}).tipo||'').replace(/^Lista de material\s*/i,''), nrOrc:'', fornecedor:'', valor:0, dataOrc:'',
+    // Tira o "Lista " da frente para o pedido no Compras dizer so o material.
+    // O "de material" continua previsto para o caso de um anexo antigo chegar
+    // aqui antes de ter passado pela conversao da leitura.
+    material: chave==='juntas'?'':String((listas[0]||{}).tipo||'').replace(/^Lista\s+(de\s+material\s+)?/i,''), nrOrc:'', fornecedor:'', valor:0, dataOrc:'',
     medicao:'', diasUteis:0,
     status:'Pendente', tipo:'padrao',
     by: usuario,
