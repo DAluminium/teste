@@ -887,7 +887,11 @@ function podeGerenciar(){ return papel==='admin' || papel==='gerente'; }
 // Cadastrar e editar obra: todos com o modulo, menos a Consulta (pedido do
 // Ander, 14/10/2026). O contrato com CPF, excluir e os cadastros continuam do
 // gerente — e o Worker nao entrega nem aceita o contrato de quem nao e gerente.
-function podeLancar(){ return !!papel && papel!=='consulta'; }
+// O ehConsulta() cobre os dois casos (papel Consulta e Obra "so para
+// consultar"), entao tudo o que ja olhava para o podeLancar() — o botao Novo,
+// o Salvar da ficha, anexar, o pedido de material — passa a valer para os
+// dois de uma vez, sem precisar repetir a regra em cada lugar.
+function podeLancar(){ return !!papel && papel!=='consulta' && !ehConsulta(); }
 // O registro de historico e SO do admin. Gerente cadastra e altera, mas nao
 // ve quem fez o que — decisao do Ander em 11/09/2026.
 function soAdmin(){ return papel==='admin'; }
@@ -1044,7 +1048,19 @@ function papelDoCracha(){
   try{ const t=lerToken(); return String((t&&t.dados&&t.dados.r)||'').toLowerCase(); }catch(e){ return ''; }
 }
 function podeExcluir(){ const p=papelDoCracha(); return p==='admin'||p==='gerente'; }
-function ehConsulta(){ return papelDoCracha()==='consulta'; }
+// Duas coisas diferentes caem aqui: o PAPEL Consulta, que vale em todos os
+// modulos da pessoa, e a Obra marcada "so para consultar" no cadastro dela
+// (05/11/2026), que vale so aqui — e serve para quem grava em outro modulo.
+// O cracha traz essa marca no campo v, e quem o assina e o Worker: marcar a
+// caixa no portal nao basta, o Worker tem de recusar a gravacao tambem.
+function ehConsulta(){
+  if(papelDoCracha()==='consulta') return true;
+  try{
+    const t=lerToken();
+    const v=(t&&t.dados&&Array.isArray(t.dados.v))?t.dados.v:[];
+    return v.indexOf('obra')>=0;
+  }catch(e){ return false; }
+}
 function recusarExcluir(){
   if(podeExcluir()) return false;
   alert('S\u00f3 o gerente ou o administrador pode excluir.\n\nPe\u00e7a a quem gerencia este m\u00f3dulo.');
@@ -2762,6 +2778,26 @@ function abrirFicha(id){
   document.getElementById('f-pedido').value='';
   mostrarStatusPedido(c.pedido);
   document.getElementById('ficha-ov').classList.add('open');
+  travarFichaSeConsulta();
+}
+
+// A ficha aberta no modo consulta fica so de leitura. Sem isto a pessoa
+// digita, clica em algum botao e so entao descobre que nada e gravado —
+// perdendo o que escreveu. Os campos ficam desabilitados e os botoes do CORPO
+// somem; o rodape (Cancelar) e os links de abrir anexo continuam, porque
+// olhar o arquivo faz parte de consultar.
+function travarFichaSeConsulta(){
+  const ov=document.getElementById('ficha-ov');
+  if(!ov) return;
+  if(!ehConsulta()){ ov.classList.remove('so-leitura'); return; }
+  if(!document.getElementById('estilo-ficha-leitura')){
+    const st=document.createElement('style'); st.id='estilo-ficha-leitura';
+    st.textContent='#ficha-ov.so-leitura .modal-body button{display:none !important}';
+    (document.head||document.body).appendChild(st);
+  }
+  ov.classList.add('so-leitura');
+  ov.querySelectorAll('.modal-body input, .modal-body select, .modal-body textarea')
+    .forEach(function(el){ el.disabled=true; });
 }
 
 function fecharFicha(){
