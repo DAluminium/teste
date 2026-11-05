@@ -701,13 +701,24 @@ async function linksDeFiguras(ids){
 function caixaFigura(cod, extra){
   return '<div class="fig'+(extra?' '+extra:'')+'" data-cod="'+esc(normCodigo(cod))+'">…</div>';
 }
+// Figura propria do material (enviada do computador, 04/11/2026): m.figura.id
+// e o nome dela na pasta da nuvem dos perfis.
+function figuraPropria(cod){ const m=materialPorCodigo(cod); return (m&&m.figura&&m.figura.id)||null; }
+// Perfil sempre tenta a figura; componente so quando tem figura propria (a
+// biblioteca do SmartCEM e so de perfis, por enquanto).
+function figuraDoMaterial(m, extra, tamIcone){
+  if(m && (m.tipo==='perfil' || (m.figura&&m.figura.id))) return caixaFigura(m.codigo, extra);
+  return extra==='grande'?'':'<div class="fig" style="font-size:'+(tamIcone||22)+'px">🔩</div>';
+}
 async function preencherFiguras(raiz){
   const caixas=Array.prototype.slice.call((raiz||document).querySelectorAll('.fig[data-cod]:not([data-ok])'));
   if(!caixas.length) return;
   try{ await carregarListaPerfis(); }catch(e){ caixas.forEach(function(c){ c.textContent='sem lista'; }); return; }
   const ids=[];
   caixas.forEach(function(c){
-    const id=figuraDoCodigo(c.getAttribute('data-cod'));
+    const cod=c.getAttribute('data-cod');
+    // Figura enviada do computador para o material passa na frente da do SmartCEM.
+    const id=figuraPropria(cod)||figuraDoCodigo(cod);
     c.setAttribute('data-ok','1');
     if(!id){ c.textContent='sem figura'; return; }
     c.setAttribute('data-fig',id); ids.push(id);
@@ -806,7 +817,7 @@ function telaSaldo(){
     // (senao os 157 recem-importados do PDF apareciam todos em vermelho).
     const cls=(l.minimo!==null&&l.saldo<l.minimo)?'baixo':(l.saldo>0?'ok':(l.ultimo?'zerado':''));
     return '<div class="linha '+cls+'" onclick="abrirDetalhe(\''+l.m.id+'\')">'+
-      (l.m.tipo==='perfil'?caixaFigura(l.m.codigo):'<div class="fig" style="font-size:22px">🔩</div>')+
+      figuraDoMaterial(l.m)+
       '<div style="min-width:0"><div class="cod">'+esc(l.m.codigo)+'</div>'+
       '<div class="desc">'+esc(l.m.descricao||'')+'</div>'+
       '<div class="sub">'+(l.cor?esc(l.cor):'<i>sem cor</i>')+(l.m.tipo==='perfil'&&l.m.barraMm?' · barra de '+fmtNum(l.m.barraMm)+' mm':'')+' '+pill+
@@ -928,8 +939,16 @@ function desenharDetalhe(matId){
   sobrasLivres().forEach(function(s){ if(s.matId===m.id && !(normCor(s.cor) in cores)) cores[normCor(s.cor)]=0; });
   const ro=ehConsulta()||ehEspelho();
   const un=nomeUnidade(m);
+  // Figura do computador: so o admin (o Worker so deixa o admin gravar na
+  // pasta da biblioteca). Tirar a figura propria volta para a do SmartCEM.
+  const podeFigura=!ro && soAdmin();
+  const temPropria=!!(m.figura&&m.figura.id);
+  const botoesFigura=podeFigura?'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'+
+      '<label class="btn btn-outline btn-sm">🖼 Figura do computador<input type="file" accept="image/*" hidden onchange="figuraDoComputador(\''+m.id+'\',this)"></label>'+
+      (temPropria?'<button class="btn btn-outline btn-sm" onclick="tirarFiguraPropria(\''+m.id+'\')">'+(m.tipo==='perfil'&&figuraDoCodigo(m.codigo)?'↩ Voltar à figura do SmartCEM':'Tirar a figura')+'</button>':'')+
+    '</div>'+(temPropria?'<div class="sub" style="text-align:center">Figura enviada por '+esc(m.figura.quem||'')+' em '+esc(fmtQuando(m.figura.quando))+'</div>':''):'';
   let h='<div style="display:grid;grid-template-columns:minmax(0,1fr);gap:10px">'+
-    (m.tipo==='perfil'?caixaFigura(m.codigo,'grande'):'')+
+    figuraDoMaterial(m,'grande')+botoesFigura+
     '<div><div class="cod" style="font-size:18px">'+esc(m.codigo)+'</div><div class="desc">'+esc(m.descricao||'')+'</div>'+
     '<div class="sub">'+(m.tipo==='perfil'?'Perfil · barra de '+fmtNum(m.barraMm||6000)+' mm':'Componente · em '+esc(un))+
     (m.criadoPor?' · cadastrado por '+esc(m.criadoPor):'')+'</div></div></div>';
@@ -957,6 +976,70 @@ function desenharDetalhe(matId){
   abrirJanela(m.codigo, h, pe, 680);
   preencherFiguras(document.getElementById('janela-corpo'));
 }
+// ---- Figura do computador para um material ----
+// A imagem e reduzida aqui (no maximo 370x278, fundo branco, PNG — o mesmo
+// formato da biblioteca) e sobe para a pasta dos perfis com um nome NOVO a
+// cada envio (M_<codigo>_<hora>): o Worker nao deixa sobrescrever, e nome novo
+// tambem evita a imagem velha guardada no navegador.
+function reduzirParaFigura(arquivo){
+  return new Promise(function(ok,falhou){
+    const url=URL.createObjectURL(arquivo), im=new Image();
+    im.onload=function(){
+      const esc_=Math.min(1,370/im.naturalWidth,278/im.naturalHeight);
+      const w=Math.max(1,Math.round(im.naturalWidth*esc_)), h=Math.max(1,Math.round(im.naturalHeight*esc_));
+      const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      const cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,w,h); cx.drawImage(im,0,0,w,h);
+      URL.revokeObjectURL(url);
+      cv.toBlob(function(b){ if(b) ok(b); else falhou(new Error('não consegui preparar a imagem')); },'image/png');
+    };
+    im.onerror=function(){ URL.revokeObjectURL(url); falhou(new Error('o navegador não abriu esta imagem (use JPG ou PNG)')); };
+    im.src=url;
+  });
+}
+async function figuraDoComputador(matId, input){
+  const f=(input.files||[])[0]; input.value='';
+  if(!f || recusarSeConsulta()) return;
+  if(!soAdmin()){ aviso('Só o administrador','Só o administrador envia figuras para a nuvem.'); return; }
+  const m=materialPorId(matId); if(!m) return;
+  status('🖼 Enviando a figura...');
+  let id='';
+  try{
+    const png=await reduzirParaFigura(f);
+    id=('M_'+normCodigo(m.codigo).replace(/[^A-Za-z0-9_-]+/g,'_').replace(/^_+|_+$/g,'').slice(0,60)+'_'+Date.now().toString(36)).slice(0,120);
+    const r=await fetch(WORKER,{method:'POST',cache:'no-store',
+      headers:cabecalhos({'Content-Type':'application/json','X-Action':'assinar-envio'}),
+      body:JSON.stringify({pasta:PASTA_PERFIS, publicId:id})});
+    let a=null; try{ a=await r.json(); }catch(e){}
+    if(r.status===401){ sessaoExpirada(); return; }
+    if(!r.ok||!a||!a.signature) throw new Error((a&&a.erro)||('assinatura '+r.status));
+    const fd=new FormData();
+    fd.append('file',png,id+'.png'); fd.append('api_key',a.api_key); fd.append('timestamp',a.timestamp);
+    fd.append('signature',a.signature); fd.append('public_id',a.public_id); fd.append('overwrite',a.overwrite); fd.append('type',a.type);
+    const up=await fetch('https://api.cloudinary.com/v1_1/'+a.conta+'/image/upload',{method:'POST',body:fd});
+    if(!up.ok){ let t=''; try{ t=await up.text(); }catch(e){} throw new Error('nuvem '+up.status+' '+t.slice(0,80)); }
+  }catch(err){
+    status('');
+    aviso('Figura não enviada','"'+(f.name||'imagem')+'": '+err.message+'\n\nConfira a internet e tente de novo.');
+    return;
+  }
+  await alterar(function(base){
+    const b=base.materiais.find(function(x){ return x.id===matId; });
+    if(!b) return 'Este material não existe mais.';
+    b.figura={id:id, nome:f.name||'', quem:usuario, quando:agoraISO()};
+    b.editadoPor=usuario; b.editadoEm=agoraISO();
+  },{acao:'trocou a figura',alvo:m.codigo,detalhe:f.name||''});
+}
+async function tirarFiguraPropria(matId){
+  const m=materialPorId(matId); if(!m||!m.figura) return;
+  const temSmart=m.tipo==='perfil'&&figuraDoCodigo(m.codigo);
+  if(!await perguntar('Figura de '+m.codigo, temSmart?'Voltar a usar a figura do SmartCEM?':'Tirar a figura deste material?', temSmart?'Voltar':'Tirar')) return;
+  await alterar(function(base){
+    const b=base.materiais.find(function(x){ return x.id===matId; });
+    if(!b||!b.figura) return false;
+    delete b.figura; b.editadoPor=usuario; b.editadoEm=agoraISO();
+  },{acao:temSmart?'voltou à figura do SmartCEM':'tirou a figura',alvo:m.codigo});
+}
+
 async function gravarMinimo(matId, cor, valor){
   const v=String(valor).trim()===''?null:numero(valor);
   if(v!==null && (v<0)){ aviso('Mínimo inválido','O mínimo precisa ser um número igual ou maior que zero.'); render(); return; }
@@ -1094,7 +1177,7 @@ function mostrarEscolhidoMov(){
     '<div class="sub">Saldo agora'+(cor?' em '+esc(cor):' sem cor')+': <b>'+fmtNum(s)+'</b> '+esc(nomeUnidade(m))+'</div></div>';
   if(antes===m.codigo && d.querySelector('.escolhido')){ d.querySelector('.escolhido > div:last-child').outerHTML=texto; return; }
   d.setAttribute('data-cod',m.codigo);
-  d.innerHTML='<div class="escolhido">'+(m.tipo==='perfil'?caixaFigura(m.codigo):'<div class="fig" style="font-size:20px">🔩</div>')+texto+'</div>';
+  d.innerHTML='<div class="escolhido">'+figuraDoMaterial(m,'',20)+texto+'</div>';
   preencherFiguras(d);
 }
 function cadastrarDaMovimentacao(){
@@ -1146,7 +1229,7 @@ function abrirAjuste(matId){
   if(recusarSeConsulta()) return;
   const m=materialPorId(matId); if(!m) return;
   _janelaAtual=null;
-  const h='<div class="escolhido">'+(m.tipo==='perfil'?caixaFigura(m.codigo):'<div class="fig" style="font-size:20px">🔩</div>')+
+  const h='<div class="escolhido">'+figuraDoMaterial(m,'',20)+
     '<div><div class="cod">'+esc(m.codigo)+'</div><div class="desc">'+esc(m.descricao||'')+'</div></div></div>'+
     '<datalist id="aj-cores">'+coresConhecidas().map(function(c){ return '<option value="'+esc(c)+'">'; }).join('')+'</datalist>'+
     '<div class="aviso-linha aviso-azul">Use quando a contagem física não bate com o sistema. Digite <b>quanto tem de verdade</b>: o sistema lança a diferença e guarda no histórico.</div>'+
