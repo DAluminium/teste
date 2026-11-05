@@ -32,7 +32,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .filtros label{display:flex;gap:5px;align-items:center;cursor:pointer}
 .filtros select{padding:5px 8px;border:1px solid var(--gray-3);border-radius:6px;font-family:inherit;font-size:13px;background:#fff}
 .resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}
-.resumo div{background:#fff;border-radius:10px;box-shadow:var(--shadow);padding:10px 12px}
+.resumo div{background:#fff;border-radius:10px;box-shadow:var(--shadow);padding:10px 12px;cursor:pointer;border:2px solid transparent}
+.resumo div:hover{background:var(--cor-light)}
+.resumo div.on{border-color:var(--cor);background:var(--cor-light)}
 .resumo b{display:block;font-size:20px;color:var(--cor-dark)}
 .resumo span{font-size:12px;color:var(--gray-5)}
 .resumo .alerta b{color:var(--amber)}
@@ -767,11 +769,14 @@ function telaSaldo(){
   const nComp=dados.materiais.filter(function(m){ return !m.inativo&&m.tipo!=='perfil'; }).length;
   const nBaixo=todas.filter(function(l){ return l.minimo!==null && l.saldo<l.minimo; }).length;
   const nSobras=sobrasLivres().length;
+  // Os quatro quadros sao botoes (pedido do Ander, 04/11/2026): filtram a
+  // lista; clicar de novo no que esta marcado volta a mostrar tudo.
+  const marcado=function(on){ return on?' on':''; };
   let h='<div class="resumo">'+
-    '<div><b>'+nPerfis+'</b><span>perfis cadastrados</span></div>'+
-    '<div><b>'+nComp+'</b><span>componentes cadastrados</span></div>'+
-    '<div class="'+(nBaixo?'alerta':'')+'" style="cursor:pointer" onclick="filtro.situacao=\'baixo\';render()"><b>'+nBaixo+'</b><span>abaixo do mínimo</span></div>'+
-    '<div style="cursor:pointer" onclick="trocarAba(\'sobras\')"><b>'+nSobras+'</b><span>sobras guardadas</span></div></div>';
+    '<div class="'+marcado(filtro.tipo==='perfil')+'" onclick="filtrarPorQuadro(\'perfil\')" title="Mostrar só os perfis"><b>'+nPerfis+'</b><span>perfis cadastrados</span></div>'+
+    '<div class="'+marcado(filtro.tipo==='componente')+'" onclick="filtrarPorQuadro(\'componente\')" title="Mostrar só os componentes"><b>'+nComp+'</b><span>componentes cadastrados</span></div>'+
+    '<div class="'+(nBaixo?'alerta':'')+marcado(filtro.situacao==='baixo')+'" onclick="filtrarPorQuadro(\'baixo\')" title="Mostrar só o que está abaixo do mínimo"><b>'+nBaixo+'</b><span>abaixo do mínimo</span></div>'+
+    '<div onclick="trocarAba(\'sobras\')" title="Abrir as sobras"><b>'+nSobras+'</b><span>sobras guardadas</span></div></div>';
   h+='<div class="barra"><input class="busca" id="busca-saldo" placeholder="Buscar por código, descrição ou cor (ex.: LG068, marco, preto)" value="'+esc(filtro.busca)+'" '+
     'oninput="filtro.busca=this.value;clearTimeout(window._tB);window._tB=setTimeout(redesenharMantendoFoco,250)">'+botoesDeLancar()+'</div>';
   h+='<div class="filtros"><select onchange="filtro.tipo=this.value;render()">'+
@@ -807,6 +812,11 @@ function telaSaldo(){
   }).join('')+'</div>';
   if(linhas.length>MAX) h+='<div class="vazio">Mostrando '+MAX+' de '+linhas.length+'. Use a busca para achar o resto.</div>';
   return h;
+}
+function filtrarPorQuadro(q){
+  if(q==='baixo'){ filtro.situacao=filtro.situacao==='baixo'?'':'baixo'; }
+  else { const desliga=filtro.tipo===q; filtro.tipo=desliga?'':q; if(!desliga) filtro.situacao=''; }
+  render();
 }
 // Redesenha sem tirar o cursor do campo de busca.
 function redesenharMantendoFoco(){
