@@ -666,21 +666,28 @@ function rotuloObra(o){ if(!o) return ''; return (o.ct?o.ct+' · ':'')+(o.client
 // fica no Cloudinary PRIVADO, pasta daluminium_perfis, com o codigo limpo como
 // nome. A LISTA [codigo, nome na nuvem] fica em perfis-lista.json, ao lado
 // deste arquivo. O endereco de cada figura vem do Worker ('perfis-links').
-let _listaPerfis=null, _mapaPerfis=null;
+// Componentes (Figuras.rar, 05/11/2026): 760 figuras na MESMA lista e na mesma
+// pasta da nuvem, marcadas com "c" ([codigo, nome, "c"]) e com nome "C_..." na
+// nuvem — 22 codigos sao iguais a codigos de perfil e nao podem se misturar.
+let _listaPerfis=null, _mapaPerfis=null, _mapaComp=null;
 function carregarListaPerfis(){
   if(_listaPerfis) return _listaPerfis;
   _listaPerfis=fetch('perfis-lista.json',{cache:'no-store'}).then(function(r){
     if(!r.ok) throw new Error('lista de figuras não encontrada ('+r.status+')');
     return r.json();
   }).then(function(j){
-    const l=(j.itens||[]).map(function(i){ return {codigo:i[0], id:i[1]}; });
-    _mapaPerfis={}; l.forEach(function(x){ _mapaPerfis[x.codigo]=x.id; });
+    const l=(j.itens||[]).map(function(i){ return {codigo:i[0], id:i[1], tipo:i[2]==='c'?'componente':'perfil'}; });
+    _mapaPerfis={}; _mapaComp={};
+    l.forEach(function(x){ (x.tipo==='componente'?_mapaComp:_mapaPerfis)[x.codigo]=x.id; });
     return l;
   });
   _listaPerfis.catch(function(){ _listaPerfis=null; });
   return _listaPerfis;
 }
-function figuraDoCodigo(cod){ return _mapaPerfis?(_mapaPerfis[normCodigo(cod)]||null):null; }
+function figuraDoCodigo(cod, tipo){
+  const mapa=tipo==='componente'?_mapaComp:_mapaPerfis;
+  return mapa?(mapa[normCodigo(cod)]||null):null;
+}
 const _figLink={};
 async function linksDeFiguras(ids){
   const faltam=ids.filter(function(id,i){ return id && !_figLink[id] && ids.indexOf(id)===i; });
@@ -698,16 +705,21 @@ async function linksDeFiguras(ids){
 }
 // Caixa da figura: <div class="fig" data-cod="LG068">. Depois de desenhar a
 // tela, preencherFiguras() troca o texto pela imagem.
-function caixaFigura(cod, extra){
-  return '<div class="fig'+(extra?' '+extra:'')+'" data-cod="'+esc(normCodigo(cod))+'">…</div>';
+function caixaFigura(cod, extra, tipo){
+  return '<div class="fig'+(extra?' '+extra:'')+'" data-cod="'+esc(normCodigo(cod))+'"'+(tipo==='componente'?' data-tipo="componente"':'')+'>…</div>';
 }
-// Figura propria do material (enviada do computador, 04/11/2026): m.figura.id
-// e o nome dela na pasta da nuvem dos perfis.
-function figuraPropria(cod){ const m=materialPorCodigo(cod); return (m&&m.figura&&m.figura.id)||null; }
-// Perfil sempre tenta a figura; componente so quando tem figura propria (a
-// biblioteca do SmartCEM e so de perfis, por enquanto).
+// Figura propria do material (enviada do computador em 04/11/2026, ou
+// escolhida na biblioteca em 05/11/2026): m.figura.id e o nome dela na pasta
+// da nuvem das figuras.
+function figuraPropria(cod, tipo){
+  const m=materialPorCodigo(cod);
+  if(!m || (tipo && m.tipo!==tipo)) return null;   // 22 codigos existem como perfil E componente
+  return (m.figura&&m.figura.id)||null;
+}
+// Perfil sempre tenta a figura; componente quando tem figura propria ou uma
+// figura da biblioteca com o MESMO codigo.
 function figuraDoMaterial(m, extra, tamIcone){
-  if(m && (m.tipo==='perfil' || (m.figura&&m.figura.id))) return caixaFigura(m.codigo, extra);
+  if(m && (m.tipo==='perfil' || (m.figura&&m.figura.id) || figuraDoCodigo(m.codigo,'componente'))) return caixaFigura(m.codigo, extra, m.tipo);
   return extra==='grande'?'':'<div class="fig" style="font-size:'+(tamIcone||22)+'px">🔩</div>';
 }
 async function preencherFiguras(raiz){
@@ -718,7 +730,8 @@ async function preencherFiguras(raiz){
   caixas.forEach(function(c){
     const cod=c.getAttribute('data-cod');
     // Figura enviada do computador para o material passa na frente da do SmartCEM.
-    const id=figuraPropria(cod)||figuraDoCodigo(cod);
+    const tipoC=c.getAttribute('data-tipo')||'perfil';
+    const id=figuraPropria(cod, tipoC)||figuraDoCodigo(cod, tipoC);
     c.setAttribute('data-ok','1');
     if(!id){ c.textContent='sem figura'; return; }
     c.setAttribute('data-fig',id); ids.push(id);
@@ -940,13 +953,19 @@ function desenharDetalhe(matId){
   const ro=ehConsulta()||ehEspelho();
   const un=nomeUnidade(m);
   // Figura do computador: so o admin (o Worker so deixa o admin gravar na
-  // pasta da biblioteca). Tirar a figura propria volta para a do SmartCEM.
-  const podeFigura=!ro && soAdmin();
+  // pasta da biblioteca). Escolher da biblioteca nao envia nada: quem lanca
+  // pode (05/11/2026). Tirar a figura propria volta para a do SmartCEM.
   const temPropria=!!(m.figura&&m.figura.id);
-  const botoesFigura=podeFigura?'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'+
-      '<label class="btn btn-outline btn-sm">🖼 Figura do computador<input type="file" accept="image/*" hidden onchange="figuraDoComputador(\''+m.id+'\',this)"></label>'+
-      (temPropria?'<button class="btn btn-outline btn-sm" onclick="tirarFiguraPropria(\''+m.id+'\')">'+(m.tipo==='perfil'&&figuraDoCodigo(m.codigo)?'↩ Voltar à figura do SmartCEM':'Tirar a figura')+'</button>':'')+
-    '</div>'+(temPropria?'<div class="sub" style="text-align:center">Figura enviada por '+esc(m.figura.quem||'')+' em '+esc(fmtQuando(m.figura.quando))+'</div>':''):'';
+  const temSmart=!!figuraDoCodigo(m.codigo, m.tipo);
+  const deOnde=temPropria?(m.figura.origem==='biblioteca'
+      ?'Figura da biblioteca: <b>'+esc(m.figura.codigo||'')+'</b> · escolhida por '+esc(m.figura.quem||'')+' em '+esc(fmtQuando(m.figura.quando))
+      :'Figura enviada por '+esc(m.figura.quem||'')+' em '+esc(fmtQuando(m.figura.quando))):'';
+  const botoesFigura=ro?(deOnde?'<div class="sub" style="text-align:center">'+deOnde+'</div>':''):
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'+
+      '<button class="btn btn-outline btn-sm" onclick="abrirEscolhaFigura(\''+m.id+'\')">📚 Escolher da biblioteca</button>'+
+      (soAdmin()?'<label class="btn btn-outline btn-sm">🖼 Figura do computador<input type="file" accept="image/*" hidden onchange="figuraDoComputador(\''+m.id+'\',this)"></label>':'')+
+      (temPropria?'<button class="btn btn-outline btn-sm" onclick="tirarFiguraPropria(\''+m.id+'\')">'+(temSmart?'↩ Voltar à figura do SmartCEM':'Tirar a figura')+'</button>':'')+
+    '</div>'+(deOnde?'<div class="sub" style="text-align:center">'+deOnde+'</div>':'');
   let h='<div style="display:grid;grid-template-columns:minmax(0,1fr);gap:10px">'+
     figuraDoMaterial(m,'grande')+botoesFigura+
     '<div><div class="cod" style="font-size:18px">'+esc(m.codigo)+'</div><div class="desc">'+esc(m.descricao||'')+'</div>'+
@@ -1029,9 +1048,73 @@ async function figuraDoComputador(matId, input){
     b.editadoPor=usuario; b.editadoEm=agoraISO();
   },{acao:'trocou a figura',alvo:m.codigo,detalhe:f.name||''});
 }
+// ---- Escolher a figura na biblioteca (05/11/2026) ----
+// Os codigos da biblioteca de componentes sao os do catalogo do fabricante
+// (FC-ROL715.A00...), diferentes dos que a Daluminium usa (ROLD00413FCO...):
+// nenhum dos 93 componentes da lista de teste casou sozinho. Aqui a pessoa
+// procura e escolhe; grava so o nome da figura no material (nada sobe).
+let _escolha={matId:null, tipo:'', busca:'', pagina:0};
+async function abrirEscolhaFigura(matId){
+  if(recusarSeConsulta()) return;
+  const m=materialPorId(matId); if(!m) return;
+  _janelaAtual=null;
+  _escolha={matId:matId, tipo:m.tipo, busca:'', pagina:0};
+  abrirJanela('Figura para '+m.codigo,'<div id="escolha-corpo"><div class="vazio">Carregando a biblioteca...</div></div>','<button class="btn btn-outline" onclick="abrirDetalhe(\''+matId+'\')">Voltar</button>',820);
+  desenharEscolhaFigura();
+}
+async function desenharEscolhaFigura(){
+  const corpo=document.getElementById('escolha-corpo'); if(!corpo) return;
+  let lista; try{ lista=await carregarListaPerfis(); }catch(e){ corpo.innerHTML='<div class="vazio">'+esc(e.message)+'</div>'; return; }
+  const m=materialPorId(_escolha.matId); if(!m) return;
+  const q=semAcento(_escolha.busca).toUpperCase().replace(/[^A-Z0-9]+/g,'');
+  const filtrados=lista.filter(function(c){
+    if(_escolha.tipo && c.tipo!==_escolha.tipo) return false;
+    return !q || c.codigo.replace(/[^A-Z0-9]+/g,'').indexOf(q)>=0;
+  });
+  if(q){ const peso=function(c){ const k=c.codigo.replace(/[^A-Z0-9]+/g,''); return k===q?0:(k.indexOf(q)===0?1:2); };
+    filtrados.sort(function(a,b){ return peso(a)-peso(b) || a.codigo.localeCompare(b.codigo); }); }
+  const paginas=Math.max(1,Math.ceil(filtrados.length/FIGS_POR_PAGINA));
+  if(_escolha.pagina>=paginas) _escolha.pagina=paginas-1;
+  const pag=filtrados.slice(_escolha.pagina*FIGS_POR_PAGINA,(_escolha.pagina+1)*FIGS_POR_PAGINA);
+  let h='<div class="sub" style="margin-bottom:8px"><b>'+esc(m.codigo)+'</b> · '+esc(m.descricao||'')+'</div>'+
+    '<div class="barra"><input class="busca" id="escolha-busca" placeholder="Buscar pelo código da figura (ex.: ROL, CONCHA, FEC)" value="'+esc(_escolha.busca)+'" '+
+      'oninput="_escolha.busca=this.value;_escolha.pagina=0;clearTimeout(window._tE);window._tE=setTimeout(desenharEscolhaFigura,300)">'+
+    '<select class="busca" style="flex:0 0 auto;width:auto" onchange="_escolha.tipo=this.value;_escolha.pagina=0;desenharEscolhaFigura()">'+
+      '<option value="componente"'+(_escolha.tipo==='componente'?' selected':'')+'>Figuras de componentes</option>'+
+      '<option value="perfil"'+(_escolha.tipo==='perfil'?' selected':'')+'>Figuras de perfis</option>'+
+      '<option value=""'+(!_escolha.tipo?' selected':'')+'>Todas</option></select></div>'+
+    '<div class="filtros"><span style="color:var(--gray-5)">'+filtrados.length+' figura(s)'+(paginas>1?' · página '+(_escolha.pagina+1)+' de '+paginas:'')+' · clique na figura certa</span></div>'+
+    '<div class="figs-grade">'+pag.map(function(c){
+      return '<button class="fig-cel" onclick="escolherFigura('+jsArg(c.id)+','+jsArg(c.codigo)+')" title="'+esc(c.codigo)+'"><img data-fig="'+esc(c.id)+'" alt=""><span>'+esc(c.codigo)+'</span></button>';
+    }).join('')+'</div>';
+  if(!pag.length) h+='<div class="vazio">Nenhuma figura com esse código.</div>';
+  if(paginas>1) h+='<div class="paginas">'+
+    '<button class="btn btn-outline btn-sm"'+(_escolha.pagina?'':' disabled')+' onclick="_escolha.pagina--;desenharEscolhaFigura()">← anteriores</button>'+
+    '<button class="btn btn-outline btn-sm"'+(_escolha.pagina<paginas-1?'':' disabled')+' onclick="_escolha.pagina++;desenharEscolhaFigura()">próximas →</button></div>';
+  const foco=document.activeElement&&document.activeElement.id==='escolha-busca';
+  corpo.innerHTML=h;
+  if(foco){ const b=document.getElementById('escolha-busca'); b.focus(); b.setSelectionRange(b.value.length,b.value.length); }
+  try{
+    const links=await linksDeFiguras(pag.map(function(c){ return c.id; }));
+    pag.forEach(function(c,i){ const im=corpo.querySelector('img[data-fig="'+c.id+'"]'); if(!im) return;
+      im.onerror=function(){ im.replaceWith(Object.assign(document.createElement('div'),{className:'falta',textContent:'ainda não carregada'})); };
+      im.src=links[i]; });
+  }catch(err){ corpo.insertAdjacentHTML('afterbegin','<div class="aviso-linha aviso-verm">Não consegui mostrar as figuras: '+esc(err.message)+'</div>'); }
+}
+async function escolherFigura(id, codigoFig){
+  const matId=_escolha.matId, m=materialPorId(matId); if(!m) return;
+  const deu=await alterar(function(base){
+    const b=base.materiais.find(function(x){ return x.id===matId; });
+    if(!b) return 'Este material não existe mais.';
+    b.figura={id:id, codigo:codigoFig, origem:'biblioteca', quem:usuario, quando:agoraISO()};
+    b.editadoPor=usuario; b.editadoEm=agoraISO();
+  },{acao:'escolheu figura da biblioteca',alvo:m.codigo,detalhe:codigoFig});
+  if(deu) abrirDetalhe(matId);
+}
+
 async function tirarFiguraPropria(matId){
   const m=materialPorId(matId); if(!m||!m.figura) return;
-  const temSmart=m.tipo==='perfil'&&figuraDoCodigo(m.codigo);
+  const temSmart=figuraDoCodigo(m.codigo, m.tipo);
   if(!await perguntar('Figura de '+m.codigo, temSmart?'Voltar a usar a figura do SmartCEM?':'Tirar a figura deste material?', temSmart?'Voltar':'Tirar')) return;
   await alterar(function(base){
     const b=base.materiais.find(function(x){ return x.id===matId; });
@@ -1057,10 +1140,10 @@ async function gravarMinimo(matId, cor, valor){
 }
 
 // ================= JANELA: CADASTRO DE MATERIAL =================
-function abrirMaterial(matId, codigoSugerido, depois){
+function abrirMaterial(matId, codigoSugerido, depois, tipoSugerido){
   if(recusarSeConsulta()) return;
   const m=matId?materialPorId(matId):null;
-  const tipo=m?m.tipo:'perfil';
+  const tipo=m?m.tipo:(tipoSugerido==='componente'?'componente':'perfil');
   _janelaAtual=null;
   const h='<div class="grade2"><div class="fg"><label>Tipo</label><select id="mt-tipo" onchange="ajustarCamposMaterial()"'+(m?' disabled':'')+'>'+
       '<option value="perfil"'+(tipo==='perfil'?' selected':'')+'>Perfil (conta em barras)</option>'+
@@ -1091,13 +1174,14 @@ function ajustarCamposMaterial(){
 function mostrarFiguraDoCadastro(){
   const d=document.getElementById('mt-fig'); if(!d) return;
   const cod=normCodigo(document.getElementById('mt-cod').value);
-  if(document.getElementById('mt-tipo').value!=='perfil'||!cod){ d.innerHTML=''; return; }
+  const tipo=document.getElementById('mt-tipo').value;
+  if(!cod){ d.innerHTML=''; return; }
   clearTimeout(window._tFig);
   window._tFig=setTimeout(async function(){
     try{ await carregarListaPerfis(); }catch(e){}
-    if(normCodigo(document.getElementById('mt-cod').value)!==cod) return;
-    d.innerHTML=figuraDoCodigo(cod)?'<div class="escolhido">'+caixaFigura(cod)+'<div class="sub">Figura do SmartCEM para <b>'+esc(cod)+'</b></div></div>':
-      '<div class="sub" style="margin-bottom:8px">Sem figura na biblioteca para <b>'+esc(cod)+'</b> (pode cadastrar assim mesmo).</div>';
+    if(normCodigo(document.getElementById('mt-cod').value)!==cod || document.getElementById('mt-tipo').value!==tipo) return;
+    d.innerHTML=figuraDoCodigo(cod,tipo)?'<div class="escolhido">'+caixaFigura(cod,'',tipo)+'<div class="sub">Figura do SmartCEM para <b>'+esc(cod)+'</b></div></div>':
+      (tipo==='perfil'?'<div class="sub" style="margin-bottom:8px">Sem figura na biblioteca para <b>'+esc(cod)+'</b> (pode cadastrar assim mesmo).</div>':'');
     preencherFiguras(d);
   },300);
 }
@@ -1643,7 +1727,7 @@ function desenharImportacao(){
     caixa.innerHTML=h+'<div class="vazio">Nada novo: tudo deste PDF já está no estoque.</div>'; return;
   }
   const linha=function(x){
-    return '<tr><td>'+(x.tipo==='perfil'?caixaFigura(x.codigo).replace('class="fig"','class="fig" style="width:56px;height:42px"'):'')+'</td>'+
+    return '<tr><td>'+((x.tipo==='perfil'||figuraDoCodigo(x.codigo,'componente'))?caixaFigura(x.codigo,'',x.tipo).replace('class="fig"','class="fig" style="width:56px;height:42px"'):'')+'</td>'+
       '<td><b>'+esc(x.codigo)+'</b></td><td>'+esc(x.descricao||'—')+'</td>'+
       '<td class="num">'+(x.tipo==='perfil'?fmtNum(x.barraMm||6000)+' mm':esc(x.unidade))+'</td></tr>';
   };
@@ -1681,7 +1765,7 @@ async function gravarImportacao(){
 }
 
 // ================= ABA: FIGURAS DOS PERFIS =================
-let _figs={busca:'',fam:'',pagina:0,cadastrados:false};
+let _figs={busca:'',fam:'',pagina:0,cadastrados:false,tipo:''};
 const FIGS_POR_PAGINA=48;
 function familia(cod){ const m=String(cod).toUpperCase().match(/^[A-Z]+/); return m?m[0]:'NÚMEROS'; }
 async function desenharFiguras(){
@@ -1690,13 +1774,17 @@ async function desenharFiguras(){
   try{ lista=await carregarListaPerfis(); }
   catch(e){ corpo.innerHTML='<div class="vazio">Não consegui abrir a lista de figuras: '+esc(e.message)+'</div>'; return; }
   if(!document.getElementById('figuras-corpo')) return;
-  const cadastrados={}; dados.materiais.forEach(function(m){ if(!m.inativo) cadastrados[normCodigo(m.codigo)]=m.id; });
-  const contagem={}; lista.forEach(function(c){ const f=familia(c.codigo); contagem[f]=(contagem[f]||0)+1; });
+  // Cadastrado = mesmo codigo E mesmo tipo (22 codigos existem nos dois).
+  const cadastrados={}; dados.materiais.forEach(function(m){ if(!m.inativo) cadastrados[m.tipo+'|'+normCodigo(m.codigo)]=m.id; });
+  const doTipo=lista.filter(function(c){ return !_figs.tipo || c.tipo===_figs.tipo; });
+  const nComp=lista.filter(function(c){ return c.tipo==='componente'; }).length;
+  const contagem={}; doTipo.forEach(function(c){ const f=familia(c.codigo); contagem[f]=(contagem[f]||0)+1; });
   const fams=Object.keys(contagem).sort(function(a,b){ return contagem[b]-contagem[a] || a.localeCompare(b); });
+  if(_figs.fam && !contagem[_figs.fam]) _figs.fam='';
   const q=semAcento(_figs.busca).toUpperCase().replace(/[^A-Z0-9]+/g,'');
-  const filtrados=lista.filter(function(c){
+  const filtrados=doTipo.filter(function(c){
     if(_figs.fam && familia(c.codigo)!==_figs.fam) return false;
-    if(_figs.cadastrados && !cadastrados[c.codigo]) return false;
+    if(_figs.cadastrados && !cadastrados[c.tipo+'|'+c.codigo]) return false;
     if(q && c.codigo.replace(/[^A-Z0-9]+/g,'').indexOf(q)<0) return false;
     return true;
   });
@@ -1709,17 +1797,22 @@ async function desenharFiguras(){
   const paginas=Math.max(1,Math.ceil(filtrados.length/FIGS_POR_PAGINA));
   if(_figs.pagina>=paginas) _figs.pagina=paginas-1;
   const pag=filtrados.slice(_figs.pagina*FIGS_POR_PAGINA,(_figs.pagina+1)*FIGS_POR_PAGINA);
-  let h='<div class="barra"><input class="busca" id="figs-busca" placeholder="Buscar pelo código (ex.: LG068, FA-200, SU)" value="'+esc(_figs.busca)+'" '+
+  let h='<div class="barra"><input class="busca" id="figs-busca" placeholder="Buscar pelo código (ex.: LG068, FA-200, ROL)" value="'+esc(_figs.busca)+'" '+
       'oninput="_figs.busca=this.value;_figs.pagina=0;clearTimeout(window._tF);window._tF=setTimeout(desenharFiguras,300)">'+
+    '<select class="busca" style="flex:0 0 auto;width:auto" onchange="_figs.tipo=this.value;_figs.pagina=0;desenharFiguras()">'+
+      '<option value="">Perfis e componentes</option>'+
+      '<option value="perfil"'+(_figs.tipo==='perfil'?' selected':'')+'>Só perfis ('+(lista.length-nComp)+')</option>'+
+      '<option value="componente"'+(_figs.tipo==='componente'?' selected':'')+'>Só componentes ('+nComp+')</option></select>'+
     '<select class="busca" style="flex:0 0 auto;width:auto" onchange="_figs.fam=this.value;_figs.pagina=0;desenharFiguras()">'+
-      '<option value="">Todas as famílias ('+lista.length+')</option>'+fams.map(function(f){ return '<option value="'+esc(f)+'"'+(f===_figs.fam?' selected':'')+'>'+esc(f)+' ('+contagem[f]+')</option>'; }).join('')+'</select>'+
+      '<option value="">Todas as famílias ('+doTipo.length+')</option>'+fams.map(function(f){ return '<option value="'+esc(f)+'"'+(f===_figs.fam?' selected':'')+'>'+esc(f)+' ('+contagem[f]+')</option>'; }).join('')+'</select>'+
     (soAdmin()&&!ehEspelho()?'<button class="btn btn-outline" onclick="abrirCargaPerfis()">☁ Subir figuras para a nuvem</button>':'')+'</div>'+
     '<div class="filtros"><label><input type="checkbox"'+(_figs.cadastrados?' checked':'')+' onchange="_figs.cadastrados=this.checked;_figs.pagina=0;desenharFiguras()"> Só os já cadastrados no estoque</label>'+
     '<span style="color:var(--gray-5)">'+filtrados.length+' figura(s)'+(paginas>1?' · página '+(_figs.pagina+1)+' de '+paginas:'')+'</span></div>';
   h+='<div class="figs-grade">'+pag.map(function(c){
-    const mid=cadastrados[c.codigo];
-    return '<button class="fig-cel" onclick="'+(mid?'abrirDetalhe(\''+mid+'\')':'cadastrarDaFigura('+jsArg(c.codigo)+')')+'" title="'+esc(c.codigo)+'">'+
-      '<img data-fig="'+esc(c.id)+'" alt=""><span>'+esc(c.codigo)+'</span>'+(mid?'<small>✓ no estoque</small>':'')+'</button>';
+    const mid=cadastrados[c.tipo+'|'+c.codigo];
+    return '<button class="fig-cel" onclick="'+(mid?'abrirDetalhe(\''+mid+'\')':'cadastrarDaFigura('+jsArg(c.codigo)+','+jsArg(c.tipo)+')')+'" title="'+esc(c.codigo)+'">'+
+      '<img data-fig="'+esc(c.id)+'" alt=""><span>'+esc(c.codigo)+'</span>'+
+      (c.tipo==='componente'?'<small style="color:var(--gray-5)">componente</small>':'')+(mid?'<small>✓ no estoque</small>':'')+'</button>';
   }).join('')+'</div>';
   if(!pag.length) h+='<div class="vazio">Nenhuma figura com esse código.</div>';
   if(paginas>1) h+='<div class="paginas">'+
@@ -1739,14 +1832,15 @@ async function desenharFiguras(){
 }
 // Perfil ainda nao cadastrado: primeiro mostra a figura grande, para a pessoa
 // conferir se e o perfil certo, e so depois oferece cadastrar.
-function cadastrarDaFigura(cod){
+function cadastrarDaFigura(cod, tipo){
   _janelaAtual=null;
   const ro=ehConsulta()||ehEspelho();
-  abrirJanela(cod, caixaFigura(cod,'enorme')+
+  tipo=tipo==='componente'?'componente':'perfil';
+  abrirJanela(cod, caixaFigura(cod,'enorme',tipo)+
     '<div style="text-align:center;margin-top:10px"><div class="cod" style="font-size:18px">'+esc(cod)+'</div>'+
-    '<div class="sub">Ainda não está no estoque.</div></div>',
+    '<div class="sub">'+(tipo==='componente'?'Componente':'Perfil')+' · ainda não está no estoque.</div></div>',
     '<button class="btn btn-outline" onclick="fecharJanela()">Fechar</button>'+
-    (ro?'':'<button class="btn btn-cor" onclick="abrirMaterial(null,'+jsArg(cod)+')">Cadastrar '+esc(cod)+'</button>'), 780);
+    (ro?'':'<button class="btn btn-cor" onclick="abrirMaterial(null,'+jsArg(cod)+',null,'+jsArg(tipo)+')">Cadastrar '+esc(cod)+'</button>'), 780);
   preencherFiguras(document.getElementById('janela-corpo'));
 }
 
@@ -1767,7 +1861,7 @@ async function abrirCargaPerfis(){
   _janelaAtual=null;
   abrirJanela('Figuras na nuvem','<div style="font-size:13.5px;line-height:1.6">'+
     'A lista tem <b>'+lista.length+'</b> figuras. Por este computador já subiram <b>'+ja+'</b>.<br><br>'+
-    '1. Clique em <b>Escolher a pasta</b> e selecione a pasta <b>C:\\Daluminium\\figuras-perfis</b>.<br>'+
+    '1. Clique em <b>Escolher a pasta</b> e selecione a pasta <b>C:\\Daluminium\\figuras-perfis</b> (perfis) ou <b>C:\\Daluminium\\figuras-componentes</b> (componentes). Uma pasta de cada vez.<br>'+
     '2. O navegador pergunta se pode enviar os arquivos: confirme.<br>'+
     '3. Deixe esta tela aberta até terminar (uns 30 a 40 minutos). Se parar, é só fazer de novo: continua de onde parou.</div>'+
     '<div style="margin-top:12px"><label class="btn btn-cor">📁 Escolher a pasta<input type="file" webkitdirectory multiple hidden onchange="iniciarCargaPerfis(this)"></label></div>'+
@@ -1799,7 +1893,7 @@ async function iniciarCargaPerfis(input){
   });
   const st=document.getElementById('carga-status');
   if(!achados){
-    if(st) st.innerHTML='<div class="aviso-linha aviso-ambar">Não achei figuras nesta pasta ('+arquivos.length+' arquivo(s)). Escolha a pasta <b>figuras-perfis</b>.</div>';
+    if(st) st.innerHTML='<div class="aviso-linha aviso-ambar">Não achei figuras nesta pasta ('+arquivos.length+' arquivo(s)). Escolha a pasta <b>figuras-perfis</b> ou <b>figuras-componentes</b>.</div>';
     return;
   }
   if(!fila.length){ if(st) st.innerHTML='<div class="aviso-linha aviso-azul">Nada a enviar: todas as '+achados+' figuras desta pasta já estão na nuvem.</div>'; return; }
@@ -1854,7 +1948,9 @@ function abrirApp(nome,papelDoUsuario){
   document.getElementById('app').style.display='block';
   try{ const a=sessionStorage.getItem('dalum-estoque-aba'); if(a) aba=a; }catch(e){}
   lerLocal();
-  carregarListaPerfis().then(function(){ if(aba!=='figuras') preencherFiguras(document.getElementById('tela')); }).catch(function(){});
+  // Redesenha quando a lista chega: componente com figura na biblioteca so
+  // sabe que tem figura depois dela (antes aparece o 🔩).
+  carregarListaPerfis().then(function(){ if(aba!=='figuras') render(); }).catch(function(){});
   render();
   sincronizar();
   document.getElementById('aviso-ov').addEventListener('click',function(e){ if(e.target===this) fecharAviso(); });
