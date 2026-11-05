@@ -741,7 +741,7 @@ function botoesDeLancar(){
   return '<button class="btn btn-verde" onclick="abrirMovimento(\'entrada\')">+ Entrada</button>'+
     '<button class="btn btn-verm" onclick="abrirMovimento(\'saida\')">− Saída</button>'+
     '<button class="btn btn-outline" onclick="abrirMaterial()">Cadastrar material</button>'+
-    '<button class="btn btn-outline" onclick="abrirImportacao()" title="Cadastrar os perfis e componentes da Lista de materiais do SmartCEM">📄 Importar do PDF</button>';
+    '<button class="btn btn-outline" onclick="abrirImportacao()" title="Cadastrar perfis e componentes da Lista de materiais do SmartCEM ou de uma planilha">📥 Importar (PDF ou Excel)</button>';
 }
 function bateBusca(q, campos){
   if(!q) return true;
@@ -783,7 +783,7 @@ function telaSaldo(){
     '<label><input type="checkbox"'+(filtro.zerados?' checked':'')+' onchange="filtro.zerados=this.checked;render()"> Mostrar os que zeraram</label>'+
     '<span style="color:var(--gray-5)">'+linhas.length+' linha(s)</span></div>';
   if(!dados.materiais.length){
-    h+='<div class="vazio">Nenhum material cadastrado ainda.<br><br>O jeito mais rápido: <b>📄 Importar do PDF</b> com a Lista de materiais de uma obra do SmartCEM.<br>'+
+    h+='<div class="vazio">Nenhum material cadastrado ainda.<br><br>O jeito mais rápido: <b>📥 Importar</b> a Lista de materiais de uma obra do SmartCEM, ou uma planilha do Excel.<br>'+
       'Também dá para usar <b>Cadastrar material</b>, ou achar o perfil na aba <b>Figuras dos perfis</b>.</div>';
     return h;
   }
@@ -1365,17 +1365,138 @@ async function pedacosDoPdf(arquivo){
   return paginas;
 }
 
+// ================= LER UMA PLANILHA (EXCEL OU CSV) =================
+// Pedido do Ander (04/11/2026): alem do PDF, cadastrar por planilha. A
+// primeira linha com "Codigo" e o cabecalho; os titulos sao reconhecidos de
+// varios jeitos (sem acento, maiuscula ou minuscula). So o Codigo e
+// obrigatorio. Tipo: "perfil" (ou unidade BARRA, ou Barra preenchida) vira
+// perfil; o resto, componente. Devolve o mesmo formato do leitor do PDF.
+// linhas = [[celula, celula...], ...] como sai do leitor de Excel.
+// BEGIN-PLANILHA (o teste no computador copia daqui ate END-PLANILHA)
+const UNIDADE_DA_PLANILHA={PC:'PC','PÇ':'PC',PCS:'PC',PECA:'PC','PEÇA':'PC',PECAS:'PC','PEÇAS':'PC',UN:'UN',UND:'UN',UNID:'UN',UNIDADE:'UN',
+  M:'MT',MT:'MT',MTS:'MT',METRO:'MT',METROS:'MT',ML:'MT',PR:'PR',PAR:'PR',PARES:'PR',RL:'RL',ROLO:'RL',ROLOS:'RL',
+  TB:'TB',TUBO:'TB',TUBOS:'TB',PT:'PT',PCT:'PT',PACOTE:'PT',CX:'CX',CAIXA:'CX',KG:'KG',QUILO:'KG',LT:'LT',L:'LT',LITRO:'LT'};
+function lerPlanilhaDeMateriais(linhas){
+  const limpo=function(v){ return String(v==null?'':v).normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); };
+  const res={ehLista:true, proposta:'', cliente:'', perfis:[], componentes:[], ignoradas:[], cabecalho:false};
+  let iCab=-1;
+  for(let i=0;i<Math.min(linhas.length,15);i++){
+    if((linhas[i]||[]).some(function(c){ return /^(codigo|cod|cod produto|codigo do produto|referencia|ref)$/.test(limpo(c)); })){ iCab=i; break; }
+  }
+  if(iCab<0) return res;
+  res.cabecalho=true;
+  const cab=linhas[iCab].map(limpo);
+  const coluna=function(rx){ return cab.findIndex(function(c){ return rx.test(c); }); };
+  const cCod=coluna(/^(codigo|cod|cod produto|codigo do produto|referencia|ref)$/);
+  const cDesc=coluna(/^(descricao|desc|nome|produto|material)/);
+  const cTipo=coluna(/^(tipo|categoria)$/);
+  const cUn=coluna(/^(unidade|un|und|unid|medida)$/);
+  const cBarra=coluna(/^(barra|barra mm|comprimento|comprimento mm|comprimento da barra|comprimento da barra mm|tamanho da barra)$/);
+  const vistos={};
+  for(let i=iCab+1;i<linhas.length;i++){
+    const l=linhas[i]||[];
+    const codigo=String(l[cCod]==null?'':l[cCod]).trim().replace(/\s+/g,' ').toUpperCase();
+    if(!codigo){ if(l.some(function(c){ return String(c==null?'':c).trim(); })) res.ignoradas.push({linha:i+1, motivo:'sem código'}); continue; }
+    if(vistos[codigo]){ res.ignoradas.push({linha:i+1, motivo:codigo+' repetido (vale a linha '+vistos[codigo]+')'}); continue; }
+    vistos[codigo]=i+1;
+    const descricao=cDesc<0?'':String(l[cDesc]==null?'':l[cDesc]).trim().replace(/\s+/g,' ');
+    const tipoTxt=cTipo<0?'':limpo(l[cTipo]);
+    const unTxt=cUn<0?'':String(l[cUn]==null?'':l[cUn]).trim().toUpperCase().replace(/\.$/,'');
+    const barraTxt=cBarra<0?'':String(l[cBarra]==null?'':l[cBarra]).replace(/\D/g,'');
+    const barra=barraTxt?parseInt(barraTxt,10):null;
+    let tipo;
+    if(/^perf/.test(tipoTxt)) tipo='perfil';
+    else if(/^(comp|aces|ferr|outro)/.test(tipoTxt)) tipo='componente';
+    else tipo=(unTxt==='BARRA'||unTxt==='BR'||unTxt==='BARRAS'||(barra&&barra>=1000))?'perfil':'componente';
+    if(tipo==='perfil'){
+      res.perfis.push({codigo:codigo, descricao:descricao, barraMm:(barra&&barra>=500&&barra<=12000)?barra:6000, cores:[]});
+    } else {
+      const un=UNIDADE_DA_PLANILHA[unTxt]||(/^[A-Z]{1,4}$/.test(unTxt)?unTxt:'PC');
+      res.componentes.push({codigo:codigo, descricao:descricao, unidade:un});
+    }
+  }
+  return res;
+}
+// END-PLANILHA
+
+// Leitor de Excel (SheetJS 0.18.5, cdnjs) — so baixado quando a pessoa
+// escolhe uma planilha. Selo sha512 = o publicado pelo proprio cdnjs.
+const XLSX_URL='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+const XLSX_SELO='sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==';
+let _xlsx=null;
+function carregarXlsx(){
+  if(_xlsx) return _xlsx;
+  _xlsx=new Promise(function(ok,falhou){
+    const s=document.createElement('script');
+    s.src=XLSX_URL; s.integrity=XLSX_SELO; s.crossOrigin='anonymous';
+    s.onload=function(){ if(window.XLSX) ok(window.XLSX); else { _xlsx=null; falhou(new Error('o leitor de planilha não carregou direito')); } };
+    s.onerror=function(){ _xlsx=null; falhou(new Error('não consegui baixar o leitor de planilha (confira a internet)')); };
+    document.head.appendChild(s);
+  });
+  return _xlsx;
+}
+async function linhasDaPlanilha(arquivo){
+  const X=await carregarXlsx();
+  const wb=X.read(new Uint8Array(await arquivo.arrayBuffer()),{type:'array'});
+  // Primeira aba que tiver um cabecalho com "Codigo"; senao, a primeira.
+  let melhor=null;
+  wb.SheetNames.some(function(n){
+    const l=X.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:'',raw:false});
+    if(!melhor) melhor=l;
+    if(lerPlanilhaDeMateriais(l).cabecalho){ melhor=l; return true; }
+    return false;
+  });
+  return melhor||[];
+}
+async function baixarModeloPlanilha(){
+  let X; try{ X=await carregarXlsx(); }catch(e){ aviso('Modelo da planilha',e.message); return; }
+  const linhas=[['Código','Descrição','Tipo','Unidade','Barra (mm)'],
+    ['LG068','MARCO','perfil','BARRA',6000],
+    ['CL006','CONEXAO','perfil','BARRA',3000],
+    ['ROLD00413FCO','ROLDANA C/ REGULAGEM 2 ROL. 80KG P/FOLHA','componente','PC',''],
+    ['GUAR00256PTO','GUARN.EPDM CUNHA SD626 12X6,3','componente','MT','']];
+  const ws=X.utils.aoa_to_sheet(linhas);
+  ws['!cols']=[{wch:16},{wch:45},{wch:12},{wch:10},{wch:11}];
+  const wb=X.utils.book_new(); X.utils.book_append_sheet(wb,ws,'Materiais');
+  X.writeFile(wb,'modelo-cadastro-estoque.xlsx');
+}
+
 // ---- Janela "Importar cadastro do PDF" ----
 let _importacao=null;   // {arquivo, lido, novos:[], completar:[], iguais:n}
 function abrirImportacao(){
   if(recusarSeConsulta()) return;
   _janelaAtual=null; _importacao=null;
-  abrirJanela('Importar cadastro do PDF',
-    '<div style="font-size:13.5px;line-height:1.6">Escolha a <b>Lista de materiais</b> de uma obra, tirada do SmartCEM (o relatório "Relação de Materiais").<br>'+
-    'O sistema cadastra os <b>perfis e componentes</b> que ainda não estão no estoque, com código, descrição, barra e unidade.<br>'+
-    '<span class="sub">Não entra quantidade: a lista diz o que a obra precisa, não o que há no depósito. Vidros e superfícies ficam de fora.</span></div>'+
-    '<div style="margin-top:12px"><label class="btn btn-cor">📄 Escolher o PDF<input type="file" accept="application/pdf,.pdf" hidden onchange="lerPdfParaImportar(this)"></label></div>'+
+  abrirJanela('Importar cadastro',
+    '<div style="font-size:13.5px;line-height:1.6">O sistema cadastra os <b>perfis e componentes</b> que ainda não estão no estoque, com código, descrição, barra e unidade. '+
+    'Antes de gravar, mostra a lista para você conferir.<br>'+
+    '<span class="sub">Não entra quantidade: o saldo começa em zero e sobe com as entradas.</span></div>'+
+    '<div class="secao"><h4>Da Lista de materiais do SmartCEM</h4>'+
+    '<div class="sub" style="margin-bottom:6px">O relatório "Relação de Materiais" de uma obra. Vidros e superfícies ficam de fora.</div>'+
+    '<label class="btn btn-cor">📄 Escolher o PDF<input type="file" accept="application/pdf,.pdf" hidden onchange="lerPdfParaImportar(this)"></label></div>'+
+    '<div class="secao"><h4>De uma planilha (Excel ou CSV)</h4>'+
+    '<div class="sub" style="margin-bottom:6px">Primeira linha com os títulos: <b>Código</b> (obrigatório), Descrição, Tipo (perfil ou componente), Unidade e Barra (mm). '+
+    'Sem a coluna Tipo, unidade BARRA ou barra preenchida vira perfil.</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><label class="btn btn-cor">📊 Escolher a planilha<input type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" hidden onchange="lerPlanilhaParaImportar(this)"></label>'+
+    '<button class="btn btn-outline" onclick="baixarModeloPlanilha()">⬇ Baixar modelo da planilha</button></div></div>'+
     '<div id="imp-resultado" style="margin-top:12px"></div>', '', 720);
+}
+async function lerPlanilhaParaImportar(input){
+  const f=(input.files||[])[0]; input.value='';
+  const caixa=document.getElementById('imp-resultado'); if(!f||!caixa) return;
+  caixa.innerHTML='<div class="vazio">Lendo "'+esc(f.name)+'"...</div>';
+  let lido;
+  try{ lido=lerPlanilhaDeMateriais(await linhasDaPlanilha(f)); }
+  catch(e){ caixa.innerHTML='<div class="aviso-linha aviso-verm">Não consegui ler esta planilha: '+esc(e.message)+'</div>'; return; }
+  if(!lido.cabecalho){
+    caixa.innerHTML='<div class="aviso-linha aviso-ambar">Não achei a coluna <b>Código</b> em "'+esc(f.name)+'".<br>'+
+      'A primeira linha da tabela precisa ter os títulos (Código, Descrição...). Use o <b>modelo da planilha</b> se tiver dúvida.</div>';
+    return;
+  }
+  if(!lido.perfis.length && !lido.componentes.length){
+    caixa.innerHTML='<div class="aviso-linha aviso-ambar">A planilha tem a coluna Código, mas nenhuma linha preenchida.</div>'; return;
+  }
+  _importacao={arquivo:f.name, lido:lido};
+  desenharImportacao();
 }
 async function lerPdfParaImportar(input){
   const f=(input.files||[])[0]; input.value='';
@@ -1416,10 +1537,12 @@ function desenharImportacao(){
   const L=_importacao.lido, plano=planoDeImportacao(L);
   const novosP=plano.novos.filter(function(x){ return x.tipo==='perfil'; }), novosC=plano.novos.filter(function(x){ return x.tipo==='componente'; });
   let h='<div class="aviso-linha aviso-azul"><b>'+esc(_importacao.arquivo)+'</b>'+(L.proposta?' · '+esc(L.proposta):'')+(L.cliente?' · '+esc(L.cliente):'')+'<br>'+
-    'No PDF: <b>'+L.perfis.length+'</b> perfis e <b>'+L.componentes.length+'</b> componentes.<br>'+
+    'No arquivo: <b>'+L.perfis.length+'</b> perfis e <b>'+L.componentes.length+'</b> componentes.<br>'+
     'Novos para cadastrar: <b>'+novosP.length+'</b> perfis e <b>'+novosC.length+'</b> componentes'+
     (plano.completar.length?' · '+plano.completar.length+' já cadastrado(s) ganham a descrição':'')+
     (plano.iguais?' · '+plano.iguais+' já estavam cadastrados (ficam como estão)':'')+'.</div>';
+  if(L.ignoradas&&L.ignoradas.length) h+='<div class="aviso-linha aviso-ambar"><b>'+L.ignoradas.length+' linha(s) da planilha ficaram de fora:</b><br>'+
+    L.ignoradas.slice(0,15).map(function(g){ return 'linha '+g.linha+': '+esc(g.motivo); }).join('<br>')+(L.ignoradas.length>15?'<br>…':'')+'</div>';
   if(!plano.novos.length && !plano.completar.length){
     caixa.innerHTML=h+'<div class="vazio">Nada novo: tudo deste PDF já está no estoque.</div>'; return;
   }
@@ -1456,7 +1579,7 @@ async function gravarImportacao(){
       if(b && !b.descricao){ b.descricao=c.x.descricao; b.editadoPor=usuario; b.editadoEm=quando; completados++; }
     });
     if(!feitos && !completados) return 'Nada novo: tudo deste PDF já está no estoque.';
-  },function(){ return {acao:'importou cadastro do PDF',alvo:arq,detalhe:feitos+' novo(s)'+(completados?', '+completados+' com descrição':'')+(L.proposta?' · '+L.proposta:'')}; });
+  },function(){ return {acao:/\.pdf$/i.test(arq)?'importou cadastro do PDF':'importou cadastro da planilha',alvo:arq,detalhe:feitos+' novo(s)'+(completados?', '+completados+' com descrição':'')+(L.proposta?' · '+L.proposta:'')}; });
   if(btn) btn.disabled=false;
   if(deu){ fecharJanela(); aviso('Cadastro importado',feitos+' material(is) cadastrado(s)'+(completados?' e '+completados+' ganharam a descrição':'')+'.\n\nO saldo de todos começa em zero: lance as entradas conforme o material chegar.'); }
 }
