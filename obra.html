@@ -295,7 +295,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <input class="busca" id="busca" placeholder="Buscar contrato, cliente, cidade, condomínio..." oninput="render()">
       <select class="filtro" id="f-status-filtro" onchange="render()"><option value="">Todos os status</option></select>
       <select class="filtro" id="f-ano-filtro" onchange="render()"><option value="">Todos os anos</option></select>
-      <select class="filtro" id="f-coord-filtro" onchange="render()"><option value="">Todos os coordenadores</option></select>
+      <select class="filtro" id="f-revisao-filtro" onchange="render()"><option value="">Todas as revisões</option></select>
       <div class="view-switch">
         <button class="view-btn" id="vb-painel" onclick="setView('painel')">Painel</button>
         <button class="view-btn" id="vb-carteira" onclick="setView('carteira')">Carteira</button>
@@ -513,6 +513,14 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg span2"><button class="btn btn-teal btn-block" onclick="addFeriado()">Acrescentar feriado</button></div>
       </div>
       <div id="fer-lista"></div>
+
+      <div class="secao">Revisões do projeto</div>
+      <div class="dica">As opções aparecem na ficha da obra e no filtro de revisão. As opções existentes são mantidas.</div>
+      <div id="rev-lista" style="margin:12px 0"></div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="fg span2"><label for="rev-nome">Nova opção de revisão</label><input id="rev-nome" maxlength="80" placeholder="Nome da revisão"></div>
+        <div class="fg span2"><button class="btn btn-teal btn-block" onclick="addRevisao()">Cadastrar revisão</button></div>
+      </div>
 
       <div class="secao">Status da obra</div>
       <div class="aviso">É a lista que aparece no campo <strong>Status</strong> da ficha, nos cartões do painel e no filtro da carteira. As setas mandam na ordem. <strong>Entra na produção</strong> marcado quer dizer que a obra com esse status é levada para o quadro da Fábrica e para a lista do Compras — deixe desmarcado em status de obra que terminou ou parou. Status em uso não pode ser tirado, mas pode ser <strong>renomeado</strong>: o nome novo entra também nos contratos que o usam.</div>
@@ -2195,7 +2203,7 @@ function preencherListas(){
     return (dados.contratos||[]).some(function(c){ return c.status===s; });
   }));
   enche('f-ano-filtro','Todos os anos',valoresDe('ano').slice().sort().reverse());
-  enche('f-coord-filtro','Todos os coordenadores',valoresDe('coord'));
+  enche('f-revisao-filtro','Todas as revisões',revisaoLista());
 }
 
 // Obra FINALIZADA sai da carteira: o que esta finalizado nao e trabalho a
@@ -2212,7 +2220,7 @@ function filtrados(esconderFinalizadas){
   const busca=paraBusca(document.getElementById('busca').value||'').trim();
   const fs=document.getElementById('f-status-filtro').value;
   const fa=document.getElementById('f-ano-filtro').value;
-  const fc=document.getElementById('f-coord-filtro').value;
+  const fr=document.getElementById('f-revisao-filtro').value;
   return (verExcluidos?excluidos():ativos()).filter(function(c){
     // Escolher FINALIZADA no filtro manda mais que a regra: quem pediu para
     // ver, ve. Na lixeira tambem aparecem todas.
@@ -2220,7 +2228,7 @@ function filtrados(esconderFinalizadas){
        && c.status==='FINALIZADA') return false;
     if(fs && c.status!==fs) return false;
     if(fa && c.ano!==fa) return false;
-    if(fc && c.coord!==fc) return false;
+    if(fr && c.revisao!==fr) return false;
     if(!busca) return true;
     // Os campos extras entram na busca: criar uma coluna e não poder procurar
     // por ela deixaria o campo pela metade.
@@ -2378,6 +2386,7 @@ function render(){
   // maquina). O select da ficha e montado no abrirApp, quando os dados ainda
   // nao chegaram — sem isto, status novo so apareceria ao recarregar a tela.
   atualizarSelectStatus();
+  atualizarSelectRevisao();
   // Pedido que alguem confirmou e eu ainda nao vi. Fica aqui porque render()
   // roda depois de toda gravacao e de toda sincronizacao — e assim o aviso
   // chega sozinho, sem depender de ninguem apertar enviar no WhatsApp.
@@ -2481,7 +2490,7 @@ function imprimirCarteira(){
   const filtros=[];
   const busca=(document.getElementById('busca')||{}).value||'';
   if(busca.trim()) filtros.push('busca: "'+busca.trim()+'"');
-  ['f-status-filtro','f-ano-filtro','f-coord-filtro'].forEach(function(id){
+  ['f-status-filtro','f-ano-filtro','f-revisao-filtro'].forEach(function(id){
     const s=document.getElementById(id);
     if(s && s.value) filtros.push(s.options[s.selectedIndex].text);
   });
@@ -2633,9 +2642,16 @@ function atualizarSelectStatus(){
 }
 function preencherSelects(){
   atualizarSelectStatus();
+  atualizarSelectRevisao();
+}
+function atualizarSelectRevisao(){
   const rv=document.getElementById('f-revisao');
+  if(!rv) return;
+  const antes=rv.value;
+  const nomes=revisaoLista();
   rv.innerHTML='<option value="">— sem revisão —</option>'+
-    REVISAO_LISTA.map(function(s){ return '<option value="'+esc(s)+'">'+esc(s)+'</option>'; }).join('');
+    nomes.map(function(s){ return '<option value="'+esc(s)+'">'+esc(s)+'</option>'; }).join('');
+  if(nomes.indexOf(antes)>=0) rv.value=antes;
 }
 
 // ---- CLIENTE DO CRM NO CONTRATO NOVO (pedido do Ander, 16/10/2026) ----
@@ -2742,6 +2758,7 @@ function abrirFicha(id){
   // Antes de escolher o valor: o select precisa ter a opcao do status deste
   // contrato, inclusive se ele saiu do cadastro.
   atualizarSelectStatus();
+  atualizarSelectRevisao();
   renderExtrasNaFicha(c);
   preencherFichaContrato(c);
   const p=(campo,v)=>{ document.getElementById(campo).value=v||''; };
@@ -5734,6 +5751,7 @@ function abrirCadastros(){
   preencherCoresStatus();
   cancelarEdicaoStatus();
   renderStatus();
+  renderRevisoes();
   renderCamposExtras();
   renderTiposDoc();
   cancelarEdicaoTipoDoc();
@@ -5753,6 +5771,36 @@ function abrirContratosCadastro(){
 }
 function fecharContratosCadastro(){ document.getElementById('ctrcad-ov').classList.remove('open'); }
 function fecharCadastros(){ document.getElementById('cad-ov').classList.remove('open'); }
+
+// Revisões mantêm os padrões e também valores já usados nas obras.
+function revisaoLista(base){
+  base=base||dados;
+  const lista=REVISAO_LISTA.concat(Array.isArray(base.revisoesObra)?base.revisoesObra:[],
+    (base.contratos||[]).map(function(c){ return c.revisao; }));
+  return lista.filter(function(v,i){ return typeof v==='string' && v.trim() && lista.indexOf(v)===i; });
+}
+function renderRevisoes(){
+  document.getElementById('rev-lista').innerHTML=revisaoLista().map(function(v){
+    return pill(v,REVISAO_COR[v]||'pill-cinza');
+  }).join(' ');
+}
+async function addRevisao(){
+  if(!podeGerenciar()){ aviso('Sem permissão','Só administrador ou gerente cadastra revisões.'); return; }
+  const input=document.getElementById('rev-nome');
+  const nome=input.value.trim().replace(/\s+/g,' ').toUpperCase();
+  if(!nome){ aviso('Falta o nome','Escreva o nome da revisão.'); return; }
+  if(nome.length>80){ aviso('Nome muito longo','Use até 80 caracteres.'); return; }
+  const chave=function(v){ return paraBusca(v).trim().replace(/\s+/g,' '); };
+  if(revisaoLista().some(function(v){ return chave(v)===chave(nome); })){
+    aviso('Já existe','Essa revisão já está cadastrada.'); return;
+  }
+  const ok=await alterar(function(base){
+    if(revisaoLista(base).some(function(v){ return chave(v)===chave(nome); })) return;
+    if(!Array.isArray(base.revisoesObra)) base.revisoesObra=[];
+    base.revisoesObra.push(nome);
+  }, {acao:'cadastrou revisão', alvo:nome});
+  if(ok){ input.value=''; renderRevisoes(); atualizarSelectRevisao(); render(); }
+}
 
 // ---- STATUS DA OBRA ----
 // Pedido do Ander em 17/09/2026: poder criar status pela tela, sem alteracao
