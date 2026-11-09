@@ -2751,7 +2751,7 @@ function abrirFicha(id){
   anotarAcesso('abriu a ficha', alvoDoContrato(c));
   fichaId=id;
   _manual={projEntrada:!!c.projEntrada, entrega:!!c.entrega};
-  document.getElementById('f-compras-agrupamento').value=AGRUPAMENTOS_COMPRAS.indexOf(c.comprasAgrupamento)>=0?c.comprasAgrupamento:'juntas';
+  document.getElementById('f-compras-agrupamento').value=modoCompras(c);
   fichaDocs=Array.isArray(c.docs)?JSON.parse(JSON.stringify(c.docs)):[];
   docsApagados={};
   preencherTiposDoc(); renderDocs();
@@ -2830,7 +2830,7 @@ async function salvarFicha(manterAberta){
   const c=lerFicha();
   c.comprasAgrupamento=(function(){
     const v=document.getElementById('f-compras-agrupamento').value;
-    return AGRUPAMENTOS_COMPRAS.indexOf(v)>=0?v:'juntas';
+    return modoCompras({comprasAgrupamento:v});
   })();
   if(!c.ct){ aviso('Falta o contrato','Preencha o número do contrato (CT).'); document.getElementById('f-ct').focus(); return false; }
   if(!c.ano){ aviso('Falta o ano','Preencha o ano do contrato.'); document.getElementById('f-ano').focus(); return false; }
@@ -5465,8 +5465,10 @@ async function mandarAnexoParaCompras(c, d){
     }
     return null;
   };
-  let alvo=acharLancamentoDaObra(comp, c.id, d.url) ||
-           (ehLista ? (acharPorGrupo() || lancamentoManualNoCompras(comp, c))
+  const manual=lancamentoManualNoCompras(comp,c);
+  const manualComArquivo=manual && (manual.reg.attachments||[]).some(function(a){ return a.url===d.url; }) ? manual : null;
+  let alvo=acharLancamentoDaObra(comp, c.id, d.url) || manualComArquivo ||
+           (ehLista ? (acharPorGrupo() || (grupo==='juntas'?manual:null))
                     : (acharLancamentoDaObra(comp, c.id) || lancamentoManualNoCompras(comp, c)));
   // Nao e lista de material e nao existe pedido: nao invento um. Pedido de
   // material que nasce de uma Proposta so enche a tela de quem compra
@@ -7047,7 +7049,7 @@ function encurtarRotulo(t){
   return oficial||t;
 }
 // As escolhas do campo "Pedidos no Compras" da ficha. Qualquer outro valor
-// gravado (ou vazio) vale como 'juntas', que e como o modulo sempre funcionou.
+// gravado (ou vazio) usa o padrão separado; escolhas válidas são preservadas.
 const AGRUPAMENTOS_COMPRAS=['juntas','separadas','porlista'];
 function normalizarRotuloLista(s){
   return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
@@ -7070,8 +7072,12 @@ function listasMaterialCompras(c){
 //               chave e o endereco do arquivo, que e a identidade que os dois
 //               modulos ja usam para saber se a lista chegou la. Duas listas
 //               do mesmo tipo, de etapas diferentes, deixam de cair juntas.
-function grupoDaLista(c,d){
+function modoCompras(c){
   const modo=(c||{}).comprasAgrupamento;
+  return AGRUPAMENTOS_COMPRAS.indexOf(modo)>=0?modo:'separadas';
+}
+function grupoDaLista(c,d){
+  const modo=modoCompras(c);
   if(modo==='porlista')  return 'lista:'+d.url;
   if(modo==='separadas') return normalizarRotuloLista(d.tipo);
   return 'juntas';
