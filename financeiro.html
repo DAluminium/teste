@@ -816,7 +816,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           </select>
         </div>
         <div class="form-group span2"><label id="b-valor-lbl">Valor pago</label><input id="b-valor" type="text" placeholder="Deixe em branco para usar o valor original" oninput="calcJurosBaixa()"></div>
-        <div class="form-group" id="b-juros-box" style="display:none"><label>Juros / taxa da operadora</label><input id="b-juros" type="text" placeholder="0,00" oninput="calcJurosBaixa()"></div>
+        <div class="form-group" id="b-juros-box" style="display:none"><label id="b-juros-lbl">Juros / taxa da operadora</label><input id="b-juros" type="text" placeholder="0,00" oninput="calcJurosBaixa()"></div>
         <div class="form-group" id="b-juroscat-box" style="display:none"><label>Plano de conta do juros</label><select id="b-juros-cat"></select></div>
         <div class="form-group span2" id="b-juros-resumo" style="display:none;background:var(--teal-light);border-radius:var(--radius);padding:8px 10px;font-size:12px;color:var(--teal-dark)"></div>
         <div class="form-group span2"><label>Observação</label><input id="b-obs" type="text" placeholder="Ex: Pago via PIX"></div>
@@ -4225,16 +4225,20 @@ function openBaixa(type,idx){
   // cada baixa pode cair num banco diferente.
   document.getElementById('b-conta').value=r.conta||'pagbank';
   document.getElementById('b-obs').value='';
-  // Juros da operadora: so no recebimento (pedido da Ailime, 11/11/2026).
+  // Juros: no recebimento e o da operadora (Ailime, 11/11/2026); na despesa e
+  // o juros/multa por atraso, pago alem do valor do boleto (Ailime, 11/11/2026).
   const ehRec=(type!=='pagar');
-  document.getElementById('b-valor-lbl').textContent=ehRec?'Valor que caiu no banco (líquido)':'Valor pago';
-  ['b-juros-box','b-juroscat-box'].forEach(function(id){ document.getElementById(id).style.display=ehRec?'':'none'; });
+  document.getElementById('b-valor-lbl').textContent=ehRec?'Valor que caiu no banco (líquido)':'Valor do boleto (sem juros)';
+  document.getElementById('b-juros-lbl').textContent=ehRec?'Juros / taxa da operadora':'Juros / multa por atraso';
+  ['b-juros-box','b-juroscat-box'].forEach(function(id){ document.getElementById(id).style.display=''; });
   document.getElementById('b-juros').value='';
-  if(ehRec){
+  {
     const sel=document.getElementById('b-juros-cat');
     const cats=getCategorias().filter(function(c){ return c.ativo!==false; });
     sel.innerHTML=cats.map(function(c){ return '<option value="'+c.id+'">'+c.label+'</option>'; }).join('');
-    if(cats.some(function(c){ return c.id==='taxas'; })) sel.value='taxas';
+    const pref=ehRec?'taxas':'multa-juros';
+    if(cats.some(function(c){ return c.id===pref; })) sel.value=pref;
+    else if(cats.some(function(c){ return c.id==='taxas'; })) sel.value='taxas';
   }
   calcJurosBaixa();
   document.getElementById('baixa-overlay').classList.add('open');
@@ -4249,7 +4253,23 @@ function calcJurosBaixa(){
   const box=document.getElementById('b-juros-resumo');
   if(!box) return;
   const juros=parseBR(document.getElementById('b-juros').value)||0;
-  if(baixaType==='pagar' || juros<=0){ box.style.display='none'; return; }
+  if(juros<=0){ box.style.display='none'; return; }
+  if(baixaType==='pagar'){
+    // Na despesa o juros e A MAIS: o boleto baixa pelo valor dele e o juros
+    // vira outra despesa paga. O que sai do banco e a soma dos dois.
+    const rp=data.pagar[baixaIdx];
+    const faltaP=rp?faltaPagar(rp):0;
+    const txtP=document.getElementById('b-valor').value;
+    let bol=txtP?(parseBR(txtP)||0):faltaP;
+    const passou=bol>faltaP+0.004;
+    if(bol>faltaP) bol=faltaP;
+    box.style.display='';
+    box.innerHTML='Sai do banco: <strong>R$ '+fmtBR(bol+juros)+'</strong> (boleto R$ '+fmtBR(bol)+' + juros R$ '+fmtBR(juros)+')'+
+      (passou?'<br><span style="color:var(--red)">O valor do boleto passa do que falta pagar (R$ '+fmtBR(faltaP)+'). Coloque aqui só o valor do boleto, sem o juros.</span>'
+        :(faltaP-bol>0.004?'<br>Ainda vai faltar R$ '+fmtBR(faltaP-bol)+' neste boleto.':'<br>Boleto quitado.'))+
+      '<br>O juros entra como outra despesa paga, no mesmo banco e data.';
+    return;
+  }
   const r=data.receber[baixaIdx];
   const falta=r?faltaReceber(r):0;
   const txt=document.getElementById('b-valor').value;
@@ -4278,9 +4298,30 @@ async function confirmarBaixa(){
     if(falta<=0.004){ alert('Esta conta já está totalmente paga.'); return; }
     // O valor digitado é o DESTE pagamento. Em branco, quita o que falta.
     let v=(val!==null&&val!==undefined&&!isNaN(val)&&val>0) ? val : falta;
+    const jurosP=parseBR(document.getElementById('b-juros').value)||0;
+    // Com juros, valor do boleto acima do que falta quase sempre e o juros
+    // somado por engano: avisa em vez de cortar calado.
+    if(jurosP>0 && v>falta+0.004){
+      alert('O valor do boleto (R$ '+fmtBR(v)+') passa do que falta pagar (R$ '+fmtBR(falta)+').\n\nColoque no primeiro campo só o valor do boleto, e o juros no campo de juros.');
+      return;
+    }
     if(v>falta) v=falta;
-    registrarBaixa(r,'pagar',dt,v,document.getElementById('b-conta').value,obs);
+    const contaP=document.getElementById('b-conta').value;
+    registrarBaixa(r,'pagar',dt,v,contaP,obs);
     r.obsBaixa=obs;
+    if(jurosP>0){
+      // Juros/multa por atraso: despesa propria, ja paga, mesmo banco e data.
+      const catP=document.getElementById('b-juros-cat').value||'multa-juros';
+      data.pagar.push({id:genId(), parentId:genId(),
+        desc:'Juros por atraso · '+(r.desc||'boleto'), forn:r.forn||'', cat:catP, conta:contaP,
+        doc:r.doc||'', obs:'Lançado junto com o pagamento de '+(r.desc||'—')+' em '+fmtDate(dt)+(r.venc?' (vencia '+fmtDate(r.venc)+')':''),
+        totalParcelas:1, totalValor:jurosP, parcelaDesc:'Parcela 1/1',
+        valor:jurosP, venc:dt, dtPag:dt, valorPago:jurosP,
+        baixas:[{id:genId(), data:dt, valor:jurosP, conta:contaP, obs:'Juros do pagamento'}],
+        origemPagamento:r.id||null});
+      logFin('Criou','A pagar · Juros por atraso · '+(r.desc||'—'),
+        'R$ '+fmtBR(jurosP)+' em '+(CONTA_LABEL[contaP]||contaP)+' · '+fmtDate(dt)+' (junto com o pagamento)');
+    }
   } else {
     const r=data.receber[baixaIdx];
     const falta=faltaReceber(r);
