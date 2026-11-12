@@ -340,6 +340,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div class="card-label">Recebido (mês)</div>
       <div class="card-sub" id="c-recebido-count">0 baixas</div>
       <div class="card-value" id="c-recebido-val">R$ 0,00</div>
+      <div class="card-sub" id="c-recebido-liq" style="display:none;margin-top:3px"></div>
     </div>
     <div class="card card-saldo">
       <div class="card-label">Saldo Total</div>
@@ -2862,6 +2863,21 @@ function faltaPagar(r){
 function pagarEmAberto(r){ return !r.dtPag || faltaPagar(r) > 0.004; }
 
 function recebidoDe(r){ return somaBaixas(r,'receber'); }
+// Tarifa/juros da operadora lancados JUNTO com o recebimento (botao ✓): sao as
+// despesas que guardam origemRecebimento = id do titulo. Lancamento feito a
+// parte, a mao, nao tem esse vinculo e nao entra aqui. (Ailime, 12/11/2026)
+function tarifaDoRecebimento(r){
+  if(!r||!r.id) return 0;
+  return (data.pagar||[]).reduce(function(a,p){
+    return p.origemRecebimento===r.id ? a+pagoDe(p) : a; },0);
+}
+// Linha "liquido R$ X · tarifa R$ Y" embaixo do valor recebido.
+function linhaLiquido(r){
+  const t=tarifaDoRecebimento(r);
+  if(t<=0.004) return '';
+  return '<span class="td-sub" style="color:var(--gray-5)">líquido R$ '+fmtBR(recebidoDe(r)-t)+
+    ' · tarifa R$ '+fmtBR(t)+'</span>';
+}
 function faltaReceber(r){
   return Math.max(0, (Number(r.valor)||0) - recebidoDe(r));
 }
@@ -3825,6 +3841,14 @@ function updateSummary(){
   document.getElementById('c-venc-val').textContent='R$ '+fmtBR(sumVenc);
   document.getElementById('c-recebido-count').textContent=recebidos.length+' baixa'+(recebidos.length!==1?'s':'');
   document.getElementById('c-recebido-val').textContent='R$ '+fmtBR(sumRecebido);
+  {
+    // Recebido e o que o cliente pagou; aqui embaixo, o que sobrou depois das
+    // tarifas lancadas junto com o recebimento (Ailime, 12/11/2026).
+    const tarifasMes=recebidos.reduce((a,r)=>a+tarifaDoRecebimento(r),0);
+    const el=document.getElementById('c-recebido-liq');
+    if(tarifasMes>0.004){ el.style.display=''; el.textContent='líquido de tarifas: R$ '+fmtBR(sumRecebido-tarifasMes); }
+    else el.style.display='none';
+  }
   document.getElementById('c-rec-count').textContent=pendRec.length+' título'+(pendRec.length!==1?'s':'');
   document.getElementById('c-rec-val').textContent='R$ '+fmtBR(sumPendRec);
   document.getElementById('c-saldo-val').textContent='R$ '+fmtBR(saldoTotal);
@@ -4407,7 +4431,7 @@ function renderReceber(){
         <td style="font-size:12px">${r.desc||'—'}</td>
         <td style="${r._status==='vencido'?'color:var(--red);font-weight:600':''}">${fmtDate(r.venc)}</td>
         <td class="td-valor">R$ ${fmtBR(r.valor)}${r._status==='parcial'?`<span class="td-sub" style="color:var(--amber)">falta R$ ${fmtBR(faltaReceber(r))}</span>`:''}</td>
-        <td class="td-valor" style="color:var(--green)">${recebidoDe(r)?'R$ '+fmtBR(recebidoDe(r)):'—'}${histBaixas(r,'receber')}</td>
+        <td class="td-valor" style="color:var(--green)">${recebidoDe(r)?'R$ '+fmtBR(recebidoDe(r)):'—'}${histBaixas(r,'receber')}${linhaLiquido(r)}</td>
         <td>${formas.join(' ')}</td>
         <td>${pillStatus(r._status)}${r.dtRec?`<span class="td-sub">${fmtDate(r.dtRec)}</span>`:''}</td>
         <td class="td-actions">
