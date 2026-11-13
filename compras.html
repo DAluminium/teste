@@ -915,7 +915,7 @@ function renderTable(type,isPago){
     </button></td>`;
     const detalhesBtn=isPago?`<button class="act" onclick="abrirDetalhesPago(${i})" title="Ver detalhes da compra">🔎</button>`:'';
     const actions=isPago
-      ?`<td class="td-actions">${detalhesBtn}<button class="act act-del" onclick="removeEntry('${type}',${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`
+      ?`<td class="td-actions">${detalhesBtn}${!ehConsulta()?`<button class="act" onclick="voltarParaPendente(${i})" title="Marcou como pago por engano? Voltar para pendente">↩</button>`:''}<button class="act act-del" onclick="removeEntry('${type}',${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`
       :`<td class="td-actions">
         <button class="act" onclick="editEntry('${type}',${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
         <button class="act" onclick="duplicateEntry('${type}',${i})" title="Duplicar (outro fornecedor, mesma obra)"><svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
@@ -1356,7 +1356,7 @@ function markPaid(type,idx){
   const r=data[type][idx];
   const user=prompt('Seu nome (obrigatório para registrar o pagamento):',lastBy||'');
   if(!user||!user.trim()){ alert('Nome obrigatório para registrar o pagamento.'); return; }
-  const paid={...r,dataPag:new Date().toISOString().slice(0,10)};
+  const paid={...r,dataPag:new Date().toISOString().slice(0,10),listaAntes:type};
   delete paid.status;
   data.pago.push(paid);
   data[type].splice(idx,1);
@@ -1369,6 +1369,44 @@ function markPaid(type,idx){
   aviso.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1A7A45;color:white;padding:12px 18px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.25);font-size:13px;z-index:9998;max-width:90vw';
   document.body.appendChild(aviso);
   setTimeout(function(){ aviso.remove(); },3000);
+}
+// Desfaz um "Marcar como pago" feito por engano (pedido de 13/11/2026).
+// A obra volta como Pendente para a lista de onde saiu (Urgentes ou
+// Importantes). As pagas antigas não guardaram de onde vieram: aí a pessoa
+// escolhe. A data de pagamento é apagada e tudo fica no Histórico.
+function voltarParaPendente(idx){
+  if(recusarSeConsulta()) return;
+  const r=(data.pago||[])[idx];
+  if(!r) return;
+  const user=prompt('Seu nome (obrigatório para registrar a alteração):',lastBy||'');
+  if(!user||!user.trim()){ alert('Nome obrigatório para registrar a alteração.'); return; }
+  const velho=document.getElementById('voltar-pendente-overlay'); if(velho) velho.remove();
+  const el=document.createElement('div');
+  el.id='voltar-pendente-overlay'; el.className='modal-overlay open';
+  const marca=function(L){ return r.listaAntes===L?' style="outline:3px solid var(--teal-dark)"':''; };
+  el.innerHTML='<div class="modal" style="max-width:460px"><div class="modal-header"><div class="modal-title">Voltar para pendente</div>'+
+    '<button class="act" data-acao="fechar" aria-label="Fechar">✕</button></div><div class="modal-body">'+
+    '<p style="margin:0 0 10px"><strong>'+escHtml(r.obra)+'</strong> — R$ '+fmtBR(r.valor)+'</p>'+
+    '<p style="margin:0 0 10px">A obra sai de Obras pagas, volta com a situação <strong>Pendente</strong> e a data de pagamento é apagada.</p>'+
+    '<p style="margin:0">'+(r.listaAntes?'Ela estava em <strong>'+(r.listaAntes==='urgente'?'Urgentes':'Importantes')+'</strong>. Confirme ou escolha outra lista:':'Para qual lista ela volta?')+'</p>'+
+    '</div><div class="modal-footer"><button class="btn btn-outline" data-acao="fechar">Cancelar</button>'+
+    '<button class="btn btn-outline" data-lista="importante"'+marca('importante')+'>🟡 Importantes</button>'+
+    '<button class="btn btn-outline" data-lista="urgente"'+marca('urgente')+'>🔴 Urgentes</button></div></div>';
+  el.addEventListener('click',function(ev){
+    const b=ev.target.closest('button'); if(!b) return;
+    if(b.dataset.acao==='fechar'){ el.remove(); return; }
+    const L=b.dataset.lista; if(L!=='urgente'&&L!=='importante') return;
+    const pos=(data.pago||[]).indexOf(r);
+    if(pos<0){ el.remove(); alert('A lista foi atualizada. Abra Obras pagas e tente de novo.'); return; }
+    const volta={...r,status:'Pendente'};
+    delete volta.dataPag; delete volta.listaAntes;
+    data[L].push(volta);
+    data.pago.splice(pos,1);
+    logAction(user.trim(),'Voltou para pendente',r,'Estava como pago em '+fmtDate(r.dataPag)+' — voltou para '+(L==='urgente'?'Urgentes':'Importantes'));
+    el.remove();
+    persist(); render();
+  });
+  document.body.appendChild(el);
 }
 function moveEntry(from,to,idx){
   const labels={urgente:'Urgentes 🔴',importante:'Importantes 🟡'};
@@ -3448,6 +3486,7 @@ function renderHistorico(){
   const actionColor={
     'Criou':'#1A7A45','Editou':'#0E8FA6','Moveu para Urgentes':'#C0392B',
     'Moveu para Importantes':'#B9770E','Marcou como Pago':'#1A7A45','Removeu':'#C0392B',
+    'Voltou para pendente':'#B9770E',
     'Uso do sistema':'var(--gray-5)'
   };
   document.getElementById('tbody-historico').innerHTML=juntos.map(h=>{
