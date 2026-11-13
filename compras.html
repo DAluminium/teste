@@ -60,6 +60,11 @@ tbody tr:hover td{background:var(--gray-1)}
 .td-by{display:block;font-size:10px;font-weight:400;color:var(--gray-4)}
 .td-valor{font-weight:600;white-space:nowrap}
 .td-actions{white-space:nowrap;text-align:right}
+/* Coluna Ações presa à direita (pedido do Ander, 13/11/2026): com textos
+   compridos a tabela alarga e os botões sumiam para fora da tela. */
+.table-wrap td.td-actions,.table-wrap table:has(td.td-actions) thead th:last-child{position:sticky;right:0;z-index:1;box-shadow:-6px 0 6px -6px rgba(0,0,0,.25)}
+.table-wrap td.td-actions{background:white}
+.table-wrap tbody tr:hover td.td-actions{background:var(--gray-1)}
 .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
 .pill-atrasada{background:var(--red-light);color:var(--red)}
 .pill-pago{background:var(--green-light);color:var(--green)}
