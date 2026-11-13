@@ -1542,6 +1542,51 @@ function avisarVendedorFaltaInfo(o, falta){
     '\n\nComplete no CRM (funil de Orçamentos) e salve: '+PORTAL_URL;
   abrirWhats('https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg));
 }
+// ---- AVISO PARA A SOLUTIO NO WHATSAPP (pedido do Ander, 13/11/2026) ----
+// Ao marcar um orcamento como Solutio (ou fechar/perder um ja marcado), o
+// sistema oferece abrir o WhatsApp do contato da Solutio com a mensagem
+// pronta. Quem aperta enviar e a vendedora (nada sai sozinho). O numero vem do
+// Worker (variavel SOLUTIO_WHATSAPP no Cloudflare), nunca deste arquivo.
+async function avisarSolutio(antes, f, novo){
+  if(!f || !f.solutio) return;
+  const eNovo = novo || !(antes && antes.solutio);
+  const e = etapaDe(f.etapa);
+  const fechou = !eNovo && antes && antes.etapa!==f.etapa && e && (e.tipo==='ganho' || e.tipo==='perdido');
+  if(!eNovo && !fechou) return;
+  let c=null;
+  try{
+    const r=await fetch(WORKER,{cache:'no-store',headers:cabecalhos({'X-Action':'solutio-contato'})});
+    if(r.ok) c=await r.json();
+  }catch(err){}
+  if(!c || !c.whatsapp) return;   // contato nao configurado: segue sem aviso
+  const quem=String(c.nome||'Solutio');
+  const vend=(f.vendedor && _vendedores.find(function(x){ return x.u===f.vendedor; }))||null;
+  const nomeVend=(vend&&vend.n)||(antes&&antes.vendedorNome)||(f.vendedor===usuarioLogin?usuario:'')||f.vendedor||'';
+  const msg = eNovo
+    ? 'ORCAMENTO PARA A SOLUTIO\nCliente: '+(f.cliente||'—')+(f.cidade?' ('+f.cidade+')':'')+
+      (f.interesse?'\nO que quer: '+String(f.interesse).slice(0,300):'')+
+      '\nVendedora: '+nomeVend+'\n\nVeja a ficha completa no CRM da Solutio, aba Daluminium.'
+    : 'RESULTADO DE ORCAMENTO SOLUTIO\nCliente: '+(f.cliente||'—')+'\n'+
+      (e.tipo==='ganho' ? 'FECHADO'+(f.valor?' - '+fmtMoeda(f.valor):'') : 'PERDIDO'+(f.motivoPerda?' - motivo: '+f.motivoPerda:''))+
+      '\nVendedora: '+nomeVend;
+  const cx=document.createElement('div');
+  cx.id='aviso-solutio';
+  cx.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99998;display:flex;align-items:center;justify-content:center;padding:16px';
+  cx.innerHTML='<div style="background:#fff;border-radius:12px;padding:20px 22px;max-width:400px;font-family:inherit">'+
+    '<div style="font-size:15px;font-weight:700;margin-bottom:8px">'+(eNovo?'Avisar a Solutio?':'Avisar a Solutio do resultado?')+'</div>'+
+    '<div style="font-size:13px;color:#555;line-height:1.5;margin-bottom:6px">Abre o WhatsApp na conversa com <b>'+esc(quem)+'</b>, com a mensagem pronta. Você só aperta enviar.</div>'+
+    '<pre style="white-space:pre-wrap;font-family:inherit;font-size:12px;background:#f5f5f5;border-radius:8px;padding:8px 10px;margin:8px 0 14px;max-height:160px;overflow:auto">'+esc(msg)+'</pre>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+    '<button type="button" id="aviso-solutio-nao" style="background:#fff;border:1px solid #ccc;padding:9px 14px;border-radius:8px;cursor:pointer;font-family:inherit">Agora não</button>'+
+    '<button type="button" id="aviso-solutio-sim" style="background:#25D366;color:#fff;border:none;padding:9px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit">Avisar no WhatsApp</button>'+
+    '</div></div>';
+  document.body.appendChild(cx);
+  document.getElementById('aviso-solutio-nao').onclick=function(){ cx.remove(); };
+  document.getElementById('aviso-solutio-sim').onclick=function(){
+    cx.remove();
+    abrirWhats('https://api.whatsapp.com/send?phone='+c.whatsapp+'&text='+encodeURIComponent(msg));
+  };
+}
 function etiquetaFaltaInfo(o){
   if(funilDoNegocio(o)!=='orcamentos' || !vendedorCompletaNaEtapa(o.etapa)) return '';
   if(o.infoCompletadaEm) return '<div class="neg-linha" style="color:var(--green);font-weight:600">✓ Vendedor completou em '+fmtData(o.infoCompletadaEm)+'</div>';
@@ -2766,6 +2811,7 @@ async function salvarFicha(){
     document.getElementById('ficha-ov').classList.remove('open');
     fichaId=null;
     if(faltaPedida) avisarVendedorFaltaInfo(antes, faltaPedida);
+    else avisarSolutio(antes, f, novo);
   }
 }
 
