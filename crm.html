@@ -1438,7 +1438,7 @@ function htmlFunil(){
         (doGrupo.length?doGrupo.map(function(o){
           return '<div class="neg'+(foraDoPrazo(o)?' neg-atrasado':'')+'" draggable="'+(podeMoverNoFunil(o)?'true':'false')+'" data-id="'+esc(o.id)+'" onclick="abrirFicha(\''+esc(o.id)+'\')">'+
             '<div class="neg-nome">'+esc(o.cliente||'—')+iconeTemperatura(o)+'</div>'+
-            (o.solutio?'<div class="neg-linha" style="color:var(--purple);font-weight:600">◆ Solutio</div>':'')+
+            (o.solutio?'<div class="neg-linha" style="color:var(--purple);font-weight:600">◆ Solutio'+(o.solutioOrcado?': orçado'+(o.solutioOrcado.valor?' '+fmtMoeda(o.solutioOrcado.valor):''):'')+'</div>':'')+
             (o.indicacao&&o.indicacao.nome?'<div class="neg-linha">🤝 '+esc(o.indicacao.nome)+'</div>':'')+
             (o.valor?'<div class="neg-valor">'+fmtMoeda(o.valor)+'</div>':'')+
             ((o.cidade||o.bairro)?'<div class="neg-linha">📍 '+esc([o.bairro,o.cidade].filter(Boolean).join(' · '))+'</div>':'')+
