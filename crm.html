@@ -339,6 +339,9 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div class="form-grid">
         <div class="fg span2"><label for="o-obs">Observações</label><textarea id="o-obs" maxlength="2000"></textarea></div>
         <div class="fg span2">
+          <label class="marca"><input type="checkbox" id="o-solutio"> <span>Orçamento <b>Solutio</b> — enviar para o CRM da Solutio Representações.<br><span class="dica">Vai só o resumo (cliente, telefone, cidade, valor, etapa, vendedora e datas). E-mail, anexos e anotações ficam aqui.</span></span></label>
+        </div>
+        <div class="fg span2">
           <label class="marca"><input type="checkbox" id="o-autoriza"> <span>O cliente <b>autorizou</b> receber novidades e promoções da D'Aluminium.<br><span class="dica" id="o-autoriza-dica">Sem essa autorização, não mande propaganda — só fale do orçamento que ele pediu.</span></span></label>
         </div>
       </div>
@@ -1435,6 +1438,7 @@ function htmlFunil(){
         (doGrupo.length?doGrupo.map(function(o){
           return '<div class="neg'+(foraDoPrazo(o)?' neg-atrasado':'')+'" draggable="'+(podeMoverNoFunil(o)?'true':'false')+'" data-id="'+esc(o.id)+'" onclick="abrirFicha(\''+esc(o.id)+'\')">'+
             '<div class="neg-nome">'+esc(o.cliente||'—')+iconeTemperatura(o)+'</div>'+
+            (o.solutio?'<div class="neg-linha" style="color:var(--purple);font-weight:600">◆ Solutio</div>':'')+
             (o.indicacao&&o.indicacao.nome?'<div class="neg-linha">🤝 '+esc(o.indicacao.nome)+'</div>':'')+
             (o.valor?'<div class="neg-valor">'+fmtMoeda(o.valor)+'</div>':'')+
             ((o.cidade||o.bairro)?'<div class="neg-linha">📍 '+esc([o.bairro,o.cidade].filter(Boolean).join(' · '))+'</div>':'')+
@@ -2561,6 +2565,7 @@ function novoNegocio(){
   if(!document.getElementById('o-vendedor').value && document.getElementById('o-vendedor').options.length)
     document.getElementById('o-vendedor').selectedIndex=0;
   document.getElementById('o-autoriza').checked=false;
+  document.getElementById('o-solutio').checked=false;
   document.getElementById('o-autoriza-dica').textContent='Sem essa autorização, não mande propaganda — só fale do orçamento que ele pediu.';
   document.getElementById('ficha-titulo').textContent='Novo negócio';
   document.getElementById('o-quem').textContent='';
@@ -2594,6 +2599,7 @@ function abrirFicha(id){
   p('o-ind-comissao',ind.comissao?String(ind.comissao).replace('.',','):'');
   document.getElementById('o-vendedor').value=o.vendedor||'';
   document.getElementById('o-autoriza').checked=!!o.autorizaContato;
+  document.getElementById('o-solutio').checked=!!o.solutio;
   document.getElementById('o-autoriza-dica').textContent=o.autorizaContato
     ? 'Autorizado em '+fmtData(o.autorizaEm)+(o.autorizaPor?' (anotado por '+o.autorizaPor+')':'')+'.'
     : 'Sem essa autorização, não mande propaganda — só fale do orçamento que ele pediu.';
@@ -2646,6 +2652,7 @@ function lerFicha(){
     obs:document.getElementById('o-obs').value.trim(),
     vendedor:(podeGerenciar()||ehOrcamentista())?v('o-vendedor'):usuarioLogin,
     autorizaContato:document.getElementById('o-autoriza').checked,
+    solutio:document.getElementById('o-solutio').checked,
     temperatura:v('o-temperatura'),
     // Sem ninguem indicando, grava vazio (e nao um objeto em branco).
     indicacao:(v('o-ind-nome')||v('o-ind-contato'))
