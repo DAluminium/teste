@@ -339,6 +339,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg"><label>Prazo de material (dias úteis para chegar)</label><input type="number" min="0" id="f-prazomat" oninput="recalcular()" placeholder="Ex.: 30">
           <span class="dica" id="d-limite"></span></div>
         <div class="fg"><label>Medição prevista</label><input type="date" id="f-medicao" onchange="recalcular()"></div>
+        <div class="fg"><label>Medição realizada em</label><input type="date" id="f-medicaofeita" onchange="recalcular()">
+          <span class="dica" id="d-medicaofeita"></span></div>
         <div class="fg"><label>Dias de produção (úteis)</label><input type="number" min="0" id="f-diasprod" oninput="recalcular()" placeholder="Ex.: 30"></div>
         <div class="fg"><label>Projeção de entrada na obra</label><input type="date" id="f-projentrada" onchange="marcarManual('projEntrada');recalcular()">
           <span class="dica" id="d-projentrada"></span></div>
@@ -1752,6 +1754,7 @@ const CAMPOS_PRAZO=[
   ['fechamento','Fechamento','data'],
   ['prazoMaterial','Prazo de material','dias'],
   ['medicao','Medição prevista','data'],
+  ['medicaoFeita','Medição realizada','data'],
   ['diasProd','Dias de produção','dias'],
   ['projEntrada','Projeção de entrada','data'],
   ['diasInst','Dias de instalação','dias'],
@@ -2043,19 +2046,28 @@ function somaDiasUteis(iso, n){
 // Sem medição — que é o normal na hora de fechar, porque a previsão só sai
 // depois da primeira visita à obra —, contrato fechado se compra logo: a
 // folga é só para revisar o projeto.
+// A data de medicao que MANDA nas contas: a realizada, quando ja houve, senao
+// a prevista. E a diferenca entre prometer e cumprir — com a obra medida, a
+// entrada na obra e a entrega deixam de ser estimativa (pedido de 16/11/2026).
+function medicaoQueVale(c){
+  const feita=String((c&&c.medicaoFeita)||'').trim();
+  return feita || String((c&&c.medicao)||'').trim();
+}
+
 function contasDe(c){
+  const med=medicaoQueVale(c);
   return {
     // Sem medição o prazo de material nem entra na conta: o que manda é a
     // folga depois do fechamento. Com medição, prazo em branco NÃO é zero —
     // sem ele a conta não existe, e sem esta trava Number('') daria 0 e a
     // tela mostraria a própria data da medição como resposta (pego no teste
     // em 15/10/2026).
-    limiteMaterial: c.medicao
+    limiteMaterial: med
       ? ((String(c.prazoMaterial==null?'':c.prazoMaterial).trim()==='')
-          ? '' : voltaDiasUteis(c.medicao, c.prazoMaterial))
+          ? '' : voltaDiasUteis(med, c.prazoMaterial))
       : somaDiasUteis(c.fechamento, FOLGA_PARA_REVISAR),
-    projEntrada:    somaDiasUteis(c.medicao, c.diasProd),
-    entrega:        somaDiasUteis(c.projEntrada || somaDiasUteis(c.medicao, c.diasProd), c.diasInst)
+    projEntrada:    somaDiasUteis(med, c.diasProd),
+    entrega:        somaDiasUteis(c.projEntrada || somaDiasUteis(med, c.diasProd), c.diasInst)
   };
 }
 
@@ -2069,7 +2081,7 @@ function lerFicha(){
     cidade:v('f-cidade'), condominio:v('f-condominio'),
     status:v('f-status'), revisao:v('f-revisao'),
     fechamento:v('f-fechamento'), prazoMaterial:v('f-prazomat'),
-    medicao:v('f-medicao'), diasProd:v('f-diasprod'),
+    medicao:v('f-medicao'), medicaoFeita:v('f-medicaofeita'), diasProd:v('f-diasprod'),
     projEntrada:v('f-projentrada'), diasInst:v('f-diasinst'),
     entrega:v('f-entrega'),
     linhas:v('f-linhas'), cores:v('f-cores'), vidros:v('f-vidros'),
@@ -2088,9 +2100,33 @@ function recalcular(){
   const r=contasDe(c);
   const d=(id,txt,cor)=>{ const e=document.getElementById(id); if(e){ e.innerHTML=txt; e.style.color=cor||''; } };
 
+  const med=medicaoQueVale(c);
+
+  // O aviso embaixo do campo novo. Comparar com a previsão é o que diz se a
+  // obra atrasou para ser medida — e esse atraso empurra a entrega inteira.
+  if(c.medicaoFeita && c.medicao){
+    const dif=diasEntre(c.medicao, c.medicaoFeita);
+    d('d-medicaofeita', dif===0
+      ? 'Medida na data prevista.'
+      : (dif>0
+          ? 'Medida <b>'+dif+' dia'+(dif===1?'':'s')+' depois</b> do previsto ('+fmtData(c.medicao)+') — a entrega abaixo já considera isso.'
+          : 'Medida <b>'+(-dif)+' dia'+(dif===-1?'':'s')+' antes</b> do previsto ('+fmtData(c.medicao)+').'),
+      dif>0?'var(--amber)':'');
+  } else if(c.medicaoFeita){
+    d('d-medicaofeita','As datas abaixo saem desta medição — são reais, não previsão.');
+  } else {
+    d('d-medicaofeita','Preencha no dia em que a obra for medida. Enquanto estiver vazio, as contas usam a medição prevista.');
+  }
+
   // A data pode cair no passado quando a medição está perto e o prazo é
   // longo. Mostrar a data seca ali seria confuso; o aviso é o que interessa.
-  if(r.limiteMaterial && c.medicao){
+  if(c.medicaoFeita){
+    // Obra medida: a conta de quando comprar o material olhava para a FRENTE,
+    // para uma medição que ainda ia acontecer. Agora ela virou história, e
+    // repetir "a data já passou" em vermelho só assustaria sem servir a nada.
+    d('d-limite','✅ Obra medida em <b>'+fmtData(c.medicaoFeita)+'</b>. '+
+      'O prazo de comprar material era para antes da medição; o que conta agora são a produção e a instalação.');
+  } else if(r.limiteMaterial && med){
     // Com medição: a data é o PRAZO PARA COMEÇAR a compra.
     if(r.limiteMaterial >= hojeISO()){
       d('d-limite','Iniciar a compra até <b>'+fmtData(r.limiteMaterial)+'</b> — '+
@@ -2099,7 +2135,7 @@ function recalcular(){
       // Passou o prazo de comprar fora. Em vez de so alarmar, a tela diz o
       // que ainda da para fazer: comprar perto chega em poucos dias uteis.
       const ainda=COMPRA_PERTO.map(function(o){
-        return {nome:o.nome, dias:o.dias, ate:voltaDiasUteis(c.medicao, o.dias)};
+        return {nome:o.nome, dias:o.dias, ate:voltaDiasUteis(med, o.dias)};
       }).filter(function(o){ return o.ate && o.ate>=hojeISO(); });
       d('d-limite',
         '⚠️ Para comprar <b>fora</b> a data já passou ('+fmtData(r.limiteMaterial)+').'+
@@ -2108,7 +2144,7 @@ function recalcular(){
               return '<b>'+o.nome+'</b> ('+o.dias+' '+(o.dias===1?'dia útil':'dias úteis')+
                      ') até <b>'+fmtData(o.ate)+'</b>';
             }).join(' · ')+'.'
-          : ' <b>Nem comprando local dá tempo</b> para medir em '+fmtData(c.medicao)+'.')+
+          : ' <b>Nem comprando local dá tempo</b> para medir em '+fmtData(med)+'.')+
         (Number(c.prazoMaterial)>=PRAZO_MATERIAL_ESPECIAL
           ? ' <b>Atenção: prazo de '+Number(c.prazoMaterial)+' dias úteis é material especial</b>'+
             ' (de '+PRAZO_MATERIAL_ESPECIAL+' a 90 dias úteis, conforme o material) —'+
@@ -2127,7 +2163,7 @@ function recalcular(){
       (atrasado?'. <b>Essa data já passou.</b>':'.')+
       ' Quando a medição for definida, a data se refaz pela conta reversa.',
       atrasado?'var(--red)':'');
-  } else if(c.medicao){
+  } else if(med){
     // Tem medição e não tem data: o que falta é o prazo, não o fechamento.
     // Perguntar o fechamento aqui mandaria a pessoa para o campo errado.
     d('d-limite','Preencha o <b>prazo de material</b> para ver quando iniciar a compra.');
@@ -2141,7 +2177,7 @@ function recalcular(){
   }
   d('d-projentrada', r.projEntrada
     ? (document.getElementById('f-projentrada').value===r.projEntrada
-        ? 'Bate com a conta: medição + dias de produção.'
+        ? 'Bate com a conta: '+(c.medicaoFeita?'medição realizada':'medição prevista')+' + dias de produção.'
         : 'A conta daria <b>'+fmtData(r.projEntrada)+'</b>.')
     : '');
 
@@ -2721,7 +2757,7 @@ function novoContrato(){
   preencherFichaContrato(null);
   const p=(id,v)=>{ document.getElementById(id).value=v; };
   ['f-ct','f-cliente','f-coord','f-respcom','f-cidade','f-condominio','f-fechamento',
-   'f-prazomat','f-medicao','f-diasprod','f-projentrada','f-diasinst','f-entrega',
+   'f-prazomat','f-medicao','f-medicaofeita','f-diasprod','f-projentrada','f-diasinst','f-entrega',
    'f-linhas','f-cores','f-vidros','f-pecas','f-obs'].forEach(function(id){ p(id,''); });
   p('f-ano',String(new Date().getFullYear()));
   p('f-status','A MEDIR');
@@ -2767,7 +2803,7 @@ function abrirFicha(id){
   p('f-cidade',c.cidade); p('f-condominio',c.condominio);
   p('f-status',c.status); p('f-revisao',c.revisao);
   p('f-fechamento',c.fechamento); p('f-prazomat',c.prazoMaterial);
-  p('f-medicao',c.medicao); p('f-diasprod',c.diasProd);
+  p('f-medicao',c.medicao); p('f-medicaofeita',c.medicaoFeita); p('f-diasprod',c.diasProd);
   p('f-projentrada',c.projEntrada); p('f-diasinst',c.diasInst);
   p('f-entrega',c.entrega);
   p('f-linhas',c.linhas); p('f-cores',c.cores); p('f-vidros',c.vidros);
@@ -2853,7 +2889,19 @@ async function salvarFicha(manterAberta){
   {
     const antes=(dados.contratos||[]).find(function(x){ return x.id===fichaId; })||{};
     const hoje=hojeISO();
-    const passadas=[['Entrega','entrega'],['Projeção de entrada na obra','projEntrada'],['Medição prevista','medicao']]
+    // Medição realizada no FUTURO é que não existe: ninguém mediu o que ainda
+    // não aconteceu. Quase sempre é o ano digitado errado.
+    if(c.medicaoFeita && c.medicaoFeita>hoje){
+      if(!confirm('A medição realizada está marcada para '+fmtData(c.medicaoFeita)+
+        ', que ainda não chegou.\n\nA obra já foi medida mesmo? Confira o ano.')) return false;
+    }
+    // Com a obra JÁ MEDIDA, data no passado é fato e não engano: a entrada na
+    // obra e a entrega saem de uma medição que aconteceu de verdade. Perguntar
+    // "confira o ano" em toda gravação viraria uma pergunta que a pessoa
+    // aprende a responder no automático — e aí ela não protege mais nada.
+    const obraJaMedida = !!(c.medicaoFeita && c.medicaoFeita<=hoje);
+    const passadas=obraJaMedida ? []
+      : [['Entrega','entrega'],['Projeção de entrada na obra','projEntrada'],['Medição prevista','medicao']]
       .filter(function(p){ const v=c[p[1]]; return v && v<hoje && v!==antes[p[1]]; });
     if(passadas.length){
       const lista=passadas.map(function(p){ return '• '+p[0]+': '+fmtData(c[p[1]]); }).join('\n');
@@ -4409,6 +4457,7 @@ const CAMPOS_FICHA_TABELA=[
   {campo:'limiteMaterial', rotulo:'Comprar até',         tipo:'data',
     valor:function(c){ return contasDe(c).limiteMaterial; }},
   {campo:'medicao',        rotulo:'Medição prevista',    tipo:'data'},
+  {campo:'medicaoFeita',   rotulo:'Medida em',           tipo:'data'},
   {campo:'diasProd',       rotulo:'Dias de produção',    tipo:'numero'},
   {campo:'projEntrada',    rotulo:'Projeção de entrada', tipo:'data'},
   {campo:'diasInst',       rotulo:'Dias de instalação',  tipo:'numero'},
