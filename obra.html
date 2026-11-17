@@ -1076,7 +1076,7 @@ function ehConsulta(){
 }
 function recusarExcluir(){
   if(podeExcluir()) return false;
-  alert('S\u00f3 o gerente ou o administrador pode excluir.\n\nPe\u00e7a a quem gerencia este m\u00f3dulo.');
+  avisoSistema('S\u00f3 o gerente ou o administrador pode excluir.\n\nPe\u00e7a a quem gerencia este m\u00f3dulo.');
   return true;
 }
 // Na Consulta toda gravacao para aqui. O aviso aparece no maximo a cada
@@ -1086,13 +1086,13 @@ function recusarSeConsulta(){
   // Espelho ("Ver como", 16/10/2026): a tela mostra os botoes da pessoa, mas
   // nada grava. Avisa aqui, antes de ir ao Worker (que recusaria do mesmo jeito).
   try{ if(sessionStorage.getItem('dalum-espelho')){
-    alert('\u{1F441} Modo espelho: voc\u00ea est\u00e1 vendo o sistema como outra pessoa, s\u00f3 para olhar.\n\nNada foi gravado.');
+    avisoSistema('\u{1F441} Modo espelho: voc\u00ea est\u00e1 vendo o sistema como outra pessoa, s\u00f3 para olhar.\n\nNada foi gravado.');
     return true;
   } }catch(e){}
   if(!ehConsulta()) return false;
   if(Date.now()-_avisouConsulta>60000){
     _avisouConsulta=Date.now();
-    alert('Voc\u00ea est\u00e1 no modo consulta: pode olhar, mas n\u00e3o alterar.\n\nA altera\u00e7\u00e3o n\u00e3o foi salva.');
+    avisoSistema('Voc\u00ea est\u00e1 no modo consulta: pode olhar, mas n\u00e3o alterar.\n\nA altera\u00e7\u00e3o n\u00e3o foi salva.');
   }
   return true;
 }
@@ -1349,7 +1349,7 @@ async function baixarPeloSistema(url,nome){
     d.href=l+(l.indexOf('/anexo/')>0?'&baixar=1':'');
     if(l.indexOf('/anexo/')<0) d.download=nome||'arquivo';
     document.body.appendChild(d); d.click(); d.remove();
-  }catch(e){ alert('Não consegui baixar o anexo.\n\n'+e.message); }
+  }catch(e){ avisoSistema('Não consegui baixar o anexo.\n\n'+e.message); }
 }
 // ---- ENVIAR ANEXO PELO WHATSAPP (pedido do Ander, 21/09/2026) ----
 // O WhatsApp nao recebe arquivo por link. Entao o sistema BAIXA o arquivo, com
@@ -1399,12 +1399,12 @@ async function enviarPara(i){
     num=numeroWhats(p.whatsapp); primeiro=String(p.name||'').split(' ')[0];
   } else {
     num=numeroWhats((document.getElementById('envio-num')||{}).value);
-    if(!num){ alert('Número inválido.\n\nDigite com DDD, por exemplo 69 99999-9999.'); return; }
+    if(!num){ avisoSistema('Número inválido.\n\nDigite com DDD, por exemplo 69 99999-9999.'); return; }
   }
   // O endereco vale 1 minuto: se a janela ficou aberta mais que isso, pede outro.
   if(!_envioAnexo.link || Date.now()-_envioAnexo.quando>50000){
     try{ _envioAnexo.link=await linkDoAnexo(_envioAnexo.url,_envioAnexo.nome,'enviar'); _envioAnexo.quando=Date.now(); }
-    catch(e){ alert('Não consegui preparar o arquivo.\n\n'+e.message); return; }
+    catch(e){ avisoSistema('Não consegui preparar o arquivo.\n\n'+e.message); return; }
   }
   const msg='Olá'+(primeiro?', '+primeiro:'')+'! Segue o arquivo: '+_envioAnexo.nome;
 
@@ -1555,7 +1555,7 @@ async function checkForceLogoutObra(){
 }
 
 async function sairDaObra(){
-  if(!confirm('Deseja sair?')) return;
+  if(!await confirmarSistema('Deseja sair?')) return;
   await removerSessaoObra();
   loginGuardaApagar(TOKEN_KEY);
   loginGuardaApagar('dalum-sso');
@@ -2520,9 +2520,9 @@ function htmlCarteira(){
 function imprimirCarteira(){
   if(view!=='carteira') setView('carteira');
   const tab=document.querySelector('#conteudo table.carteira');
-  if(!tab){ alert('Nenhum contrato na lista para imprimir.'); return; }
+  if(!tab){ avisoSistema('Nenhum contrato na lista para imprimir.'); return; }
   const w=window.open('','_blank');
-  if(!w){ alert('O navegador bloqueou a janela de impressão. Libere janelas para este site e tente de novo.'); return; }
+  if(!w){ avisoSistema('O navegador bloqueou a janela de impressão. Libere janelas para este site e tente de novo.'); return; }
   const copia=tab.cloneNode(true);
   copia.querySelectorAll('button,input,select').forEach(function(x){ x.remove(); });
   copia.querySelectorAll('[onclick]').forEach(function(x){ x.removeAttribute('onclick'); });
@@ -2905,7 +2905,7 @@ async function salvarFicha(manterAberta){
       if(!podeGerenciar()){
         c.medicaoFeita=antes;
       } else {
-        const m=prompt('A medição realizada estava registrada em '+fmtData(antes)+
+        const m=await perguntarSistema('A medição realizada estava registrada em '+fmtData(antes)+
           (c.medicaoFeita?' e vai passar para '+fmtData(c.medicaoFeita):' e vai ser APAGADA')+
           '.\n\nInforme o motivo da correção (fica no histórico):','');
         if(m===null) return false;
@@ -2935,7 +2935,7 @@ async function salvarFicha(manterAberta){
     // Medição realizada no FUTURO é que não existe: ninguém mediu o que ainda
     // não aconteceu. Quase sempre é o ano digitado errado.
     if(c.medicaoFeita && c.medicaoFeita>hoje){
-      if(!confirm('A medição realizada está marcada para '+fmtData(c.medicaoFeita)+
+      if(!await confirmarSistema('A medição realizada está marcada para '+fmtData(c.medicaoFeita)+
         ', que ainda não chegou.\n\nA obra já foi medida mesmo? Confira o ano.')) return false;
     }
     // Com a obra JÁ MEDIDA, data no passado é fato e não engano: a entrada na
@@ -2948,7 +2948,7 @@ async function salvarFicha(manterAberta){
       .filter(function(p){ const v=c[p[1]]; return v && v<hoje && v!==antes[p[1]]; });
     if(passadas.length){
       const lista=passadas.map(function(p){ return '• '+p[0]+': '+fmtData(c[p[1]]); }).join('\n');
-      if(!confirm('Esta data já passou:\n\n'+lista+'\n\nConfira o ano — é isso mesmo?')) return false;
+      if(!await confirmarSistema('Esta data já passou:\n\n'+lista+'\n\nConfira o ano — é isso mesmo?')) return false;
     }
   }
 
@@ -2959,7 +2959,7 @@ async function salvarFicha(manterAberta){
     const igual=ativos().find(function(x){
       return (x.ct||'').toUpperCase()===c.ct.toUpperCase() && (x.ano||'')===c.ano;
     });
-    if(igual && !confirm('Já existe o contrato '+c.ct+' de '+c.ano+' ("'+igual.cliente+'").\n\nCadastrar mesmo assim?')) return false;
+    if(igual && !await confirmarSistema('Já existe o contrato '+c.ct+' de '+c.ano+' ("'+igual.cliente+'").\n\nCadastrar mesmo assim?')) return false;
   }
 
   const id=fichaId||novoId();
@@ -3067,7 +3067,7 @@ async function excluirContrato(){
   if(!fichaId) return;
   const c=(dados.contratos||[]).find(function(x){ return x.id===fichaId; });
   if(!c) return;
-  if(!confirm('Mover o contrato '+(c.ct||'')+' — '+(c.cliente||'')+' para a lixeira?\n\nEle sai da carteira mas continua guardado, e dá para restaurar.')) return;
+  if(!await confirmarSistema('Mover o contrato '+(c.ct||'')+' — '+(c.cliente||'')+' para a lixeira?\n\nEle sai da carteira mas continua guardado, e dá para restaurar.')) return;
   const id=fichaId;
   const ok=await alterar(function(base){
     const alvo=(base.contratos||[]).find(function(x){ return x.id===id; });
@@ -3958,7 +3958,7 @@ async function salvarClausulaDoContrato(){
 async function voltarClausulaAoPadrao(){
   const id=_clausulaDoContratoEditando;
   if(!id) return;
-  if(!confirm('Voltar esta cláusula ao texto do modelo?\n\nO que foi escrito só neste contrato se perde.')) return;
+  if(!await confirmarSistema('Voltar esta cláusula ao texto do modelo?\n\nO que foi escrito só neste contrato se perde.')) return;
   const ok=await alterar(function(base){
     const alvo=(base.contratos||[]).find(function(x){ return x.id===_contratoId; });
     if(alvo && alvo.contrato && alvo.contrato.clausulas) delete alvo.contrato.clausulas[id];
@@ -4282,7 +4282,7 @@ async function delClausula(id){
   if(!m) return;
   const b=(m.blocos||[]).find(function(x){ return x.id===id; });
   if(!b) return;
-  if(!confirm('Tirar a cláusula "'+b.titulo+'" do modelo "'+m.nome+'"?\n\nEla sai só deste modelo, e os contratos já impressos não mudam.')) return;
+  if(!await confirmarSistema('Tirar a cláusula "'+b.titulo+'" do modelo "'+m.nome+'"?\n\nEla sai só deste modelo, e os contratos já impressos não mudam.')) return;
   const ok=await mexerNosModelos(function(mm){
     mm.blocos=mm.blocos.filter(function(x){ return x.id!==id; });
   }, {acao:'tirou cláusula do contrato', alvo:b.titulo, detalhe:'modelo '+m.nome});
@@ -4345,7 +4345,7 @@ async function restaurarModelo(){
   if(!m) return;
   const padrao=MODELOS_CONTRATO_PADRAO.find(function(x){ return x.id===m.id; });
   if(!padrao){ aviso('Sem original','Este modelo foi criado aqui, não tem texto original para voltar.'); return; }
-  if(!confirm('Voltar o modelo "'+m.nome+'" ao texto original?\n\nTudo que foi editado nele se perde.')) return;
+  if(!await confirmarSistema('Voltar o modelo "'+m.nome+'" ao texto original?\n\nTudo que foi editado nele se perde.')) return;
   const ok=await alterar(function(base){
     if(!Array.isArray(base.modelosContrato)||!base.modelosContrato.length){
       base.modelosContrato=modelosPadraoNovo();
@@ -4703,7 +4703,7 @@ async function moverColunaPasso(key, passo){
 async function esconderColuna(key){
   if(COLUNAS_SEMPRE.indexOf(key)>=0) return;
   const rot=rotuloDaColuna(key);
-  if(!confirm('Esconder a coluna "'+rot+'" da carteira?\n\nNada é apagado. Para mostrar de novo: Cadastros > Colunas da tabela.')) return;
+  if(!await confirmarSistema('Esconder a coluna "'+rot+'" da carteira?\n\nNada é apagado. Para mostrar de novo: Cadastros > Colunas da tabela.')) return;
   if(key.indexOf('f:')===0){ await tirarColunaFicha(key.slice(2)); return; }
   if(key.indexOf('x:')===0){
     const id=key.slice(2);
@@ -4731,7 +4731,7 @@ async function mostrarColuna(key){
 }
 
 async function voltarOrdemOriginal(){
-  if(!confirm('Voltar as colunas para a ordem original e mostrar de novo as que foram escondidas?\n\nOs campos da ficha e os extras que estão na tabela continuam nela.')) return;
+  if(!await confirmarSistema('Voltar as colunas para a ordem original e mostrar de novo as que foram escondidas?\n\nOs campos da ficha e os extras que estão na tabela continuam nela.')) return;
   const ok=await alterar(function(base){
     base.layoutCarteira={ordem:[], ocultas:[]};
   }, {acao:'voltou as colunas da carteira à ordem original'});
@@ -5076,7 +5076,7 @@ async function addCampoExtra(){
     // novo não aceita — texto num campo de número, por exemplo. Não impedimos,
     // mas avisamos antes, porque o valor fica lá e a tela mostra vazio.
     if(uso && (antigo.tipo||'texto')!==tipo &&
-       !confirm('Este campo está preenchido em '+uso+' contrato(s), e você está mudando o tipo de '+
+       !await confirmarSistema('Este campo está preenchido em '+uso+' contrato(s), e você está mudando o tipo de '+
                 ((TIPOS_CAMPO[antigo.tipo]||{}).rotulo||antigo.tipo)+' para '+
                 ((TIPOS_CAMPO[tipo]||{}).rotulo||tipo)+'.\n\n'+
                 'O que já está gravado não se perde, mas pode deixar de aparecer se o formato não '+
@@ -5148,7 +5148,7 @@ async function delCampoExtra(id){
       'Esvazie o campo nesses contratos primeiro, ou deixe-o onde está.');
     return;
   }
-  if(!confirm('Tirar o campo "'+cp.nome+'" da ficha?\n\nEle está vazio em todos os contratos, então nada se perde.')) return;
+  if(!await confirmarSistema('Tirar o campo "'+cp.nome+'" da ficha?\n\nEle está vazio em todos os contratos, então nada se perde.')) return;
   const ok=await alterar(function(base){
     base.camposExtras=(base.camposExtras||[]).filter(function(x){ return x.id!==id; });
   }, {acao:'tirou campo extra', alvo:cp.nome});
@@ -5353,7 +5353,7 @@ async function mandarAnexo(url, destino){
   const d=fichaDocs.find(function(x){ return x.url===url; });
   if(!d){ aviso('Anexo não encontrado','Feche a ficha e abra de novo.'); return; }
   const nomeDestino = destino==='fabrica' ? 'Fábrica' : 'Compras';
-  if(!confirm('Mandar "'+d.nome+'" para o módulo '+nomeDestino+'?\n\n'+
+  if(!await confirmarSistema('Mandar "'+d.nome+'" para o módulo '+nomeDestino+'?\n\n'+
       'O arquivo passa a aparecer na ficha desta obra lá. Ele não é copiado: '+
       'os dois módulos apontam para o mesmo arquivo.')) return;
   try{
@@ -5382,7 +5382,7 @@ async function tirarAnexo(url, destino){
   const d=fichaDocs.find(function(x){ return x.url===url; });
   if(!d){ aviso('Anexo não encontrado','Feche a ficha e abra de novo.'); return; }
   const deOnde = destino==='fabrica' ? 'da Fábrica' : 'do Compras';
-  if(!confirm('Tirar "'+d.nome+'" '+deOnde+'?\n\n'+
+  if(!await confirmarSistema('Tirar "'+d.nome+'" '+deOnde+'?\n\n'+
       'Ele deixa de aparecer na ficha desta obra lá.\n\n'+
       'O arquivo continua aqui no contrato — dá para mandar de novo quando quiser.')) return;
   try{
@@ -5832,7 +5832,7 @@ async function removerDoc(id){
   if(!d) return;
   if(recusarSeConsulta()) return;
   if(!anexoEhMeu(d) && recusarExcluir()) return;
-  if(!confirm('Remover "'+d.nome+'" deste contrato?')) return;
+  if(!await confirmarSistema('Remover "'+d.nome+'" deste contrato?')) return;
   docsApagados[d.id]=1;
   if(d.url) docsApagados[d.url]=1;
   fichaDocs=fichaDocs.filter(function(x){ return x.id!==id; });
@@ -6027,7 +6027,7 @@ async function delStatus(nome){
     return;
   }
   if(statusLista().length<=1){ aviso('Precisa de um','Tem de sobrar pelo menos um status.'); return; }
-  if(!confirm('Tirar o status "'+nome+'"?')) return;
+  if(!await confirmarSistema('Tirar o status "'+nome+'"?')) return;
   const ok=await alterar(function(base){
     if(!Array.isArray(base.statusObra)||!base.statusObra.length) base.statusObra=statusPadraoNovo();
     base.statusObra=base.statusObra.filter(function(s){ return s.nome!==nome; });
@@ -6163,7 +6163,7 @@ async function addTipoDoc(){
   // recusava por ja existir.
   const juntar=!!(igual && antigo);
   if(juntar){
-    if(!confirm('Já existe o rótulo "'+igual+'".\n\n'+
+    if(!await confirmarSistema('Já existe o rótulo "'+igual+'".\n\n'+
       (uso? 'Juntar os dois? '+uso+' arquivo(s) de "'+antigo+'" passam a ter o rótulo "'+igual+'".'
           : 'Juntar os dois? Nenhum arquivo usa "'+antigo+'", então ele apenas sai da lista.')+
       '\n\nO rótulo "'+antigo+'" deixa de existir.')) return;
@@ -6212,7 +6212,7 @@ async function delTipoDoc(rotulo){
     return;
   }
   if(tiposDoc().length<=1){ aviso('Precisa de um','Tem de sobrar pelo menos um rótulo.'); return; }
-  if(!confirm('Tirar o rótulo "'+rotulo+'"?')) return;
+  if(!await confirmarSistema('Tirar o rótulo "'+rotulo+'"?')) return;
   const ok=await alterar(function(base){
     base.tiposDoc=(base.tiposDoc||TIPOS_DOC_PADRAO).filter(function(t){ return t!==rotulo; });
   }, {acao:'tirou rótulo de anexo', alvo:rotulo});
@@ -6349,7 +6349,7 @@ async function addFeriado(){
 async function delFeriado(data){
   const f=(dados.feriados||[]).find(function(x){ return x.data===data; });
   if(!f) return;
-  if(!confirm('Tirar o feriado '+fmtData(data)+' ('+f.nome+')?'+
+  if(!await confirmarSistema('Tirar o feriado '+fmtData(data)+' ('+f.nome+')?'+
       (f.todoAno?'\n\nEle vale em TODOS os anos, então sai de todos.':''))) return;
   const ok=await alterar(function(base){
     base.feriados=(base.feriados||[]).filter(function(x){ return x.data!==data; });
@@ -7004,7 +7004,7 @@ async function confirmarPedido(id, peloDestinatario){
     ? 'Marcar o pedido de "'+(c.cliente||'')+'" como já feito?\n\nUse quando a pessoa já respondeu pelo WhatsApp.'
     : 'Confirmar que já foi feito em "'+(c.cliente||'')+'"?\n\n'+(p.por||'Quem pediu')+
       ' vai receber o aviso no sistema. O WhatsApp também abre com a mensagem pronta — aperte enviar.';
-  if(!confirm(pergunta)) return;
+  if(!await confirmarSistema(pergunta)) return;
   const feito={
     por: souQuemPediu ? nomesDoPedido(p) : (eu||nomesDoPedido(p)),
     em: agoraISO(),
@@ -7430,7 +7430,7 @@ async function levarDatasDoContratoAoCompras(c){
 // Botao do administrador, para os pedidos que ja existiam antes desta mudanca.
 async function levarDatasDeTodosAoCompras(){
   if(!soAdmin()){ aviso('Só o administrador','Esta atualização mexe em todos os pedidos do Compras.'); return; }
-  if(!confirm('Levar as datas de TODOS os contratos para os pedidos do Compras?\n\n'+
+  if(!await confirmarSistema('Levar as datas de TODOS os contratos para os pedidos do Compras?\n\n'+
     'Atualiza medição, entrada na obra e entrega dos pedidos em Urgentes e Importantes. '+
     'Pedidos pagos não mudam.')) return;
   status('🔄 Levando as datas ao Compras...');
@@ -7722,6 +7722,90 @@ function abrirApp(nome,papelDoUsuario){
   try{ (window.top||window).location.replace(PORTAL_URL); }
   catch(e){ window.location.replace(PORTAL_URL); }
 })();
+
+// ---- JANELAS DO PROPRIO SISTEMA (pedido do Ander, 17/11/2026) ----
+// No lugar do alert/confirm/prompt do navegador ("daluminium.github.io diz").
+// O estilo vem embutido para ficar igual em todos os modulos. Tudo devolve
+// Promise: quem precisa da resposta usa "await".
+//   avisoSistema(msg)               -> no lugar do alert (nao trava o codigo)
+//   await confirmarSistema(msg)     -> no lugar do confirm (true/false)
+//   await perguntarSistema(msg,val) -> no lugar do prompt (texto ou null)
+// A mensagem que comeca com uma frase curta seguida de linha em branco usa
+// essa frase como titulo da janela.
+function janelaSistemaGeral(op){
+  return new Promise(function(resolve){
+    const anterior=document.activeElement;
+    const j=document.createElement('dialog');
+    j.style.cssText='border:0;padding:0;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.25);'+
+      'max-width:500px;width:calc(100vw - 32px);position:fixed;inset:0;margin:auto;height:fit-content;'+
+      'max-height:calc(100vh - 32px);overflow:auto;font-family:inherit;color:#23282F;background:#fff';
+    const cab='padding:14px 18px;border-bottom:1px solid #EEF0F2;display:flex;justify-content:space-between;align-items:center;gap:10px';
+    const btn='padding:8px 16px;border-radius:8px;font:inherit;font-size:13px;font-weight:500;cursor:pointer;border:1px solid ';
+    j.innerHTML='<div style="'+cab+'"><strong data-t style="font-size:15px"></strong>'+
+      '<button type="button" data-x aria-label="Fechar" style="border:1px solid #DEE1E5;background:#fff;border-radius:6px;width:28px;height:28px;cursor:pointer;color:#5A6370">✕</button></div>'+
+      '<div style="padding:16px 18px"><div data-m style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-size:14px"></div>'+
+      (op.campo?'<label data-r style="display:block;margin-top:12px;font-size:12px;color:#5A6370"></label>'+
+        '<input data-c type="'+(op.campo.senha?'password':'text')+'" autocomplete="'+(op.campo.senha?'new-password':'off')+'" '+
+        'style="width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border:1px solid #DEE1E5;border-radius:8px;font:inherit;font-size:14px">':'')+
+      '</div><div data-b style="padding:12px 18px;border-top:1px solid #EEF0F2;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap"></div>';
+    j.querySelector('[data-t]').textContent=op.titulo||'Aviso';
+    j.querySelector('[data-m]').textContent=op.mensagem||'';
+    let escolha=null;
+    const fechar=function(v){ escolha=v; j.close(); };
+    const botoes=op.botoes||[{rotulo:'OK', valor:'ok', principal:true}];
+    botoes.forEach(function(b){
+      const e=document.createElement('button');
+      e.type='button'; e.textContent=b.rotulo;
+      e.style.cssText=btn+(b.principal?'#0E8FA6;background:#1FB6CF;color:#fff':'#DEE1E5;background:#fff;color:#23282F');
+      e.onclick=function(){ fechar(b.valor); };
+      j.querySelector('[data-b]').appendChild(e);
+    });
+    if(op.campo){
+      j.querySelector('[data-r]').textContent=op.campo.rotulo||'';
+      const c=j.querySelector('[data-c]');
+      c.value=op.campo.valor||'';
+      c.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); fechar(botoes[botoes.length-1].valor); } });
+    }
+    j.querySelector('[data-x]').onclick=function(){ fechar(null); };
+    j.addEventListener('keydown',function(e){ e.stopPropagation(); });
+    j.addEventListener('close',function(){
+      const texto=op.campo?j.querySelector('[data-c]').value:'';
+      j.remove();
+      if(anterior&&anterior.isConnected&&anterior.focus) anterior.focus();
+      resolve({botao:escolha, texto:texto});
+    },{once:true});
+    document.body.appendChild(j);
+    j.showModal();
+    const foco=op.campo?j.querySelector('[data-c]'):j.querySelector('[data-b]').lastChild;
+    if(foco) foco.focus();
+  });
+}
+function separarTituloSistema(msg, padrao){
+  const t=String(msg==null?'':msg);
+  const i=t.indexOf('\n\n');
+  if(i>0 && i<=60 && t.slice(0,i).indexOf('\n')<0) return {titulo:t.slice(0,i).replace(/[.:]\s*$/,''), corpo:t.slice(i+2)};
+  return {titulo:padrao, corpo:t};
+}
+function avisoSistema(msg){
+  const p=separarTituloSistema(msg,'Aviso');
+  return janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo});
+}
+async function confirmarSistema(msg, rotuloOk, rotuloCancelar){
+  const p=separarTituloSistema(msg,'Confirmar');
+  const r=await janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo, botoes:[
+    {rotulo:rotuloCancelar||'Cancelar', valor:'nao'},{rotulo:rotuloOk||'Confirmar', valor:'sim', principal:true}]});
+  return r.botao==='sim';
+}
+// Devolve o texto digitado, ou null se cancelou (igual ao prompt). Pergunta
+// que fala de senha ganha campo escondido.
+async function perguntarSistema(msg, valorInicial){
+  const p=separarTituloSistema(msg,'Informe');
+  const senha=/senha/i.test(String(msg||''));
+  const r=await janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo,
+    campo:{rotulo:'', valor:valorInicial==null?'':String(valorInicial), senha:senha},
+    botoes:[{rotulo:'Cancelar', valor:'nao'},{rotulo:'OK', valor:'sim', principal:true}]});
+  return r.botao==='sim' ? r.texto : null;
+}
 </script>
 </body>
 </html>
