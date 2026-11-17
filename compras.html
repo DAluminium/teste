@@ -2696,19 +2696,56 @@ function maisDiasIso(iso, n){
 }
 function lerValorBR(s){ return parseFloat(String(s||'').replace(/\./g,'').replace(',','.'))||0; }
 function centavos(v){ return Math.round((Number(v)||0)*100)/100; }
+// Cada parcela guarda a PORCENTAGEM (pct) e o valor calculado dela. Mudou o
+// valor do orcamento, as parcelas acompanham pela porcentagem (16/11/2026).
 function modeloDeParcelas(cond, valor){
   const v=centavos(valor), metade=centavos(v/2), resto=centavos(v-metade), hoje=hojeIsoLocal();
   switch(cond){
-    case 'avista':         return [{desc:'À vista', valor:v, quando:'data', venc:hoje}];
-    case '50-50':          return [{desc:'Entrada 50% (libera a produção)', valor:metade, quando:'data', venc:hoje},
-                                   {desc:'Restante 50% (libera o material)', valor:resto, quando:'pronto', venc:''}];
-    case '100-antecipado': return [{desc:'100% antecipado', valor:v, quando:'data', venc:hoje}];
-    case 'na-retirada':    return [{desc:'Na retirada / envio', valor:v, quando:'pronto', venc:''}];
-    case 'parcelado':      return [{desc:'Parcela 1/2', valor:metade, quando:'data', venc:maisDiasIso(hoje,30)},
-                                   {desc:'Parcela 2/2', valor:resto, quando:'data', venc:maisDiasIso(hoje,60)}];
-    case 'outra':          return [{desc:'Pagamento', valor:v, quando:'data', venc:''}];
+    case 'avista':         return [{desc:'À vista', pct:100, valor:v, quando:'data', venc:hoje}];
+    case '50-50':          return [{desc:'Entrada (libera a produção)', pct:50, valor:metade, quando:'data', venc:hoje},
+                                   {desc:'Restante (libera o material)', pct:50, valor:resto, quando:'pronto', venc:''}];
+    case '100-antecipado': return [{desc:'100% antecipado', pct:100, valor:v, quando:'data', venc:hoje}];
+    case 'na-retirada':    return [{desc:'Na retirada / envio', pct:100, valor:v, quando:'pronto', venc:''}];
+    case 'parcelado':      return [{desc:'Parcela 1/2', pct:50, valor:metade, quando:'data', venc:maisDiasIso(hoje,30)},
+                                   {desc:'Parcela 2/2', pct:50, valor:resto, quando:'data', venc:maisDiasIso(hoje,60)}];
+    case 'outra':          return [{desc:'Entrada', pct:100, valor:v, quando:'data', venc:hoje}];
     default:               return [];
   }
+}
+function totalDoOrcamento(){ return centavos(lerValorBR(document.getElementById('f-valor').value)); }
+function pctDe(valor, total){ return total>0 ? Math.round(valor/total*10000)/100 : 0; }
+function fmtPct(p){ return (Math.round((Number(p)||0)*100)/100).toLocaleString('pt-BR',{maximumFractionDigits:2}); }
+function lerPct(s){ return parseFloat(String(s||'').replace('%','').replace(',','.'))||0; }
+// O que sobra vai para a ultima parcela. So uma parcela e ela nao fecha os
+// 100%? Nasce a parcela do restante, que vence quando o material ficar pronto
+// — o jeito mais comum: entrada para produzir, restante para liberar.
+function pgFecharRestante(mexida){
+  const total=totalDoOrcamento();
+  if(!_pgParcelas.length) return;
+  const somaOutras=function(excluir){
+    return centavos(_pgParcelas.reduce(function(a,p,j){ return j===excluir?a:a+(Number(p.valor)||0); },0));
+  };
+  if(_pgParcelas.length===1){
+    const resto=centavos(total-(Number(_pgParcelas[0].valor)||0));
+    if(resto>0.009) _pgParcelas.push({id:genId(), desc:'Restante (quando ficar pronto)',
+      pct:pctDe(resto,total), valor:resto, quando:'pronto', venc:''});
+    return;
+  }
+  const ult=_pgParcelas.length-1;
+  if(mexida===ult) return;          // quem mexeu foi na propria ultima
+  const resto=Math.max(0, centavos(total-somaOutras(ult)));
+  _pgParcelas[ult].valor=resto;
+  _pgParcelas[ult].pct=pctDe(resto,total);
+}
+// O valor do orcamento mudou: refaz os valores pela porcentagem.
+function pgTotalMudou(){
+  const total=totalDoOrcamento();
+  if(!_pgParcelas.length) return;
+  _pgParcelas.forEach(function(p){ if(p.pct!=null) p.valor=centavos(total*(Number(p.pct)||0)/100); });
+  const soma=centavos(_pgParcelas.reduce(function(a,p){ return a+(Number(p.valor)||0); },0));
+  const ult=_pgParcelas[_pgParcelas.length-1];
+  ult.valor=centavos(ult.valor+(total-soma));   // o centavo do arredondamento
+  pgRender();
 }
 // A parcela "quando ficar pronto" vence na previsao de pronto.
 function vencimentoDaParcela(p, previsaoPronto){
@@ -2729,6 +2766,10 @@ function carregarPagMatNoModal(r){
   _pgParcelas=JSON.parse(JSON.stringify((pg&&pg.parcelas)||[]));
   document.getElementById('f-mat-situacao').value=(mat&&mat.situacao)||'';
   document.getElementById('f-mat-pronto').value=(mat&&mat.previsaoPronto)||'';
+  // Parcela antiga sem porcentagem: calcula pelo valor.
+  const tot=totalDoOrcamento();
+  _pgParcelas.forEach(function(p){ if(p.pct==null) p.pct=pctDe(Number(p.valor)||0, tot); });
+  document.getElementById('f-valor').onchange=pgTotalMudou;
   pgRender();
 }
 function pgTrocarCondicao(){
@@ -2740,28 +2781,56 @@ function pgTrocarCondicao(){
   _pgParcelas=modeloDeParcelas(cond, valor).map(function(p){ return Object.assign({id:genId()}, p); });
   pgRender();
 }
+// Parcela nova ja nasce com o que falta para fechar 100%.
 function pgNovaParcela(){
-  _pgParcelas.push({id:genId(), desc:'Parcela '+(_pgParcelas.length+1), valor:0, quando:'data', venc:''});
+  const total=totalDoOrcamento();
+  const soma=centavos(_pgParcelas.reduce(function(a,p){ return a+(Number(p.valor)||0); },0));
+  const resto=Math.max(0, centavos(total-soma));
+  _pgParcelas.push({id:genId(), desc:resto>0?'Restante (quando ficar pronto)':'Parcela '+(_pgParcelas.length+1),
+    pct:pctDe(resto,total), valor:resto, quando:resto>0?'pronto':'data', venc:''});
   if(!document.getElementById('f-pg-condicao').value) document.getElementById('f-pg-condicao').value='outra';
   pgRender();
 }
 function pgTirarParcela(i){ _pgParcelas.splice(i,1); pgRender(); }
+// Descricao e data: so guardam. Porcentagem e valor: calculam um pelo outro,
+// fecham o restante na ultima parcela e redesenham (no "change", ao sair do
+// campo — redesenhar a cada tecla tiraria o cursor do lugar).
 function pgMudar(i, campo, valor){
   const p=_pgParcelas[i]; if(!p) return;
-  if(campo==='valor') p.valor=centavos(lerValorBR(valor));
-  else p[campo]=valor;
+  const total=totalDoOrcamento();
+  if(campo==='pct'){
+    p.pct=Math.max(0, Math.min(100, lerPct(valor)));
+    p.valor=centavos(total*p.pct/100);
+    pgFecharRestante(i); pgRender(); return;
+  }
+  if(campo==='valor'){
+    p.valor=centavos(lerValorBR(valor));
+    p.pct=pctDe(p.valor, total);
+    pgFecharRestante(i); pgRender(); return;
+  }
+  p[campo]=valor;
   if(campo==='quando') pgRender(); else pgSoma();
 }
+// Embaixo das parcelas: quanto se paga antes e quanto FALTA pagar quando o
+// material ficar pronto (com o vencimento, que e a previsao de pronto).
 function pgSoma(){
   const el=document.getElementById('f-pg-soma');
   if(!el) return;
-  const total=centavos(lerValorBR(document.getElementById('f-valor').value));
+  const total=totalDoOrcamento();
   const soma=centavos(_pgParcelas.reduce(function(a,p){ return a+(Number(p.valor)||0); },0));
   const bate=Math.abs(soma-total)<0.01;
-  el.style.color=bate?'var(--gray-4)':'var(--red)';
-  el.textContent=_pgParcelas.length
-    ? 'Parcelas somam R$ '+fmtBR(soma)+(bate?' = valor do orçamento':' — o orçamento é R$ '+fmtBR(total))
-    : '';
+  if(!_pgParcelas.length){ el.innerHTML=''; return; }
+  const noPronto=centavos(_pgParcelas.filter(function(p){ return p.quando==='pronto'; })
+    .reduce(function(a,p){ return a+(Number(p.valor)||0); },0));
+  const antes=centavos(soma-noPronto);
+  const prev=document.getElementById('f-mat-pronto').value;
+  el.style.color='';
+  el.innerHTML=
+    (antes>0?'Antes de ficar pronto: <b>R$ '+fmtBR(antes)+'</b> ('+fmtPct(pctDe(antes,total))+'%)<br>':'')+
+    (noPronto>0?'<span style="color:var(--amber)">Falta pagar quando ficar pronto: <b>R$ '+fmtBR(noPronto)+'</b> ('+
+      fmtPct(pctDe(noPronto,total))+'%) · vence '+(prev?'em '+fmtDate(prev):'na previsão de pronto (não informada)')+'</span><br>':'')+
+    (bate?'<span style="color:var(--gray-4)">Total R$ '+fmtBR(soma)+' = valor do orçamento</span>'
+         :'<span style="color:var(--red)">Parcelas somam R$ '+fmtBR(soma)+' — o orçamento é R$ '+fmtBR(total)+'</span>');
 }
 function pgRender(){
   const cond=document.getElementById('f-pg-condicao').value;
@@ -2776,8 +2845,9 @@ function pgRender(){
     const caixa='width:100%;min-width:0;box-sizing:border-box';
     return '<div style="border:1px solid var(--gray-2);border-radius:var(--radius);padding:8px;margin-top:6px">'+
       '<input value="'+escHtml(p.desc||'')+'" oninput="pgMudar('+i+',\'desc\',this.value)" placeholder="Descrição" style="'+caixa+';margin-bottom:6px">'+
-      '<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.2fr) auto;gap:6px;align-items:center">'+
-      '<input value="'+fmtBR(p.valor)+'" oninput="pgMudar('+i+',\'valor\',this.value)" placeholder="Valor" style="'+caixa+';text-align:right">'+
+      '<div style="display:grid;grid-template-columns:62px minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.2fr) auto;gap:6px;align-items:center">'+
+      '<div style="position:relative"><input value="'+fmtPct(p.pct)+'" onchange="pgMudar('+i+',\'pct\',this.value)" title="Porcentagem do orçamento" style="'+caixa+';text-align:right;padding-right:16px"><span style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--gray-4)">%</span></div>'+
+      '<input value="'+fmtBR(p.valor)+'" onchange="pgMudar('+i+',\'valor\',this.value)" placeholder="Valor" title="Valor da parcela (R$)" style="'+caixa+';text-align:right">'+
       '<select onchange="pgMudar('+i+',\'quando\',this.value)" style="'+caixa+'">'+
         '<option value="data"'+(p.quando!=='pronto'?' selected':'')+'>Vence na data</option>'+
         '<option value="pronto"'+(p.quando==='pronto'?' selected':'')+'>Quando ficar pronto</option></select>'+
@@ -2870,7 +2940,7 @@ function celulaPagamento(r){
     // um lado e o numero do outro) — reclamacao do Ander em 16/11/2026.
     return '<div style="margin-top:4px;font-size:11px;line-height:1.35">'+
       '<div style="color:var(--gray-5)">'+escHtml(p.desc||'Parcela')+'</div>'+
-      '<div style="white-space:nowrap"><b>R$ '+fmtBR(p.valor)+'</b> <span style="color:var(--gray-4)">· '+quando+'</span></div>'+
+      '<div style="white-space:nowrap">'+(p.pct!=null?fmtPct(p.pct)+'% · ':'')+'<b>R$ '+fmtBR(p.valor)+'</b> <span style="color:var(--gray-4)">· '+quando+'</span></div>'+
       '</div>';
   }).join('');
   return '<td style="min-width:190px"><span style="font-weight:600">💰 '+escHtml(CONDICAO_CURTA[pg.condicao]||'Combinado')+'</span>'+linhas+'</td>';
