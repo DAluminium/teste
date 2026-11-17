@@ -305,7 +305,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </button>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Comprar até</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Comprar até</th><th>Pronto previsto</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
       <tbody id="tbody-urgente"></tbody>
     </table></div>
     <div class="panel-footer">Total em aberto: <strong id="t-urgente">R$ 0,00</strong></div>
@@ -319,7 +319,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </button>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Comprar até</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Comprar até</th><th>Pronto previsto</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
       <tbody id="tbody-importante"></tbody>
     </table></div>
     <div class="panel-footer">Total: <strong id="t-importante">R$ 0,00</strong></div>
@@ -330,7 +330,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div class="panel-title"><span class="badge badge-paid" id="badge-p">0</span>Obras pagas</div>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Data Pag.</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Data Pag.</th><th>Pronto previsto</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
       <tbody id="tbody-pago"></tbody>
     </table></div>
     <div class="panel-footer">Total pago: <strong id="t-pago">R$ 0,00</strong></div>
@@ -1059,7 +1059,9 @@ function renderTable(type,isPago){
       <td>${fmtDate(r.dataOrc)}</td>
       <td>${fmtDate(r.entrega)}${r.medicao?`<span class="td-by" style="color:var(--teal-dark)">📐 Med: ${fmtDate(r.medicao)}</span>`:''}${blocoDatasObra(r)}</td>
       ${isPago?'':celulaComprarAte(r)}
+      ${isPago?'':celulaProntoPrevisto(r)}
       ${extraCol}
+      ${isPago?celulaProntoPrevisto(r):''}
       ${statusCell}
       ${attachBtn}
       ${actions}
@@ -2829,6 +2831,26 @@ function confirmarSomaParcelas(entry){
   return confirm('As parcelas somam R$ '+fmtBR(soma)+', mas o orçamento é R$ '+fmtBR(entry.valor)+'.\n\nSalvar assim mesmo?');
 }
 // Linha de resumo na tabela, embaixo do status.
+// Coluna "Pronto previsto" (pedido do Ander, 16/11/2026): quando o material
+// fica pronto no fornecedor. Vermelha se a data passou e ele ainda nao ficou
+// pronto; vermelha tambem se cai depois da entrada na obra.
+function celulaProntoPrevisto(r){
+  const mat=r.producao||{};
+  const sit=mat.situacao||'';
+  if(sit==='retirado') return '<td><span style="color:var(--green);font-weight:600">🚚 Retirado</span></td>';
+  if(sit==='pronto') return '<td><span style="color:var(--green);font-weight:600">✅ Pronto</span>'+
+    (mat.previsaoPronto?'<span class="td-by">previsto '+fmtDate(mat.previsaoPronto)+'</span>':'')+'</td>';
+  const prev=mat.previsaoPronto||'';
+  if(!prev) return '<td style="color:var(--gray-4)">—</td>';
+  const falta=diasAte(prev);
+  const m=marcoDoPrazo(r);
+  const depoisDaObra=!!(m && prev>m.data);
+  const cor=(falta<0||depoisDaObra)?'var(--red)':'inherit';
+  const sub=falta<0?'venceu há '+(-falta)+' dia'+(falta===-1?'':'s')+': cobrar'
+    :(falta===0?'é hoje':'faltam '+falta+' dia'+(falta===1?'':'s'));
+  return '<td style="white-space:nowrap"><span style="color:'+cor+';font-weight:600">'+fmtDate(prev)+'</span>'+
+    '<span class="td-by" style="white-space:normal">'+sub+(depoisDaObra?'<br>⚠️ depois da '+m.nome:'')+'</span></td>';
+}
 function resumoPagMat(r){
   const partes=[];
   const pg=r.pagamento;
@@ -2838,12 +2860,11 @@ function resumoPagMat(r){
       (pg.parcelas&&pg.parcelas.length>1?' · '+pg.parcelas.length+' parcelas':'')+'</span>');
   }
   const mat=r.producao;
-  if(mat&&(mat.situacao||mat.previsaoPronto)){
+  if(mat&&mat.situacao){   // a previsao tem coluna propria
     const sit=rotuloDe(SITUACOES_MATERIAL, mat.situacao)||'';
     const atrasada=mat.previsaoPronto && diasAte(mat.previsaoPronto)<0 && ['aguardando','producao'].indexOf(mat.situacao)>=0;
     partes.push('<span class="td-by" style="white-space:normal'+(atrasada?';color:var(--red);font-weight:600':'')+'">🏭 '+
-      escHtml(sit||'Material')+(mat.previsaoPronto&&['','aguardando','producao'].indexOf(mat.situacao||'')>=0?' · pronto prev. '+fmtDate(mat.previsaoPronto):'')+
-      (atrasada?' (venceu)':'')+'</span>');
+      escHtml(sit||'Material')+'</span>');
   }
   return partes.join('');
 }
