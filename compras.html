@@ -1019,8 +1019,23 @@ function renderTable(type,isPago){
   }
 
   if(!rows.length){
-    const msg=searchTerm?`Nenhum resultado para "<strong>${searchTerm}</strong>"`:'Nenhum orçamento. Clique em "Novo orçamento" para começar.';
-    tbody.innerHTML=`<tr class="empty-row"><td colspan="11">${msg}</td></tr>`;
+    let msg=searchTerm?`Nenhum resultado para "<strong>${escHtml(searchTerm)}</strong>" nesta aba`:'Nenhum orçamento. Clique em "Novo orçamento" para começar.';
+    // A busca acha em outra aba? Diz onde e leva ate la (pedido do Ander,
+    // 16/11/2026: "1 resultado" no topo e a aba aberta vazia confundia).
+    if(searchTerm){
+      const nomes={urgente:'Urgentes',importante:'Importantes',pago:'Obras pagas'};
+      const outras=['urgente','importante','pago'].filter(function(L){ return L!==type; }).map(function(L){
+        return {L:L, n:(data[L]||[]).filter(matchesSearch).length};
+      }).filter(function(x){ return x.n>0; });
+      if(outras.length) msg+='<br><span style="display:inline-flex;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center">'+
+        outras.map(function(x){
+          return '<button type="button" class="btn btn-outline btn-sm" onclick="setTab(\''+x.L+'\',document.querySelector(\'.tab-btn[onclick*=&quot;'+x.L+'&quot;]\'))">'+
+            'Ver '+x.n+' em '+nomes[x.L]+'</button>';
+        }).join('')+'</span>';
+    }
+    // colspan largo: a tabela ganhou colunas (Comprar até, Pagamento...) e
+    // com 11 a mensagem nao ocupava a largura toda.
+    tbody.innerHTML=`<tr class="empty-row"><td colspan="20">${msg}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r)=>{
