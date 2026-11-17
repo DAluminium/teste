@@ -493,6 +493,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="form-group"><label>Material no fornecedor</label><select id="f-mat-situacao" onchange="pgRender()"></select></div>
         <div class="form-group"><label>Previsão de pronto</label><input id="f-mat-pronto" type="date" onchange="pgRender()">
           <span class="note" id="f-mat-dica"></span></div>
+        <div class="form-group"><label>Previsão de chegada</label><input id="f-mat-chegada" type="date">
+          <span class="note">Quando vem pela transportadora. Use junto com a transportadora e o rastreio, mais abaixo.</span></div>
         <div class="section-divider" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding:10px 0 6px;margin-top:2px;border-top:1px solid var(--gray-2);grid-column:1/-1">Dados para pagamento (opcional)</div>
         <div class="form-group span2"><label>Chave Pix</label><input id="f-pix" type="text" placeholder="CNPJ, CPF, e-mail, telefone ou chave aleatória"></div>
         <div class="form-group span2"><label>Favorecido (nome na conta)</label><input id="f-pix-nome" type="text" placeholder="Ex: Morais Alumínio Ltda"></div>
@@ -1397,7 +1399,8 @@ function saveEntry(){
 
   if(isEdit){ data[modalType][editId]=entry; } else { data[modalType].push(entry); }
   // Pedido ja feito: parcelas ou previsao mudaram, o Financeiro acompanha.
-  if(entry.pedidoFeito) setTimeout(function(){ enviarPedidosAoFinanceiro([entry],[]); },0);
+  // Depois, ja pago e agora a caminho? Sai da lista (aplicarSituacaoDoFinanceiro).
+  if(entry.pedidoFeito) setTimeout(async function(){ await enviarPedidosAoFinanceiro([entry],[]); aplicarSituacaoDoFinanceiro(); },0);
   logAction(byVal, isEdit?'Editou':'Criou', entry, isEdit?'Dados atualizados':duplicandoDe?('Cotação duplicada do orçamento de '+(duplicandoDe.fornecedor||'—')):'Novo orçamento lançado');
   if(_paraQuem.length && _textoPedido){
     logAction(_quemPede,'Pediu material',entry,
@@ -1470,6 +1473,7 @@ function abrirDetalhesPago(idx){
     '<div class="form-group"><label>Material no fornecedor</label><select id="pago-mat-situacao" '+(ehConsulta()?'disabled':'')+'>'+
       SITUACOES_MATERIAL.map(function(p){ return '<option value="'+p[0]+'"'+(((r.producao||{}).situacao||'')===p[0]?' selected':'')+'>'+escHtml(p[1])+'</option>'; }).join('')+'</select></div>'+
     '<div class="form-group"><label>Previsão de pronto</label><input type="date" id="pago-mat-pronto" value="'+escHtml((r.producao||{}).previsaoPronto||'')+'" '+(ehConsulta()?'readonly':'')+'></div>'+
+    '<div class="form-group"><label>Previsão de chegada</label><input type="date" id="pago-mat-chegada" value="'+escHtml((r.producao||{}).previsaoChegada||'')+'" '+(ehConsulta()?'readonly':'')+'></div>'+
     '</div></div><div class="modal-footer"><button class="btn btn-outline" onclick="fecharDetalhesPago()">Fechar</button>'+
     (!ehConsulta()?'<button class="btn btn-teal" onclick="salvarDetalhesPago()">Salvar alterações</button>':'')+'</div></div>';
   document.body.appendChild(el);
@@ -1491,9 +1495,10 @@ function salvarDetalhesPago(){
   {
     const sit=document.getElementById('pago-mat-situacao').value;
     const prev=document.getElementById('pago-mat-pronto').value;
+    const cheg=document.getElementById('pago-mat-chegada').value;
     const ant=r.producao||null;
-    if((sit||prev) && !(ant && ant.situacao===sit && (ant.previsaoPronto||'')===prev))
-      r.producao={situacao:sit, previsaoPronto:prev, em:new Date().toISOString(), por:usuarioLogado()||'—'};
+    if((sit||prev||cheg) && !(ant && ant.situacao===sit && (ant.previsaoPronto||'')===prev && (ant.previsaoChegada||'')===cheg))
+      r.producao={situacao:sit, previsaoPronto:prev, previsaoChegada:cheg, em:new Date().toISOString(), por:usuarioLogado()||'—'};
   }
   logAction(usuarioLogado()||'—','Atualizou compra paga',r,
     'Transportadora e rastreio atualizados'+(r.contrato!==anterior?' — contrato: '+(anterior||'—')+' → '+r.contrato:''));
@@ -1525,6 +1530,14 @@ async function removeEntry(type,idx){
 let _situacaoPg={};      // pedidoId -> parcelaId -> {pago, pagoEm, valor}
 let _situacaoLidaEm=0;
 function situacaoDaParcela(pid, parId){ return ((_situacaoPg[pid]||{})[parId])||null; }
+// Quanto do pedido ja foi pago no Financeiro. null se nao ha pedido feito.
+function pagoDoPedido(r){
+  if(!r||!r.pedidoFeito) return null;
+  const parcelas=(r.pagamento||{}).parcelas||[];
+  const total=centavos(parcelas.reduce(function(a,p){ return a+(Number(p.valor)||0); },0));
+  const pago=centavos(parcelas.reduce(function(a,p){ const s=situacaoDaParcela(r.id,p.id); return a+(s?s.pago:0); },0));
+  return {total:total, pago:pago};
+}
 function parcelasParaFinanceiro(r){
   const prev=(r.producao||{}).previsaoPronto||'';
   return ((r.pagamento||{}).parcelas||[]).map(function(p){
@@ -1603,7 +1616,10 @@ function aplicarSituacaoDoFinanceiro(){
         logAction('Financeiro','Material em produção (entrada paga)',r,'Pago R$ '+fmtBR(pago)+' de R$ '+fmtBR(total));
         mudou=true;
       }
-      if(total>0 && pago>=total-0.01){
+      // Quitado SO sai da lista quando o material ja esta a caminho (na
+      // transportadora) ou chegou — pago e ainda no fornecedor continua aqui,
+      // para ninguem esquecer de cobrar o envio (pedido do Ander, 16/11/2026).
+      if(total>0 && pago>=total-0.01 && materialACaminho(r)){
         const quitado=Object.assign({},r,{dataPag:ultimo||hojeIsoLocal(), listaAntes:aba});
         delete quitado.status;
         data.pago.push(quitado);
@@ -1708,7 +1724,17 @@ async function nomeDeQuemUsa(acao){
   return t&&t.trim()?t.trim():null;
 }
 
+// Trava contra o clique duplo: em 16/11/2026 o Historico mostrou "Fez pedido"
+// duas vezes no mesmo minuto. Enquanto um pedido esta sendo feito ou
+// desfeito, outro clique e ignorado.
+let _pedidoEmAndamento=false;
 async function fazerPedido(type,idx){
+  if(_pedidoEmAndamento) return;
+  _pedidoEmAndamento=true;
+  try{ return await fazerPedidoDeFato(type,idx); }
+  finally{ _pedidoEmAndamento=false; }
+}
+async function fazerPedidoDeFato(type,idx){
   if(recusarSeConsulta()) return;
   const r=data[type][idx];
   if(!r) return;
@@ -1764,6 +1790,7 @@ async function fazerPedido(type,idx){
     guardar=g.botao==='guardar';
   }
   const quem=usuarioLogado()||'—';
+  if(r.pedidoFeito) return;     // outra aba/pessoa fez o pedido enquanto a janela estava aberta
   r.pedidoFeito={em:hojeIsoLocal(), por:quem, nr:String(nr||'').trim(), financeiro:'enviando'};
   if(!r.producao||!r.producao.situacao) r.producao=Object.assign({},r.producao||{},{situacao:'aguardando', em:new Date().toISOString(), por:quem});
   if(guardar){
@@ -3018,8 +3045,14 @@ const SITUACOES_MATERIAL=[
   ['aguardando','Aguardando pagamento para produzir'],
   ['producao','Em produção'],
   ['pronto','Pronto'],
-  ['retirado','Retirado / enviado']
+  // 'transporte' (16/11/2026): ja saiu do fornecedor e vem pela
+  // transportadora — tem previsao de chegada para conferir.
+  ['transporte','Enviado — na transportadora'],
+  ['retirado','Retirado / chegou']
 ];
+// O material ja esta a caminho (ou chegou)? So entao o pedido quitado pode
+// sair da lista para Obras pagas (pedido do Ander, 16/11/2026).
+function materialACaminho(r){ return ['transporte','retirado'].indexOf(((r&&r.producao)||{}).situacao||'')>=0; }
 function rotuloDe(lista, v){ const x=lista.find(function(p){ return p[0]===v; }); return x?x[1]:''; }
 function hojeIsoLocal(){
   const d=new Date();
@@ -3102,6 +3135,7 @@ function carregarPagMatNoModal(r){
   _pgParcelas=JSON.parse(JSON.stringify((pg&&pg.parcelas)||[]));
   document.getElementById('f-mat-situacao').value=(mat&&mat.situacao)||'';
   document.getElementById('f-mat-pronto').value=(mat&&mat.previsaoPronto)||'';
+  document.getElementById('f-mat-chegada').value=(mat&&mat.previsaoChegada)||'';
   // Parcela antiga sem porcentagem: calcula pelo valor.
   const tot=totalDoOrcamento();
   _pgParcelas.forEach(function(p){ if(p.pct==null) p.pct=pctDe(Number(p.valor)||0, tot); });
@@ -3223,10 +3257,11 @@ function lerPagamentoDoModal(antigo){
 function lerMaterialDoModal(antigo){
   const sit=document.getElementById('f-mat-situacao').value;
   const pronto=document.getElementById('f-mat-pronto').value;
+  const chegada=document.getElementById('f-mat-chegada').value;
   const ant=(antigo&&antigo.producao)||null;
-  if(!sit && !pronto) return ant;
-  if(ant && ant.situacao===sit && (ant.previsaoPronto||'')===pronto) return ant;
-  return {situacao:sit, previsaoPronto:pronto, em:new Date().toISOString(), por:usuarioLogado()||'—'};
+  if(!sit && !pronto && !chegada) return ant;
+  if(ant && ant.situacao===sit && (ant.previsaoPronto||'')===pronto && (ant.previsaoChegada||'')===chegada) return ant;
+  return {situacao:sit, previsaoPronto:pronto, previsaoChegada:chegada, em:new Date().toISOString(), por:usuarioLogado()||'—'};
 }
 // Parcelas que nao fecham com o valor: pergunta antes de gravar.
 function confirmarSomaParcelas(entry){
@@ -3243,7 +3278,17 @@ function confirmarSomaParcelas(entry){
 function celulaProntoPrevisto(r){
   const mat=r.producao||{};
   const sit=mat.situacao||'';
-  if(sit==='retirado') return '<td><span style="color:var(--green);font-weight:600">🚚 Retirado</span></td>';
+  if(sit==='retirado') return '<td><span style="color:var(--green);font-weight:600">✅ Chegou</span></td>';
+  // Na transportadora: o que importa agora e quando chega.
+  if(sit==='transporte'){
+    const ch=mat.previsaoChegada||'';
+    if(!ch) return '<td><span style="font-weight:600">🚚 Na transportadora</span><span class="td-by" style="color:var(--amber)">sem previsão de chegada</span></td>';
+    const f=diasAte(ch);
+    return '<td style="white-space:nowrap"><span style="font-weight:600">🚚 chega '+fmtDate(ch)+'</span>'+
+      '<span class="td-by" style="'+(f<0?'color:var(--red);font-weight:600':'')+'">'+
+      (f<0?'venceu há '+(-f)+' dia'+(f===-1?'':'s')+': cobrar a transportadora':(f===0?'chega hoje':'faltam '+f+' dia'+(f===1?'':'s')))+
+      (r.transportadora?'<br>'+escHtml(r.transportadora):'')+'</span></td>';
+  }
   if(sit==='pronto') return '<td><span style="color:var(--green);font-weight:600">✅ Pronto</span>'+
     (mat.previsaoPronto?'<span class="td-by">previsto '+fmtDate(mat.previsaoPronto)+'</span>':'')+'</td>';
   const prev=mat.previsaoPronto||'';
@@ -3308,12 +3353,22 @@ function avisosDeMaterial(){
       const sit=mat.situacao||'';
       if(sit==='retirado') return;
       const prev=mat.previsaoPronto||'';
-      if(aba!=='pago' && sit==='pronto'){
-        saida.push({icone:'💵', txt:rot(r)+' — <strong>pronto, aguardando pagamento</strong> para liberar o material'});
+      // Pronto: se ja esta tudo pago (no Financeiro, ou em Obras pagas), e
+      // hora de retirar ou pedir o envio; se nao, falta pagar para liberar.
+      if(sit==='pronto'){
+        const pp=pagoDoPedido(r);
+        const quitado=aba==='pago' || (pp && pp.total>0 && pp.pago>=pp.total-0.01);
+        saida.push(quitado
+          ? {icone:'📦', txt:rot(r)+' — <strong>pago e pronto</strong>: retirar ou pedir o envio'}
+          : {icone:'💵', txt:rot(r)+' — <strong>pronto, aguardando pagamento</strong>'+
+              (pp&&pp.total>0?' (falta R$ '+fmtBR(pp.total-pp.pago)+')':'')+' para liberar o material'});
         return;
       }
-      if(aba==='pago' && sit==='pronto'){
-        saida.push({icone:'📦', txt:rot(r)+' — <strong>pago e pronto</strong>: retirar ou pedir o envio'});
+      // Na transportadora: cobra quando a previsao de chegada passa.
+      if(sit==='transporte'){
+        const ch=mat.previsaoChegada||'';
+        if(!ch) saida.push({icone:'🚚', txt:rot(r)+' — na transportadora <strong>sem previsão de chegada</strong>: confirmar com a transportadora'});
+        else if(diasAte(ch)<0) saida.push({icone:'🚚', txt:rot(r)+' — previsão de chegada ('+fmtDate(ch)+') <strong>venceu há '+(-diasAte(ch))+' dia(s)</strong>: cobrar a transportadora'});
         return;
       }
       if(prev && ['aguardando','producao',''].indexOf(sit)>=0 && diasAte(prev)<0){
