@@ -479,6 +479,20 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="form-group"><label>Transportadora</label><input id="f-transportadora" type="text" placeholder="Nome da transportadora"></div>
         <div class="form-group"><label>Código de rastreio</label><input id="f-rastreio" type="text" placeholder="Código informado pela transportadora"></div>
         <div class="form-group span2"><label>Observação</label><textarea id="f-obs" rows="2" placeholder="Ex: aguardando o cliente concluir a alvenaria — prazo a redefinir" style="width:100%;padding:8px 10px;border:1px solid var(--gray-3);border-radius:var(--radius);font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box"></textarea></div>
+        <div class="section-divider" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding:10px 0 6px;margin-top:2px;border-top:1px solid var(--gray-2);grid-column:1/-1">Pagamento combinado e material</div>
+        <div class="form-group span2"><label>Condição de pagamento</label>
+          <select id="f-pg-condicao" onchange="pgTrocarCondicao()"></select>
+          <span class="note">Ao escolher, as parcelas são montadas com o valor do orçamento. Dá para ajustar valor, data e descrição de cada uma.</span></div>
+        <div class="form-group span2" id="f-pg-bloco" style="display:none">
+          <div id="f-pg-parcelas"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn btn-outline btn-sm" onclick="pgNovaParcela()">+ Parcela</button>
+            <span class="note" id="f-pg-soma" style="margin:0"></span>
+          </div>
+        </div>
+        <div class="form-group"><label>Material no fornecedor</label><select id="f-mat-situacao" onchange="pgRender()"></select></div>
+        <div class="form-group"><label>Previsão de pronto</label><input id="f-mat-pronto" type="date" onchange="pgRender()">
+          <span class="note" id="f-mat-dica"></span></div>
         <div class="section-divider" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-4);padding:10px 0 6px;margin-top:2px;border-top:1px solid var(--gray-2);grid-column:1/-1">Dados para pagamento (opcional)</div>
         <div class="form-group span2"><label>Chave Pix</label><input id="f-pix" type="text" placeholder="CNPJ, CPF, e-mail, telefone ou chave aleatória"></div>
         <div class="form-group span2"><label>Favorecido (nome na conta)</label><input id="f-pix-nome" type="text" placeholder="Ex: Morais Alumínio Ltda"></div>
@@ -1015,7 +1029,7 @@ function renderTable(type,isPago){
     const tipoLabel=!isPago?(r.tipo==='especial'
       ?`<span class="badge-especial">✦ Especial</span> `
       :`<span class="badge-padrao">Padrão</span> `):'';
-    const statusCell=isPago?`<td><span class="pill pill-pago">Pago</span></td>`:`<td>${tipoLabel}<span class="pill ${statusClass(r.status)}">${r.status||'Pendente'}</span></td>`;
+    const statusCell=isPago?`<td><span class="pill pill-pago">Pago</span>${resumoPagMat(r)}</td>`:`<td>${tipoLabel}<span class="pill ${statusClass(r.status)}">${r.status||'Pendente'}</span>${resumoPagMat(r)}</td>`;
     const extraCol=isPago?`<td>${fmtDate(r.dataPag)}</td>`:'';
     const hasFiles=(r.attachments&&r.attachments.length>0);
     const attachBtn=`<td><button class="act act-attach ${hasFiles?'has-files':''}" onclick="openAttach('${type}',${i})" title="${hasFiles?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
@@ -1230,6 +1244,7 @@ function openModal(type,idx=null){
     limparMarcados();            // marcacao de outra obra nao vem junto
     mostrarStatusPedido(r.pedido);
     mostrarDatasObraNoModal(r);
+    carregarPagMatNoModal(r);
     document.getElementById('modal-title').textContent='Editar orçamento';
   } else {
     ['f-obra','f-contrato','f-material','f-nrorc','f-fornecedor','f-valor','f-dataorc','f-entrega','f-datapag','f-pix','f-pix-nome','f-banco','f-conta','f-medicao','f-obs'].forEach(id=>document.getElementById(id).value='');
@@ -1242,6 +1257,7 @@ function openModal(type,idx=null){
     document.getElementById('f-pedido').value='';
     mostrarStatusPedido(null);
     mostrarDatasObraNoModal(null);
+    carregarPagMatNoModal(null);
     // Auto-fill nome do usuário logado
   const _nomeLogado=sessionStorage.getItem('dalum-user')||lastBy||'';
   document.getElementById('f-by').value=_nomeLogado;
@@ -1273,6 +1289,7 @@ function duplicateEntry(type,idx){
   document.getElementById('f-status').value='Pendente';
   document.getElementById('f-by').value=usuarioLogado()||r.by||'';
   mostrarStatusPedido(null);
+  carregarPagMatNoModal(null);   // outro fornecedor: outro combinado
   document.getElementById('modal-title').textContent='Duplicar orçamento — outro fornecedor';
   iniciarFornecedorCad('f');         // dados de pagamento seguem o fornecedor novo
   aplicarFornecedorCad('f');
@@ -1319,10 +1336,16 @@ function saveEntry(){
     // prazo voltaria a contar da entrega ate a Obra salvar de novo.
     datasObra: editId!==null ? (data[modalType][editId].datasObra||null)
       : (duplicandoDe ? (duplicandoDe.datasObra||null) : null),
+    // Pagamento combinado e material (16/11/2026).
+    pagamento: lerPagamentoDoModal(editId!==null ? data[modalType][editId] : null),
+    // 'producao' e nao 'material': 'material' ja e o NOME do material
+    // (Perfil Aluminio...). Usar o mesmo nome apagava esse texto.
+    producao: lerMaterialDoModal(editId!==null ? data[modalType][editId] : null),
   };
   if(modalType==='pago') entry.dataPag=document.getElementById('f-datapag').value;
   if(!entry.obra||!entry.contrato){ alert('Obra / Cliente e Nº do Contrato são obrigatórios.'); return; }
   if(!entry.entrega||entry.entrega==='—'){ alert('Data de entrega da obra é obrigatória.'); document.getElementById('f-entrega').focus(); return; }
+  if(!confirmarSomaParcelas(entry)) return;
   const isEdit = editId!==null;
   // Identificador proprio do registro. E o que permite saber, mais tarde, que
   // duas versoes sao do MESMO lancamento — sem ele a juncao nao consegue
@@ -1422,7 +1445,9 @@ function abrirDetalhesPago(idx){
     ['Tipo de projeto',r.tipo==='especial'?'Especial':'Padrão'],['Lançado por',r.by],
     ['Data de medição',fmtDate(r.medicao)],['Dias úteis',r.diasUteis],
     ['Chave Pix',r.pix],['Favorecido',r.pixNome],['Banco',r.banco],['Agência / Conta',r.conta],
-    ['Observação',r.obs],['Pedido de material',r.pedido&&r.pedido.texto]];
+    ['Observação',r.obs],['Pedido de material',r.pedido&&r.pedido.texto],
+    ['Pagamento combinado', r.pagamento&&r.pagamento.condicao ? rotuloDe(CONDICOES_PAGAMENTO,r.pagamento.condicao)+
+      (r.pagamento.parcelas||[]).map(function(p){ return '\n• '+(p.desc||'Parcela')+': R$ '+fmtBR(p.valor)+(p.venc?' · venc. '+fmtDate(p.venc):''); }).join('') : '']];
   const el=document.createElement('div');
   el.id='detalhes-pago-overlay'; el.className='modal-overlay open';
   el.innerHTML='<div class="modal"><div class="modal-header"><div class="modal-title">Detalhes da compra paga</div>'+
@@ -1435,6 +1460,9 @@ function abrirDetalhesPago(idx){
       (podeCorrigirContratoPago()?'':'readonly')+'><span class="note">Correção disponível para gerente e administrador.</span></div>'+
     '<div class="form-group"><label>Transportadora</label><input id="pago-transportadora" value="'+escHtml(r.transportadora||'')+'" '+(ehConsulta()?'readonly':'')+'></div>'+
     '<div class="form-group"><label>Código de rastreio</label><input id="pago-rastreio" value="'+escHtml(r.rastreio||'')+'" '+(ehConsulta()?'readonly':'')+'></div>'+
+    '<div class="form-group"><label>Material no fornecedor</label><select id="pago-mat-situacao" '+(ehConsulta()?'disabled':'')+'>'+
+      SITUACOES_MATERIAL.map(function(p){ return '<option value="'+p[0]+'"'+(((r.producao||{}).situacao||'')===p[0]?' selected':'')+'>'+escHtml(p[1])+'</option>'; }).join('')+'</select></div>'+
+    '<div class="form-group"><label>Previsão de pronto</label><input type="date" id="pago-mat-pronto" value="'+escHtml((r.producao||{}).previsaoPronto||'')+'" '+(ehConsulta()?'readonly':'')+'></div>'+
     '</div></div><div class="modal-footer"><button class="btn btn-outline" onclick="fecharDetalhesPago()">Fechar</button>'+
     (!ehConsulta()?'<button class="btn btn-teal" onclick="salvarDetalhesPago()">Salvar alterações</button>':'')+'</div></div>';
   document.body.appendChild(el);
@@ -1453,6 +1481,13 @@ function salvarDetalhesPago(){
   if(podeCorrigirContratoPago()) r.contrato=contrato;
   r.transportadora=document.getElementById('pago-transportadora').value.trim();
   r.rastreio=document.getElementById('pago-rastreio').value.trim();
+  {
+    const sit=document.getElementById('pago-mat-situacao').value;
+    const prev=document.getElementById('pago-mat-pronto').value;
+    const ant=r.producao||null;
+    if((sit||prev) && !(ant && ant.situacao===sit && (ant.previsaoPronto||'')===prev))
+      r.producao={situacao:sit, previsaoPronto:prev, em:new Date().toISOString(), por:usuarioLogado()||'—'};
+  }
   logAction(usuarioLogado()||'—','Atualizou compra paga',r,
     'Transportadora e rastreio atualizados'+(r.contrato!==anterior?' — contrato: '+(anterior||'—')+' → '+r.contrato:''));
   persist(); render(); fecharDetalhesPago();
@@ -2620,6 +2655,228 @@ function mostrarDatasObraNoModal(r){
     (partes.length?': '+partes.join(' · '):'')+'.';
   nota.style.display='';
 }
+// ---- PAGAMENTO COMBINADO E MATERIAL (pedido do Ander, 16/11/2026) ----
+// Pagamento e material andam separados: da para estar 100% pago com o
+// material ainda em producao, ou com o material pronto esperando o restante.
+//   r.pagamento = {condicao, parcelas:[{id, desc, valor, quando, venc}]}
+//     quando 'data'   — vence na data digitada;
+//     quando 'pronto' — vence quando o material ficar pronto: usa a previsao
+//                       de pronto (e acompanha quando ela muda).
+//   r.producao  = {situacao, previsaoPronto, em, por}  (NAO r.material, que
+//                 ja e o nome do material, texto)
+// QUEM PAGA E O FINANCEIRO (decisao do Ander): cada parcela vai virar conta a
+// pagar la (etapa 2B), e a baixa e dada la. Por isso aqui nao existe "pago em".
+const CONDICOES_PAGAMENTO=[
+  ['','— não combinado ainda —'],
+  ['avista','À vista'],
+  ['50-50','50% para produzir + 50% quando pronto'],
+  ['100-antecipado','100% antecipado (aguarda a produção)'],
+  ['na-retirada','Pagamento na retirada / envio'],
+  ['parcelado','Parcelado'],
+  ['outra','Outra (descrever nas parcelas)']
+];
+const SITUACOES_MATERIAL=[
+  ['','— não informado —'],
+  ['aguardando','Aguardando pagamento para produzir'],
+  ['producao','Em produção'],
+  ['pronto','Pronto'],
+  ['retirado','Retirado / enviado']
+];
+function rotuloDe(lista, v){ const x=lista.find(function(p){ return p[0]===v; }); return x?x[1]:''; }
+function hojeIsoLocal(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function maisDiasIso(iso, n){
+  const [y,mo,d]=String(iso).split('-').map(Number);
+  const dt=new Date(y, mo-1, d+n);
+  return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+}
+function lerValorBR(s){ return parseFloat(String(s||'').replace(/\./g,'').replace(',','.'))||0; }
+function centavos(v){ return Math.round((Number(v)||0)*100)/100; }
+function modeloDeParcelas(cond, valor){
+  const v=centavos(valor), metade=centavos(v/2), resto=centavos(v-metade), hoje=hojeIsoLocal();
+  switch(cond){
+    case 'avista':         return [{desc:'À vista', valor:v, quando:'data', venc:hoje}];
+    case '50-50':          return [{desc:'Entrada 50% (libera a produção)', valor:metade, quando:'data', venc:hoje},
+                                   {desc:'Restante 50% (libera o material)', valor:resto, quando:'pronto', venc:''}];
+    case '100-antecipado': return [{desc:'100% antecipado', valor:v, quando:'data', venc:hoje}];
+    case 'na-retirada':    return [{desc:'Na retirada / envio', valor:v, quando:'pronto', venc:''}];
+    case 'parcelado':      return [{desc:'Parcela 1/2', valor:metade, quando:'data', venc:maisDiasIso(hoje,30)},
+                                   {desc:'Parcela 2/2', valor:resto, quando:'data', venc:maisDiasIso(hoje,60)}];
+    case 'outra':          return [{desc:'Pagamento', valor:v, quando:'data', venc:''}];
+    default:               return [];
+  }
+}
+// A parcela "quando ficar pronto" vence na previsao de pronto.
+function vencimentoDaParcela(p, previsaoPronto){
+  return p.quando==='pronto' ? String(previsaoPronto||'') : String(p.venc||'');
+}
+
+// O estado da janela aberta. Os campos editam direto aqui (oninput).
+let _pgParcelas=[];
+function preencherSelect(id, lista){
+  const el=document.getElementById(id);
+  if(el && !el.options.length) el.innerHTML=lista.map(function(p){ return '<option value="'+p[0]+'">'+escHtml(p[1])+'</option>'; }).join('');
+}
+function carregarPagMatNoModal(r){
+  preencherSelect('f-pg-condicao', CONDICOES_PAGAMENTO);
+  preencherSelect('f-mat-situacao', SITUACOES_MATERIAL);
+  const pg=(r&&r.pagamento)||null, mat=(r&&r.producao)||null;
+  document.getElementById('f-pg-condicao').value=(pg&&pg.condicao)||'';
+  _pgParcelas=JSON.parse(JSON.stringify((pg&&pg.parcelas)||[]));
+  document.getElementById('f-mat-situacao').value=(mat&&mat.situacao)||'';
+  document.getElementById('f-mat-pronto').value=(mat&&mat.previsaoPronto)||'';
+  pgRender();
+}
+function pgTrocarCondicao(){
+  const cond=document.getElementById('f-pg-condicao').value;
+  if(_pgParcelas.length && !confirm('Montar as parcelas de novo pela condição escolhida?\n\nAs parcelas que estão na tela serão substituídas.')){
+    pgRender(); return;
+  }
+  const valor=lerValorBR(document.getElementById('f-valor').value);
+  _pgParcelas=modeloDeParcelas(cond, valor).map(function(p){ return Object.assign({id:genId()}, p); });
+  pgRender();
+}
+function pgNovaParcela(){
+  _pgParcelas.push({id:genId(), desc:'Parcela '+(_pgParcelas.length+1), valor:0, quando:'data', venc:''});
+  if(!document.getElementById('f-pg-condicao').value) document.getElementById('f-pg-condicao').value='outra';
+  pgRender();
+}
+function pgTirarParcela(i){ _pgParcelas.splice(i,1); pgRender(); }
+function pgMudar(i, campo, valor){
+  const p=_pgParcelas[i]; if(!p) return;
+  if(campo==='valor') p.valor=centavos(lerValorBR(valor));
+  else p[campo]=valor;
+  if(campo==='quando') pgRender(); else pgSoma();
+}
+function pgSoma(){
+  const el=document.getElementById('f-pg-soma');
+  if(!el) return;
+  const total=centavos(lerValorBR(document.getElementById('f-valor').value));
+  const soma=centavos(_pgParcelas.reduce(function(a,p){ return a+(Number(p.valor)||0); },0));
+  const bate=Math.abs(soma-total)<0.01;
+  el.style.color=bate?'var(--gray-4)':'var(--red)';
+  el.textContent=_pgParcelas.length
+    ? 'Parcelas somam R$ '+fmtBR(soma)+(bate?' = valor do orçamento':' — o orçamento é R$ '+fmtBR(total))
+    : '';
+}
+function pgRender(){
+  const cond=document.getElementById('f-pg-condicao').value;
+  const bloco=document.getElementById('f-pg-bloco');
+  bloco.style.display=(cond||_pgParcelas.length)?'':'none';
+  const pronto=document.getElementById('f-mat-pronto').value;
+  document.getElementById('f-pg-parcelas').innerHTML=_pgParcelas.map(function(p,i){
+    const venc=vencimentoDaParcela(p, pronto);
+    // Duas linhas por parcela: a descricao inteira em cima; valor, quando
+    // vence e o botao de tirar embaixo. Numa linha so, a janela estreita
+    // espremia o "quando vence" e empurrava o X para fora (16/11/2026).
+    const caixa='width:100%;min-width:0;box-sizing:border-box';
+    return '<div style="border:1px solid var(--gray-2);border-radius:var(--radius);padding:8px;margin-top:6px">'+
+      '<input value="'+escHtml(p.desc||'')+'" oninput="pgMudar('+i+',\'desc\',this.value)" placeholder="Descrição" style="'+caixa+';margin-bottom:6px">'+
+      '<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.2fr) auto;gap:6px;align-items:center">'+
+      '<input value="'+fmtBR(p.valor)+'" oninput="pgMudar('+i+',\'valor\',this.value)" placeholder="Valor" style="'+caixa+';text-align:right">'+
+      '<select onchange="pgMudar('+i+',\'quando\',this.value)" style="'+caixa+'">'+
+        '<option value="data"'+(p.quando!=='pronto'?' selected':'')+'>Vence na data</option>'+
+        '<option value="pronto"'+(p.quando==='pronto'?' selected':'')+'>Quando ficar pronto</option></select>'+
+      (p.quando==='pronto'
+        ? '<span class="note" style="margin:0">'+(venc?'prev. pronto '+fmtDate(venc):'sem previsão de pronto')+'</span>'
+        : '<input type="date" value="'+escHtml(p.venc||'')+'" onchange="pgMudar('+i+',\'venc\',this.value)" style="'+caixa+'">')+
+      '<button type="button" class="act act-del" onclick="pgTirarParcela('+i+')" title="Tirar parcela">✕</button>'+
+      '</div></div>';
+  }).join('');
+  pgSoma();
+  // Dica embaixo da previsao de pronto: compara com a entrada na obra.
+  const dica=document.getElementById('f-mat-dica');
+  if(dica){
+    const r=editId!==null&&data[modalType]?data[modalType][editId]:null;
+    const m=r?marcoDoPrazo(r):null;
+    dica.style.color='';
+    if(pronto && m && pronto>m.data){
+      dica.textContent='⚠️ Fica pronto depois da '+m.nome+' ('+fmtDate(m.data)+').';
+      dica.style.color='var(--red)';
+    } else if(pronto && diasAte(pronto)<0 && ['aguardando','producao'].indexOf(document.getElementById('f-mat-situacao').value)>=0){
+      dica.textContent='⚠️ A previsão já passou: cobrar o fornecedor.';
+      dica.style.color='var(--red)';
+    } else dica.textContent=m?('Entrada na obra / entrega: '+fmtDate(m.data)):'';
+  }
+}
+// O que vai para o registro. Sem condicao e sem parcelas, devolve o que ja
+// estava (null num lancamento novo).
+function lerPagamentoDoModal(antigo){
+  const cond=document.getElementById('f-pg-condicao').value;
+  if(!cond && !_pgParcelas.length) return (antigo&&antigo.pagamento)||null;
+  const pronto=document.getElementById('f-mat-pronto').value;
+  return {condicao:cond||'outra',
+    parcelas:_pgParcelas.map(function(p){
+      return Object.assign({}, p, {valor:centavos(p.valor), venc:vencimentoDaParcela(p, pronto)});
+    })};
+}
+function lerMaterialDoModal(antigo){
+  const sit=document.getElementById('f-mat-situacao').value;
+  const pronto=document.getElementById('f-mat-pronto').value;
+  const ant=(antigo&&antigo.producao)||null;
+  if(!sit && !pronto) return ant;
+  if(ant && ant.situacao===sit && (ant.previsaoPronto||'')===pronto) return ant;
+  return {situacao:sit, previsaoPronto:pronto, em:new Date().toISOString(), por:usuarioLogado()||'—'};
+}
+// Parcelas que nao fecham com o valor: pergunta antes de gravar.
+function confirmarSomaParcelas(entry){
+  const pg=entry.pagamento;
+  if(!pg||!pg.parcelas||!pg.parcelas.length) return true;
+  const soma=centavos(pg.parcelas.reduce(function(a,p){ return a+(Number(p.valor)||0); },0));
+  if(Math.abs(soma-centavos(entry.valor))<0.01) return true;
+  return confirm('As parcelas somam R$ '+fmtBR(soma)+', mas o orçamento é R$ '+fmtBR(entry.valor)+'.\n\nSalvar assim mesmo?');
+}
+// Linha de resumo na tabela, embaixo do status.
+function resumoPagMat(r){
+  const partes=[];
+  const pg=r.pagamento;
+  if(pg&&pg.condicao){
+    const rot=rotuloDe(CONDICOES_PAGAMENTO, pg.condicao).replace(/ \(.*\)$/,'');
+    partes.push('<span class="td-by" style="white-space:normal">💰 '+escHtml(rot)+
+      (pg.parcelas&&pg.parcelas.length>1?' · '+pg.parcelas.length+' parcelas':'')+'</span>');
+  }
+  const mat=r.producao;
+  if(mat&&(mat.situacao||mat.previsaoPronto)){
+    const sit=rotuloDe(SITUACOES_MATERIAL, mat.situacao)||'';
+    const atrasada=mat.previsaoPronto && diasAte(mat.previsaoPronto)<0 && ['aguardando','producao'].indexOf(mat.situacao)>=0;
+    partes.push('<span class="td-by" style="white-space:normal'+(atrasada?';color:var(--red);font-weight:600':'')+'">🏭 '+
+      escHtml(sit||'Material')+(mat.previsaoPronto&&['','aguardando','producao'].indexOf(mat.situacao||'')>=0?' · pronto prev. '+fmtDate(mat.previsaoPronto):'')+
+      (atrasada?' (venceu)':'')+'</span>');
+  }
+  return partes.join('');
+}
+// Os avisos do material (topo da tela).
+function avisosDeMaterial(){
+  const saida=[];
+  const rot=function(r){ return r.obra+' — '+(r.fornecedor||'sem fornecedor')+(r.material?' ('+r.material+')':''); };
+  ['urgente','importante','pago'].forEach(function(aba){
+    (data[aba]||[]).forEach(function(r){
+      const mat=r.producao||{};
+      const sit=mat.situacao||'';
+      if(sit==='retirado') return;
+      const prev=mat.previsaoPronto||'';
+      if(aba!=='pago' && sit==='pronto'){
+        saida.push({icone:'💵', txt:rot(r)+' — <strong>pronto, aguardando pagamento</strong> para liberar o material'});
+        return;
+      }
+      if(aba==='pago' && sit==='pronto'){
+        saida.push({icone:'📦', txt:rot(r)+' — <strong>pago e pronto</strong>: retirar ou pedir o envio'});
+        return;
+      }
+      if(prev && ['aguardando','producao',''].indexOf(sit)>=0 && diasAte(prev)<0){
+        saida.push({icone:'⏰', txt:rot(r)+' — previsão de pronto ('+fmtDate(prev)+') <strong>venceu há '+(-diasAte(prev))+' dia(s)</strong>: cobrar o fornecedor'});
+        return;
+      }
+      const m=marcoDoPrazo(r);
+      if(prev && m && prev>m.data){
+        saida.push({icone:'⚠️', txt:rot(r)+' — fica pronto em '+fmtDate(prev)+', <strong>depois da '+m.nome+'</strong> ('+fmtDate(m.data)+')'});
+      }
+    });
+  });
+  return saida;
+}
 function calcEntregaPorMedicao(){
   const medicao = document.getElementById('f-medicao').value;
   const diasEl = document.getElementById('f-dias-uteis');
@@ -3762,10 +4019,11 @@ function checkNotifications(){
 
 function showBanner(overdue, dueToday, leadCompromised, manutHoje, manutSemana, manutFora, manutTransporte){
   const banner = document.getElementById('notif-banner');
-  const hasAny = overdue.length||dueToday.length||leadCompromised.length||manutHoje.length||manutSemana.length||manutFora.length||(manutTransporte&&manutTransporte.length);
+  const avisosMat = avisosDeMaterial();
+  const hasAny = overdue.length||dueToday.length||leadCompromised.length||manutHoje.length||manutSemana.length||manutFora.length||(manutTransporte&&manutTransporte.length)||avisosMat.length;
   if(!hasAny){ banner.style.display='none'; return; }
 
-  const total = overdue.length+dueToday.length+leadCompromised.length+manutHoje.length+manutSemana.length+manutFora.length+(manutTransporte?manutTransporte.length:0);
+  const total = overdue.length+dueToday.length+leadCompromised.length+manutHoje.length+manutSemana.length+manutFora.length+(manutTransporte?manutTransporte.length:0)+avisosMat.length;
   const critico = overdue.length||leadCompromised.length||manutHoje.length;
 
   let html='';
@@ -3853,6 +4111,18 @@ function showBanner(overdue, dueToday, leadCompromised, manutHoje, manutSemana, 
         <strong>🚚 ${manutTransporte.length} compra${manutTransporte.length>1?'s':''} de manutenção EM TRANSPORTE</strong>
         <div style="margin-top:6px">
           ${manutTransporte.map(o=>`<div class="notif-item">🚚 ${o.label}</div>`).join('')}
+        </div>
+      </div>
+      <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
+    </div>`;
+  }
+
+  if(avisosMat.length){
+    html+=`<div class="notif-banner" style="background:#FFF8E1;border-left:4px solid #B9770E">
+      <div style="flex:1">
+        <strong>🏭 ${avisosMat.length} aviso${avisosMat.length>1?'s':''} de material no fornecedor</strong>
+        <div style="margin-top:6px">
+          ${avisosMat.map(o=>`<div class="notif-item">${o.icone} ${o.txt}</div>`).join('')}
         </div>
       </div>
       <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
