@@ -1615,7 +1615,12 @@ function consertarCotacoesGuardadas(){
     const volta=Object.assign({},c);
     delete volta.guardada;
     if(!volta.pedidoFeito){
-      volta.pedidoFeito={em:String(g.em||'').slice(0,10)||hojeIsoLocal(), por:g.por||'—', nr:volta.nrOrc||'', financeiro:'pendente'};
+      // A data de 'guardada.em' esta em UTC: 23h de Porto Velho ja e o dia
+      // seguinte la. Converte para a data local.
+      let dia=hojeIsoLocal();
+      const t=new Date(g.em||'');
+      if(!isNaN(t)) dia=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+      volta.pedidoFeito={em:dia, por:g.por||'—', nr:volta.nrOrc||'', financeiro:'pendente'};
     }
     lista.splice(i,1);
     // Se por acaso ja existe na lista com o mesmo id, nao duplica.
