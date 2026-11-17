@@ -2209,16 +2209,36 @@ function medicaoPrevistaDaFicha(){
 function medicaoRealizadaDaFicha(){
   return situacaoDaMedicao()==='realizada' ? dataDaMedicaoNaFicha() : '';
 }
+// Esta ficha está mostrando uma data que veio do Acompanhamento e ainda não
+// foi salva? Serve só para avisar na tela de onde ela saiu.
+let _medicaoVeioDoAcompanhamento=false;
+
 // Põe na tela o que está guardado no contrato. Realizada ganha: tendo data de
 // medição real, é ela que a ficha mostra.
+//
+// Nada gravado na ficha, mas o coordenador já mediu tudo no Acompanhamento? A
+// ficha abre em "Realizada" com a data da visita de Medição (17/11/2026). Sem
+// isto a carteira mostrava verde e a ficha dizia "Prevista" — e as contas
+// abaixo continuavam saindo da previsão. NÃO grava nada: só entra no banco se
+// alguém salvar a ficha.
 function porMedicaoNaFicha(c){
   const feita=String((c&&c.medicaoFeita)||'').trim();
   const prevista=String((c&&c.medicao)||'').trim();
   _medicaoPrevistaGuardada=prevista;
+  _medicaoVeioDoAcompanhamento=false;
+  let mostrar=feita, situacao=feita?'realizada':'prevista';
+  if(!feita && c){
+    const m=medicaoDoAcompanhamento(c);
+    const vaos=m?Number(m.vaos||0):0, medidos=m?Number(m.vaosMedidos||0):0;
+    const dia=m?String(m.dataMedicao||'').trim():'';
+    if(dia && vaos>0 && medidos>=vaos){
+      mostrar=dia; situacao='realizada'; _medicaoVeioDoAcompanhamento=true;
+    }
+  }
   const sit=document.getElementById('f-medicaosit');
   const data=document.getElementById('f-medicaodata');
-  if(sit) sit.value=feita?'realizada':'prevista';
-  if(data) data.value=feita||prevista;
+  if(sit) sit.value=situacao;
+  if(data) data.value=mostrar||prevista;
 }
 // Trocou a lista suspensa. Indo para "realizada", a data que estava na tela
 // era a previsão — guarda antes de ela ser substituída.
@@ -3052,6 +3072,13 @@ function travarMedicaoFeita(c){
   // para apagar a data real que a trava protege.
   if(sit) sit.disabled=gravada && !podeMexerNaMedicao();
   if(!nota) return;
+  // Data que veio do Acompanhamento e ainda não foi salva: dizer isso evita a
+  // impressão de que alguém da Obra digitou.
+  if(!gravada && _medicaoVeioDoAcompanhamento){
+    nota.innerHTML='📍 Data vinda do Acompanhamento, da visita de Medição. '+
+      '<b>Salve a ficha</b> para as contas abaixo saírem dela.';
+    return;
+  }
   nota.textContent=!gravada ? ''
     : (podeMexerNaMedicao()
         ? '🔒 Data registrada. Para corrigir, altere e salve: o motivo será pedido e fica no histórico.'
