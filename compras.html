@@ -1500,12 +1500,14 @@ function salvarDetalhesPago(){
   persist(); render(); fecharDetalhesPago();
 }
 function editEntry(type,idx){ if(type==='pago'){ abrirDetalhesPago(idx); return; } openModal(type,idx); }
-function removeEntry(type,idx){
-  if(recusarExcluir()) return;
+async function removeEntry(type,idx){
+  if(!podeExcluir()){ await dlgAviso('Só gerente ou administrador', 'Só o gerente ou o administrador pode excluir.\n\nPeça a quem gerencia este módulo.'); return; }
   const r=data[type][idx];
-  const user=prompt('Seu nome (obrigatório para registrar a remoção):',lastBy||'');
-  if(!user||!user.trim()){ alert('Nome obrigatório para registrar a remoção.'); return; }
-  if(!confirm(`Remover "${r.obra}" e todos os seus anexos?`)) return;
+  const user=await nomeDeQuemUsa('a remoção');
+  if(!user) return;
+  if(!await dlgConfirmar('Remover', `Remover "${r.obra}" e todos os seus anexos?`+
+    (r.pedidoFeito?'\n\nO pedido já foi feito: as parcelas ainda não pagas saem do Contas a Pagar do Financeiro.':''), 'Remover', 'Cancelar')) return;
+  if(data[type][idx]!==r) return;     // a lista mudou enquanto a janela estava aberta
   (r.attachments||[]).forEach(()=>{});
   logAction(user.trim(),'Removeu',r,`Valor: R$ ${fmtBR(r.valor)}`);
   if(r.pedidoFeito) enviarPedidosAoFinanceiro([],[r.id]);
@@ -1628,6 +1630,84 @@ function blocoPedidoFeito(r){
     guardadas+' cotaç'+(guardadas===1?'ão guardada':'ões guardadas')+'</a>';
   return h;
 }
+// ---- JANELAS DO PROPRIO SISTEMA (pedido do Ander, 16/11/2026) ----
+// No lugar do alert/confirm/prompt do navegador ("daluminium.github.io diz"),
+// a janela do sistema, no mesmo desenho das outras. Cada uma devolve uma
+// Promise: quem chama usa "await".
+//   janelaSistema({titulo, mensagem, botoes:[{rotulo, valor, estilo}],
+//                  campo:{rotulo, valor, placeholder}})  -> {botao, texto}
+// Fechar no X ou com Esc devolve botao null (o mesmo que cancelar).
+function janelaSistema(op){
+  return new Promise(function(resolve){
+    const anterior=document.activeElement;
+    const janela=document.createElement('dialog');
+    janela.className='modal';
+    // position/inset/margin: a classe .modal tira a janela do centro; sem
+    // isto ela grudava no canto de cima, a esquerda.
+    janela.style.cssText='border:0;padding:0;color:var(--gray-6);max-width:520px;width:calc(100vw - 32px);'+
+      'position:fixed;inset:0;margin:auto;height:fit-content;max-height:calc(100vh - 32px);overflow:auto;'+
+      'border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.25)';
+    const botoes=(op.botoes&&op.botoes.length)?op.botoes:[{rotulo:'OK', valor:'ok', estilo:'btn-teal'}];
+    janela.innerHTML='<div class="modal-header"><div class="modal-title"></div>'+
+      '<button type="button" class="act" data-fechar aria-label="Fechar">✕</button></div>'+
+      '<div class="modal-body"><div data-texto style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5"></div>'+
+      (op.campo?'<div class="form-group" style="margin-top:12px"><label data-rotulo></label><input data-campo type="text" style="width:100%;box-sizing:border-box"></div>':'')+
+      '</div><div class="modal-footer"></div>';
+    janela.querySelector('.modal-title').textContent=op.titulo||'Daluminium';
+    janela.querySelector('[data-texto]').textContent=op.mensagem||'';
+    if(op.campo){
+      janela.querySelector('[data-rotulo]').textContent=op.campo.rotulo||'';
+      const c=janela.querySelector('[data-campo]');
+      c.value=op.campo.valor||''; c.placeholder=op.campo.placeholder||'';
+      c.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); fechar(botoes[botoes.length-1].valor); } });
+    }
+    const rodape=janela.querySelector('.modal-footer');
+    let escolhido=null;
+    function fechar(v){ escolhido=v; janela.close(); }
+    botoes.forEach(function(b){
+      const el=document.createElement('button');
+      el.type='button'; el.className='btn '+(b.estilo||'btn-outline'); el.textContent=b.rotulo;
+      el.onclick=function(){ fechar(b.valor); };
+      rodape.appendChild(el);
+    });
+    janela.querySelector('[data-fechar]').onclick=function(){ fechar(null); };
+    janela.addEventListener('keydown',function(e){ e.stopPropagation(); });
+    janela.addEventListener('close',function(){
+      const texto=op.campo?janela.querySelector('[data-campo]').value:'';
+      janela.remove();
+      if(anterior&&anterior.isConnected) anterior.focus();
+      resolve({botao:escolhido, texto:texto});
+    },{once:true});
+    document.body.appendChild(janela);
+    janela.showModal();
+    const foco=op.campo?janela.querySelector('[data-campo]'):rodape.lastChild;
+    if(foco) foco.focus();
+  });
+}
+async function dlgAviso(titulo, mensagem){
+  await janelaSistema({titulo:titulo, mensagem:mensagem, botoes:[{rotulo:'OK', valor:'ok', estilo:'btn-teal'}]});
+}
+async function dlgConfirmar(titulo, mensagem, rotuloOk, rotuloCancelar){
+  const r=await janelaSistema({titulo:titulo, mensagem:mensagem, botoes:[
+    {rotulo:rotuloCancelar||'Cancelar', valor:'nao', estilo:'btn-outline'},
+    {rotulo:rotuloOk||'Confirmar', valor:'sim', estilo:'btn-teal'}]});
+  return r.botao==='sim';
+}
+// Devolve o texto digitado, ou null se cancelou.
+async function dlgPerguntar(titulo, mensagem, rotuloCampo, valorInicial, rotuloOk){
+  const r=await janelaSistema({titulo:titulo, mensagem:mensagem,
+    campo:{rotulo:rotuloCampo||'', valor:valorInicial||''},
+    botoes:[{rotulo:'Cancelar', valor:'nao', estilo:'btn-outline'},{rotulo:rotuloOk||'OK', valor:'sim', estilo:'btn-teal'}]});
+  return r.botao==='sim' ? r.texto : null;
+}
+// Quem esta usando o sistema. So pergunta se, por algum motivo, nao souber.
+async function nomeDeQuemUsa(acao){
+  const n=usuarioLogado();
+  if(n) return n;
+  const t=await dlgPerguntar('Quem está fazendo?', 'Seu nome é obrigatório para registrar '+acao+'.', 'Seu nome', lastBy||'', 'Continuar');
+  return t&&t.trim()?t.trim():null;
+}
+
 async function fazerPedido(type,idx){
   if(recusarSeConsulta()) return;
   const r=data[type][idx];
@@ -1635,31 +1715,37 @@ async function fazerPedido(type,idx){
   if(r.pedidoFeito){ return desfazerPedido(type,idx); }
   const pg=r.pagamento;
   if(!pg||!(pg.parcelas||[]).length){
-    if(confirm('"'+r.obra+'" não tem pagamento combinado.\n\n'+
-      'OK = marcar como pago direto, como era antes (não vai para o Financeiro).\n'+
-      'Cancelar = voltar e combinar o pagamento no "Editar orçamento".')) markPaid(type,idx);
+    const e=await janelaSistema({titulo:'Sem pagamento combinado',
+      mensagem:'"'+r.obra+'" ainda não tem o pagamento combinado (condição e parcelas).\n\n'+
+        'Para o pedido ir ao Contas a Pagar do Financeiro, combine o pagamento no "Editar orçamento".',
+      botoes:[{rotulo:'Cancelar', valor:null, estilo:'btn-outline'},
+              {rotulo:'Marcar como pago direto', valor:'pago', estilo:'btn-outline'},
+              {rotulo:'Combinar o pagamento', valor:'combinar', estilo:'btn-teal'}]});
+    if(e.botao==='combinar') openModal(type,idx);
+    else if(e.botao==='pago') markPaid(type,idx);
     return;
   }
   const total=centavos(r.valor);
   const soma=centavos(pg.parcelas.reduce(function(a,p){ return a+(Number(p.valor)||0); },0));
   if(Math.abs(soma-total)>=0.01){
-    alert('As parcelas somam R$ '+fmtBR(soma)+', mas o orçamento é R$ '+fmtBR(total)+'.\n\nAcerte no "Editar orçamento" antes de fazer o pedido.');
+    await dlgAviso('Parcelas não fecham', 'As parcelas somam R$ '+fmtBR(soma)+', mas o orçamento é R$ '+fmtBR(total)+'.\n\nAcerte no "Editar orçamento" antes de fazer o pedido.');
     return;
   }
   const prev=(r.producao||{}).previsaoPronto||'';
   const semData=pg.parcelas.filter(function(p){ return (Number(p.valor)||0)>0 && !vencimentoDaParcela(p,prev); });
   if(semData.length){
     const temPronto=semData.some(function(p){ return p.quando==='pronto'; });
-    alert('Falta o vencimento de: '+semData.map(function(p){ return '"'+(p.desc||'parcela')+'"'; }).join(', ')+'.\n\n'+
+    await dlgAviso('Falta o vencimento', 'Falta o vencimento de: '+semData.map(function(p){ return '"'+(p.desc||'parcela')+'"'; }).join(', ')+'.\n\n'+
       (temPronto?'A parcela "quando ficar pronto" vence na PREVISÃO DE PRONTO: preencha a previsão no "Editar orçamento".'
                 :'Preencha a data no "Editar orçamento".'));
     return;
   }
-  const nr=prompt('Nº do pedido no fornecedor (opcional):', r.nrOrc||'');
-  if(nr===null) return;
   const resumo=pg.parcelas.map(function(p){ return '• '+(p.desc||'Parcela')+': R$ '+fmtBR(p.valor)+' — vence '+fmtDate(vencimentoDaParcela(p,prev)); }).join('\n');
-  if(!confirm('Fazer o pedido de "'+r.obra+'" com '+(r.fornecedor||'o fornecedor')+'?\n\n'+resumo+
-    '\n\nAs parcelas vão para o Contas a Pagar do Financeiro.')) return;
+  const nr=await dlgPerguntar('Fazer pedido',
+    'Fazer o pedido de "'+r.obra+'" com '+(r.fornecedor||'o fornecedor')+'?\n\n'+resumo+
+    '\n\nAs parcelas vão para o Contas a Pagar do Financeiro.',
+    'Nº do pedido no fornecedor (opcional)', r.nrOrc||'', 'Fazer pedido');
+  if(nr===null) return;
   // As outras cotacoes da mesma obra e material.
   const chave=chaveCotacao(r);
   const outras=[];
@@ -1668,9 +1754,14 @@ async function fazerPedido(type,idx){
   });
   let guardar=false;
   if(outras.length){
-    guardar=confirm('Há '+outras.length+' outra'+(outras.length>1?'s':'')+' cotaç'+(outras.length>1?'ões':'ão')+' de "'+(r.material||r.obra)+'" para esta obra:\n\n'+
-      outras.map(function(o){ return '• '+(o.reg.fornecedor||'sem fornecedor')+' — R$ '+fmtBR(o.reg.valor); }).join('\n')+
-      '\n\nOK = tirar da lista e GUARDAR (dá para voltar depois, se este fornecedor falhar).\nCancelar = deixar na lista.');
+    const g=await janelaSistema({titulo:'Outras cotações',
+      mensagem:'Há '+outras.length+' outra'+(outras.length>1?'s':'')+' cotaç'+(outras.length>1?'ões':'ão')+' de "'+(r.material||r.obra)+'" para esta obra:\n\n'+
+        outras.map(function(o){ return '• '+(o.reg.fornecedor||'sem fornecedor')+' — R$ '+fmtBR(o.reg.valor); }).join('\n')+
+        '\n\nGuardadas, elas saem da lista, mas dá para trazer de volta se este fornecedor faltar com algum produto ou demorar.',
+      botoes:[{rotulo:'Deixar na lista', valor:'deixar', estilo:'btn-outline'},
+              {rotulo:'Guardar', valor:'guardar', estilo:'btn-teal'}]});
+    if(g.botao===null) return;      // fechou no X: nao faz o pedido
+    guardar=g.botao==='guardar';
   }
   const quem=usuarioLogado()||'—';
   r.pedidoFeito={em:hojeIsoLocal(), por:quem, nr:String(nr||'').trim(), financeiro:'enviando'};
@@ -1690,15 +1781,15 @@ async function fazerPedido(type,idx){
   await persist();
   render();
   const res=await enviarPedidosAoFinanceiro([r],[]);
-  if(!res.ok) alert('O pedido foi feito, mas as parcelas ainda não chegaram ao Financeiro ('+res.erro+').\n\nO sistema tenta de novo sozinho daqui a pouco.');
+  if(!res.ok) await dlgAviso('Pedido feito', 'O pedido foi feito, mas as parcelas ainda não chegaram ao Financeiro ('+res.erro+').\n\nO sistema tenta de novo sozinho daqui a pouco.');
 }
 async function desfazerPedido(type,idx){
   const r=data[type][idx];
   if(!r||!r.pedidoFeito) return;
   const temPago=((r.pagamento||{}).parcelas||[]).some(function(p){ const s=situacaoDaParcela(r.id,p.id); return s&&s.pago>0; });
-  if(!confirm('Desfazer o pedido de "'+r.obra+'" ('+(r.fornecedor||'—')+')?\n\n'+
+  if(!await dlgConfirmar('Desfazer pedido', 'Desfazer o pedido de "'+r.obra+'" ('+(r.fornecedor||'—')+')?\n\n'+
     'As parcelas que ainda não foram pagas saem do Contas a Pagar do Financeiro.'+
-    (temPago?'\n\n⚠️ Já há pagamento registrado: essa parte continua no Financeiro.':''))) return;
+    (temPago?'\n\n⚠️ Já há pagamento registrado: essa parte continua no Financeiro.':''), 'Desfazer pedido', 'Voltar')) return;
   const quem=usuarioLogado()||'—';
   const pid=r.id;
   delete r.pedidoFeito;
@@ -1706,7 +1797,7 @@ async function desfazerPedido(type,idx){
   await persist();
   render();
   const res=await enviarPedidosAoFinanceiro([],[pid]);
-  if(!res.ok) alert('O pedido foi desfeito aqui, mas não consegui avisar o Financeiro ('+res.erro+').\n\nPeça ao financeiro para conferir as contas desta compra.');
+  if(!res.ok) await dlgAviso('Pedido desfeito', 'O pedido foi desfeito aqui, mas não consegui avisar o Financeiro ('+res.erro+').\n\nPeça ao financeiro para conferir as contas desta compra.');
 }
 function abrirCotacoesGuardadas(pid){
   const lista=(data.cotacoesGuardadas||[]).filter(function(c){ return c.guardada&&c.guardada.pedidoId===pid; });
@@ -1736,7 +1827,7 @@ function abrirCotacoesGuardadas(pid){
 async function voltarCotacaoGuardada(id){
   if(recusarSeConsulta()) return;
   const i=(data.cotacoesGuardadas||[]).findIndex(function(c){ return c.id===id; });
-  if(i<0){ alert('A lista foi atualizada. Abra de novo.'); return; }
+  if(i<0){ await dlgAviso('Cotações guardadas', 'A lista foi atualizada. Abra de novo.'); return; }
   const c=data.cotacoesGuardadas[i];
   const aba=(c.guardada&&c.guardada.aba)==='urgente'?'urgente':'importante';
   const volta=Object.assign({},c,{status:'Pendente'});
@@ -1750,10 +1841,11 @@ async function voltarCotacaoGuardada(id){
 // A situacao dos pagamentos vem do Financeiro a cada 3 minutos (e logo ao abrir).
 setTimeout(atualizarSituacaoPagamentos, 4000);
 setInterval(atualizarSituacaoPagamentos, 3*60*1000);
-function markPaid(type,idx){
+async function markPaid(type,idx){
   const r=data[type][idx];
-  const user=prompt('Seu nome (obrigatório para registrar o pagamento):',lastBy||'');
-  if(!user||!user.trim()){ alert('Nome obrigatório para registrar o pagamento.'); return; }
+  const user=await nomeDeQuemUsa('o pagamento');
+  if(!user) return;
+  if(data[type][idx]!==r) return;     // a lista mudou enquanto a janela estava aberta
   const paid={...r,dataPag:new Date().toISOString().slice(0,10),listaAntes:type};
   delete paid.status;
   data.pago.push(paid);
@@ -1772,12 +1864,12 @@ function markPaid(type,idx){
 // A obra volta como Pendente para a lista de onde saiu (Urgentes ou
 // Importantes). As pagas antigas não guardaram de onde vieram: aí a pessoa
 // escolhe. A data de pagamento é apagada e tudo fica no Histórico.
-function voltarParaPendente(idx){
+async function voltarParaPendente(idx){
   if(recusarSeConsulta()) return;
   const r=(data.pago||[])[idx];
   if(!r) return;
-  const user=prompt('Seu nome (obrigatório para registrar a alteração):',lastBy||'');
-  if(!user||!user.trim()){ alert('Nome obrigatório para registrar a alteração.'); return; }
+  const user=await nomeDeQuemUsa('a alteração');
+  if(!user) return;
   const velho=document.getElementById('voltar-pendente-overlay'); if(velho) velho.remove();
   const el=document.createElement('div');
   el.id='voltar-pendente-overlay'; el.className='modal-overlay open';
@@ -3016,9 +3108,9 @@ function carregarPagMatNoModal(r){
   document.getElementById('f-valor').onchange=pgTotalMudou;
   pgRender();
 }
-function pgTrocarCondicao(){
+async function pgTrocarCondicao(){
   const cond=document.getElementById('f-pg-condicao').value;
-  if(_pgParcelas.length && !confirm('Montar as parcelas de novo pela condição escolhida?\n\nAs parcelas que estão na tela serão substituídas.')){
+  if(_pgParcelas.length && !await dlgConfirmar('Trocar a condição', 'Montar as parcelas de novo pela condição escolhida?\n\nAs parcelas que estão na tela serão substituídas.', 'Montar de novo', 'Manter as parcelas')){
     pgRender(); return;
   }
   const valor=lerValorBR(document.getElementById('f-valor').value);
