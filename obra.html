@@ -1917,12 +1917,36 @@ function resumoObraMedida(c){
   const m=medicaoDoAcompanhamento(c);
   const total=m?Number(m.vaos||0):0;
   const medidos=m?Number(m.vaosMedidos||0):0;
-  const data=manual || (m?String(m.dataMedicao||'').trim():'');
-  if(manual || (total>0 && medidos>=total)){
-    return 'Sim'+(data?' · '+fmtData(data):'');
-  }
+  // Sem a data desde 17/11/2026: ela já aparece na coluna "Medida", ao lado.
+  if(manual || (total>0 && medidos>=total)) return 'Sim';
   if(total>0 && medidos>0) return medidos+' de '+total;
   return 'Não';
+}
+
+// A data que a coluna "Medida" mostra: o que foi digitado na ficha e, na falta,
+// o dia da visita de Medição registrada no Acompanhamento. Sem isto a data de
+// uma obra medida lá sumiria da carteira, porque o "Obra medida" não a mostra
+// mais.
+function dataMedidaQueAparece(c){
+  const manual=String((c&&c.medicaoFeita)||'').trim();
+  if(manual) return manual;
+  const m=medicaoDoAcompanhamento(c);
+  return m?String(m.dataMedicao||'').trim():'';
+}
+
+// ---- AS CORES DA MEDIÇÃO (17/11/2026) ----
+// Verde é data real, âmbar é previsão. Célula vazia continua com o travessão
+// fraco de sempre — colorir o vazio só sujaria a tabela.
+function celulaDeData(valor, classe){
+  const v=String(valor||'').trim();
+  if(!v) return '<td class="td-nowrap td-fraco">—</td>';
+  return '<td class="td-nowrap">'+pill(fmtData(v)||v, classe)+'</td>';
+}
+function celulaObraMedida(c){
+  const t=resumoObraMedida(c);
+  if(t==='Sim')  return '<td class="td-nowrap">'+pill('Sim','pill-verde')+'</td>';
+  if(t==='Não')  return '<td class="td-nowrap">'+pill('Não','pill-cinza')+'</td>';
+  return '<td class="td-nowrap">'+pill(t,'pill-ambar')+'</td>';   // "5 de 12"
 }
 
 // Alguma tela de edição aberta? Enquanto houver, não redesenhamos: trocar
@@ -4562,12 +4586,18 @@ const CAMPOS_FICHA_TABELA=[
   {campo:'prazoMaterial',  rotulo:'Prazo de material',   tipo:'numero'},
   {campo:'limiteMaterial', rotulo:'Iniciar compra até',  tipo:'data',
     valor:function(c){ return contasDe(c).limiteMaterial; }},
-  {campo:'medicao',        rotulo:'Medição prevista',    tipo:'data'},
-  {campo:'medicaoFeita',   rotulo:'Medida',              tipo:'data'},
+  {campo:'medicao',        rotulo:'Medição prevista',    tipo:'data',
+    celula:function(c){ return celulaDeData(c.medicao,'pill-ambar'); }},
+  // Mostra a data da ficha e, na falta dela, a do Acompanhamento — por isso o
+  // acessor, embora o campo exista na ficha.
+  {campo:'medicaoFeita',   rotulo:'Medida',              tipo:'data',
+    valor:function(c){ return dataMedidaQueAparece(c); },
+    celula:function(c){ return celulaDeData(dataMedidaQueAparece(c),'pill-verde'); }},
   // Não é um campo da ficha: é a resposta montada do Acompanhamento com a
   // ficha. Por isso tem o acessor — ver resumoObraMedida.
   {campo:'obraMedida',     rotulo:'Obra medida',         tipo:'texto',
-    valor:function(c){ return resumoObraMedida(c); }},
+    valor:function(c){ return resumoObraMedida(c); },
+    celula:function(c){ return celulaObraMedida(c); }},
   {campo:'diasProd',       rotulo:'Dias de produção',    tipo:'numero'},
   {campo:'projEntrada',    rotulo:'Projeção de entrada', tipo:'data'},
   {campo:'diasInst',       rotulo:'Dias de instalação',  tipo:'numero'},
@@ -4854,6 +4884,9 @@ function colunasPadrao(){
 // meio delas sem duplicar o desenho da tabela.
 function celulaDaCarteira(col, c){
   if(col.ficha){
+    // Coluna que desenha a si mesma (as da medição, com cor). O 'valor'
+    // continua existindo para ordenar e para quem lê a coluna sem HTML.
+    if(col.ficha.celula) return col.ficha.celula(c);
     const v=valorExtraFormatado(col.ficha, valorCampoFicha(col.ficha, c));
     return '<td class="td-nowrap'+(v?'':' td-fraco')+'">'+(v||'—')+'</td>';
   }
