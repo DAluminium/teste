@@ -143,6 +143,10 @@ input[type=text]:focus,input[type=date]:focus,select:focus{outline:none;border-c
 .search-bar input{flex:1;border:none;outline:none;font-size:14px;font-family:inherit;color:var(--gray-6);background:transparent}
 .search-bar input::placeholder{color:var(--gray-4)}
 .search-bar svg{color:var(--gray-4);flex-shrink:0}
+/* Filtro de pagamento ao lado da busca (16/11/2026): sem isto o select pegava
+   width:100% das regras gerais e espremia a busca a 20px. */
+.search-bar select{flex:0 0 auto;width:auto;max-width:45%}
+.search-bar input{min-width:120px}
 .search-clear{cursor:pointer;color:var(--gray-4);font-size:18px;line-height:1;display:none}
 .search-clear.visible{display:block}
 .search-count{font-size:12px;color:var(--gray-4);white-space:nowrap}
@@ -1122,7 +1126,7 @@ function updateSummary(){
 function setTab(tab,el){
   // Esconder a aba não basta: sem esta conferência, quem souber o nome consegue
   // abrir o histórico chamando setTab pelo console.
-  if(tab==='historico' && !isAdmin()){ alert('O histórico é restrito ao administrador.'); return; }
+  if(tab==='historico' && !isAdmin()){ avisoSistema('O histórico é restrito ao administrador.'); return; }
   currentTab=tab;
   document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
@@ -1325,10 +1329,10 @@ function duplicateEntry(type,idx){
   setTimeout(function(){ document.getElementById('f-fornecedor').focus(); },150);
 }
 
-function saveEntry(){
+async function saveEntry(){
   const valorRaw=document.getElementById('f-valor').value.replace(/\./g,'').replace(',','.');
   const byVal=document.getElementById('f-by').value.trim();
-  if(!byVal){ alert('O campo "Seu nome" é obrigatório.'); document.getElementById('f-by').focus(); return; }
+  if(!byVal){ avisoSistema('O campo "Seu nome" é obrigatório.'); document.getElementById('f-by').focus(); return; }
   if(byVal) lastBy=byVal;
   const entry={
     obra:document.getElementById('f-obra').value.trim(),
@@ -1375,9 +1379,9 @@ function saveEntry(){
     producao: lerMaterialDoModal(editId!==null ? data[modalType][editId] : null),
   };
   if(modalType==='pago') entry.dataPag=document.getElementById('f-datapag').value;
-  if(!entry.obra||!entry.contrato){ alert('Obra / Cliente e Nº do Contrato são obrigatórios.'); return; }
-  if(!entry.entrega||entry.entrega==='—'){ alert('Data de entrega da obra é obrigatória.'); document.getElementById('f-entrega').focus(); return; }
-  if(!confirmarSomaParcelas(entry)) return;
+  if(!entry.obra||!entry.contrato){ avisoSistema('Obra / Cliente e Nº do Contrato são obrigatórios.'); return; }
+  if(!entry.entrega||entry.entrega==='—'){ avisoSistema('Data de entrega da obra é obrigatória.'); document.getElementById('f-entrega').focus(); return; }
+  if(!await confirmarSomaParcelas(entry)) return;
   const isEdit = editId!==null;
   // Identificador proprio do registro. E o que permite saber, mais tarde, que
   // duas versoes sao do MESMO lancamento — sem ele a juncao nao consegue
@@ -1394,11 +1398,11 @@ function saveEntry(){
   // a cotacao pode ser lancada antes de saber quem vai fornecer.
   if(duplicandoDe){
     if(entry.fornecedor && normalizarTxt(entry.fornecedor)===normalizarTxt(duplicandoDe.fornecedor) &&
-       !confirm('O fornecedor é o mesmo do orçamento original ('+duplicandoDe.fornecedor+').\n\nCadastrar mesmo assim?')) return;
+       !await dlgConfirmar('Mesmo fornecedor', 'O fornecedor é o mesmo do orçamento original ('+duplicandoDe.fornecedor+').\n\nCadastrar mesmo assim?', 'Cadastrar mesmo assim', 'Voltar')) return;
   } else if(achaDuplicataExistente(entry, isEdit?entry.id:null)){
-    const ok=confirm('Já existe um lançamento para "'+entry.obra+'" — Contrato '+entry.contrato+
+    const ok=await dlgConfirmar('Lançamento parecido', 'Já existe um lançamento para "'+entry.obra+'" — Contrato '+entry.contrato+
                       (entry.material?' — material "'+entry.material+'"':'')+
-                      '.\n\nCadastrar mesmo assim?');
+                      '.\n\nCadastrar mesmo assim?', 'Cadastrar mesmo assim', 'Voltar');
     if(!ok) return;
   }
   // Pedido de material. Precisa entrar no registro ANTES de gravar: feito
@@ -1503,17 +1507,17 @@ function abrirDetalhesPago(idx){
     (!ehConsulta()?'<button class="btn btn-teal" onclick="salvarDetalhesPago()">Salvar alterações</button>':'')+'</div></div>';
   document.body.appendChild(el);
 }
-function salvarDetalhesPago(){
+async function salvarDetalhesPago(){
   if(ehConsulta()||!papelDoCracha()) return;
   const r=compraPagaAberta;
   if(!r||(data.pago||[]).indexOf(r)<0){
-    alert('A lista foi atualizada. Feche e abra os detalhes novamente.'); return;
+    avisoSistema('A lista foi atualizada. Feche e abra os detalhes novamente.'); return;
   }
   const contrato=document.getElementById('pago-contrato').value.trim();
-  if(podeCorrigirContratoPago()&&!contrato){ alert('Informe o número do contrato.'); return; }
+  if(podeCorrigirContratoPago()&&!contrato){ avisoSistema('Informe o número do contrato.'); return; }
   const anterior=r.contrato;
   if(podeCorrigirContratoPago()&&contrato!==anterior &&
-    !confirm('Corrigir o contrato de "'+r.obra+'" de '+(anterior||'—')+' para '+contrato+'?')) return;
+    !await dlgConfirmar('Corrigir contrato', 'Corrigir o contrato de "'+r.obra+'" de '+(anterior||'—')+' para '+contrato+'?', 'Corrigir', 'Cancelar')) return;
   if(podeCorrigirContratoPago()) r.contrato=contrato;
   r.transportadora=document.getElementById('pago-transportadora').value.trim();
   r.rastreio=document.getElementById('pago-rastreio').value.trim();
@@ -1726,7 +1730,7 @@ function janelaSistema(op){
     janela.innerHTML='<div class="modal-header"><div class="modal-title"></div>'+
       '<button type="button" class="act" data-fechar aria-label="Fechar">✕</button></div>'+
       '<div class="modal-body"><div data-texto style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5"></div>'+
-      (op.campo?'<div class="form-group" style="margin-top:12px"><label data-rotulo></label><input data-campo type="text" style="width:100%;box-sizing:border-box"></div>':'')+
+      (op.campo?'<div class="form-group" style="margin-top:12px"><label data-rotulo></label><input data-campo type="'+(op.campo.tipo==='senha'?'password':'text')+'" autocomplete="'+(op.campo.tipo==='senha'?'new-password':'off')+'" style="width:100%;box-sizing:border-box"></div>':'')+
       '</div><div class="modal-footer"></div>';
     janela.querySelector('.modal-title').textContent=op.titulo||'Daluminium';
     janela.querySelector('[data-texto]').textContent=op.mensagem||'';
@@ -1774,6 +1778,23 @@ async function dlgPerguntar(titulo, mensagem, rotuloCampo, valorInicial, rotuloO
     campo:{rotulo:rotuloCampo||'', valor:valorInicial||''},
     botoes:[{rotulo:'Cancelar', valor:'nao', estilo:'btn-outline'},{rotulo:rotuloOk||'OK', valor:'sim', estilo:'btn-teal'}]});
   return r.botao==='sim' ? r.texto : null;
+}
+// Senha: o campo fica escondido (a janela do navegador mostrava o que era digitado).
+async function dlgSenha(titulo, mensagem, rotuloCampo, rotuloOk){
+  const r=await janelaSistema({titulo:titulo, mensagem:mensagem,
+    campo:{rotulo:rotuloCampo||'Senha', valor:'', tipo:'senha'},
+    botoes:[{rotulo:'Cancelar', valor:'nao', estilo:'btn-outline'},{rotulo:rotuloOk||'Continuar', valor:'sim', estilo:'btn-teal'}]});
+  return r.botao==='sim' ? r.texto : null;
+}
+// No lugar do avisoSistema(): a mensagem que comeca com uma frase curta seguida de
+// linha em branco ("Nao consegui salvar\n\n...") usa essa frase como titulo.
+// Nao trava o codigo — quem precisa esperar o OK usa "await".
+function avisoSistema(msg){
+  const t=String(msg==null?'':msg);
+  const i=t.indexOf('\n\n');
+  let titulo='Aviso', corpo=t;
+  if(i>0 && i<=60 && t.slice(0,i).indexOf('\n')<0){ titulo=t.slice(0,i).replace(/[.:]\s*$/,''); corpo=t.slice(i+2); }
+  return dlgAviso(titulo, corpo);
 }
 // Quem esta usando o sistema. So pergunta se, por algum motivo, nao souber.
 async function nomeDeQuemUsa(acao){
@@ -1995,7 +2016,7 @@ async function voltarParaPendente(idx){
     if(b.dataset.acao==='fechar'){ el.remove(); return; }
     const L=b.dataset.lista; if(L!=='urgente'&&L!=='importante') return;
     const pos=(data.pago||[]).indexOf(r);
-    if(pos<0){ el.remove(); alert('A lista foi atualizada. Abra Obras pagas e tente de novo.'); return; }
+    if(pos<0){ el.remove(); avisoSistema('A lista foi atualizada. Abra Obras pagas e tente de novo.'); return; }
     const volta={...r,status:'Pendente'};
     delete volta.dataPag; delete volta.listaAntes;
     data[L].push(volta);
@@ -2006,12 +2027,13 @@ async function voltarParaPendente(idx){
   });
   document.body.appendChild(el);
 }
-function moveEntry(from,to,idx){
+async function moveEntry(from,to,idx){
   const labels={urgente:'Urgentes 🔴',importante:'Importantes 🟡'};
   const r=data[from][idx];
-  const user=prompt('Seu nome (obrigatório para registrar a alteração):','');
-  if(!user||!user.trim()){ alert('Nome obrigatório para registrar a movimentação.'); return; }
-  if(!confirm(`Mover "${r.obra}" para ${labels[to]}?`)) return;
+  const user=await nomeDeQuemUsa('a movimentação');
+  if(!user) return;
+  if(!await dlgConfirmar('Mover', `Mover "${r.obra}" para ${labels[to]}?`, 'Mover', 'Cancelar')) return;
+  if(data[from][idx]!==r) return;     // a lista mudou enquanto a janela estava aberta
   if(to==='urgente') r.status=r.status==='Pendente'?'Atrasada':r.status;
   data[to].push({...r});
   data[from].splice(idx,1);
@@ -2129,8 +2151,8 @@ function abrirScanner(){
   document.getElementById('scan-contador').textContent='';
   document.getElementById('scan-ov').classList.add('open');
 }
-function fecharScanner(){
-  if(scanPaginas.length && !confirm('Tem '+scanPaginas.length+' página(s) escaneada(s) que ainda não foram salvas.\n\nFechar mesmo assim?')) return;
+async function fecharScanner(){
+  if(scanPaginas.length && !await dlgConfirmar('Páginas não salvas', 'Tem '+scanPaginas.length+' página(s) escaneada(s) que ainda não foram salvas.\n\nFechar mesmo assim?', 'Fechar sem salvar', 'Continuar escaneando')) return;
   document.getElementById('scan-ov').classList.remove('open');
 }
 
@@ -2153,7 +2175,7 @@ function scanRecebeuFoto(ev){
       document.getElementById('scan-vazio').style.display='none';
       document.getElementById('scan-editor').style.display='';
     };
-    img.onerror=function(){ alert('Não consegui abrir\n\nO arquivo escolhido não parece ser uma imagem.'); };
+    img.onerror=function(){ avisoSistema('Não consegui abrir\n\nO arquivo escolhido não parece ser uma imagem.'); };
     img.src=e.target.result;
   };
   leitor.readAsDataURL(arq);
@@ -2462,7 +2484,7 @@ function scanGuardarPagina(){
 
   const h=scanCalcularTransformacao(c,l,a);
   if(!h){
-    alert('Não consegui enquadrar\n\n'+'Os quatro cantos precisam formar uma área. '+
+    avisoSistema('Não consegui enquadrar\n\n'+'Os quatro cantos precisam formar uma área. '+
           'Parece que dois deles ficaram no mesmo lugar — arraste e tente de novo.');
     return;
   }
@@ -2629,7 +2651,7 @@ async function scanSalvar(){
   try{
     const bytes=scanMontarPDF(scanPaginas);
     if(bytes.length>10*1024*1024){
-      alert('Ficou grande demais\n\nO PDF ficou com '+scanTamanho(bytes.length)+', e o limite é 10 MB.\n\n'+
+      avisoSistema('Ficou grande demais\n\nO PDF ficou com '+scanTamanho(bytes.length)+', e o limite é 10 MB.\n\n'+
             'Tire algumas páginas e salve em duas partes.');
       btn.disabled=false; st.textContent=''; scanSalvando=false; return;
     }
@@ -2638,9 +2660,9 @@ async function scanSalvar(){
     await scanEntregar(new File([bytes],nome,{type:'application/pdf'}));
     scanPaginas=[];
     document.getElementById('scan-ov').classList.remove('open');
-    alert('Documento escaneado\n\nO PDF foi anexado e já está guardado.');
+    avisoSistema('Documento escaneado\n\nO PDF foi anexado e já está guardado.');
   }catch(e){
-    alert('Não consegui salvar\n\nO envio falhou: '+e.message+'\n\nAs páginas continuam aqui. Tente de novo.');
+    avisoSistema('Não consegui salvar\n\nO envio falhou: '+e.message+'\n\nAs páginas continuam aqui. Tente de novo.');
     st.textContent='';
   }
   btn.disabled=false;
@@ -2662,7 +2684,7 @@ async function handleAttachFiles(e){
     }
     await persist(); render(); if(attachType==="manutencao") renderManutencao(); renderAttachList();
   }catch(err){
-    alert('Erro ao enviar: '+err.message);
+    avisoSistema('Erro ao enviar: '+err.message);
     zone.innerHTML=origHTML;
   }
   e.target.value='';
@@ -2673,7 +2695,7 @@ function dragLeave(){ document.getElementById('attach-zone').classList.remove('d
 async function dropFile(e){
   e.preventDefault(); dragLeave();
   const files=Array.from(e.dataTransfer.files).filter(f=>['application/pdf','image/jpeg','image/png'].includes(f.type));
-  if(!files.length){ alert('Apenas PDF, JPEG e PNG são aceitos.'); return; }
+  if(!files.length){ avisoSistema('Apenas PDF, JPEG e PNG são aceitos.'); return; }
   const r=data[attachType][attachIdx];
   if(!r.attachments) r.attachments=[];
   const zone=document.getElementById('attach-zone');
@@ -2686,14 +2708,14 @@ async function dropFile(e){
     }
     await persist(); render(); if(attachType==="manutencao") renderManutencao(); renderAttachList();
   }catch(err){
-    alert('Erro ao enviar: '+err.message);
+    avisoSistema('Erro ao enviar: '+err.message);
     zone.innerHTML=origHTML;
   }
 }
 
 async function viewFile(id,type,name,url){
   if(!url||url==='undefined'){
-    alert('Este anexo foi salvo antes da atualização para a nuvem.\nPor favor remova-o (🗑️) e anexe novamente.');
+    avisoSistema('Este anexo foi salvo antes da atualização para a nuvem.\nPor favor remova-o (🗑️) e anexe novamente.');
     return;
   }
   // PDF, foto e o resto: a janela do sistema (ver e baixar ficam anotados).
@@ -2702,7 +2724,7 @@ async function viewFile(id,type,name,url){
 
 function downloadFile(id,type,name,url){
   if(!url||url==='undefined'){
-    alert('Este anexo foi salvo antes da atualização para a nuvem.\nPor favor remova-o (🗑️) e anexe novamente.');
+    avisoSistema('Este anexo foi salvo antes da atualização para a nuvem.\nPor favor remova-o (🗑️) e anexe novamente.');
     return;
   }
   baixarAnexo(url,name);
@@ -2736,7 +2758,7 @@ function closeImagePreview(){
 
 function printAll(){
   const r=data[attachType][attachIdx];
-  if(!r.attachments||!r.attachments.length){ alert('Nenhum anexo.'); return; }
+  if(!r.attachments||!r.attachments.length){ avisoSistema('Nenhum anexo.'); return; }
   r.attachments.forEach(a=>baixarAnexo(a.url,a.name));
 }
 
@@ -2759,7 +2781,7 @@ async function removeAttach(idx){
   const r0=data[attachType]&&data[attachType][attachIdx];
   if(recusarSeConsulta()) return;
   if(!anexoEhMeu(r0&&r0.attachments&&r0.attachments[idx]) && recusarExcluir()) return;
-  if(!confirm('Remover este anexo?')) return;
+  if(!await dlgConfirmar('Remover anexo', 'Remover este anexo?', 'Remover', 'Cancelar')) return;
   const r=data[attachType][attachIdx];
   const removido=r.attachments.splice(idx,1)[0];
   await persist(); render(); if(attachType==="manutencao") renderManutencao(); renderAttachList();
@@ -2794,7 +2816,7 @@ function confirmarImpressao(){
     manutencao: document.getElementById('p-manutencao').checked,
   };
   if(!opts.capa&&!opts.urgentes&&!opts.importantes&&!opts.pagas&&!opts.manutencao){
-    alert('Selecione pelo menos uma seção para imprimir.');
+    avisoSistema('Selecione pelo menos uma seção para imprimir.');
     return;
   }
   closePrintModal();
@@ -3522,12 +3544,12 @@ function lerMaterialDoModal(antigo){
   return {situacao:sit, previsaoPronto:pronto, previsaoChegada:chegada, em:new Date().toISOString(), por:usuarioLogado()||'—'};
 }
 // Parcelas que nao fecham com o valor: pergunta antes de gravar.
-function confirmarSomaParcelas(entry){
+async function confirmarSomaParcelas(entry){
   const pg=entry.pagamento;
   if(!pg||!pg.parcelas||!pg.parcelas.length) return true;
   const soma=centavos(pg.parcelas.reduce(function(a,p){ return a+(Number(p.valor)||0); },0));
   if(Math.abs(soma-centavos(entry.valor))<0.01) return true;
-  return confirm('As parcelas somam R$ '+fmtBR(soma)+', mas o orçamento é R$ '+fmtBR(entry.valor)+'.\n\nSalvar assim mesmo?');
+  return await dlgConfirmar('Parcelas não fecham', 'As parcelas somam R$ '+fmtBR(soma)+', mas o orçamento é R$ '+fmtBR(entry.valor)+'.\n\nSalvar assim mesmo?', 'Salvar assim mesmo', 'Voltar e acertar');
 }
 // Linha de resumo na tabela, embaixo do status.
 // Coluna "Pronto previsto" (pedido do Ander, 16/11/2026): quando o material
@@ -3730,7 +3752,7 @@ function relatoEscolheuImagem(input){
       '<button type="button" class="btn btn-outline btn-sm" style="margin-top:6px" onclick="relatoTirarImagem()">Remover imagem</button>';
     URL.revokeObjectURL(url);
   };
-  img.onerror=function(){ URL.revokeObjectURL(url); alert('Não consegui ler esta imagem. Tente outra.'); };
+  img.onerror=function(){ URL.revokeObjectURL(url); avisoSistema('Não consegui ler esta imagem. Tente outra.'); };
   img.src=url;
 }
 function relatoTirarImagem(){
@@ -3744,9 +3766,9 @@ function relatoBlob(tela,tipo,qualidade){
 
 async function enviarRelato(){
   const texto=document.getElementById('rel-texto').value.trim();
-  if(!texto){ alert('Escreva o que aconteceu, nem que seja em poucas palavras.'); return; }
+  if(!texto){ avisoSistema('Escreva o que aconteceu, nem que seja em poucas palavras.'); return; }
   const num=numeroWhats(numeroDoAdmin());
-  if(!num){ alert('Não encontrei o WhatsApp do administrador no cadastro.'); return; }
+  if(!num){ avisoSistema('Não encontrei o WhatsApp do administrador no cadastro.'); return; }
 
   const rotulo={erro:'ERRO NO SISTEMA',alteracao:'PEDIDO DE ALTERACAO',duvida:'DUVIDA'};
   const tipo=document.getElementById('rel-tipo').value;
@@ -3778,7 +3800,7 @@ async function enviarRelato(){
   abrirWhats('https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg));
   fecharRelato();
   if(_relatoTela){
-    alert(copiou
+    avisoSistema(copiou
       ? 'A imagem já está copiada: dentro da conversa do WhatsApp, aperte Ctrl+V para colar antes de enviar.'
       : 'Não consegui copiar a imagem sozinho — anexe o print pela própria conversa do WhatsApp.');
   }
@@ -3958,7 +3980,7 @@ function confirmarAvisoSistema(titulo,mensagem,botao){
 }
 async function excluirAvisoPedido(type,i){
   if(!podeReabrirPedido()){
-    alert('Só o gerente ou o administrador pode excluir o aviso.'); return;
+    avisoSistema('Só o gerente ou o administrador pode excluir o aviso.'); return;
   }
   const r=(data[type]||[])[i], p=r&&r.pedido;
   if(!p||!p.texto) return;
@@ -3972,7 +3994,7 @@ async function excluirAvisoPedido(type,i){
 }
 async function reabrirPedido(type,i){
   if(!podeReabrirPedido()){
-    alert('Só o gerente ou o administrador pode voltar o pedido para pendente.');
+    avisoSistema('Só o gerente ou o administrador pode voltar o pedido para pendente.');
     return;
   }
   const r=(data[type]||[])[i], p=r&&r.pedido;
@@ -3987,7 +4009,7 @@ async function reabrirPedido(type,i){
   persist(); render();
 }
 
-function confirmarPedido(type,i,peloDestinatario){
+async function confirmarPedido(type,i,peloDestinatario){
   const r=(data[type]||[])[i], p=r&&r.pedido;
   if(!p||p.feito) return;
   const eu=usuarioLogado();
@@ -3996,7 +4018,7 @@ function confirmarPedido(type,i,peloDestinatario){
     ? 'Marcar o pedido de "'+r.obra+'" como já feito?\n\nUse quando a pessoa já respondeu pelo WhatsApp.'
     : 'Confirmar que o material já foi colocado em "'+r.obra+'"?\n\n'+(p.por||'Quem pediu')+
       ' vai receber o aviso no sistema. O WhatsApp também abre com a mensagem pronta — aperte enviar.';
-  if(!confirm(pergunta)) return;
+  if(!await dlgConfirmar('Pedido de material', pergunta, 'Confirmar', 'Cancelar')) return;
   p.feito={
     por: souQuemPediu ? nomesDoPedido(p) : (eu||nomesDoPedido(p)),
     em: new Date().toISOString(),
@@ -4012,7 +4034,7 @@ function confirmarPedido(type,i,peloDestinatario){
   // onde o login le — nunca de uma lista escrita neste arquivo.
   const quem=getResponsaveis().filter(function(u){ return normNome(u.name)===normNome(p.por); })[0];
   if(!quem||!numeroWhats(quem.whatsapp)){
-    alert('Marcado como feito. '+(p.por||'Quem pediu')+' vai ver o aviso ao abrir o sistema.\n\n'+
+    avisoSistema('Marcado como feito. '+(p.por||'Quem pediu')+' vai ver o aviso ao abrir o sistema.\n\n'+
           '(Não encontrei o WhatsApp dessa pessoa no cadastro de usuários.)');
     return;
   }
@@ -4282,7 +4304,7 @@ function numeroWhats(n){
 }
 function enviarWhatsApp(para, mensagem){
   const num=numeroWhats(para&&para.whatsapp);
-  if(!num){ alert('Esta pessoa não tem WhatsApp cadastrado.\n\nCadastre o número no portal, em Gerenciar usuários.'); return; }
+  if(!num){ avisoSistema('Esta pessoa não tem WhatsApp cadastrado.\n\nCadastre o número no portal, em Gerenciar usuários.'); return; }
   abrirWhats('https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(mensagem));
 }
 
@@ -4441,11 +4463,11 @@ function closeModalManut(){ document.getElementById('manut-overlay').classList.r
 
 async function saveManut(){
   const byVal=document.getElementById('m-by').value.trim();
-  if(!byVal){ alert('O campo "Seu nome" é obrigatório.'); document.getElementById('m-by').focus(); return; }
+  if(!byVal){ avisoSistema('O campo "Seu nome" é obrigatório.'); document.getElementById('m-by').focus(); return; }
   const obra=document.getElementById('m-obra').value.trim();
-  if(!obra){ alert('Obra/Local é obrigatório.'); return; }
+  if(!obra){ avisoSistema('Obra/Local é obrigatório.'); return; }
   const itens=getManutItens();
-  if(!itens.length){ alert('Adicione pelo menos 1 material.'); return; }
+  if(!itens.length){ avisoSistema('Adicione pelo menos 1 material.'); return; }
   const totalValor=itens.reduce((a,i)=>a+i.valor,0);
   const entry={
     by:byVal, obra,
@@ -4472,9 +4494,9 @@ async function saveManut(){
 async function removeManut(idx){
   if(recusarExcluir()) return;
   const r=data.manutencao[idx];
-  const user=prompt('Seu nome (obrigatório para registrar a remoção):',lastBy||'');
-  if(!user||!user.trim()){ alert('Nome obrigatório.'); return; }
-  if(!confirm(`Remover compra de manutenção de "${r.obra}"?`)) return;
+  const user=await nomeDeQuemUsa('a remoção');
+  if(!user) return;
+  if(!await dlgConfirmar('Remover manutenção', `Remover compra de manutenção de "${r.obra}"?`, 'Remover', 'Cancelar')) return;
   logAction(user.trim(),'Removeu',{obra:r.obra,contrato:'Manutenção'},`Manutenção removida`);
   data.manutencao.splice(idx,1);
   await persist(); renderManutencao(); updateSummary();
@@ -4482,8 +4504,8 @@ async function removeManut(idx){
 
 async function updateManutSituacao(idx,val){
   const r=data.manutencao[idx];
-  const user=prompt('Seu nome (obrigatório):',lastBy||'');
-  if(!user||!user.trim()){ alert('Nome obrigatório.'); renderManutencao(); return; }
+  const user=await nomeDeQuemUsa('a alteração');
+  if(!user){ renderManutencao(); return; }
   const labels={buscando:'Buscando local',local:'Encontrado local',fora:'Comprar fora do estado',transporte:'Em transporte',comprado:'Comprado'};
   logAction(user.trim(),'Editou',{obra:r.obra,contrato:'Manutenção'},`Situação: ${labels[val]}`);
   if(user) lastBy=user.trim();
@@ -4541,7 +4563,7 @@ function renderConcluidas(){
 
 async function restoreManut(idx){
   const r=data.manutComprada[idx];
-  if(!confirm(`Reabrir "${r.obra}" na lista de manutenção?`)) return;
+  if(!await dlgConfirmar('Reabrir manutenção', `Reabrir "${r.obra}" na lista de manutenção?`, 'Reabrir', 'Cancelar')) return;
   data.manutencao.push({...r, situacao:'buscando', concluidoPor:undefined, concluidoEm:undefined});
   data.manutComprada.splice(idx,1);
   logAction(lastBy||'—','Editou',{obra:r.obra,contrato:'Manutenção'},'Reaberto na lista de manutenção');
@@ -4550,7 +4572,7 @@ async function restoreManut(idx){
 
 async function removeConcluidaManut(idx){
   if(recusarExcluir()) return;
-  if(!confirm('Remover permanentemente este registro?')) return;
+  if(!await dlgConfirmar('Remover registro', 'Remover permanentemente este registro?', 'Remover', 'Cancelar')) return;
   data.manutComprada.splice(idx,1);
   await persist(); renderConcluidas();
 }
@@ -4669,7 +4691,7 @@ function renderHistorico(){
 function exportHistorico(){
   const juntos=(data.historico||[]).concat(_sessoesHist||[])
     .sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
-  if(!juntos.length){ alert('Nenhum histórico para exportar.'); return; }
+  if(!juntos.length){ avisoSistema('Nenhum histórico para exportar.'); return; }
   const rows=[['Data/Hora','Usuário','Ação','Obra','Contrato','Detalhe']];
   juntos.forEach(h=>{
     const dt=new Date(h.ts);
@@ -5102,7 +5124,7 @@ function podeExcluir(){ const p=papelDoCracha(); return p==='admin'||p==='gerent
 function ehConsulta(){ return papelDoCracha()==='consulta'; }
 function recusarExcluir(){
   if(podeExcluir()) return false;
-  alert('S\u00f3 o gerente ou o administrador pode excluir.\n\nPe\u00e7a a quem gerencia este m\u00f3dulo.');
+  avisoSistema('S\u00f3 o gerente ou o administrador pode excluir.\n\nPe\u00e7a a quem gerencia este m\u00f3dulo.');
   return true;
 }
 // Na Consulta toda gravacao para aqui. O aviso aparece no maximo a cada
@@ -5112,13 +5134,13 @@ function recusarSeConsulta(){
   // Espelho ("Ver como", 16/10/2026): a tela mostra os botoes da pessoa, mas
   // nada grava. Avisa aqui, antes de ir ao Worker (que recusaria do mesmo jeito).
   try{ if(sessionStorage.getItem('dalum-espelho')){
-    alert('\u{1F441} Modo espelho: voc\u00ea est\u00e1 vendo o sistema como outra pessoa, s\u00f3 para olhar.\n\nNada foi gravado.');
+    avisoSistema('\u{1F441} Modo espelho: voc\u00ea est\u00e1 vendo o sistema como outra pessoa, s\u00f3 para olhar.\n\nNada foi gravado.');
     return true;
   } }catch(e){}
   if(!ehConsulta()) return false;
   if(Date.now()-_avisouConsulta>60000){
     _avisouConsulta=Date.now();
-    alert('Voc\u00ea est\u00e1 no modo consulta: pode olhar, mas n\u00e3o alterar.\n\nA altera\u00e7\u00e3o n\u00e3o foi salva.');
+    avisoSistema('Voc\u00ea est\u00e1 no modo consulta: pode olhar, mas n\u00e3o alterar.\n\nA altera\u00e7\u00e3o n\u00e3o foi salva.');
   }
   return true;
 }
@@ -5195,10 +5217,10 @@ async function definirSenha(usuario,senha,senhaAtual){
       body:JSON.stringify({usuario:usuario,senha:senha,senhaAtual:senhaAtual||''})});
     if(r.ok) return true;
     let m=''; try{ m=(await r.json()).erro||''; }catch(e){}
-    alert('A senha NÃO foi salva.\n\n'+(m||('Erro '+r.status+' no servidor.')));
+    avisoSistema('A senha NÃO foi salva.\n\n'+(m||('Erro '+r.status+' no servidor.')));
     return false;
   }catch(e){
-    alert('A senha NÃO foi salva: não consegui falar com o servidor.\n\nConfira a internet e tente de novo.');
+    avisoSistema('A senha NÃO foi salva: não consegui falar com o servidor.\n\nConfira a internet e tente de novo.');
     return false;
   }
 }
@@ -5359,7 +5381,7 @@ async function baixarPeloSistema(url,nome){
     d.href=l+(l.indexOf('/anexo/')>0?'&baixar=1':'');
     if(l.indexOf('/anexo/')<0) d.download=nome||'arquivo';
     document.body.appendChild(d); d.click(); d.remove();
-  }catch(e){ alert('Não consegui baixar o anexo.\n\n'+e.message); }
+  }catch(e){ avisoSistema('Não consegui baixar o anexo.\n\n'+e.message); }
 }
 // Baixar de verdade, com o nome original. Sem isto o navegador ignora o
 // pedido de baixar (o arquivo e de outro site) e so abre — a imagem abria no
@@ -5386,7 +5408,7 @@ async function baixarAnexo(url,nome){
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function(){ URL.revokeObjectURL(obj); },60000);
   }catch(e){
-    alert('Não consegui baixar o anexo.\n\n'+e.message);
+    avisoSistema('Não consegui baixar o anexo.\n\n'+e.message);
   }
 }
 // ---- ENVIAR ANEXO PELO WHATSAPP (pedido do Ander, 21/09/2026) ----
@@ -5437,12 +5459,12 @@ async function enviarPara(i){
     num=numeroWhats(p.whatsapp); primeiro=String(p.name||'').split(' ')[0];
   } else {
     num=numeroWhats((document.getElementById('envio-num')||{}).value);
-    if(!num){ alert('Número inválido.\n\nDigite com DDD, por exemplo 69 99999-9999.'); return; }
+    if(!num){ avisoSistema('Número inválido.\n\nDigite com DDD, por exemplo 69 99999-9999.'); return; }
   }
   // O endereco vale 1 minuto: se a janela ficou aberta mais que isso, pede outro.
   if(!_envioAnexo.link || Date.now()-_envioAnexo.quando>50000){
     try{ _envioAnexo.link=await linkDoAnexo(_envioAnexo.url,_envioAnexo.nome,'enviar'); _envioAnexo.quando=Date.now(); }
-    catch(e){ alert('Não consegui preparar o arquivo.\n\n'+e.message); return; }
+    catch(e){ avisoSistema('Não consegui preparar o arquivo.\n\n'+e.message); return; }
   }
   const msg='Olá'+(primeiro?', '+primeiro:'')+'! Segue o arquivo: '+_envioAnexo.nome;
 
@@ -5652,11 +5674,11 @@ function sessaoExpirada(){
   // novo — sem fim. Clicar em OK trazia a mensagem outra vez.
   try{ ['dalum-logged','dalum-user','dalum-user-role','dalum-admin-key']
         .forEach(function(k){ sessionStorage.removeItem(k); }); }catch(e){}
-  alert('Sua sessão expirou.\n\n' +
+  // Espera o OK: com a janela do sistema, recarregar logo apagaria o aviso.
+  avisoSistema('Sua sessão expirou.\n\n' +
         'O acesso vale 8 horas e o seu venceu. Nada foi perdido — o que você ' +
         'já tinha salvo continua guardado.\n\n' +
-        'Vamos voltar para a tela de entrada.');
-  location.reload();
+        'Vamos voltar para a tela de entrada.').then(function(){ location.reload(); });
 }
 
 // ---- SISTEMA EM MANUTENÇÃO ----
@@ -6064,7 +6086,7 @@ async function gravarNoServidor(tentativa){
     const depoisDeMim=!!confere && confere.atualizadoEm!==carimbo && horaDe(confere.atualizadoEm)>horaDe(carimbo);
     if(!confere || (confere.atualizadoEm!==carimbo && !depoisDeMim)){
       setStatus('🔴 NÃO gravou no servidor','#ffcccc');
-      alert('ATENÇÃO — os dados NÃO foram salvos no servidor.\n\n'+
+      avisoSistema('ATENÇÃO — os dados NÃO foram salvos no servidor.\n\n'+
             'O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+
             'O que você digitou continua nesta tela e no seu navegador, mas ainda NÃO está salvo '+
             'para as outras pessoas.\n\n'+
@@ -6169,7 +6191,7 @@ function entrarEspaco(){
 
 function copiarCodigo(){
   const code=document.getElementById('team-code-display').textContent;
-  navigator.clipboard.writeText(code).then(()=>alert('Código copiado! Cole no WhatsApp para compartilhar com a equipe.'));
+  navigator.clipboard.writeText(code).then(()=>avisoSistema('Código copiado! Cole no WhatsApp para compartilhar com a equipe.'));
 }
 
 // ---- IMPORT / EXPORT ----
@@ -6186,13 +6208,13 @@ function importData(){ document.getElementById('file-input').click(); }
 function handleImport(e){
   const file=e.target.files[0]; if(!file) return;
   const reader=new FileReader();
-  reader.onload=function(ev){
+  reader.onload=async function(ev){
     try{
       const imported=JSON.parse(ev.target.result);
       if(!imported.urgente||!imported.importante||!imported.pago) throw new Error();
-      if(!confirm(`Importar?\nUrgentes: ${imported.urgente.length}\nImportantes: ${imported.importante.length}\nPagas: ${imported.pago.length}\n\nSubstitui os dados atuais.`)) return;
-      data=imported; persist(); render(); alert('Importado com sucesso!');
-    }catch{ alert('Arquivo inválido.'); }
+      if(!await dlgConfirmar('Importar', `Urgentes: ${imported.urgente.length}\nImportantes: ${imported.importante.length}\nPagas: ${imported.pago.length}\n\nOs dados importados SUBSTITUEM os dados atuais.`, 'Importar e substituir', 'Cancelar')) return;
+      data=imported; persist(); render(); avisoSistema('Importado com sucesso!');
+    }catch{ avisoSistema('Arquivo inválido.'); }
   };
   reader.readAsText(file);
   e.target.value='';
@@ -6200,7 +6222,7 @@ function handleImport(e){
 
 // ---- USER MANAGEMENT (admin only) ----
 function openUserAdmin(){
-  if(!isAdmin()){ alert('Acesso restrito ao administrador.'); return; }
+  if(!isAdmin()){ avisoSistema('Acesso restrito ao administrador.'); return; }
   renderUserList();
   document.getElementById('user-admin-overlay').classList.add('open');
 }
@@ -6232,13 +6254,13 @@ function renderUserList(){
 
 async function editUser(idx){
   const u=getUsers()[idx];
-  const novoNome=prompt('Nome completo:',u.name);
+  const novoNome=await dlgPerguntar('Editar usuário', 'Alterando o cadastro de '+u.name+'.', 'Nome completo', u.name, 'Continuar');
   if(novoNome===null) return;
-  const novoRole=prompt('Função (compras / gerente / consulta):',u.role);
+  const novoRole=await dlgPerguntar('Editar usuário', 'Função de '+novoNome+':\ncompras, gerente ou consulta.', 'Função', u.role, 'Continuar');
   if(novoRole===null) return;
   const roles=['compras','gerente','consulta'];
-  if(!roles.includes(novoRole.toLowerCase().trim())){ alert('Função inválida. Use: compras, gerente ou consulta.'); return; }
-  const novaSenha=prompt('Nova senha (deixe em branco para manter a atual):','');
+  if(!roles.includes(novoRole.toLowerCase().trim())){ avisoSistema('Função inválida. Use: compras, gerente ou consulta.'); return; }
+  const novaSenha=await dlgSenha('Editar usuário', 'Nova senha para '+novoNome+'.\n\nDeixe em branco para manter a atual.', 'Nova senha', 'Salvar');
   const users=getUsers();
   users[idx].name=novoNome.trim()||u.name;
   users[idx].role=novoRole.toLowerCase().trim();
@@ -6249,7 +6271,7 @@ async function editUser(idx){
   saveUsers(users);
   await persistUsers();
   renderUserList();
-  alert('Usuário atualizado com sucesso! ✅');
+  avisoSistema('Usuário atualizado com sucesso! ✅');
 }
 
 async function addUser(){
@@ -6257,11 +6279,11 @@ async function addUser(){
   const username=document.getElementById('nu-username').value.trim().toLowerCase();
   const pass=document.getElementById('nu-pass').value.trim();
   const role=document.getElementById('nu-role').value;
-  if(!name||!username||!pass){ alert('Preencha nome, usuário e senha.'); return; }
-  if(pass.length<6){ alert('A senha precisa de pelo menos 6 caracteres.'); return; }
-  if(ADMINS.find(a=>a.user===username)){ alert('Este usuário é reservado para administradores.'); return; }
+  if(!name||!username||!pass){ avisoSistema('Preencha nome, usuário e senha.'); return; }
+  if(pass.length<6){ avisoSistema('A senha precisa de pelo menos 6 caracteres.'); return; }
+  if(ADMINS.find(a=>a.user===username)){ avisoSistema('Este usuário é reservado para administradores.'); return; }
   const users=getUsers();
-  if(users.find(u=>u.username===username)){ alert('Usuário já cadastrado.'); return; }
+  if(users.find(u=>u.username===username)){ avisoSistema('Usuário já cadastrado.'); return; }
   users.push({name,username,role,active:true,tempPass:true,
     whatsapp:document.getElementById('nu-whatsapp').value.trim().replace(/\D/g,''),
     apikey:document.getElementById('nu-apikey').value.trim()
@@ -6269,11 +6291,11 @@ async function addUser(){
   saveUsers(users);
   await persistUsers();
   // A senha vai DEPOIS da lista: o Worker confere se o usuario existe.
-  if(!await definirSenha(username,pass)) alert('O usuário "'+username+'" foi cadastrado, mas ficou SEM senha. Defina a senha pelo portal.');
+  if(!await definirSenha(username,pass)) avisoSistema('O usuário "'+username+'" foi cadastrado, mas ficou SEM senha. Defina a senha pelo portal.');
   logAction(lastBy||'—','Criou usuário',{obra:name,contrato:'Sistema'},`Usuário: ${username} (${role})`);
   ['nu-name','nu-username','nu-pass','nu-whatsapp','nu-apikey'].forEach(id=>document.getElementById(id).value='');
   renderUserList();
-  alert('Usuário cadastrado e salvo na nuvem! ✅');
+  avisoSistema('Usuário cadastrado e salvo na nuvem! ✅');
 }
 
 async function toggleUserActive(idx){
@@ -6287,7 +6309,7 @@ async function toggleUserActive(idx){
 
 async function removeUser(idx){
   const users=getUsers();
-  if(!confirm(`Remover usuário "${users[idx].name}"?`)) return;
+  if(!await dlgConfirmar('Remover usuário', `Remover usuário "${users[idx].name}"?`, 'Remover', 'Cancelar')) return;
   logAction(lastBy||'—','Removeu usuário',{obra:users[idx].name,contrato:'Sistema'},`Usuário: ${users[idx].username}`);
   users.splice(idx,1);
   saveUsers(users);
@@ -6366,10 +6388,12 @@ async function checkForceLogout(){
   let r=null;
   try{ r=await acaoSessao('sessao-sinal',{sistema:'compras'}); }catch(e){ return; }
   if(!r||!r.derrubado) return;
-  alert(r.motivo==='outro-login'
+  await dlgAviso('Sessão encerrada', r.motivo==='outro-login'
     ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
     :'Sua sessão foi encerrada pelo administrador.');
-  doLogout();
+  // Sem perguntar "Deseja sair?": a sessao ja acabou no servidor. Antes, quem
+  // clicava em Cancelar ficava numa tela que nao valia mais.
+  doLogout(true);
 }
 
 // Marca que esta pessoa continua usando o sistema, aproveitando a consulta que
@@ -6547,22 +6571,22 @@ async function loadUsersFromCloud(){
 // máquina: dava a impressão de ter trocado, mas em qualquer outro computador
 // a senha antiga continuava entrando.
 function openChangePassAdmin(admin){
-  alert('A senha de administrador é trocada no Cloudflare, não por aqui.\n\n'+
+  avisoSistema('A senha de administrador é trocada no Cloudflare, não por aqui.\n\n'+
         'Peça ao Ander para alterar o segredo correspondente\n'+
         '(ADMIN_ANDER ou ADMIN_ARETUSA) em Workers & Pages >\n'+
         'daluminium-api > Settings > Variables and Secrets.');
 }
 
 async function openChangePassUser(found){
-  const nova=prompt('Bem-vindo(a), '+found.name+'!\n\nVocê está usando uma senha temporária.\nDigite sua nova senha (mínimo 6 caracteres):', '');
-  if(!nova||nova.trim().length<6){ alert('Senha não alterada. Você será solicitado novamente no próximo login.'); return; }
-  const conf=prompt('Confirme a nova senha:','');
-  if(nova.trim()!==conf){ alert('As senhas não coincidem. Tente novamente no próximo login.'); return; }
+  const nova=await dlgSenha('Bem-vindo(a), '+found.name+'!', 'Você está usando uma senha temporária.\n\nDigite sua nova senha (mínimo 6 caracteres).', 'Nova senha', 'Continuar');
+  if(!nova||nova.trim().length<6){ avisoSistema('Senha não alterada. Você será solicitado novamente no próximo login.'); return; }
+  const conf=await dlgSenha('Confirmar senha', 'Digite a nova senha de novo.', 'Confirme a nova senha', 'Salvar');
+  if(nova.trim()!==conf){ avisoSistema('As senhas não coincidem. Tente novamente no próximo login.'); return; }
   const users=getUsers();
   const idx=users.findIndex(u=>u.username===found.username);
   if(!await definirSenha(found.username,nova.trim())) return;
   if(idx>=0){ users[idx].tempPass=false; saveUsers(users); await persistUsers(); }
-  alert('Senha alterada com sucesso! ✅');
+  avisoSistema('Senha alterada com sucesso! ✅');
 }
 
 async function changeMyPass(){
@@ -6570,27 +6594,27 @@ async function changeMyPass(){
   if(role==='admin'){ openChangePassAdmin(null); return; }
   // A senha atual primeiro (pedido do Ander, 21/09/2026). Quem confere e o
   // Worker: pular esta pergunta mexendo na pagina nao adianta.
-  const atual=prompt('Digite sua senha ATUAL:','');
-  if(!atual){ alert('Senha não alterada.'); return; }
-  const nova=prompt('Digite sua nova senha (mínimo 6 caracteres):','');
-  if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
-  const conf=prompt('Confirme a nova senha:','');
-  if(nova.trim()!==conf){ alert('As senhas não coincidem.'); return; }
+  const atual=await dlgSenha('Trocar senha', 'Para trocar, primeiro digite sua senha ATUAL.', 'Senha atual', 'Continuar');
+  if(!atual){ avisoSistema('Senha não alterada.'); return; }
+  const nova=await dlgSenha('Trocar senha', 'Agora digite a nova senha (mínimo 6 caracteres).', 'Nova senha', 'Continuar');
+  if(!nova||nova.trim().length<6){ avisoSistema('Senha não alterada.'); return; }
+  const conf=await dlgSenha('Trocar senha', 'Digite a nova senha de novo.', 'Confirme a nova senha', 'Salvar');
+  if(nova.trim()!==conf){ avisoSistema('As senhas não coincidem.'); return; }
   // Quem troca e quem esta logado: o usuario vem do cracha, nao do nome.
   const tk=lerToken(); const eu=tk&&tk.dados?String(tk.dados.u||'').toLowerCase():'';
-  if(!eu){ alert('Sessão sem usuário. Saia e entre de novo.'); return; }
+  if(!eu){ avisoSistema('Sessão sem usuário. Saia e entre de novo.'); return; }
   if(!await definirSenha(eu,nova.trim(),atual)) return;
   const users=getUsers();
   const idx=users.findIndex(u=>String(u.username||'').toLowerCase()===eu);
   if(idx>=0){ users[idx].tempPass=false; saveUsers(users); await persistUsers(); }
-  alert('Senha alterada com sucesso! ✅');
+  avisoSistema('Senha alterada com sucesso! ✅');
 }
 
 function showAdminBtn(show){} // Gerenciamento centralizado no portal
 function updateSaldosBtn(){} // compras não tem saldo inicial
 
-async function doLogout(){
-  if(!confirm('Deseja sair do sistema?')) return;
+async function doLogout(semPerguntar){
+  if(semPerguntar!==true && !await dlgConfirmar('Sair', 'Deseja sair do sistema?', 'Sair', 'Continuar no sistema')) return;
   await removerSessao();
   sessionStorage.removeItem('dalum-logged');
   sessionStorage.removeItem('dalum-user');
