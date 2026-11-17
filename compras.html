@@ -2865,9 +2865,15 @@ function celulaPagamento(r){
     const quando=p.quando==='pronto'
       ? ('quando pronto'+(venc?' ('+fmtDate(venc)+')':''))
       : (venc?'venc. '+fmtDate(venc):'sem data');
-    return '<span class="td-by" style="white-space:normal">• '+escHtml(p.desc||'Parcela')+': <b>R$ '+fmtBR(p.valor)+'</b> · '+quando+'</span>';
+    // Duas linhas por parcela: a descricao em cima e, embaixo, valor e
+    // vencimento sem quebrar. Numa linha so, o valor partia ao meio ("R$" de
+    // um lado e o numero do outro) — reclamacao do Ander em 16/11/2026.
+    return '<div style="margin-top:4px;font-size:11px;line-height:1.35">'+
+      '<div style="color:var(--gray-5)">'+escHtml(p.desc||'Parcela')+'</div>'+
+      '<div style="white-space:nowrap"><b>R$ '+fmtBR(p.valor)+'</b> <span style="color:var(--gray-4)">· '+quando+'</span></div>'+
+      '</div>';
   }).join('');
-  return '<td style="min-width:170px"><span style="font-weight:600">💰 '+escHtml(CONDICAO_CURTA[pg.condicao]||'Combinado')+'</span>'+linhas+'</td>';
+  return '<td style="min-width:190px"><span style="font-weight:600">💰 '+escHtml(CONDICAO_CURTA[pg.condicao]||'Combinado')+'</span>'+linhas+'</td>';
 }
 // Embaixo do status: so a situacao do material (o pagamento tem coluna).
 function resumoPagMat(r){
