@@ -341,8 +341,12 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="fg"><label>Fechamento</label><input type="date" id="f-fechamento" onchange="recalcular()"></div>
         <div class="fg"><label>Prazo de material (dias úteis para chegar)</label><input type="number" min="0" id="f-prazomat" oninput="recalcular()" placeholder="Ex.: 30">
           <span class="dica" id="d-limite"></span></div>
-        <div class="fg"><label>Medição prevista</label><input type="date" id="f-medicao" onchange="recalcular()"></div>
-        <div class="fg"><label>Medição realizada em</label><input type="date" id="f-medicaofeita" onchange="recalcular()">
+        <div class="fg"><label>Medição</label>
+          <select id="f-medicaosit" onchange="mudouSituacaoMedicao()">
+            <option value="prevista">Prevista</option>
+            <option value="realizada">Realizada</option>
+          </select></div>
+        <div class="fg"><label>Data da medição</label><input type="date" id="f-medicaodata" onchange="recalcular()">
           <span class="dica" id="d-medicaofeita"></span><span class="dica" id="d-medicaotrava"></span></div>
         <div class="fg"><label>Dias de produção (úteis)</label><input type="number" min="0" id="f-diasprod" oninput="recalcular()" placeholder="Ex.: 30"></div>
         <div class="fg"><label>Projeção de entrada na obra</label><input type="date" id="f-projentrada" onchange="marcarManual('projEntrada');recalcular()">
@@ -1592,6 +1596,26 @@ function arrumar(d){
       if(doc && doc.tipo) doc.tipo=encurtarRotulo(doc.tipo);
     });
   });
+  // As três colunas de medição viraram uma em 17/11/2026. Quem tinha qualquer
+  // uma delas na tabela fica com a nova no mesmo lugar, uma vez só. Também na
+  // leitura, como a conversão dos rótulos acima: nenhuma gravação só por isso.
+  const COLUNAS_MEDICAO_ANTIGAS=['medicao','medicaoFeita','obraMedida'];
+  let achouMedicao=false;
+  d.colunasFicha=d.colunasFicha.filter(function(x){
+    if(!x || COLUNAS_MEDICAO_ANTIGAS.indexOf(x.campo)<0) return true;
+    if(achouMedicao) return false;       // as outras duas somem
+    achouMedicao=true;
+    x.campo='medicaoUnica';
+    return true;
+  });
+  // Escondida é a coluna antiga, não a nova: a nova nasce aparecendo.
+  d.layoutCarteira.ocultas=d.layoutCarteira.ocultas.filter(function(k){
+    return COLUNAS_MEDICAO_ANTIGAS.indexOf(String(k).replace(/^f:/,''))<0;
+  });
+  // A nova entra pela ordem natural da tabela; as antigas saem da lista.
+  d.layoutCarteira.ordem=d.layoutCarteira.ordem.filter(function(k){
+    return COLUNAS_MEDICAO_ANTIGAS.indexOf(String(k).replace(/^f:/,''))<0;
+  });
   return d;
 }
 function lerLocal(){
@@ -1934,19 +1958,27 @@ function dataMedidaQueAparece(c){
   return m?String(m.dataMedicao||'').trim():'';
 }
 
-// ---- AS CORES DA MEDIÇÃO (17/11/2026) ----
-// Verde é data real, âmbar é previsão. Célula vazia continua com o travessão
-// fraco de sempre — colorir o vazio só sujaria a tabela.
-function celulaDeData(valor, classe){
-  const v=String(valor||'').trim();
-  if(!v) return '<td class="td-nowrap td-fraco">—</td>';
-  return '<td class="td-nowrap">'+pill(fmtData(v)||v, classe)+'</td>';
+// ---- A COLUNA "MEDIÇÃO" (17/11/2026) ----
+// Uma coluna só, no lugar das três que havia. A cor é que diz o que a data é:
+//   verde  — medição realizada (a data da ficha ou a do Acompanhamento);
+//   âmbar  — ainda é previsão; se a medição começou, vem o "5 de 12" junto;
+//   vazio  — não foi medida e não tem previsão.
+function celulaMedicao(c){
+  const real=dataMedidaQueAparece(c);
+  if(real) return '<td class="td-nowrap">'+pill(fmtData(real)||real,'pill-verde')+'</td>';
+  const resumo=resumoObraMedida(c);
+  // Medida no Acompanhamento sem visita registrada: não há data para mostrar,
+  // mas dizer "não medida" seria mentira.
+  if(resumo==='Sim') return '<td class="td-nowrap">'+pill('Medida','pill-verde')+'</td>';
+  const prevista=String((c&&c.medicao)||'').trim();
+  if(!prevista && resumo==='Não') return '<td class="td-nowrap td-fraco">—</td>';
+  const texto=(prevista?fmtData(prevista)||prevista:'Sem data')+
+              (resumo==='Não'?'':' · '+resumo);
+  return '<td class="td-nowrap">'+pill(texto,'pill-ambar')+'</td>';
 }
-function celulaObraMedida(c){
-  const t=resumoObraMedida(c);
-  if(t==='Sim')  return '<td class="td-nowrap">'+pill('Sim','pill-verde')+'</td>';
-  if(t==='Não')  return '<td class="td-nowrap">'+pill('Não','pill-cinza')+'</td>';
-  return '<td class="td-nowrap">'+pill(t,'pill-ambar')+'</td>';   // "5 de 12"
+// O valor da coluna para ordenar e para quem lê sem HTML: a data que vale.
+function dataDaColunaMedicao(c){
+  return dataMedidaQueAparece(c) || String((c&&c.medicao)||'').trim();
 }
 
 // Alguma tela de edição aberta? Enquanto houver, não redesenhamos: trocar
@@ -2151,6 +2183,51 @@ function contasDe(c){
   };
 }
 
+// ---- A MEDIÇÃO NA FICHA: uma data e uma situação (17/11/2026) ----
+// A previsão de antes fica guardada mesmo depois de a medição virar realizada:
+// é dela que sai o aviso de "medida 3 dias depois do previsto", e é ela que
+// volta a aparecer se alguém desmarcar.
+let _medicaoPrevistaGuardada='';
+function situacaoDaMedicao(){
+  const el=document.getElementById('f-medicaosit');
+  return (el && el.value==='realizada') ? 'realizada' : 'prevista';
+}
+function dataDaMedicaoNaFicha(){
+  const el=document.getElementById('f-medicaodata');
+  return el ? el.value.trim() : '';
+}
+function medicaoPrevistaDaFicha(){
+  return situacaoDaMedicao()==='realizada' ? _medicaoPrevistaGuardada : dataDaMedicaoNaFicha();
+}
+function medicaoRealizadaDaFicha(){
+  return situacaoDaMedicao()==='realizada' ? dataDaMedicaoNaFicha() : '';
+}
+// Põe na tela o que está guardado no contrato. Realizada ganha: tendo data de
+// medição real, é ela que a ficha mostra.
+function porMedicaoNaFicha(c){
+  const feita=String((c&&c.medicaoFeita)||'').trim();
+  const prevista=String((c&&c.medicao)||'').trim();
+  _medicaoPrevistaGuardada=prevista;
+  const sit=document.getElementById('f-medicaosit');
+  const data=document.getElementById('f-medicaodata');
+  if(sit) sit.value=feita?'realizada':'prevista';
+  if(data) data.value=feita||prevista;
+}
+// Trocou a lista suspensa. Indo para "realizada", a data que estava na tela
+// era a previsão — guarda antes de ela ser substituída.
+function mudouSituacaoMedicao(){
+  if(situacaoDaMedicao()==='realizada'){
+    const naTela=dataDaMedicaoNaFicha();
+    if(naTela) _medicaoPrevistaGuardada=naTela;
+  }else if(_medicaoPrevistaGuardada){
+    // Desmarcou: a data real sai da tela e a previsão original volta. Sem
+    // isto a data da medição virava a nova "previsão" (pego no teste).
+    const data=document.getElementById('f-medicaodata');
+    if(data) data.value=_medicaoPrevistaGuardada;
+  }
+  recalcular();
+}
+
 function lerFicha(){
   const v=id=>document.getElementById(id).value.trim();
   return {
@@ -2161,7 +2238,7 @@ function lerFicha(){
     cidade:v('f-cidade'), condominio:v('f-condominio'),
     status:v('f-status'), revisao:v('f-revisao'),
     fechamento:v('f-fechamento'), prazoMaterial:v('f-prazomat'),
-    medicao:v('f-medicao'), medicaoFeita:v('f-medicaofeita'), diasProd:v('f-diasprod'),
+    medicao:medicaoPrevistaDaFicha(), medicaoFeita:medicaoRealizadaDaFicha(), diasProd:v('f-diasprod'),
     projEntrada:v('f-projentrada'), diasInst:v('f-diasinst'),
     entrega:v('f-entrega'),
     linhas:v('f-linhas'), cores:v('f-cores'), vidros:v('f-vidros'),
@@ -2195,7 +2272,21 @@ function recalcular(){
   } else if(c.medicaoFeita){
     d('d-medicaofeita','As datas abaixo saem desta medição — são reais, não previsão.');
   } else {
-    d('d-medicaofeita','Preencha no dia em que a obra for medida. Enquanto estiver vazio, as contas usam a medição prevista.');
+    // A carteira pode estar mostrando esta obra em verde por causa do
+    // Acompanhamento, enquanto a ficha ainda diz "Prevista". Dizer isso aqui
+    // evita a pergunta "por que lá está medida e aqui não?".
+    const m=medicaoDoAcompanhamento(c);
+    const vaos=m?Number(m.vaos||0):0, medidos=m?Number(m.vaosMedidos||0):0;
+    if(vaos>0 && medidos>=vaos){
+      d('d-medicaofeita','O Acompanhamento já registra esta obra como medida'+
+        (m.dataMedicao?' em <b>'+fmtData(m.dataMedicao)+'</b>':'')+
+        '. Para as contas abaixo saírem dessa data, troque para <b>Realizada</b> e preencha-a.','var(--amber)');
+    }else if(vaos>0 && medidos>0){
+      d('d-medicaofeita','A medição começou no Acompanhamento: <b>'+medidos+' de '+vaos+
+        '</b> vãos já medidos. Troque para <b>Realizada</b> quando terminar.');
+    }else{
+      d('d-medicaofeita','Ainda é previsão: as datas abaixo são projeção. Troque para <b>Realizada</b> no dia em que a obra for medida.');
+    }
   }
 
   // A data pode cair no passado quando a medição está perto e o prazo é
@@ -2837,8 +2928,11 @@ function novoContrato(){
   preencherFichaContrato(null);
   const p=(id,v)=>{ document.getElementById(id).value=v; };
   ['f-ct','f-cliente','f-coord','f-respcom','f-cidade','f-condominio','f-fechamento',
-   'f-prazomat','f-medicao','f-medicaofeita','f-diasprod','f-projentrada','f-diasinst','f-entrega',
+   'f-prazomat','f-medicaodata','f-diasprod','f-projentrada','f-diasinst','f-entrega',
    'f-linhas','f-cores','f-vidros','f-pecas','f-obs'].forEach(function(id){ p(id,''); });
+  // Contrato novo nasce com a medição em "Prevista" e sem previsão guardada da
+  // ficha anterior.
+  porMedicaoNaFicha(null);
   p('f-ano',String(new Date().getFullYear()));
   p('f-status','A MEDIR');
   p('f-revisao','PENDENTE');
@@ -2883,7 +2977,7 @@ function abrirFicha(id){
   p('f-cidade',c.cidade); p('f-condominio',c.condominio);
   p('f-status',c.status); p('f-revisao',c.revisao);
   p('f-fechamento',c.fechamento); p('f-prazomat',c.prazoMaterial);
-  p('f-medicao',c.medicao); p('f-medicaofeita',c.medicaoFeita); p('f-diasprod',c.diasProd);
+  porMedicaoNaFicha(c); p('f-diasprod',c.diasProd);
   p('f-projentrada',c.projEntrada); p('f-diasinst',c.diasInst);
   p('f-entrega',c.entrega);
   p('f-linhas',c.linhas); p('f-cores',c.cores); p('f-vidros',c.vidros);
@@ -2941,11 +3035,15 @@ function travarFichaSeConsulta(){
 // historico. A mesma regra e reaplicada no salvarFicha — o campo desabilitado
 // so evita o susto, nao e a protecao.
 function travarMedicaoFeita(c){
-  const el=document.getElementById('f-medicaofeita');
+  const el=document.getElementById('f-medicaodata');
+  const sit=document.getElementById('f-medicaosit');
   const nota=document.getElementById('d-medicaotrava');
   if(!el) return;
   const gravada=!!(fichaId && String((c&&c.medicaoFeita)||'').trim());
   el.disabled=gravada && !podeGerenciar();
+  // A lista suspensa trava junto: sem isto bastava voltar para "Prevista"
+  // para apagar a data real que a trava protege.
+  if(sit) sit.disabled=gravada && !podeGerenciar();
   if(!nota) return;
   nota.textContent=!gravada ? ''
     : (podeGerenciar()
@@ -4586,18 +4684,11 @@ const CAMPOS_FICHA_TABELA=[
   {campo:'prazoMaterial',  rotulo:'Prazo de material',   tipo:'numero'},
   {campo:'limiteMaterial', rotulo:'Iniciar compra até',  tipo:'data',
     valor:function(c){ return contasDe(c).limiteMaterial; }},
-  {campo:'medicao',        rotulo:'Medição prevista',    tipo:'data',
-    celula:function(c){ return celulaDeData(c.medicao,'pill-ambar'); }},
-  // Mostra a data da ficha e, na falta dela, a do Acompanhamento — por isso o
-  // acessor, embora o campo exista na ficha.
-  {campo:'medicaoFeita',   rotulo:'Medida',              tipo:'data',
-    valor:function(c){ return dataMedidaQueAparece(c); },
-    celula:function(c){ return celulaDeData(dataMedidaQueAparece(c),'pill-verde'); }},
-  // Não é um campo da ficha: é a resposta montada do Acompanhamento com a
-  // ficha. Por isso tem o acessor — ver resumoObraMedida.
-  {campo:'obraMedida',     rotulo:'Obra medida',         tipo:'texto',
-    valor:function(c){ return resumoObraMedida(c); },
-    celula:function(c){ return celulaObraMedida(c); }},
+  // UMA coluna no lugar de "Medição prevista", "Medida" e "Obra medida"
+  // (17/11/2026). As três diziam a mesma coisa de três jeitos.
+  {campo:'medicaoUnica',   rotulo:'Medição',             tipo:'data',
+    valor:function(c){ return dataDaColunaMedicao(c); },
+    celula:function(c){ return celulaMedicao(c); }},
   {campo:'diasProd',       rotulo:'Dias de produção',    tipo:'numero'},
   {campo:'projEntrada',    rotulo:'Projeção de entrada', tipo:'data'},
   {campo:'diasInst',       rotulo:'Dias de instalação',  tipo:'numero'},
