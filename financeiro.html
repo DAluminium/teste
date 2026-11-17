@@ -5586,9 +5586,17 @@ const PLANO_ENTRADA=[
   {id:'aporte-socio',             label:'Aporte de sócio'},
   {id:'emprestimo',               label:'Empréstimo recebido'},
   {id:'reembolso',                label:'Reembolso'},
+  {id:'transferencia-entre-empresas', label:'Transferência entre empresas'},
   {id:'outras-entradas',          label:'Outras entradas'}
 ];
 const PLANO_DEVOLUCAO='devolucao-retirada-socia';
+// Dinheiro que vai ou vem de OUTRO CNPJ (ex.: Solutio <-> Solution). O sistema
+// nao separa contas por CNPJ, entao isto nao e "Transferencia" (que e entre
+// contas da mesma empresa): e entrada ou saida, com este plano dos dois lados.
+// Na saida ele vem antes das categorias de despesa, porque nao e despesa.
+// (pedido da Ailime, 17/11/2026)
+const PLANO_EMPRESAS='transferencia-entre-empresas';
+const PLANO_SAIDA_EXTRA=[{id:PLANO_EMPRESAS, label:'Transferência entre empresas'}];
 // Retirada da socia: a categoria padrao e qualquer outra cadastrada com nome
 // comecando por "Retirada" (o cadastro de categorias e livre).
 function ehCatRetirada(id){
@@ -5603,6 +5611,8 @@ function planoLabelMov(m){
     const p=PLANO_ENTRADA.find(function(x){ return x.id===m.plano; });
     return p?p.label:m.plano;
   }
+  const x=PLANO_SAIDA_EXTRA.find(function(e){ return e.id===m.plano; });
+  if(x) return x.label;
   return CAT_LABEL[m.plano]||m.plano;
 }
 function popularPlanoLanc(){
@@ -5611,7 +5621,7 @@ function popularPlanoLanc(){
   const tipo=document.getElementById('lc-tipo').value;
   const lista = tipo==='entrada'
     ? PLANO_ENTRADA
-    : getCategorias().filter(function(c){ return c.ativo!==false; });
+    : PLANO_SAIDA_EXTRA.concat(getCategorias().filter(function(c){ return c.ativo!==false && c.id!==PLANO_EMPRESAS; }));
   sel.innerHTML='<option value="">— sem plano de conta —</option>'+
     lista.map(function(c){ return '<option value="'+c.id+'">'+c.label+'</option>'; }).join('');
 }
@@ -5779,7 +5789,30 @@ function renderRelatorio(){
     <div class="rel-row total"><span>SALDO TOTAL</span><span style="font-weight:700;color:${calcSaldoTotal()>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(calcSaldoTotal())}</span></div>
   </div>`;
   html+=secaoContaSocia(mes);
+  html+=secaoEntreEmpresas(mes);
   document.getElementById('relatorio-content').innerHTML=html;
+}
+
+// ---- TRANSFERENCIAS ENTRE EMPRESAS no mes (pedido da Ailime, 17/11/2026) ----
+// Lancamentos no banco com o plano "Transferencia entre empresas": quanto saiu
+// para outro CNPJ, quanto voltou, e a lista. So aparece se houver algum no mes.
+function secaoEntreEmpresas(mes){
+  const itens=(data.movimentos||[]).filter(function(m){
+    return m.plano===PLANO_EMPRESAS && (m.tipo==='entrada'||m.tipo==='saida') &&
+      m.data && m.data.slice(0,7)===mes;
+  }).sort(function(a,b){ return a.data.localeCompare(b.data); });
+  if(!itens.length) return '';
+  const soma=function(t){ return itens.reduce(function(a,m){ return a+(m.tipo===t?(Number(m.valor)||0):0); },0); };
+  const enviado=soma('saida'), recebido=soma('entrada');
+  const nomeMes=mesLabel(mes+'-01');
+  return `
+  <div class="rel-section">
+    <div class="rel-title">🏢 TRANSFERÊNCIAS ENTRE EMPRESAS — ${nomeMes.toUpperCase()}</div>
+    ${itens.map(function(m){ return `<div class="rel-row"><span>${fmtDate(m.data)} · ${m.tipo==='saida'?'Enviado':'Recebido'} · ${m.desc||'—'} · ${CONTA_LABEL[m.conta]||m.conta}</span><span class="${m.tipo==='saida'?'rel-neg':'rel-pos'}">${m.tipo==='saida'?'- ':'+ '}R$ ${fmtBR(Number(m.valor)||0)}</span></div>`; }).join('')}
+    <div class="rel-row"><span>Enviado para outras empresas</span><span class="rel-neg">R$ ${fmtBR(enviado)}</span></div>
+    <div class="rel-row"><span>Recebido de outras empresas</span><span class="rel-pos">R$ ${fmtBR(recebido)}</span></div>
+    <div class="rel-row total"><span>${recebido>=enviado?'SALDO: ENTROU A MAIS':'SALDO: SAIU A MAIS'}</span><span style="font-weight:700;color:${recebido>=enviado?'var(--green)':'var(--red)'}">R$ ${fmtBR(Math.abs(recebido-enviado))}</span></div>
+  </div>`;
 }
 
 // ---- CONTA DA SOCIA: retiradas x devolucoes (pedido do Ander, 03/11/2026) ----
