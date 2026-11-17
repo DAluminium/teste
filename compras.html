@@ -305,7 +305,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </button>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Comprar até</th><th>Pronto previsto</th><th>Pagamento</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Comprar até</th><th>Pagamento</th><th>Pronto previsto</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
       <tbody id="tbody-urgente"></tbody>
     </table></div>
     <div class="panel-footer">Total em aberto: <strong id="t-urgente">R$ 0,00</strong></div>
@@ -319,7 +319,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </button>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Comprar até</th><th>Pronto previsto</th><th>Pagamento</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Comprar até</th><th>Pagamento</th><th>Pronto previsto</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
       <tbody id="tbody-importante"></tbody>
     </table></div>
     <div class="panel-footer">Total: <strong id="t-importante">R$ 0,00</strong></div>
@@ -330,7 +330,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div class="panel-title"><span class="badge badge-paid" id="badge-p">0</span>Obras pagas</div>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Data Pag.</th><th>Pronto previsto</th><th>Pagamento</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Data Pag.</th><th>Pagamento</th><th>Pronto previsto</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
       <tbody id="tbody-pago"></tbody>
     </table></div>
     <div class="panel-footer">Total pago: <strong id="t-pago">R$ 0,00</strong></div>
@@ -1059,9 +1059,9 @@ function renderTable(type,isPago){
       <td>${fmtDate(r.dataOrc)}</td>
       <td>${fmtDate(r.entrega)}${r.medicao?`<span class="td-by" style="color:var(--teal-dark)">📐 Med: ${fmtDate(r.medicao)}</span>`:''}${blocoDatasObra(r)}</td>
       ${isPago?'':celulaComprarAte(r)}
-      ${isPago?'':celulaProntoPrevisto(r)+celulaPagamento(r)}
+      ${isPago?'':celulaPagamento(r)+celulaProntoPrevisto(r)}
       ${extraCol}
-      ${isPago?celulaProntoPrevisto(r)+celulaPagamento(r):''}
+      ${isPago?celulaPagamento(r)+celulaProntoPrevisto(r):''}
       ${statusCell}
       ${attachBtn}
       ${actions}
