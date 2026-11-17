@@ -305,7 +305,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </button>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Comprar até</th><th>Pronto previsto</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Comprar até</th><th>Pronto previsto</th><th>Pagamento</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
       <tbody id="tbody-urgente"></tbody>
     </table></div>
     <div class="panel-footer">Total em aberto: <strong id="t-urgente">R$ 0,00</strong></div>
@@ -319,7 +319,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </button>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Comprar até</th><th>Pronto previsto</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Comprar até</th><th>Pronto previsto</th><th>Pagamento</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
       <tbody id="tbody-importante"></tbody>
     </table></div>
     <div class="panel-footer">Total: <strong id="t-importante">R$ 0,00</strong></div>
@@ -330,7 +330,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div class="panel-title"><span class="badge badge-paid" id="badge-p">0</span>Obras pagas</div>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Data Pag.</th><th>Pronto previsto</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Data Pag.</th><th>Pronto previsto</th><th>Pagamento</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
       <tbody id="tbody-pago"></tbody>
     </table></div>
     <div class="panel-footer">Total pago: <strong id="t-pago">R$ 0,00</strong></div>
@@ -1059,9 +1059,9 @@ function renderTable(type,isPago){
       <td>${fmtDate(r.dataOrc)}</td>
       <td>${fmtDate(r.entrega)}${r.medicao?`<span class="td-by" style="color:var(--teal-dark)">📐 Med: ${fmtDate(r.medicao)}</span>`:''}${blocoDatasObra(r)}</td>
       ${isPago?'':celulaComprarAte(r)}
-      ${isPago?'':celulaProntoPrevisto(r)}
+      ${isPago?'':celulaProntoPrevisto(r)+celulaPagamento(r)}
       ${extraCol}
-      ${isPago?celulaProntoPrevisto(r):''}
+      ${isPago?celulaProntoPrevisto(r)+celulaPagamento(r):''}
       ${statusCell}
       ${attachBtn}
       ${actions}
@@ -2851,14 +2851,27 @@ function celulaProntoPrevisto(r){
   return '<td style="white-space:nowrap"><span style="color:'+cor+';font-weight:600">'+fmtDate(prev)+'</span>'+
     '<span class="td-by" style="white-space:normal">'+sub+(depoisDaObra?'<br>⚠️ depois da '+m.nome:'')+'</span></td>';
 }
+// Coluna "Pagamento" (pedido do Ander, 16/11/2026): como ficou combinado.
+// Condicao em cima e cada parcela embaixo, com valor e quando vence. A
+// situacao paga/a pagar vira do Financeiro (etapa 2B), que e quem da baixa.
+const CONDICAO_CURTA={'avista':'À vista','50-50':'50% + 50%','100-antecipado':'100% antecipado',
+  'na-retirada':'Na retirada / envio','parcelado':'Parcelado','outra':'Outra'};
+function celulaPagamento(r){
+  const pg=r.pagamento;
+  if(!pg||!(pg.parcelas||[]).length) return '<td style="color:var(--gray-4)">—</td>';
+  const prev=(r.producao||{}).previsaoPronto||'';
+  const linhas=pg.parcelas.map(function(p){
+    const venc=vencimentoDaParcela(p, prev);
+    const quando=p.quando==='pronto'
+      ? ('quando pronto'+(venc?' ('+fmtDate(venc)+')':''))
+      : (venc?'venc. '+fmtDate(venc):'sem data');
+    return '<span class="td-by" style="white-space:normal">• '+escHtml(p.desc||'Parcela')+': <b>R$ '+fmtBR(p.valor)+'</b> · '+quando+'</span>';
+  }).join('');
+  return '<td style="min-width:170px"><span style="font-weight:600">💰 '+escHtml(CONDICAO_CURTA[pg.condicao]||'Combinado')+'</span>'+linhas+'</td>';
+}
+// Embaixo do status: so a situacao do material (o pagamento tem coluna).
 function resumoPagMat(r){
   const partes=[];
-  const pg=r.pagamento;
-  if(pg&&pg.condicao){
-    const rot=rotuloDe(CONDICOES_PAGAMENTO, pg.condicao).replace(/ \(.*\)$/,'');
-    partes.push('<span class="td-by" style="white-space:normal">💰 '+escHtml(rot)+
-      (pg.parcelas&&pg.parcelas.length>1?' · '+pg.parcelas.length+' parcelas':'')+'</span>');
-  }
   const mat=r.producao;
   if(mat&&mat.situacao){   // a previsao tem coluna propria
     const sit=rotuloDe(SITUACOES_MATERIAL, mat.situacao)||'';
