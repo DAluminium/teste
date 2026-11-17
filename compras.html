@@ -258,7 +258,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <button class="btn btn-ghost btn-sm" onclick="doLogout()" title="Sair">
       <svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sair
     </button>
-    <button class="btn btn-ghost btn-sm" onclick="abrirRelatorioProducao()" title="Material em produção: o que está pago, parcial e a pagar, com as previsões">
+    <button class="btn btn-ghost btn-sm" onclick="abrirRelatorioCompras()" title="Relatórios: compras do período e material em produção">
       <svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Relatório
     </button>
     <button class="btn btn-ghost btn-sm" onclick="imprimirCaderno()">
@@ -3267,7 +3267,7 @@ function abrirRelatorioProducao(){
   fornecedores.sort();
   const el=document.createElement('div');
   el.id='relatorio-producao-ov'; el.className='modal-overlay open';
-  el.innerHTML='<div class="modal" style="max-width:1200px;width:calc(100vw - 32px)"><div class="modal-header"><div class="modal-title">📊 Material em produção</div>'+
+  el.innerHTML='<div class="modal" style="max-width:1200px;width:calc(100vw - 32px)"><div class="modal-header"><div class="modal-title">'+abasDoRelatorio('producao')+'</div>'+
     '<button class="act" data-acao="fechar" aria-label="Fechar">✕</button></div><div class="modal-body">'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:6px">'+
       GRUPOS_RELATORIO.map(function(g){ return '<label style="display:flex;gap:4px;align-items:center;font-size:12px"><input type="checkbox" data-grupo="'+g.id+'"'+(_relFiltro.grupos[g.id]?' checked':'')+'>'+g.titulo.split(' — ')[0]+'</label>'; }).join('')+
@@ -3334,6 +3334,200 @@ function excelRelatorioProducao(){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url; a.download='material_em_producao_'+new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); },1000);
+}
+
+// ---- RELATORIO "COMPRAS DO PERIODO" (pedido do escritorio, 17/11/2026) ----
+// "Quero tirar um relatorio das compras do mes: todas as compras de junho e o
+// valor global, para imprimir." Entra o que foi COMPRADO: pedido feito (pelo
+// botao) e tudo em Obras pagas, inclusive as marcadas como pagas antes de
+// existir o pedido. Orcamento em aberto nao entra (decisao do Ander).
+// A data que conta e a DA COMPRA: o dia do pedido; nas Obras pagas antigas,
+// sem pedido, a data do pagamento que foi lancada (decisao do Ander).
+let _relPer={de:'', ate:'', fornecedor:'', busca:'', situacao:''};
+function abasDoRelatorio(atual){
+  const aba=function(id,txt,fn){
+    return id===atual
+      ? '<span style="font-weight:700;border-bottom:2px solid var(--teal-dark);padding-bottom:2px">'+txt+'</span>'
+      : '<a href="#" onclick="document.getElementById(\''+(atual==='producao'?'relatorio-producao-ov':'relatorio-compras-ov')+'\').remove();'+fn+'();return false" style="color:var(--gray-5);text-decoration:none">'+txt+'</a>';
+  };
+  return '<span style="display:inline-flex;gap:18px;flex-wrap:wrap">'+
+    aba('compras','📅 Compras do período','abrirRelatorioCompras')+aba('producao','🏭 Material em produção','abrirRelatorioProducao')+'</span>';
+}
+function dataDaCompra(r){
+  return String((r.pedidoFeito&&r.pedidoFeito.em)||(r.dataPag&&r.dataPag!=='—'?r.dataPag:'')||'').slice(0,10);
+}
+function linhasComprasPeriodo(){
+  const saida=[];
+  ['urgente','importante','pago'].forEach(function(aba){
+    (data[aba]||[]).forEach(function(r){
+      if(aba!=='pago' && !r.pedidoFeito) return;          // orcamento em aberto
+      const quando=dataDaCompra(r);
+      let total=centavos(r.valor), pago=0;
+      const pp=pagoDoPedido(r);
+      if(pp && pp.total>0){ total=pp.total; pago=pp.pago; }
+      else if(aba==='pago'){ pago=total; }                 // marcada como paga (antiga)
+      const sit=(total>0&&pago>=total-0.01)?'pago':(pago>0?'parcial':'apagar');
+      saida.push({r:r, aba:aba, data:quando, total:total, pago:centavos(pago), falta:centavos(total-pago), sit:sit});
+    });
+  });
+  const f=_relPer, busca=paraBusca(f.busca||'');
+  return saida.filter(function(x){
+    if(f.de && (!x.data || x.data<f.de)) return false;
+    if(f.ate && (!x.data || x.data>f.ate)) return false;
+    if(f.fornecedor && x.r.fornecedor!==f.fornecedor) return false;
+    if(f.situacao && x.sit!==f.situacao) return false;
+    if(busca && !paraBusca([x.r.obra,x.r.contrato,x.r.material,x.r.fornecedor].join(' ')).includes(busca)) return false;
+    return true;
+  }).sort(function(a,b){ return String(a.data||'9999').localeCompare(String(b.data||'9999')); });
+}
+const ROTULO_SIT_PG={pago:'✅ Pago', parcial:'◐ Parcial', apagar:'⏳ A pagar'};
+function tabelaComprasPeriodo(linhas, paraImprimir){
+  if(!linhas.length) return '<p style="color:#5A6370;padding:20px 0;text-align:center">Nenhuma compra neste período com estes filtros.</p>';
+  const td='padding:6px 8px;border-bottom:1px solid #EEF0F2;vertical-align:top';
+  const th='padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#5A6370;border-bottom:2px solid #DEE1E5;white-space:nowrap';
+  const soma=function(ls,k){ return centavos(ls.reduce(function(a,x){ return a+x[k]; },0)); };
+  let html='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:'+(paraImprimir?'10':'12')+'px"><thead><tr>'+
+    ['Data da compra','Obra / contrato','Material','Fornecedor','Valor','Já pago','Falta pagar','Pagamento']
+      .map(function(t){ return '<th style="'+th+'">'+t+'</th>'; }).join('')+'</tr></thead><tbody>'+
+    linhas.map(function(x){
+      const r=x.r;
+      return '<tr>'+
+        '<td style="'+td+';white-space:nowrap">'+(x.data?fmtDate(x.data):'—')+'</td>'+
+        '<td style="'+td+';font-weight:600">'+escHtml(r.obra||'')+(r.contrato?'<div style="font-weight:400;color:#5A6370">CT '+escHtml(r.contrato)+'</div>':'')+'</td>'+
+        '<td style="'+td+'">'+escHtml(r.material||'—')+'</td>'+
+        '<td style="'+td+'">'+escHtml(r.fornecedor||'—')+(r.pedidoFeito&&r.pedidoFeito.nr?'<div style="color:#5A6370">pedido nº '+escHtml(r.pedidoFeito.nr)+'</div>':'')+'</td>'+
+        '<td style="'+td+';white-space:nowrap">R$ '+fmtBR(x.total)+'</td>'+
+        '<td style="'+td+';white-space:nowrap;color:#1A7A45">R$ '+fmtBR(x.pago)+'</td>'+
+        '<td style="'+td+';white-space:nowrap;font-weight:700;color:'+(x.falta>0?'#C0392B':'#1A7A45')+'">R$ '+fmtBR(x.falta)+'</td>'+
+        '<td style="'+td+';white-space:nowrap">'+ROTULO_SIT_PG[x.sit]+'</td></tr>';
+    }).join('')+
+    '<tr style="background:#F7F8F9;font-weight:700"><td style="'+td+'" colspan="4">Total do período — '+linhas.length+' compra'+(linhas.length===1?'':'s')+'</td>'+
+      '<td style="'+td+';white-space:nowrap">R$ '+fmtBR(soma(linhas,'total'))+'</td>'+
+      '<td style="'+td+';white-space:nowrap;color:#1A7A45">R$ '+fmtBR(soma(linhas,'pago'))+'</td>'+
+      '<td style="'+td+';white-space:nowrap;color:#C0392B">R$ '+fmtBR(soma(linhas,'falta'))+'</td><td style="'+td+'"></td></tr>'+
+    '</tbody></table></div>';
+  // Total por fornecedor: a pergunta seguinte de quem presta contas.
+  const porForn={};
+  linhas.forEach(function(x){ const k=x.r.fornecedor||'(sem fornecedor)'; if(!porForn[k]) porForn[k]={n:0,total:0}; porForn[k].n++; porForn[k].total+=x.total; });
+  const forns=Object.keys(porForn).sort(function(a,b){ return porForn[b].total-porForn[a].total; });
+  html+='<div style="margin-top:14px;font-weight:700">Total por fornecedor</div>'+
+    '<table style="border-collapse:collapse;font-size:'+(paraImprimir?'10':'12')+'px;margin-top:4px">'+
+    forns.map(function(k){ return '<tr><td style="padding:3px 14px 3px 0">'+escHtml(k)+'</td><td style="padding:3px 14px 3px 0;color:#5A6370">'+porForn[k].n+' compra'+(porForn[k].n===1?'':'s')+'</td>'+
+      '<td style="padding:3px 0;font-weight:600;white-space:nowrap">R$ '+fmtBR(centavos(porForn[k].total))+'</td></tr>'; }).join('')+'</table>'+
+    '<div style="margin-top:14px;padding:10px 12px;background:#FDF0EE;border-radius:8px;display:flex;gap:18px;flex-wrap:wrap;font-weight:700">'+
+      '<span>Total comprado: R$ '+fmtBR(soma(linhas,'total'))+'</span><span style="color:#1A7A45">Já pago: R$ '+fmtBR(soma(linhas,'pago'))+'</span>'+
+      '<span style="color:#C0392B">Falta pagar: R$ '+fmtBR(soma(linhas,'falta'))+'</span></div>';
+  return html;
+}
+function mesesComCompras(){
+  const m={};
+  ['urgente','importante','pago'].forEach(function(aba){
+    (data[aba]||[]).forEach(function(r){
+      if(aba!=='pago' && !r.pedidoFeito) return;
+      const d=dataDaCompra(r); if(d) m[d.slice(0,7)]=1;
+    });
+  });
+  return Object.keys(m).sort().reverse();
+}
+const NOMES_MES=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+function ultimoDiaDoMes(ym){ const [y,m]=ym.split('-').map(Number); return ym+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0'); }
+function descricaoPeriodo(){
+  const f=_relPer;
+  let p='Todo o período';
+  if(f.de&&f.ate&&f.de.slice(0,7)===f.ate.slice(0,7)&&f.de.slice(8)==='01'&&f.ate===ultimoDiaDoMes(f.de.slice(0,7)))
+    p='Compras de '+NOMES_MES[Number(f.de.slice(5,7))-1]+' de '+f.de.slice(0,4);
+  else if(f.de||f.ate) p='De '+(f.de?fmtDate(f.de):'—')+' até '+(f.ate?fmtDate(f.ate):'—');
+  return p+(f.situacao?' · '+ROTULO_SIT_PG[f.situacao].replace(/^[^ ]+ /,''):'')+(f.fornecedor?' · Fornecedor: '+f.fornecedor:'')+(f.busca?' · Busca: '+f.busca:'');
+}
+function abrirRelatorioCompras(){
+  const velho=document.getElementById('relatorio-compras-ov'); if(velho) velho.remove();
+  const fornecedores=[];
+  ['urgente','importante','pago'].forEach(function(aba){ (data[aba]||[]).forEach(function(r){
+    if((aba==='pago'||r.pedidoFeito) && r.fornecedor && fornecedores.indexOf(r.fornecedor)<0) fornecedores.push(r.fornecedor); }); });
+  fornecedores.sort();
+  const meses=mesesComCompras();
+  const el=document.createElement('div');
+  el.id='relatorio-compras-ov'; el.className='modal-overlay open';
+  const campo='font-size:12px;padding:4px 8px;width:auto';
+  el.innerHTML='<div class="modal" style="max-width:1200px;width:calc(100vw - 32px)"><div class="modal-header"><div class="modal-title">'+abasDoRelatorio('compras')+'</div>'+
+    '<button class="act" data-acao="fechar" aria-label="Fechar">✕</button></div><div class="modal-body">'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px">'+
+      '<select data-mes style="'+campo+'"><option value="">Escolher o mês…</option><option value="todos">Todo o período</option>'+
+        meses.map(function(ym){ return '<option value="'+ym+'">'+NOMES_MES[Number(ym.slice(5))-1]+' de '+ym.slice(0,4)+'</option>'; }).join('')+'</select>'+
+      '<label style="font-size:12px">de <input type="date" data-de value="'+escHtml(_relPer.de)+'" style="'+campo+'"></label>'+
+      '<label style="font-size:12px">até <input type="date" data-ate value="'+escHtml(_relPer.ate)+'" style="'+campo+'"></label>'+
+      '<select data-sit style="'+campo+'"><option value="">Pagamento: todos</option><option value="pago"'+(_relPer.situacao==='pago'?' selected':'')+'>✅ Pago</option>'+
+        '<option value="parcial"'+(_relPer.situacao==='parcial'?' selected':'')+'>◐ Parcial</option><option value="apagar"'+(_relPer.situacao==='apagar'?' selected':'')+'>⏳ A pagar</option></select>'+
+      '<select data-forn style="'+campo+'"><option value="">Todos os fornecedores</option>'+
+        fornecedores.map(function(x){ return '<option'+(_relPer.fornecedor===x?' selected':'')+'>'+escHtml(x)+'</option>'; }).join('')+'</select>'+
+      '<input data-busca placeholder="Obra ou contrato" value="'+escHtml(_relPer.busca||'')+'" style="'+campo+';min-width:150px">'+
+    '</div>'+
+    '<p class="note" style="margin:0 0 4px">Todas as compras feitas: pedidos e Obras pagas (inclusive as antigas). Conta pela data da compra. O que já foi pago dos pedidos vem do Financeiro.</p>'+
+    '<div data-resumo style="font-weight:600;margin:6px 0"></div><div data-tabela></div>'+
+    '</div><div class="modal-footer">'+
+      '<button class="btn btn-outline" data-acao="excel">⬇ Excel</button>'+
+      '<button class="btn btn-outline" data-acao="imprimir">🖨 Imprimir / PDF</button>'+
+      '<button class="btn btn-teal" data-acao="fechar">Fechar</button></div></div>';
+  const desenhar=function(){
+    el.querySelector('[data-resumo]').textContent=descricaoPeriodo();
+    el.querySelector('[data-tabela]').innerHTML=tabelaComprasPeriodo(linhasComprasPeriodo(), false);
+  };
+  el.addEventListener('change',function(ev){
+    const t=ev.target;
+    if(t.hasAttribute('data-mes')){
+      if(t.value==='todos'){ _relPer.de=''; _relPer.ate=''; }
+      else if(t.value){ _relPer.de=t.value+'-01'; _relPer.ate=ultimoDiaDoMes(t.value); }
+      el.querySelector('[data-de]').value=_relPer.de; el.querySelector('[data-ate]').value=_relPer.ate;
+    }
+    if(t.hasAttribute('data-de')){ _relPer.de=t.value; el.querySelector('[data-mes]').value=''; }
+    if(t.hasAttribute('data-ate')){ _relPer.ate=t.value; el.querySelector('[data-mes]').value=''; }
+    if(t.hasAttribute('data-sit')) _relPer.situacao=t.value;
+    if(t.hasAttribute('data-forn')) _relPer.fornecedor=t.value;
+    desenhar();
+  });
+  el.addEventListener('input',function(ev){ if(ev.target.hasAttribute('data-busca')){ _relPer.busca=ev.target.value; desenhar(); } });
+  el.addEventListener('click',function(ev){
+    const b=ev.target.closest('button'); if(!b) return;
+    if(b.dataset.acao==='fechar') el.remove();
+    if(b.dataset.acao==='imprimir') imprimirComprasPeriodo();
+    if(b.dataset.acao==='excel') excelComprasPeriodo();
+  });
+  document.body.appendChild(el);
+  desenhar();
+}
+function imprimirComprasPeriodo(){
+  const agora=new Date().toLocaleDateString('pt-BR')+' '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  const teste=/_teste$/.test(SUPA_SISTEMA);
+  const html='<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Compras — '+escHtml(descricaoPeriodo())+'</title>'+
+    '<style>body{font-family:-apple-system,Segoe UI,sans-serif;color:#23282F;margin:18px}h1{font-size:16px;margin:0 0 4px}'+
+    '.sub{font-size:11px;color:#5A6370;margin-bottom:8px}@page{size:landscape;margin:12mm}'+
+    '.faixa{border:2px solid #000;padding:5px;text-align:center;font-weight:700;font-size:11px;margin-bottom:8px}</style></head><body>'+
+    (teste?'<div class="faixa">AMBIENTE DE TESTE · ESTE RELATÓRIO NÃO VALE COMO DOCUMENTO</div>':'')+
+    '<h1>Daluminium · '+escHtml(descricaoPeriodo())+'</h1><div class="sub">Pela data da compra · Emitido em '+agora+'</div>'+
+    tabelaComprasPeriodo(linhasComprasPeriodo(), true)+
+    '<script>window.onload=function(){window.print()}<\/script></body></html>';
+  const w=window.open('','_blank');
+  if(!w){ avisoSistema('Não abriu a impressão\n\nO navegador bloqueou a janela de impressão. Libere as janelas deste site e tente de novo.'); return; }
+  w.document.write(html); w.document.close();
+}
+function excelComprasPeriodo(){
+  const num=function(v){ return (Math.round((Number(v)||0)*100)/100).toFixed(2).replace('.',','); };
+  const rows=[['Data da compra','Obra','Contrato','Material','Fornecedor','Nº pedido','Valor (R$)','Já pago (R$)','Falta pagar (R$)','Pagamento']];
+  const ls=linhasComprasPeriodo();
+  ls.forEach(function(x){
+    const r=x.r;
+    rows.push([x.data?fmtDate(x.data):'', r.obra||'', r.contrato||'', r.material||'', r.fornecedor||'', (r.pedidoFeito||{}).nr||'',
+      num(x.total), num(x.pago), num(x.falta), ROTULO_SIT_PG[x.sit].replace(/^[^ ]+ /,'')]);
+  });
+  const t=function(k){ return ls.reduce(function(a,x){ return a+x[k]; },0); };
+  rows.push(['TOTAL','','','','','',num(t('total')),num(t('pago')),num(t('falta')),'']);
+  const csv=rows.map(function(r){ return r.map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(';'); }).join('\r\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='compras_'+(_relPer.de||'inicio')+'_a_'+(_relPer.ate||'hoje')+'.csv';
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function(){ URL.revokeObjectURL(url); },1000);
 }
