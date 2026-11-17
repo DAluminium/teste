@@ -901,6 +901,13 @@ let usuario='';
 // Papel de quem entrou: admin, gerente, compras, financeiro ou consulta.
 let papel='';
 function podeGerenciar(){ return papel==='admin' || papel==='gerente'; }
+// Quem corrige a DATA DA MEDIÇÃO já registrada (17/11/2026): o gerente, o
+// administrador e o Coordenador — é ele que vai a campo e sabe o dia certo.
+// Vale só para esta data: o resto do que o coordenador faz é o do funcionário.
+function ehCoordenador(){
+  return papel==='coordenador' || papelDoCracha()==='coordenador';
+}
+function podeMexerNaMedicao(){ return podeGerenciar() || ehCoordenador(); }
 // Cadastrar e editar obra: todos com o modulo, menos a Consulta (pedido do
 // Ander, 14/10/2026). O contrato com CPF, excluir e os cadastros continuam do
 // gerente — e o Worker nao entrega nem aceita o contrato de quem nao e gerente.
@@ -3040,15 +3047,15 @@ function travarMedicaoFeita(c){
   const nota=document.getElementById('d-medicaotrava');
   if(!el) return;
   const gravada=!!(fichaId && String((c&&c.medicaoFeita)||'').trim());
-  el.disabled=gravada && !podeGerenciar();
+  el.disabled=gravada && !podeMexerNaMedicao();
   // A lista suspensa trava junto: sem isto bastava voltar para "Prevista"
   // para apagar a data real que a trava protege.
-  if(sit) sit.disabled=gravada && !podeGerenciar();
+  if(sit) sit.disabled=gravada && !podeMexerNaMedicao();
   if(!nota) return;
   nota.textContent=!gravada ? ''
-    : (podeGerenciar()
+    : (podeMexerNaMedicao()
         ? '🔒 Data registrada. Para corrigir, altere e salve: o motivo será pedido e fica no histórico.'
-        : '🔒 Data registrada e travada. Só gerente ou administrador corrige.');
+        : '🔒 Data registrada e travada. Só gerente, administrador ou coordenador corrige.');
 }
 
 function fecharFicha(){
@@ -3070,14 +3077,14 @@ async function salvarFicha(manterAberta){
   if(!c.ano){ aviso('Falta o ano','Preencha o ano do contrato.'); document.getElementById('f-ano').focus(); return false; }
   if(!c.cliente){ aviso('Falta o cliente','Preencha o cliente ou o nome da obra.'); document.getElementById('f-cliente').focus(); return false; }
 
-  // Trava da medicao realizada (ver travarMedicaoFeita). Quem nao e gerente
-  // fica sempre com a data gravada; gerente/admin so corrige com motivo.
+  // Trava da medicao realizada (ver travarMedicaoFeita). Quem nao pode mexer
+  // fica sempre com a data gravada; quem pode so corrige com motivo.
   let motivoMedicao='';
   {
     const salvo=fichaId?((dados.contratos||[]).find(function(x){ return x.id===fichaId; })||{}):{};
     const antes=String(salvo.medicaoFeita||'').trim();
     if(antes && c.medicaoFeita!==antes){
-      if(!podeGerenciar()){
+      if(!podeMexerNaMedicao()){
         c.medicaoFeita=antes;
       } else {
         const m=await perguntarSistema('A medição realizada estava registrada em '+fmtData(antes)+
@@ -3156,10 +3163,10 @@ async function salvarFicha(manterAberta){
     const extrasJuntos=Object.assign({}, alvo.extras||{}, c.extras||{});
     const pedidoDoAlvo=alvo.pedido||null;
     // Releitura do servidor: se alguem gravou a medicao enquanto esta ficha
-    // estava aberta, quem nao e gerente tambem nao a apaga nem troca.
+    // estava aberta, quem nao pode mexer tambem nao a apaga nem troca.
     const medicaoDoServidor=String(alvo.medicaoFeita||'').trim();
     Object.assign(alvo, c);
-    if(medicaoDoServidor && !podeGerenciar()) alvo.medicaoFeita=medicaoDoServidor;
+    if(medicaoDoServidor && !podeMexerNaMedicao()) alvo.medicaoFeita=medicaoDoServidor;
     alvo.extras=extrasJuntos;
     // Anexos: junta o que está no servidor com o que foi anexado nesta tela e
     // tira o que foi apagado aqui. Nessa ordem, o arquivo que um colega anexou
