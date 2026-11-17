@@ -3991,6 +3991,10 @@ function atualizarContagemReceber(mostrando,total){
   e.style.color = (mostrando===total) ? 'var(--gray-4)' : 'var(--purple)';
 }
 
+// Conta que veio de um pedido do Compras: pela marca ou pelo id ("cp-..."). A
+// marca some se a conta for editada numa pagina aberta antes de 16/11/2026;
+// o id nao muda nunca (caso Tiago Uilian, 17/11/2026).
+function doCompras(r){ return !!(r && (r.origemCompras || /^cp-/.test(String(r.id||'')))); }
 function renderPagar(){
   // O filtro se refaz junto com a lista: categoria cadastrada agora tem de
   // aparecer sem precisar recarregar a página.
@@ -4004,8 +4008,8 @@ function renderPagar(){
   if(filtCat) rows=rows.filter(r=>r.cat===filtCat);
   // Origem (16/11/2026): as contas que vieram dos pedidos do Compras.
   const filtOrig=(document.getElementById('fil-pagar-origem')||{value:''}).value;
-  if(filtOrig==='compras') rows=rows.filter(r=>!!r.origemCompras);
-  if(filtOrig==='outras') rows=rows.filter(r=>!r.origemCompras);
+  if(filtOrig==='compras') rows=rows.filter(r=>doCompras(r));
+  if(filtOrig==='outras') rows=rows.filter(r=>!doCompras(r));
 
   // Busca por descrição, fornecedor, valor ou vencimento. Sem acento e sem
   // diferenciar maiúscula, para "eletrica" achar "Elétrica". O valor entra
@@ -4027,7 +4031,7 @@ function renderPagar(){
       <td class="td-num" style="color:var(--gray-4)">${r._i+1}</td>
       <td><span class="td-desc">${r.desc}</span>
         ${r.forn?`<span class="td-sub">${r.forn}</span>`:''}
-        ${r.origemCompras?`<span class="td-sub" style="color:#0E8FA6;font-weight:600" title="Lançada pelo pedido feito no Compras. Enquanto não for paga, valor e vencimento acompanham o Compras.">🛒 veio do Compras${r.origemCompras.por?' · '+r.origemCompras.por:''}</span>`:''}
+        ${doCompras(r)?`<span class="td-sub" style="color:#0E8FA6;font-weight:600" title="Lançada pelo pedido feito no Compras. Enquanto não for paga, valor e vencimento acompanham o Compras.">🛒 veio do Compras${(r.origemCompras&&r.origemCompras.por)?' · '+r.origemCompras.por:''}</span>`:''}
         ${r.totalParcelas>1?`<span class="td-sub" style="color:var(--purple)">📄 ${r.parcelaDesc||''} · Total: R$ ${fmtBR(r.totalValor)}</span>`:''}
       </td>
       <td><span style="font-size:11px;background:var(--gray-2);padding:2px 7px;border-radius:20px;color:var(--gray-5)">${CAT_LABEL[r.cat]||r.cat}</span></td>
