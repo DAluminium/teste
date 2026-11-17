@@ -1866,10 +1866,63 @@ async function sincronizar(){
     if(r){ dados=r; gravarLocal(); }
     render();
     status('🟢 Atualizado · '+agoraHora());
+    // Depois do render: a coluna "Obra medida" é um extra, não pode atrasar a
+    // carteira aparecendo. Quando chegar, ela mesma manda redesenhar.
+    buscarMedicaoAcomp();
   }catch(e){
     render();
     status('🔴 Sem conexão — dados locais','#ffcccc');
   }
+}
+
+// ---- O QUE O ACOMPANHAMENTO SABE DA MEDIÇÃO (17/11/2026) ----
+// Mesmo desenho que a Fábrica já usa (medicao-para-fabrica): só leitura, por
+// uma porta do Worker com recorte próprio. A Obra NÃO grava no Acompanhamento
+// e o Acompanhamento NÃO grava na Obra — cada um manda na sua casa.
+// Falha calada de propósito: enquanto o Worker não tiver esta porta, a coluna
+// cai no campo manual da ficha em vez de quebrar a tela.
+let _medicaoAcomp=[];
+async function buscarMedicaoAcomp(){
+  try{
+    const r=await fetch(WORKER+'?t='+Date.now()+'-'+Math.random().toString(36).slice(2,7),
+      {cache:'no-store', headers:cabecalhos({'X-Action':'medicao-para-obra'})});
+    if(!r.ok) return;
+    const j=await r.json();
+    const novas=(j&&Array.isArray(j.obras))?j.obras:[];
+    const mudou=JSON.stringify(novas)!==JSON.stringify(_medicaoAcomp);
+    _medicaoAcomp=novas;
+    if(mudou && !telaAbertaParaEdicao()) render();
+  }catch(e){}
+}
+// Liga pelo id do contrato; sem ele, pelo número sem zeros à esquerda
+// ("0055" = "55"), como a Fábrica faz.
+function ctSemZerosObra(t){
+  return String(t||'').toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/^CT/,'').replace(/^0+(?=\d)/,'');
+}
+function medicaoDoAcompanhamento(c){
+  if(!c) return null;
+  return _medicaoAcomp.find(function(m){ return m.ctoId && c.id && m.ctoId===c.id; }) ||
+         _medicaoAcomp.find(function(m){ return m.ct && c.ct && ctSemZerosObra(m.ct)===ctSemZerosObra(c.ct); }) || null;
+}
+
+// O que a coluna "Obra medida" mostra. Três respostas possíveis, nesta ordem:
+//   "Sim · 12/11/2026"  — todos os vãos medidos (ou a data preenchida à mão);
+//   "5 de 12"           — a medição começou e não terminou;
+//   "Não"               — nenhum vão medido e nada preenchido.
+// A data preenchida à mão na ficha ganha da conta dos vãos: se alguém digitou,
+// foi porque sabe de algo que o sistema não sabe.
+function resumoObraMedida(c){
+  if(!c) return '';
+  const manual=String(c.medicaoFeita||'').trim();
+  const m=medicaoDoAcompanhamento(c);
+  const total=m?Number(m.vaos||0):0;
+  const medidos=m?Number(m.vaosMedidos||0):0;
+  const data=manual || (m?String(m.dataMedicao||'').trim():'');
+  if(manual || (total>0 && medidos>=total)){
+    return 'Sim'+(data?' · '+fmtData(data):'');
+  }
+  if(total>0 && medidos>0) return medidos+' de '+total;
+  return 'Não';
 }
 
 // Alguma tela de edição aberta? Enquanto houver, não redesenhamos: trocar
@@ -4511,6 +4564,10 @@ const CAMPOS_FICHA_TABELA=[
     valor:function(c){ return contasDe(c).limiteMaterial; }},
   {campo:'medicao',        rotulo:'Medição prevista',    tipo:'data'},
   {campo:'medicaoFeita',   rotulo:'Medida',              tipo:'data'},
+  // Não é um campo da ficha: é a resposta montada do Acompanhamento com a
+  // ficha. Por isso tem o acessor — ver resumoObraMedida.
+  {campo:'obraMedida',     rotulo:'Obra medida',         tipo:'texto',
+    valor:function(c){ return resumoObraMedida(c); }},
   {campo:'diasProd',       rotulo:'Dias de produção',    tipo:'numero'},
   {campo:'projEntrada',    rotulo:'Projeção de entrada', tipo:'data'},
   {campo:'diasInst',       rotulo:'Dias de instalação',  tipo:'numero'},
