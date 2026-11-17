@@ -1597,8 +1597,37 @@ function guardarSituacao(contas){
   _situacaoPg=m;
   _situacaoLidaEm=Date.now();
 }
+// CONSERTO: um pedido nunca pode estar entre as cotacoes guardadas. Em
+// 16/11/2026 o proprio pedido do Osvaldo foi parar la (guardado "por causa
+// dele mesmo") e perdeu a marca de pedido feito, enquanto as parcelas
+// continuavam no Financeiro. Achado assim, ele volta para a lista de onde
+// saiu, com a marca de pedido de volta, e fica anotado no Historico.
+function consertarCotacoesGuardadas(){
+  if(ehConsulta()) return false;
+  const lista=data.cotacoesGuardadas||[];
+  let mudou=false;
+  for(let i=lista.length-1;i>=0;i--){
+    const c=lista[i];
+    const g=c.guardada||{};
+    const ehOProprioPedido=g.pedidoId && g.pedidoId===c.id;
+    if(!ehOProprioPedido && !c.pedidoFeito) continue;
+    const aba=g.aba==='importante'?'importante':'urgente';
+    const volta=Object.assign({},c);
+    delete volta.guardada;
+    if(!volta.pedidoFeito){
+      volta.pedidoFeito={em:String(g.em||'').slice(0,10)||hojeIsoLocal(), por:g.por||'—', nr:volta.nrOrc||'', financeiro:'pendente'};
+    }
+    lista.splice(i,1);
+    // Se por acaso ja existe na lista com o mesmo id, nao duplica.
+    if(!(data[aba]||[]).some(function(x){ return x.id===volta.id; })) data[aba].push(volta);
+    logAction('Sistema','Pedido devolvido à lista',volta,'Estava por engano entre as cotações guardadas (clique duplo no Fazer pedido)');
+    mudou=true;
+  }
+  return mudou;
+}
 async function atualizarSituacaoPagamentos(){
   if(!lerToken()) return;
+  if(consertarCotacoesGuardadas()){ await persist(); render(); }
   try{
     const resp=await fetch(WORKER_URL+'?t='+Date.now(),{cache:'no-store',
       headers:cabecalhos(SUPA_SISTEMA,{'X-Action':'compras-situacao'})});
@@ -1751,7 +1780,7 @@ async function fazerPedido(type,idx){
 }
 async function fazerPedidoDeFato(type,idx){
   if(recusarSeConsulta()) return;
-  const r=data[type][idx];
+  let r=data[type][idx];        // 'let': depois das janelas, e relido pelo id
   if(!r) return;
   if(r.pedidoFeito){ return desfazerPedido(type,idx); }
   const pg=r.pagamento;
@@ -1787,12 +1816,27 @@ async function fazerPedidoDeFato(type,idx){
     '\n\nAs parcelas vão para o Contas a Pagar do Financeiro.',
     'Nº do pedido no fornecedor (opcional)', r.nrOrc||'', 'Fazer pedido');
   if(nr===null) return;
-  // As outras cotacoes da mesma obra e material.
+  // A lista pode ser RECARREGADA do servidor enquanto as janelas estao
+  // abertas (os objetos viram outros). Em 16/11/2026 isso fez o proprio pedido
+  // do Osvaldo ser guardado como "outra cotacao": a conta comparava pela copia
+  // antiga (x!==r). Daqui em diante, tudo pelo ID e sempre na lista de agora.
+  const pid=r.id;
   const chave=chaveCotacao(r);
-  const outras=[];
-  ['urgente','importante'].forEach(function(aba){
-    (data[aba]||[]).forEach(function(x){ if(x!==r && !x.pedidoFeito && chaveCotacao(x)===chave) outras.push({aba:aba, reg:x}); });
-  });
+  const acharPedido=function(){
+    for(const L of ['urgente','importante']){
+      const x=(data[L]||[]).find(function(y){ return y.id===pid; });
+      if(x) return x;
+    }
+    return null;
+  };
+  const outrasAgora=function(){
+    const o=[];
+    ['urgente','importante'].forEach(function(aba){
+      (data[aba]||[]).forEach(function(x){ if(x.id!==pid && !x.pedidoFeito && chaveCotacao(x)===chave) o.push({aba:aba, reg:x}); });
+    });
+    return o;
+  };
+  const outras=outrasAgora();
   let guardar=false;
   if(outras.length){
     const g=await janelaSistema({titulo:'Outras cotações',
@@ -1805,21 +1849,28 @@ async function fazerPedidoDeFato(type,idx){
     guardar=g.botao==='guardar';
   }
   const quem=usuarioLogado()||'—';
+  // O registro como esta AGORA na lista (nao a copia de antes das janelas).
+  r=acharPedido();
+  if(!r){ await dlgAviso('A lista mudou', 'Este orçamento não está mais em Urgentes nem em Importantes.\n\nAbra a lista de novo e confira.'); return; }
   if(r.pedidoFeito) return;     // outra aba/pessoa fez o pedido enquanto a janela estava aberta
   r.pedidoFeito={em:hojeIsoLocal(), por:quem, nr:String(nr||'').trim(), financeiro:'enviando'};
   if(!r.producao||!r.producao.situacao) r.producao=Object.assign({},r.producao||{},{situacao:'aguardando', em:new Date().toISOString(), por:quem});
+  let guardadas=0;
   if(guardar){
     if(!Array.isArray(data.cotacoesGuardadas)) data.cotacoesGuardadas=[];
-    outras.forEach(function(o){
+    const escolhidas=outras.map(function(o){ return o.reg.id; });
+    outrasAgora().forEach(function(o){
+      if(escolhidas.indexOf(o.reg.id)<0 || o.reg.id===pid) return;
       const i=data[o.aba].indexOf(o.reg);
       if(i<0) return;
       data[o.aba].splice(i,1);
-      data.cotacoesGuardadas.push(Object.assign({},o.reg,{guardada:{em:new Date().toISOString(), por:quem, pedidoId:r.id, aba:o.aba,
+      data.cotacoesGuardadas.push(Object.assign({},o.reg,{guardada:{em:new Date().toISOString(), por:quem, pedidoId:pid, aba:o.aba,
         motivo:'Pedido feito com '+(r.fornecedor||'outro fornecedor')}}));
+      guardadas++;
     });
   }
   logAction(quem,'Fez pedido',r,'Fornecedor '+(r.fornecedor||'—')+(r.pedidoFeito.nr?' · nº '+r.pedidoFeito.nr:'')+
-    ' · '+pg.parcelas.length+' parcela(s)'+(guardar?' · '+outras.length+' cotação(ões) guardada(s)':''));
+    ' · '+pg.parcelas.length+' parcela(s)'+(guardadas?' · '+guardadas+' cotação(ões) guardada(s)':''));
   await persist();
   render();
   const res=await enviarPedidosAoFinanceiro([r],[]);
