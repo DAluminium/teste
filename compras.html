@@ -1588,13 +1588,19 @@ async function enviarPedidosAoFinanceiro(pedidos, cancelar){
       body:JSON.stringify(corpo)});
     const j=await resp.json().catch(function(){ return {}; });
     if(!resp.ok) resultado={ok:false, erro:j.erro||('erro '+resp.status)};
-    else { resultado={ok:true, feito:j.feito||{}}; if(Array.isArray(j.contas)) guardarSituacao(j.contas); }
+    else {
+      const erros=((j.feito||{}).erros)||[];
+      resultado=erros.length?{ok:false, erro:erros.join('; ')}:{ok:true, feito:j.feito||{}};
+      if(Array.isArray(j.contas)) guardarSituacao(j.contas);
+    }
   }catch(e){ resultado={ok:false, erro:'sem conexão'}; }
   // Anota no pedido se o Financeiro recebeu. Pendente e tentado de novo na
   // proxima leitura da situacao.
   let mudou=false;
-  (pedidos||[]).forEach(function(r){
-    if(!r.pedidoFeito) return;
+  (pedidos||[]).forEach(function(antigo){
+    let r=null;
+    ['urgente','importante','pago'].some(function(L){ r=(data[L]||[]).find(function(x){ return x.id===antigo.id; })||null; return !!r; });
+    if(!r||!r.pedidoFeito) return;
     const novo=resultado.ok?'ok':'pendente';
     if(r.pedidoFeito.financeiro!==novo){ r.pedidoFeito.financeiro=novo; mudou=true; }
   });
@@ -1656,7 +1662,7 @@ async function atualizarSituacaoPagamentos(){
   }catch(e){ return; }
   // Pedido que nao chegou ao Financeiro: tenta de novo.
   const pendentes=[...(data.urgente||[]),...(data.importante||[]),...(data.pago||[])]
-    .filter(function(r){ return r.pedidoFeito && r.pedidoFeito.financeiro==='pendente'; });
+    .filter(function(r){ return r.pedidoFeito && r.pedidoFeito.financeiro!=='ok'; });
   if(pendentes.length && !ehConsulta()) await enviarPedidosAoFinanceiro(pendentes,[]);
   aplicarSituacaoDoFinanceiro();
 }
@@ -1702,7 +1708,7 @@ function blocoPedidoFeito(r){
     const pf=r.pedidoFeito;
     h+='<span class="td-by" style="color:var(--green);font-weight:600;display:block;margin-top:3px">📦 Pedido feito '+fmtDate(pf.em)+
       (pf.nr?' · nº '+escHtml(pf.nr):'')+'</span>';
-    if(pf.financeiro==='pendente') h+='<span class="td-by" style="color:var(--red)">⚠️ ainda não chegou ao Financeiro — tentando de novo</span>';
+    if(pf.financeiro && pf.financeiro!=='ok') h+='<span class="td-by" style="color:var(--red)">⚠️ ainda não chegou ao Financeiro — tentando de novo</span>';
   }
   const guardadas=(data.cotacoesGuardadas||[]).filter(function(c){ return c.guardada && c.guardada.pedidoId===r.id; }).length;
   if(guardadas) h+='<a href="#" onclick="abrirCotacoesGuardadas(\''+r.id+'\');return false" class="td-by" style="color:var(--teal-dark);text-decoration:underline">📁 '+
