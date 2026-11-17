@@ -1218,7 +1218,7 @@ function podeExcluir(){ const p=papelDoCracha(); return p==='admin'||p==='gerent
 function ehConsulta(){ return papelDoCracha()==='consulta'; }
 function recusarExcluir(){
   if(podeExcluir()) return false;
-  alert('S\u00f3 o gerente ou o administrador pode excluir.\n\nPe\u00e7a a quem gerencia este m\u00f3dulo.');
+  avisoSistema('S\u00f3 o gerente ou o administrador pode excluir.\n\nPe\u00e7a a quem gerencia este m\u00f3dulo.');
   return true;
 }
 // Na Consulta toda gravacao para aqui. O aviso aparece no maximo a cada
@@ -1228,13 +1228,13 @@ function recusarSeConsulta(){
   // Espelho ("Ver como", 16/10/2026): a tela mostra os botoes da pessoa, mas
   // nada grava. Avisa aqui, antes de ir ao Worker (que recusaria do mesmo jeito).
   try{ if(sessionStorage.getItem('dalum-espelho')){
-    alert('\u{1F441} Modo espelho: voc\u00ea est\u00e1 vendo o sistema como outra pessoa, s\u00f3 para olhar.\n\nNada foi gravado.');
+    avisoSistema('\u{1F441} Modo espelho: voc\u00ea est\u00e1 vendo o sistema como outra pessoa, s\u00f3 para olhar.\n\nNada foi gravado.');
     return true;
   } }catch(e){}
   if(!ehConsulta()) return false;
   if(Date.now()-_avisouConsulta>60000){
     _avisouConsulta=Date.now();
-    alert('Voc\u00ea est\u00e1 no modo consulta: pode olhar, mas n\u00e3o alterar.\n\nA altera\u00e7\u00e3o n\u00e3o foi salva.');
+    avisoSistema('Voc\u00ea est\u00e1 no modo consulta: pode olhar, mas n\u00e3o alterar.\n\nA altera\u00e7\u00e3o n\u00e3o foi salva.');
   }
   return true;
 }
@@ -1311,10 +1311,10 @@ async function definirSenha(usuario,senha,senhaAtual){
       body:JSON.stringify({usuario:usuario,senha:senha,senhaAtual:senhaAtual||''})});
     if(r.ok) return true;
     let m=''; try{ m=(await r.json()).erro||''; }catch(e){}
-    alert('A senha NÃO foi salva.\n\n'+(m||('Erro '+r.status+' no servidor.')));
+    avisoSistema('A senha NÃO foi salva.\n\n'+(m||('Erro '+r.status+' no servidor.')));
     return false;
   }catch(e){
-    alert('A senha NÃO foi salva: não consegui falar com o servidor.\n\nConfira a internet e tente de novo.');
+    avisoSistema('A senha NÃO foi salva: não consegui falar com o servidor.\n\nConfira a internet e tente de novo.');
     return false;
   }
 }
@@ -1475,7 +1475,7 @@ async function baixarPeloSistema(url,nome){
     d.href=l+(l.indexOf('/anexo/')>0?'&baixar=1':'');
     if(l.indexOf('/anexo/')<0) d.download=nome||'arquivo';
     document.body.appendChild(d); d.click(); d.remove();
-  }catch(e){ alert('Não consegui baixar o anexo.\n\n'+e.message); }
+  }catch(e){ avisoSistema('Não consegui baixar o anexo.\n\n'+e.message); }
 }
 // ---- ENVIAR ANEXO PELO WHATSAPP (pedido do Ander, 21/09/2026) ----
 // O WhatsApp nao recebe arquivo por link. Entao o sistema BAIXA o arquivo, com
@@ -1525,12 +1525,12 @@ async function enviarPara(i){
     num=numeroWhats(p.whatsapp); primeiro=String(p.name||'').split(' ')[0];
   } else {
     num=numeroWhats((document.getElementById('envio-num')||{}).value);
-    if(!num){ alert('Número inválido.\n\nDigite com DDD, por exemplo 69 99999-9999.'); return; }
+    if(!num){ avisoSistema('Número inválido.\n\nDigite com DDD, por exemplo 69 99999-9999.'); return; }
   }
   // O endereco vale 1 minuto: se a janela ficou aberta mais que isso, pede outro.
   if(!_envioAnexo.link || Date.now()-_envioAnexo.quando>50000){
     try{ _envioAnexo.link=await linkDoAnexo(_envioAnexo.url,_envioAnexo.nome,'enviar'); _envioAnexo.quando=Date.now(); }
-    catch(e){ alert('Não consegui preparar o arquivo.\n\n'+e.message); return; }
+    catch(e){ avisoSistema('Não consegui preparar o arquivo.\n\n'+e.message); return; }
   }
   const msg='Olá'+(primeiro?', '+primeiro:'')+'! Segue o arquivo: '+_envioAnexo.nome;
 
@@ -1805,7 +1805,7 @@ async function checkForceLogout(){
   let r=null;
   try{ r=await acaoSessao('sessao-sinal',{sistema:'financeiro'}); }catch(e){ return; }
   if(!r||!r.derrubado) return;
-  alert(r.motivo==='outro-login'
+  await avisoSistema(r.motivo==='outro-login'
     ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
     :'Sua sessão foi encerrada pelo administrador.');
   doLogout();
@@ -1955,7 +1955,7 @@ async function saveSaldosIniciais(){
   render();
   if(document.getElementById('panel-caixa').style.display!=='none') renderCaixa();
   closeSaldosIniciais();
-  alert('Saldos iniciais salvos com sucesso! ✅');
+  avisoSistema('Saldos iniciais salvos com sucesso! ✅');
 }
 
 
@@ -2047,7 +2047,7 @@ async function loadUsersFromCloud(){
 }
 
 async function doLogout(){
-  if(!confirm('Deseja sair do sistema?')) return;
+  if(!await confirmarSistema('Deseja sair do sistema?')) return;
   await removerSessao();
   ['fin-logged','fin-user','fin-role','fin-admin-key'].forEach(k=>sessionStorage.removeItem(k));
   loginGuardaApagar('dalum-sso');
@@ -2064,19 +2064,19 @@ async function changeMyPass(){
   if(isAdmin()){ openChangePassAdmin(null); return; }
   // A senha atual primeiro (pedido do Ander, 21/09/2026). Quem confere e o
   // Worker: pular esta pergunta mexendo na pagina nao adianta.
-  const atual=prompt('Digite sua senha ATUAL:','');
-  if(!atual){ alert('Senha não alterada.'); return; }
-  const nova=prompt('Digite sua nova senha (mínimo 6 caracteres):','');
-  if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
-  if(prompt('Confirme a nova senha:','')!==nova.trim()){ alert('As senhas não coincidem.'); return; }
+  const atual=await perguntarSistema('Digite sua senha ATUAL:','');
+  if(!atual){ avisoSistema('Senha não alterada.'); return; }
+  const nova=await perguntarSistema('Digite sua nova senha (mínimo 6 caracteres):','');
+  if(!nova||nova.trim().length<6){ avisoSistema('Senha não alterada.'); return; }
+  if(await perguntarSistema('Confirme a nova senha:','')!==nova.trim()){ avisoSistema('As senhas não coincidem.'); return; }
   // Quem troca e quem esta logado: o usuario vem do cracha, nao do nome.
   const tk=lerToken(); const eu=tk&&tk.dados?String(tk.dados.u||'').toLowerCase():'';
-  if(!eu){ alert('Sessão sem usuário. Saia e entre de novo.'); return; }
+  if(!eu){ avisoSistema('Sessão sem usuário. Saia e entre de novo.'); return; }
   if(!await definirSenha(eu,nova.trim(),atual)) return;
   const users=getFinUsers();
   const idx=users.findIndex(u=>String(u.username||'').toLowerCase()===eu);
   if(idx>=0){ users[idx].tempPass=false; saveFinUsers(users); await persistUsers(); }
-  alert('Senha alterada com sucesso! ✅');
+  avisoSistema('Senha alterada com sucesso! ✅');
 }
 
 // A senha de administrador agora fica no Cloudflare, não no navegador. A
@@ -2084,24 +2084,24 @@ async function changeMyPass(){
 // localStorage desta máquina: dava a impressão de ter trocado, mas em
 // qualquer outro computador a senha antiga continuava entrando.
 function openChangePassAdmin(admin){
-  alert('A senha de administrador é trocada no Cloudflare, não por aqui.\n\n'+
+  avisoSistema('A senha de administrador é trocada no Cloudflare, não por aqui.\n\n'+
         'Peça ao Ander para alterar o segredo correspondente\n'+
         '(ADMIN_ANDER ou ADMIN_ARETUSA) em Workers & Pages >\n'+
         'daluminium-api > Settings > Variables and Secrets.');
 }
 
 async function openChangePassUser(found){
-  const nova=prompt(`Bem-vindo(a), ${found.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
-  if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
-  if(prompt('Confirme:','')!==nova.trim()){ alert('As senhas não coincidem.'); return; }
+  const nova=await perguntarSistema(`Bem-vindo(a), ${found.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
+  if(!nova||nova.trim().length<6){ avisoSistema('Senha não alterada.'); return; }
+  if(await perguntarSistema('Confirme:','')!==nova.trim()){ avisoSistema('As senhas não coincidem.'); return; }
   const users=getFinUsers();
   const idx=users.findIndex(u=>u.username===found.username);
   if(!await definirSenha(found.username,nova.trim())) return;
   if(idx>=0){ users[idx].tempPass=false; saveFinUsers(users); persist(); }
-  alert('Senha alterada com sucesso! ✅');
+  avisoSistema('Senha alterada com sucesso! ✅');
 }
 
-function openUserAdmin(){ if(!isAdmin()){ alert('Acesso restrito.'); return; } renderUserListFin(); document.getElementById('user-admin-overlay').classList.add('open'); }
+function openUserAdmin(){ if(!isAdmin()){ avisoSistema('Acesso restrito.'); return; } renderUserListFin(); document.getElementById('user-admin-overlay').classList.add('open'); }
 function closeUserAdmin(){ document.getElementById('user-admin-overlay').classList.remove('open'); }
 
 function renderUserListFin(){
@@ -2124,13 +2124,13 @@ function renderUserListFin(){
 
 async function editFinUser(idx){
   const u=getFinUsers()[idx];
-  const novoNome=prompt('Nome completo:',u.name);
+  const novoNome=await perguntarSistema('Nome completo:',u.name);
   if(novoNome===null) return;
-  const novoRole=prompt('Função (financeiro / gerente / consulta):',u.role);
+  const novoRole=await perguntarSistema('Função (financeiro / gerente / consulta):',u.role);
   if(novoRole===null) return;
   const roles=['financeiro','gerente','consulta'];
-  if(!roles.includes(novoRole.toLowerCase().trim())){ alert('Função inválida. Use: financeiro, gerente ou consulta.'); return; }
-  const novaSenha=prompt('Nova senha (deixe em branco para manter a atual):','');
+  if(!roles.includes(novoRole.toLowerCase().trim())){ avisoSistema('Função inválida. Use: financeiro, gerente ou consulta.'); return; }
+  const novaSenha=await perguntarSistema('Nova senha (deixe em branco para manter a atual):','');
   const users=getFinUsers();
   users[idx].name=novoNome.trim()||u.name;
   users[idx].role=novoRole.toLowerCase().trim();
@@ -2141,7 +2141,7 @@ async function editFinUser(idx){
   saveFinUsers(users);
   persistUsers();
   renderUserListFin();
-  alert('Usuário atualizado com sucesso! ✅');
+  avisoSistema('Usuário atualizado com sucesso! ✅');
 }
 
 async function addUserFin(){
@@ -2149,19 +2149,19 @@ async function addUserFin(){
   const username=document.getElementById('nu-username').value.trim().toLowerCase();
   const pass=document.getElementById('nu-pass').value.trim();
   const role=document.getElementById('nu-role').value;
-  if(!name||!username||!pass){ alert('Preencha nome, usuário e senha.'); return; }
-  if(pass.length<6){ alert('A senha precisa de pelo menos 6 caracteres.'); return; }
-  if(ADMINS_FIN.find(a=>a.user===username)){ alert('Usuário reservado para administradores.'); return; }
+  if(!name||!username||!pass){ avisoSistema('Preencha nome, usuário e senha.'); return; }
+  if(pass.length<6){ avisoSistema('A senha precisa de pelo menos 6 caracteres.'); return; }
+  if(ADMINS_FIN.find(a=>a.user===username)){ avisoSistema('Usuário reservado para administradores.'); return; }
   const users=getFinUsers();
-  if(users.find(u=>u.username===username)){ alert('Usuário já cadastrado.'); return; }
+  if(users.find(u=>u.username===username)){ avisoSistema('Usuário já cadastrado.'); return; }
   users.push({name,username,role,active:true,tempPass:true});
   saveFinUsers(users);
   await persistUsers();
   // A senha vai DEPOIS da lista: o Worker confere se o usuario existe.
-  if(!await definirSenha(username,pass)) alert('O usuário "'+username+'" foi cadastrado, mas ficou SEM senha. Defina a senha pelo portal.');
+  if(!await definirSenha(username,pass)) avisoSistema('O usuário "'+username+'" foi cadastrado, mas ficou SEM senha. Defina a senha pelo portal.');
   ['nu-name','nu-username','nu-pass'].forEach(id=>document.getElementById(id).value='');
   renderUserListFin();
-  alert('Usuário cadastrado e salvo na nuvem! ✅');
+  avisoSistema('Usuário cadastrado e salvo na nuvem! ✅');
 }
 function toggleFinUser(idx){
   const u=getFinUsers();
@@ -2170,9 +2170,9 @@ function toggleFinUser(idx){
   persistUsers();
   renderUserListFin();
 }
-function removeFinUser(idx){
+async function removeFinUser(idx){
   const u=getFinUsers();
-  if(!confirm(`Remover "${u[idx].name}"?`)) return;
+  if(!await confirmarSistema(`Remover "${u[idx].name}"?`)) return;
   u.splice(idx,1);
   saveFinUsers(u);
   persist();
@@ -2199,11 +2199,11 @@ function sessaoExpirada(){
   // novo — sem fim. Clicar em OK trazia a mensagem outra vez.
   try{ ['fin-logged','fin-user','fin-role','fin-admin-key']
         .forEach(function(k){ sessionStorage.removeItem(k); }); }catch(e){}
-  alert('Sua sessão expirou.\n\n' +
+  // Espera o OK: com a janela do sistema, recarregar logo apagaria o aviso.
+  avisoSistema('Sua sessão expirou.\n\n' +
         'O acesso vale 8 horas e o seu venceu. Nada foi perdido — o que você ' +
         'já tinha salvo continua guardado.\n\n' +
-        'Vamos voltar para a tela de entrada.');
-  location.reload();
+        'Vamos voltar para a tela de entrada.').then(function(){ location.reload(); });
 }
 
 // ---- SISTEMA EM MANUTENÇÃO ----
@@ -2576,7 +2576,7 @@ async function gravarNoServidor(tentativa){
     const depoisDeMim=!!confere && confere.atualizadoEm!==carimbo && horaDe(confere.atualizadoEm)>horaDe(carimbo);
     if(!confere || (confere.atualizadoEm!==carimbo && !depoisDeMim)){
       setStatus('🔴 NÃO gravou no servidor','#ffcccc');
-      alert('ATENÇÃO — os dados NÃO foram salvos no servidor.\n\n'+
+      avisoSistema('ATENÇÃO — os dados NÃO foram salvos no servidor.\n\n'+
             'O servidor respondeu que deu certo, mas ao conferir, a informação não estava lá.\n\n'+
             'O que você digitou continua nesta tela e no seu navegador, mas ainda NÃO está salvo '+
             'para as outras pessoas.\n\n'+
@@ -2648,9 +2648,9 @@ async function addCategoria(){
   const nome=(inp.value||'').trim();
   if(!nome){ inp.focus(); return; }
   const id=slugCat(nome);
-  if(!id){ alert('Nome inválido.'); return; }
+  if(!id){ avisoSistema('Nome inválido.'); return; }
   const cats=getCategorias();
-  if(cats.some(c=>c.id===id)){ alert('Já existe uma conta com esse nome.'); return; }
+  if(cats.some(c=>c.id===id)){ avisoSistema('Já existe uma conta com esse nome.'); return; }
   cats.push({id,label:nome,ativo:true});
   inp.value='';
   await salvarCategorias();
@@ -2658,11 +2658,11 @@ async function addCategoria(){
 async function renomearCategoria(i){
   const cats=getCategorias();
   const uso=usoCategoria(cats[i].id);
-  const novo=prompt('Novo nome da conta:',cats[i].label);
+  const novo=await perguntarSistema('Novo nome da conta:',cats[i].label);
   if(!novo||!novo.trim()) return;
   if(novo.trim()===cats[i].label) return;
   if(uso>0){
-    const ok=confirm(
+    const ok=await confirmarSistema(
       'ATENÇÃO\n\n'+
       'A conta "'+cats[i].label+'" já tem '+uso+' lançamento(s).\n\n'+
       'Renomear vale também para trás: todos esses lançamentos passarão a aparecer '+
@@ -2682,8 +2682,8 @@ async function toggleCategoria(i){
 async function removerCategoria(i){
   if(recusarExcluir()) return;
   const cats=getCategorias();
-  if(usoCategoria(cats[i].id)>0){ alert('Esta conta já tem lançamentos. Use Desativar.'); return; }
-  if(!confirm(`Excluir a conta "${cats[i].label}"?`)) return;
+  if(usoCategoria(cats[i].id)>0){ avisoSistema('Esta conta já tem lançamentos. Use Desativar.'); return; }
+  if(!await confirmarSistema(`Excluir a conta "${cats[i].label}"?`)) return;
   cats.splice(i,1);
   await salvarCategorias();
 }
@@ -2773,7 +2773,7 @@ function baixasDe(r, tipo){
 // outros 7 lancamentos assim. Aqui a pessoa escolhe o que fazer.
 // O 'memo' existe por causa das despesas parceladas: pergunta uma vez so e a
 // mesma resposta vale para todas as parcelas.
-function ajustarBaixasAoTrocarConta(antigo, entry, memo){
+async function ajustarBaixasAoTrocarConta(antigo, entry, memo){
   if(!antigo || !antigo.conta || !entry || antigo.conta===entry.conta) return;
   const lista=Array.isArray(entry.baixas)?entry.baixas:null;
   if(!lista || !lista.length) return;
@@ -2791,7 +2791,7 @@ function ajustarBaixasAoTrocarConta(antigo, entry, memo){
   // conta so apagaria um rateio feito de proposito.
   if(bancos.length>1){
     if(memo && memo.avisou) return;
-    alert('Atenção: este lançamento tem R$ '+fmtBR(soma)+' já registrado(s), dividido(s) entre '
+    avisoSistema('Atenção: este lançamento tem R$ '+fmtBR(soma)+' já registrado(s), dividido(s) entre '
       +bancos.map(nome).join(' e ')+'.\n\n'
       +'Trocar a conta aqui NÃO muda onde esse dinheiro aparece no fluxo de caixa.\n\n'
       +'Para mover, use o botão "Corrigir os lançamentos" na linha, que edita um por um.');
@@ -2802,11 +2802,10 @@ function ajustarBaixasAoTrocarConta(antigo, entry, memo){
   let mover;
   if(memo && memo.resposta!==null && memo.resposta!==undefined){ mover=memo.resposta; }
   else {
-    mover=confirm('Atenção: este lançamento já tem R$ '+fmtBR(soma)+' registrado(s) em '+nome(bancos[0])+'.\n\n'
+    mover=await confirmarSistema('Dinheiro já registrado\n\nEste lançamento já tem R$ '+fmtBR(soma)+' registrado(s) em '+nome(bancos[0])+'.\n\n'
       +'Trocar a conta aqui NÃO muda onde o dinheiro aparece no fluxo de caixa.\n\n'
-      +'OK — mover também esse dinheiro para '+nome(entry.conta)+'\n'
-      +'Cancelar — deixar o dinheiro em '+nome(bancos[0])+'\n\n'
-      +'(se houver mais parcelas, a mesma escolha vale para todas)');
+      +'(se houver mais parcelas, a mesma escolha vale para todas)',
+      'Mover também para '+nome(entry.conta), 'Deixar em '+nome(bancos[0]));
     if(memo) memo.resposta=mover;
   }
   if(!mover) return;
@@ -3002,8 +3001,8 @@ function abrirScanner(){
   document.getElementById('scan-contador').textContent='';
   document.getElementById('scan-ov').classList.add('open');
 }
-function fecharScanner(){
-  if(scanPaginas.length && !confirm('Tem '+scanPaginas.length+' página(s) escaneada(s) que ainda não foram salvas.\n\nFechar mesmo assim?')) return;
+async function fecharScanner(){
+  if(scanPaginas.length && !await confirmarSistema('Tem '+scanPaginas.length+' página(s) escaneada(s) que ainda não foram salvas.\n\nFechar mesmo assim?')) return;
   document.getElementById('scan-ov').classList.remove('open');
 }
 
@@ -3026,7 +3025,7 @@ function scanRecebeuFoto(ev){
       document.getElementById('scan-vazio').style.display='none';
       document.getElementById('scan-editor').style.display='';
     };
-    img.onerror=function(){ alert('Não consegui abrir\n\nO arquivo escolhido não parece ser uma imagem.'); };
+    img.onerror=function(){ avisoSistema('Não consegui abrir\n\nO arquivo escolhido não parece ser uma imagem.'); };
     img.src=e.target.result;
   };
   leitor.readAsDataURL(arq);
@@ -3335,7 +3334,7 @@ function scanGuardarPagina(){
 
   const h=scanCalcularTransformacao(c,l,a);
   if(!h){
-    alert('Não consegui enquadrar\n\n'+'Os quatro cantos precisam formar uma área. '+
+    avisoSistema('Não consegui enquadrar\n\n'+'Os quatro cantos precisam formar uma área. '+
           'Parece que dois deles ficaram no mesmo lugar — arraste e tente de novo.');
     return;
   }
@@ -3501,7 +3500,7 @@ async function scanSalvar(){
   try{
     const bytes=scanMontarPDF(scanPaginas);
     if(bytes.length>10*1024*1024){
-      alert('Ficou grande demais\n\nO PDF ficou com '+scanTamanho(bytes.length)+', e o limite é 10 MB.\n\n'+
+      avisoSistema('Ficou grande demais\n\nO PDF ficou com '+scanTamanho(bytes.length)+', e o limite é 10 MB.\n\n'+
             'Tire algumas páginas e salve em duas partes.');
       btn.disabled=false; st.textContent=''; scanSalvando=false; return;
     }
@@ -3510,9 +3509,9 @@ async function scanSalvar(){
     await scanEntregar(new File([bytes],nome,{type:'application/pdf'}));
     scanPaginas=[];
     document.getElementById('scan-ov').classList.remove('open');
-    alert('Documento escaneado\n\nO PDF foi anexado e já está guardado.');
+    avisoSistema('Documento escaneado\n\nO PDF foi anexado e já está guardado.');
   }catch(e){
-    alert('Não consegui salvar\n\nO envio falhou: '+e.message+'\n\nAs páginas continuam aqui. Tente de novo.');
+    avisoSistema('Não consegui salvar\n\nO envio falhou: '+e.message+'\n\nAs páginas continuam aqui. Tente de novo.');
     st.textContent='';
   }
   btn.disabled=false;
@@ -3549,7 +3548,7 @@ async function removeAttach(idx){
   const r0=attachType==='pagar'?data.pagar[attachIdx]:data.receber[attachIdx];
   if(recusarSeConsulta()) return;
   if(!anexoEhMeu(r0&&r0.attachments&&r0.attachments[idx]) && recusarExcluir()) return;
-  if(!confirm('Remover este anexo?')) return;
+  if(!await confirmarSistema('Remover este anexo?')) return;
   const r=attachType==='pagar'?data.pagar[attachIdx]:data.receber[attachIdx];
   const arq=(r.attachments[idx]||{}).name||'(sem nome)';
   const removido=r.attachments.splice(idx,1)[0];
@@ -3633,7 +3632,7 @@ function getParcelas(){
 function setTab(tab,el){
   // Esconder a aba nao basta: sem esta conferencia, quem souber o nome consegue
   // abrir o historico chamando setTab pelo console.
-  if(tab==='historico' && !isAdmin()){ alert('O histórico é restrito ao administrador.'); return; }
+  if(tab==='historico' && !isAdmin()){ avisoSistema('O histórico é restrito ao administrador.'); return; }
   document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   ['pagar','receber','caixa','relatorio','apagar','historico'].forEach(t=>{
@@ -3722,7 +3721,7 @@ function renderHistorico(){
 // A coluna de botoes (Ações) fica de fora, e o "R$ " sai da frente do numero
 // para o Excel entender 1.234,56 como valor, e nao como texto.
 function exportarTabelaExcel(tabela, nomeArquivo, titulo){
-  if(!tabela){ alert('Não encontrei a tabela desta tela.'); return; }
+  if(!tabela){ avisoSistema('Não encontrei a tabela desta tela.'); return; }
   const limpar=function(s){ return String(s||'').replace(/\s+/g,' ').trim(); };
   // Aspas so quando o campo tem ponto e virgula, aspas ou quebra de linha.
   // Numero entre aspas o Excel importa como TEXTO, e a coluna deixa de somar.
@@ -3764,7 +3763,7 @@ function exportarTabelaExcel(tabela, nomeArquivo, titulo){
     if(extras.length) temDetalhe=true;
     corpo.push({celulas:celulas, extras:extras.join(' · ')});
   });
-  if(!corpo.length){ alert('Não há nada para exportar nesta tela.'); return; }
+  if(!corpo.length){ avisoSistema('Não há nada para exportar nesta tela.'); return; }
   const cab=cabecalhos.filter(function(h,i){ return !pular[i]; });
   if(temDetalhe) cab.push('Detalhes');
   const linhas=[cab.map(aspas).join(';')];
@@ -3800,7 +3799,7 @@ function limparTituloExcel(t){ return String(t||'').replace(/[^\x20-\x7EÀ-ÿ]/g
 function exportHistorico(){
   const lista=(Array.isArray(data.historico)?data.historico:[]).concat(_sessoesHist||[])
     .sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
-  if(!lista.length){ alert('Nenhum histórico para exportar.'); return; }
+  if(!lista.length){ avisoSistema('Nenhum histórico para exportar.'); return; }
   const aspas=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
   const linhas=[['Data e hora','Usuário','Ação','Lançamento','Detalhe'].map(aspas).join(';')];
   lista.forEach(h=>{
@@ -4150,13 +4149,13 @@ function closePagar(){ document.getElementById('pagar-overlay').classList.remove
 
 async function savePagar(){
   const desc=document.getElementById('p-desc').value.trim();
-  if(!desc){ alert('Preencha a Descrição.'); return; }
+  if(!desc){ avisoSistema('Preencha a Descrição.'); return; }
   const parcelas=getParcelas();
-  if(!parcelas.length){ alert('Adicione pelo menos 1 boleto/parcela com vencimento e valor.'); return; }
+  if(!parcelas.length){ avisoSistema('Adicione pelo menos 1 boleto/parcela com vencimento e valor.'); return; }
   // Ano fora de 2000-2100 e erro de digitacao (ver dataImpossivel).
   for(let i=0;i<parcelas.length;i++){
     const q=conferirDatas({'vencimento':parcelas[i].venc,'pagamento':parcelas[i].dtPag});
-    if(q){ alert('Data inválida na parcela '+(i+1)+' ('+q+').\n\nConfira o ano: o certo é algo como '+today().slice(0,4)+'.'); return; }
+    if(q){ avisoSistema('Data inválida na parcela '+(i+1)+' ('+q+').\n\nConfira o ano: o certo é algo como '+today().slice(0,4)+'.'); return; }
   }
   const totalValor=parcelas.reduce((a,p)=>a+p.valor,0);
   const parentId=pagarEditId!==null?data.pagar[pagarEditId].parentId||genId():genId();
@@ -4187,7 +4186,8 @@ async function savePagar(){
   };
 
   const memoConta={resposta:null};
-  parcelas.forEach((p,i)=>{
+  for(let i=0;i<parcelas.length;i++){
+    const p=parcelas[i];
     const id=p.id||genId();
     const g=guardados[id]||{};
     const reg={
@@ -4224,14 +4224,14 @@ async function savePagar(){
         reg.baixas=[{id:genId(),data:reg.dtPag,valor:totalAgora,conta:reg.conta,obs:g.obsBaixa||''}];
       }
     }
-    ajustarBaixasAoTrocarConta(g, reg, memoConta);
+    await ajustarBaixasAoTrocarConta(g, reg, memoConta);
     if(g.attachments) reg.attachments=g.attachments;
     // Conta que veio do Compras (16/11/2026): sem esta linha, editar aqui
     // apagaria o vinculo, e o Compras deixaria de ver que ela foi paga.
     if(g.origemCompras) reg.origemCompras=g.origemCompras;
     if(reg.dtPag && g.obsBaixa) reg.obsBaixa=g.obsBaixa;
     data.pagar.push(reg);
-  });
+  }
 
   logFin(pagarEditId!==null?'Editou':'Criou','A pagar · '+desc,
     (base.forn?base.forn+' · ':'')+'R$ '+fmtBR(totalValor)+
@@ -4240,7 +4240,7 @@ async function savePagar(){
 }
 async function deletePagar(idx){
   if(recusarExcluir()) return;
-  if(!confirm('Remover esta despesa?')) return;
+  if(!await confirmarSistema('Remover esta despesa?')) return;
   const r=data.pagar[idx]||{};
   logFin('Removeu','A pagar · '+(r.desc||'—'),
     'R$ '+fmtBR(r.valor)+(pagoDe(r)>0.004?' · já tinha R$ '+fmtBR(pagoDe(r))+' pago':''));
@@ -4322,7 +4322,7 @@ function closeBaixa(){ document.getElementById('baixa-overlay').classList.remove
 
 async function confirmarBaixa(){
   const dt=document.getElementById('b-data').value;
-  if(!dt){ alert('Informe a data.'); return; }
+  if(!dt){ avisoSistema('Informe a data.'); return; }
   const valStr=document.getElementById('b-valor').value;
   const val=valStr?parseBR(valStr):null;
   const obs=document.getElementById('b-obs').value;
@@ -4332,14 +4332,14 @@ async function confirmarBaixa(){
     // A trava de "não passar do total" falhava quando não faltava nada:
     // `faltaPagar(r) || v` devolve v quando o que falta é zero, e a baixa extra
     // entrava inteira. Uma conta de R$ 1.000 ja quitada aceitava mais R$ 999.
-    if(falta<=0.004){ alert('Esta conta já está totalmente paga.'); return; }
+    if(falta<=0.004){ avisoSistema('Esta conta já está totalmente paga.'); return; }
     // O valor digitado é o DESTE pagamento. Em branco, quita o que falta.
     let v=(val!==null&&val!==undefined&&!isNaN(val)&&val>0) ? val : falta;
     const jurosP=parseBR(document.getElementById('b-juros').value)||0;
     // Com juros, valor do boleto acima do que falta quase sempre e o juros
     // somado por engano: avisa em vez de cortar calado.
     if(jurosP>0 && v>falta+0.004){
-      alert('O valor do boleto (R$ '+fmtBR(v)+') passa do que falta pagar (R$ '+fmtBR(falta)+').\n\nColoque no primeiro campo só o valor do boleto, e o juros no campo de juros.');
+      avisoSistema('O valor do boleto (R$ '+fmtBR(v)+') passa do que falta pagar (R$ '+fmtBR(falta)+').\n\nColoque no primeiro campo só o valor do boleto, e o juros no campo de juros.');
       return;
     }
     if(v>falta) v=falta;
@@ -4362,14 +4362,14 @@ async function confirmarBaixa(){
   } else {
     const r=data.receber[baixaIdx];
     const falta=faltaReceber(r);
-    if(falta<=0.004){ alert('Este título já foi totalmente recebido.'); return; }
+    if(falta<=0.004){ avisoSistema('Este título já foi totalmente recebido.'); return; }
     const juros=parseBR(document.getElementById('b-juros').value)||0;
     if(juros>0){
       // Com juros, o valor digitado e o LIQUIDO; em branco, liquido = falta - juros.
       const liq=(val!==null&&val!==undefined&&!isNaN(val)&&val>0) ? val : Math.max(0,falta-juros);
       const total=Math.round((liq+juros)*100)/100;
       if(total>falta+0.004){
-        alert('Líquido + juros dá R$ '+fmtBR(total)+', mais do que falta receber neste título (R$ '+fmtBR(falta)+').\n\nConfira os valores.');
+        avisoSistema('Líquido + juros dá R$ '+fmtBR(total)+', mais do que falta receber neste título (R$ '+fmtBR(falta)+').\n\nConfira os valores.');
         return;
       }
       const conta=document.getElementById('b-conta').value;
@@ -4476,7 +4476,7 @@ function registroDaEdicao(){
 }
 
 function openEditarBaixas(tipo,idx){
-  if(!podeCorrigirBaixas()){ alert('Somente o administrador ou o gerente podem corrigir lançamentos já registrados.'); return; }
+  if(!podeCorrigirBaixas()){ avisoSistema('Somente o administrador ou o gerente podem corrigir lançamentos já registrados.'); return; }
   const r=(tipo==='pagar'?data.pagar:data.receber)[idx];
   if(!r) return;
   baixasEditTipo=tipo; baixasEditIdx=idx;
@@ -4546,10 +4546,10 @@ function somarBaixasEdit(){
       : `Falta: <strong style="color:${falta>0.004?'var(--amber)':'var(--green)'}">R$ ${fmtBR(Math.max(0,falta))}</strong>`);
 }
 
-function excluirBaixaEdit(i){
+async function excluirBaixaEdit(i){
   lerCamposBaixas();
   const b=baixasEdit[i];
-  if(!confirm(`Excluir a baixa de ${fmtDate(b.data)} no valor de R$ ${fmtBR(b.valor)}?`)) return;
+  if(!await confirmarSistema(`Excluir a baixa de ${fmtDate(b.data)} no valor de R$ ${fmtBR(b.valor)}?`)) return;
   baixasEdit.splice(i,1);
   renderBaixasEdit();
 }
@@ -4559,15 +4559,15 @@ async function salvarBaixasEdit(){
   const r=registroDaEdicao();
   if(!r) return;
   for(const b of baixasEdit){
-    if(!b.data){ alert('Toda baixa precisa de data.'); return; }
-    if(!(Number(b.valor)>0)){ alert('Toda baixa precisa de um valor maior que zero.'); return; }
+    if(!b.data){ avisoSistema('Toda baixa precisa de data.'); return; }
+    if(!(Number(b.valor)>0)){ avisoSistema('Toda baixa precisa de um valor maior que zero.'); return; }
   }
   const soma=baixasEdit.reduce((a,b)=>a+(Number(b.valor)||0),0);
   if(soma-(Number(r.valor)||0)>0.004){
-    alert('A soma das baixas passou do valor do título. Corrija antes de salvar.');
+    avisoSistema('A soma das baixas passou do valor do título. Corrija antes de salvar.');
     return;
   }
-  if(!baixasEdit.length && !confirm('Sem nenhuma baixa o título volta a ficar em aberto. Confirma?')) return;
+  if(!baixasEdit.length && !await confirmarSistema('Sem nenhuma baixa o título volta a ficar em aberto. Confirma?')) return;
   const antes=baixasDe(r,baixasEditTipo).map(b=>fmtDate(b.data)+' '+(CONTA_LABEL[b.conta]||b.conta)+' R$ '+fmtBR(b.valor)).join(' | ')||'nenhuma';
   r.baixas=baixasEdit.map(b=>({...b}));
   sincronizarTotais(r,baixasEditTipo);
@@ -4581,7 +4581,7 @@ async function salvarBaixasEdit(){
     baixasEdit.forEach(function(b){ const c=b.conta||r.conta; if(bancos.indexOf(c)<0) bancos.push(c); });
     const nome=function(c){ return CONTA_LABEL[c]||c; };
     if(bancos.length===1 && bancos[0]!==r.conta){
-      if(confirm('O dinheiro deste lançamento está em '+nome(bancos[0])+', mas o título continua dizendo '+nome(r.conta)+'.\n\n'
+      if(await confirmarSistema('O dinheiro deste lançamento está em '+nome(bancos[0])+', mas o título continua dizendo '+nome(r.conta)+'.\n\n'
         +'OK — acertar o título para '+nome(bancos[0])+'\n'
         +'Cancelar — deixar o título como está (parte do dinheiro pode ter ido por outro banco)')){
         r.conta=bancos[0];
@@ -4808,7 +4808,7 @@ function relatoEscolheuImagem(input){
       '<button type="button" class="btn btn-outline btn-sm" style="margin-top:6px" onclick="relatoTirarImagem()">Remover imagem</button>';
     URL.revokeObjectURL(url);
   };
-  img.onerror=function(){ URL.revokeObjectURL(url); alert('Não consegui ler esta imagem. Tente outra.'); };
+  img.onerror=function(){ URL.revokeObjectURL(url); avisoSistema('Não consegui ler esta imagem. Tente outra.'); };
   img.src=url;
 }
 function relatoTirarImagem(){
@@ -4822,9 +4822,9 @@ function relatoBlob(tela,tipo,qualidade){
 
 async function enviarRelato(){
   const texto=document.getElementById('rel-texto').value.trim();
-  if(!texto){ alert('Escreva o que aconteceu, nem que seja em poucas palavras.'); return; }
+  if(!texto){ avisoSistema('Escreva o que aconteceu, nem que seja em poucas palavras.'); return; }
   const num=numeroWhats(numeroDoAdmin());
-  if(!num){ alert('Não encontrei o WhatsApp do administrador no cadastro.'); return; }
+  if(!num){ avisoSistema('Não encontrei o WhatsApp do administrador no cadastro.'); return; }
 
   const rotulo={erro:'ERRO NO SISTEMA',alteracao:'PEDIDO DE ALTERACAO',duvida:'DUVIDA'};
   const tipo=document.getElementById('rel-tipo').value;
@@ -4853,7 +4853,7 @@ async function enviarRelato(){
   abrirWhats('https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg));
   fecharRelato();
   if(_relatoTela){
-    alert(copiou
+    avisoSistema(copiou
       ? 'A imagem ja esta copiada: dentro da conversa do WhatsApp, aperte Ctrl+V para colar antes de enviar.'
       : 'Nao consegui copiar a imagem sozinho — anexe o print pela propria conversa do WhatsApp.');
   }
@@ -4943,11 +4943,11 @@ function addEmpresa(){
   renderEmpresasEdit();
 }
 
-function removerEmpresa(i){
+async function removerEmpresa(i){
   if(recusarExcluir()) return;
   lerCamposEmpresas();
-  if(empresasEdit.length<2){ alert('É preciso manter ao menos uma empresa — o comprovante sai com os dados dela.'); return; }
-  if(!confirm('Remover '+(empresasEdit[i].marca||'esta empresa')+' do cadastro?')) return;
+  if(empresasEdit.length<2){ avisoSistema('É preciso manter ao menos uma empresa — o comprovante sai com os dados dela.'); return; }
+  if(!await confirmarSistema('Remover '+(empresasEdit[i].marca||'esta empresa')+' do cadastro?')) return;
   empresasEdit.splice(i,1);
   renderEmpresasEdit();
 }
@@ -4955,10 +4955,10 @@ function removerEmpresa(i){
 async function salvarEmpresas(){
   lerCamposEmpresas();
   for(const e of empresasEdit){
-    if(!e.marca){ alert('Toda empresa precisa do nome curto.'); return; }
-    if(!e.razao){ alert(e.marca+': falta a razão social.'); return; }
+    if(!e.marca){ avisoSistema('Toda empresa precisa do nome curto.'); return; }
+    if(!e.razao){ avisoSistema(e.marca+': falta a razão social.'); return; }
     const so=(e.cnpj||'').replace(/\D/g,'');
-    if(so.length!==14){ alert(e.marca+': o CNPJ precisa ter 14 números.'); return; }
+    if(so.length!==14){ avisoSistema(e.marca+': o CNPJ precisa ter 14 números.'); return; }
     // Grava sempre no mesmo formato, mesmo que tenha sido digitado so em numeros.
     e.cnpj=so.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
   }
@@ -4967,7 +4967,7 @@ async function salvarEmpresas(){
     empresasEdit.map(e=>e.marca+' ('+e.cnpj+')').join(' · '));
   closeEmpresas();
   await persist();
-  alert('Empresas salvas.');
+  avisoSistema('Empresas salvas.');
 }
 
 // Guarda qual lancamento e de qual lado, enquanto a pessoa decide de qual
@@ -4980,7 +4980,7 @@ function abrirComprovante(tipo,idx){
   const r=(tipo==='pagar'?data.pagar:data.receber)[idx];
   if(!r) return;
   if(!baixasDe(r,tipo).length){
-    alert(tipo==='pagar'?'Esta conta ainda não tem pagamento registrado.':'Este título ainda não tem recebimento registrado.');
+    avisoSistema(tipo==='pagar'?'Esta conta ainda não tem pagamento registrado.':'Este título ainda não tem recebimento registrado.');
     return;
   }
   comprovanteIdx=idx; comprovanteTipo=tipo;
@@ -5006,7 +5006,7 @@ function abrirComprovante(tipo,idx){
 function closeEmpresa(){ document.getElementById('empresa-overlay').classList.remove('open'); comprovanteIdx=null; }
 function confirmarEmpresa(){
   const esc=document.querySelector('input[name="emp"]:checked');
-  if(!esc){ alert('Escolha a empresa que vai emitir.'); return; }
+  if(!esc){ avisoSistema('Escolha a empresa que vai emitir.'); return; }
   localStorage.setItem('fin-empresa-comprovante',esc.value);
   const idx=comprovanteIdx, tipo=comprovanteTipo;
   closeEmpresa();
@@ -5022,7 +5022,7 @@ function emitirComprovante(tipo,idx,codEmpresa){
   const r=(pagando?data.pagar:data.receber)[idx];
   if(!r) return;
   const l=baixasDe(r,tipo);
-  if(!l.length){ alert(pagando?'Esta conta ainda não tem pagamento registrado.':'Este título ainda não tem recebimento registrado.'); return; }
+  if(!l.length){ avisoSistema(pagando?'Esta conta ainda não tem pagamento registrado.':'Este título ainda não tem recebimento registrado.'); return; }
   const emp=empresaPorCod(codEmpresa);
 
   // As duas metades sao o mesmo documento com outros rotulos. Ficam juntas de
@@ -5153,7 +5153,7 @@ function emitirComprovante(tipo,idx,codEmpresa){
 </body></html>`;
 
   const w=window.open('','_blank');
-  if(!w){ alert('O navegador bloqueou a janela de impressão. Libere os pop-ups para este site e tente de novo.'); return; }
+  if(!w){ avisoSistema('O navegador bloqueou a janela de impressão. Libere os pop-ups para este site e tente de novo.'); return; }
   w.document.write(html);
   w.document.close();
 }
@@ -5198,10 +5198,10 @@ async function saveReceber(){
   const cliente=document.getElementById('r-cliente').value.trim();
   const valor=parseBR(document.getElementById('r-valor').value);
   const venc=document.getElementById('r-venc').value;
-  if(!cliente||!valor||!venc){ alert('Preencha Cliente, Valor e Vencimento.'); return; }
+  if(!cliente||!valor||!venc){ avisoSistema('Preencha Cliente, Valor e Vencimento.'); return; }
   {
     const q=conferirDatas({'vencimento':venc,'recebimento':document.getElementById('r-dtrec')?document.getElementById('r-dtrec').value:''});
-    if(q){ alert('Data inválida ('+q+').\n\nConfira o ano: o certo é algo como '+today().slice(0,4)+'.'); return; }
+    if(q){ avisoSistema('Data inválida ('+q+').\n\nConfira o ano: o certo é algo como '+today().slice(0,4)+'.'); return; }
   }
   const entry={
     id:receberEditId!==null?data.receber[receberEditId].id:genId(),
@@ -5243,7 +5243,7 @@ async function saveReceber(){
   // Sem data de recebimento nao ha recebimento: o valor e o historico saem
   // junto, senao o titulo ficaria "recebido" sem ninguem saber quando.
 
-  ajustarBaixasAoTrocarConta(antigo, entry, null);
+  await ajustarBaixasAoTrocarConta(antigo, entry, null);
 
   if(receberEditId!==null){ data.receber[receberEditId]=entry; } else { data.receber.push(entry); }
   logFin(receberEditId!==null?'Editou':'Criou','A receber · '+cliente,
@@ -5252,7 +5252,7 @@ async function saveReceber(){
 }
 async function deleteReceber(idx){
   if(recusarExcluir()) return;
-  if(!confirm('Remover este recebimento?')) return;
+  if(!await confirmarSistema('Remover este recebimento?')) return;
   const r=data.receber[idx]||{};
   logFin('Removeu','A receber · '+(r.cliente||'—'),
     'R$ '+fmtBR(r.valor)+(recebidoDe(r)>0.004?' · já tinha R$ '+fmtBR(recebidoDe(r))+' recebido':''));
@@ -5562,7 +5562,7 @@ function printCaixa(){
 </body></html>`;
 
   const w=window.open('','_blank');
-  if(!w){ alert('O navegador bloqueou a janela de impressão. Libere os pop-ups para este site e tente de novo.'); return; }
+  if(!w){ avisoSistema('O navegador bloqueou a janela de impressão. Libere os pop-ups para este site e tente de novo.'); return; }
   w.document.write(html);
   w.document.close();
 }
@@ -5634,12 +5634,12 @@ async function apagarMovimento(id){
   if(recusarExcluir()) return;
   const lista=data.movimentos||[];
   const m=lista.find(function(x){ return x.id===id; });
-  if(!m){ alert('Não encontrei este lançamento.'); return; }
+  if(!m){ avisoSistema('Não encontrei este lançamento.'); return; }
   const quanto='R$ '+fmtBR(m.valor);
   const oque = m.tipo==='transferencia'
     ? 'a transferência de '+quanto+' ('+CONTA_LABEL[m.origem]+' → '+CONTA_LABEL[m.destino]+')'
     : 'o lançamento "'+(m.desc||'sem descrição')+'" de '+quanto+' em '+CONTA_LABEL[m.conta];
-  if(!confirm('Apagar '+oque+', de '+fmtDate(m.data)+'?\n\nO saldo da conta volta ao que era. Não há como desfazer.')) return;
+  if(!await confirmarSistema('Apagar '+oque+', de '+fmtDate(m.data)+'?\n\nO saldo da conta volta ao que era. Não há como desfazer.')) return;
   data.movimentos=lista.filter(function(x){ return x.id!==id; });
   logFin('Apagou lançamento', (m.tipo==='transferencia'?'Transferência':(m.desc||'Lançamento no banco')),
     quanto+' · '+fmtDate(m.data));
@@ -5651,14 +5651,14 @@ async function saveLanc(){
   const valor=parseBR(document.getElementById('lc-valor').value);
   const dt=document.getElementById('lc-data').value;
   const desc=document.getElementById('lc-desc').value.trim();
-  if(!valor||valor<=0){ alert('Informe um valor maior que zero.'); return; }
-  if(!dt){ alert('Informe a data.'); return; }
-  if(!desc){ alert('Escreva do que se trata — é o que vai aparecer no fluxo de caixa.'); return; }
+  if(!valor||valor<=0){ avisoSistema('Informe um valor maior que zero.'); return; }
+  if(!dt){ avisoSistema('Informe a data.'); return; }
+  if(!desc){ avisoSistema('Escreva do que se trata — é o que vai aparecer no fluxo de caixa.'); return; }
   // Mesma conferencia de data das outras telas: ano fora de 2000-2100 cria
   // mes fantasma no relatorio (22/09/2026).
   {
     const q=conferirDatas({'lançamento':dt});
-    if(q){ alert('Data inválida ('+q+').\n\nConfira o ano: o certo é algo como '+today().slice(0,4)+'.'); return; }
+    if(q){ avisoSistema('Data inválida ('+q+').\n\nConfira o ano: o certo é algo como '+today().slice(0,4)+'.'); return; }
   }
   if(!data.movimentos) data.movimentos=[];
   const novo={id:genId(), tipo:tipo, conta:conta, valor:valor, data:dt,
@@ -5675,8 +5675,8 @@ async function saveTransf(){
   const destino=document.getElementById('t-destino').value;
   const valor=parseBR(document.getElementById('t-valor').value);
   const data_t=document.getElementById('t-data').value;
-  if(!valor||!data_t){ alert('Preencha valor e data.'); return; }
-  if(origem===destino){ alert('Conta de origem e destino devem ser diferentes.'); return; }
+  if(!valor||!data_t){ avisoSistema('Preencha valor e data.'); return; }
+  if(origem===destino){ avisoSistema('Conta de origem e destino devem ser diferentes.'); return; }
   if(!data.movimentos) data.movimentos=[];
   data.movimentos.push({id:genId(),tipo:'transferencia',origem,destino,valor,data:data_t,obs:document.getElementById('t-obs').value});
   logFin('Transferência',CONTA_LABEL[origem]+' → '+CONTA_LABEL[destino],
@@ -6088,6 +6088,90 @@ if(checkCracha()){
   // trocar so o endereco do iframe abriria portal dentro de portal.
   try{ (window.top||window).location.replace(PORTAL_URL); }
   catch(e){ window.location.replace(PORTAL_URL); }
+}
+
+// ---- JANELAS DO PROPRIO SISTEMA (pedido do Ander, 17/11/2026) ----
+// No lugar do alert/confirm/prompt do navegador ("daluminium.github.io diz").
+// O estilo vem embutido para ficar igual em todos os modulos. Tudo devolve
+// Promise: quem precisa da resposta usa "await".
+//   avisoSistema(msg)               -> no lugar do alert (nao trava o codigo)
+//   await confirmarSistema(msg)     -> no lugar do confirm (true/false)
+//   await perguntarSistema(msg,val) -> no lugar do prompt (texto ou null)
+// A mensagem que comeca com uma frase curta seguida de linha em branco usa
+// essa frase como titulo da janela.
+function janelaSistemaGeral(op){
+  return new Promise(function(resolve){
+    const anterior=document.activeElement;
+    const j=document.createElement('dialog');
+    j.style.cssText='border:0;padding:0;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.25);'+
+      'max-width:500px;width:calc(100vw - 32px);position:fixed;inset:0;margin:auto;height:fit-content;'+
+      'max-height:calc(100vh - 32px);overflow:auto;font-family:inherit;color:#23282F;background:#fff';
+    const cab='padding:14px 18px;border-bottom:1px solid #EEF0F2;display:flex;justify-content:space-between;align-items:center;gap:10px';
+    const btn='padding:8px 16px;border-radius:8px;font:inherit;font-size:13px;font-weight:500;cursor:pointer;border:1px solid ';
+    j.innerHTML='<div style="'+cab+'"><strong data-t style="font-size:15px"></strong>'+
+      '<button type="button" data-x aria-label="Fechar" style="border:1px solid #DEE1E5;background:#fff;border-radius:6px;width:28px;height:28px;cursor:pointer;color:#5A6370">✕</button></div>'+
+      '<div style="padding:16px 18px"><div data-m style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-size:14px"></div>'+
+      (op.campo?'<label data-r style="display:block;margin-top:12px;font-size:12px;color:#5A6370"></label>'+
+        '<input data-c type="'+(op.campo.senha?'password':'text')+'" autocomplete="'+(op.campo.senha?'new-password':'off')+'" '+
+        'style="width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border:1px solid #DEE1E5;border-radius:8px;font:inherit;font-size:14px">':'')+
+      '</div><div data-b style="padding:12px 18px;border-top:1px solid #EEF0F2;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap"></div>';
+    j.querySelector('[data-t]').textContent=op.titulo||'Aviso';
+    j.querySelector('[data-m]').textContent=op.mensagem||'';
+    let escolha=null;
+    const fechar=function(v){ escolha=v; j.close(); };
+    const botoes=op.botoes||[{rotulo:'OK', valor:'ok', principal:true}];
+    botoes.forEach(function(b){
+      const e=document.createElement('button');
+      e.type='button'; e.textContent=b.rotulo;
+      e.style.cssText=btn+(b.principal?'#0E8FA6;background:#1FB6CF;color:#fff':'#DEE1E5;background:#fff;color:#23282F');
+      e.onclick=function(){ fechar(b.valor); };
+      j.querySelector('[data-b]').appendChild(e);
+    });
+    if(op.campo){
+      j.querySelector('[data-r]').textContent=op.campo.rotulo||'';
+      const c=j.querySelector('[data-c]');
+      c.value=op.campo.valor||'';
+      c.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); fechar(botoes[botoes.length-1].valor); } });
+    }
+    j.querySelector('[data-x]').onclick=function(){ fechar(null); };
+    j.addEventListener('keydown',function(e){ e.stopPropagation(); });
+    j.addEventListener('close',function(){
+      const texto=op.campo?j.querySelector('[data-c]').value:'';
+      j.remove();
+      if(anterior&&anterior.isConnected&&anterior.focus) anterior.focus();
+      resolve({botao:escolha, texto:texto});
+    },{once:true});
+    document.body.appendChild(j);
+    j.showModal();
+    const foco=op.campo?j.querySelector('[data-c]'):j.querySelector('[data-b]').lastChild;
+    if(foco) foco.focus();
+  });
+}
+function separarTituloSistema(msg, padrao){
+  const t=String(msg==null?'':msg);
+  const i=t.indexOf('\n\n');
+  if(i>0 && i<=60 && t.slice(0,i).indexOf('\n')<0) return {titulo:t.slice(0,i).replace(/[.:]\s*$/,''), corpo:t.slice(i+2)};
+  return {titulo:padrao, corpo:t};
+}
+function avisoSistema(msg){
+  const p=separarTituloSistema(msg,'Aviso');
+  return janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo});
+}
+async function confirmarSistema(msg, rotuloOk, rotuloCancelar){
+  const p=separarTituloSistema(msg,'Confirmar');
+  const r=await janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo, botoes:[
+    {rotulo:rotuloCancelar||'Cancelar', valor:'nao'},{rotulo:rotuloOk||'Confirmar', valor:'sim', principal:true}]});
+  return r.botao==='sim';
+}
+// Devolve o texto digitado, ou null se cancelou (igual ao prompt). Pergunta
+// que fala de senha ganha campo escondido.
+async function perguntarSistema(msg, valorInicial){
+  const p=separarTituloSistema(msg,'Informe');
+  const senha=/senha/i.test(String(msg||''));
+  const r=await janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo,
+    campo:{rotulo:'', valor:valorInicial==null?'':String(valorInicial), senha:senha},
+    botoes:[{rotulo:'Cancelar', valor:'nao'},{rotulo:'OK', valor:'sim', principal:true}]});
+  return r.botao==='sim' ? r.texto : null;
 }
 </script>
 <!-- ESCANEAR PELO CELULAR.

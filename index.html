@@ -922,10 +922,10 @@ async function definirSenha(usuario,senha,senhaAtual){
       body:JSON.stringify({usuario:usuario,senha:senha,senhaAtual:senhaAtual||''})});
     if(r.ok) return true;
     let m=''; try{ m=(await r.json()).erro||''; }catch(e){}
-    alert('A senha NÃO foi salva.\n\n'+(m||('Erro '+r.status+' no servidor.')));
+    avisoSistema('A senha NÃO foi salva.\n\n'+(m||('Erro '+r.status+' no servidor.')));
     return false;
   }catch(e){
-    alert('A senha NÃO foi salva: não consegui falar com o servidor.\n\nConfira a internet e tente de novo.');
+    avisoSistema('A senha NÃO foi salva: não consegui falar com o servidor.\n\nConfira a internet e tente de novo.');
     return false;
   }
 }
@@ -1351,7 +1351,7 @@ async function doLogin(){
 }
 
 async function doLogout(){
-  if(!confirm('Deseja sair?')) return;
+  if(!await confirmarSistema('Deseja sair?')) return;
   await sairDoSistema();
 }
 // A saida em si, sem perguntar nada: serve para o botao Sair e para o
@@ -1584,7 +1584,7 @@ function numeroWhatsCad(t) {
 }
 function falarNoWhatsCad(t) {
   const n = numeroWhatsCad(t);
-  if (!n) { alert('Esse telefone está incompleto.\n\nPara o WhatsApp é preciso o DDD e o número — ex: 69 99999-9999.'); return; }
+  if (!n) { avisoSistema('Esse telefone está incompleto.\n\nPara o WhatsApp é preciso o DDD e o número — ex: 69 99999-9999.'); return; }
   abrirWhats('https://api.whatsapp.com/send?phone=' + n);
 }
 function botaoWhatsCad(t) {
@@ -1676,7 +1676,7 @@ async function lerCadastros() {
 async function gravarCadastros(mudar) {
   let dados;
   try { dados = await lerCadastros(); }
-  catch (e) { alert('NÃO foi salvo: não consegui ler o cadastro.\n\n' + e.message); return false; }
+  catch (e) { avisoSistema('NÃO foi salvo: não consegui ler o cadastro.\n\n' + e.message); return false; }
   const hist = mudar(dados);
   if (hist === false) return false;
   const eu = sessionStorage.getItem('portal-user') || meuLogin();
@@ -1693,17 +1693,17 @@ async function gravarCadastros(mudar) {
       body: JSON.stringify({ data: dados }) });
     if (!resp.ok) {
       let m = ''; try { m = (await resp.json()).erro || ''; } catch (e) {}
-      alert('NÃO foi salvo.\n\n' + (m || ('Erro ' + resp.status + ' no servidor.')));
+      avisoSistema('NÃO foi salvo.\n\n' + (m || ('Erro ' + resp.status + ' no servidor.')));
       return false;
     }
     const conf = await lerCadastros();
     if (conf.atualizadoEm !== carimbo) {
-      alert('O servidor respondeu, mas a gravação NÃO apareceu no banco.\n\nNada foi salvo. Avise o administrador.');
+      avisoSistema('O servidor respondeu, mas a gravação NÃO apareceu no banco.\n\nNada foi salvo. Avise o administrador.');
       return false;
     }
     _cad = conf;
   } catch (e) {
-    alert('NÃO foi salvo: não consegui falar com o servidor.\n\nConfira a internet e tente de novo.');
+    avisoSistema('NÃO foi salvo: não consegui falar com o servidor.\n\nConfira a internet e tente de novo.');
     return false;
   }
   renderFornecedores();
@@ -1711,7 +1711,7 @@ async function gravarCadastros(mudar) {
 }
 
 async function openCadastros() {
-  if (!podeVerCadastros()) { alert('Seu acesso não inclui os cadastros.\n\nEles são de quem usa o Compras, o Financeiro, o CRM ou a Obra.'); return; }
+  if (!podeVerCadastros()) { avisoSistema('Seu acesso não inclui os cadastros.\n\nEles são de quem usa o Compras, o Financeiro, o CRM ou a Obra.'); return; }
   document.getElementById('cadastros-overlay').classList.add('open');
   const podeAdministrar = meuPapel() === 'admin' || meuPapel() === 'gerente';
   document.getElementById('cad-aba-usuarios').style.display = podeAdministrar ? '' : 'none';
@@ -1815,7 +1815,7 @@ const CAD_CAMPOS_PAGAMENTO = ['pix', 'pixNome', 'banco', 'conta'];
 function openFornecedor(id) {
   if (id === null && !podeMexerCadastros()) return;
   const f = id ? (_cad.fornecedores || []).find(function (x) { return x.id === id; }) : null;
-  if (id && !f) { alert('Esse fornecedor não está mais no cadastro. A lista vai ser atualizada.'); openCadastros(); return; }
+  if (id && !f) { avisoSistema('Esse fornecedor não está mais no cadastro. A lista vai ser atualizada.'); openCadastros(); return; }
   _fornAberto = f ? JSON.parse(JSON.stringify(f)) : null;
   Object.keys(CAD_CAMPOS).forEach(function (k) { document.getElementById(CAD_CAMPOS[k]).value = f ? (f[k] || '') : ''; });
   if (f) document.getElementById('fc-documento').value = formatarDocumento(f.documento);
@@ -1869,7 +1869,7 @@ function lerFormFornecedor() {
 }
 
 async function salvarFornecedor() {
-  if (!podeMexerCadastros()) { alert('Seu acesso só permite consultar.'); return; }
+  if (!podeMexerCadastros()) { avisoSistema('Seu acesso só permite consultar.'); return; }
   const novo = lerFormFornecedor();
   // Cadastro rapido (pedido do Ander, 16/10/2026): o administrador salva so
   // com nome e telefone, e a equipe completa depois. Quem usa fica "Ambos" se
@@ -1880,18 +1880,22 @@ async function salvarFornecedor() {
   const falta = rapido
     ? [['nome', 'nome'], ['telefone', 'telefone']].filter(function (o) { return !novo[o[0]]; }).map(function (o) { return o[1]; })
     : faltandoNoForn(novo);
-  if (falta.length) { alert('Preencha os campos obrigatórios:\n\n• ' + falta.join('\n• ')); return; }
+  if (falta.length) { avisoSistema('Preencha os campos obrigatórios:\n\n• ' + falta.join('\n• ')); return; }
   const dig = soDigitos(novo.documento);
   if ((dig || !rapido) && !(dig.length === 14 ? cnpjValido(dig) : dig.length === 11 ? cpfValido(dig) : false)) {
-    alert('O CNPJ (ou CPF) não confere.\n\nCNPJ tem 14 números e CPF tem 11. Confira se não faltou ou trocou algum número.');
+    avisoSistema('O CNPJ (ou CPF) não confere.\n\nCNPJ tem 14 números e CPF tem 11. Confira se não faltou ou trocou algum número.');
     document.getElementById('fc-documento').focus(); return;
   }
-  if (soDigitos(novo.telefone).length < 10) { alert('Telefone com DDD, por favor — ex: (69) 3222-0000.'); document.getElementById('fc-telefone').focus(); return; }
-  if (novo.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(novo.email)) { alert('O e-mail não parece certo. Confira.'); document.getElementById('fc-email').focus(); return; }
+  if (soDigitos(novo.telefone).length < 10) { avisoSistema('Telefone com DDD, por favor — ex: (69) 3222-0000.'); document.getElementById('fc-telefone').focus(); return; }
+  if (novo.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(novo.email)) { avisoSistema('O e-mail não parece certo. Confira.'); document.getElementById('fc-email').focus(); return; }
   const aberto = _fornAberto;
   const id = aberto ? aberto.id : (Date.now().toString(36) + Math.random().toString(36).slice(2, 7));
   const eu = sessionStorage.getItem('portal-user') || meuLogin();
-  const ok = await gravarCadastros(function (dados) {
+  // Alterado por outra pessoa no meio: a gravacao nao pode parar esperando um
+  // clique. Ela recusa e anota o conflito; a pergunta vem DEPOIS, fora dela, e
+  // se a resposta for gravar por cima, grava de novo (17/11/2026).
+  let conflito = null, porCima = false;
+  const aplicar = function (dados) {
     const lista = dados.fornecedores;
     // Mesmo fornecedor ja cadastrado? Pelo nome (sem acento, Ltda etc.) ou pelo CNPJ.
     const repetido = lista.find(function (x) {
@@ -1899,16 +1903,17 @@ async function salvarFornecedor() {
       return normalizarNomeForn(x.nome) === normalizarNomeForn(novo.nome) || (soDigitos(x.documento) && soDigitos(x.documento) === dig);
     });
     if (repetido) {
-      alert('Já existe um fornecedor com esse nome ou CNPJ: "' + repetido.nome + '"' + (repetido.inativo ? ' (está INATIVO — use o filtro "Inativos" e reative)' : '') + '.\n\nAbra o que já existe e complete por lá.');
+      avisoSistema('Já existe um fornecedor com esse nome ou CNPJ: "' + repetido.nome + '"' + (repetido.inativo ? ' (está INATIVO — use o filtro "Inativos" e reative)' : '') + '.\n\nAbra o que já existe e complete por lá.');
       return false;
     }
     const i = lista.findIndex(function (x) { return x.id === id; });
     if (aberto) {
-      if (i < 0) { alert('Este fornecedor foi excluído por outra pessoa enquanto você editava.\n\nNada foi salvo.'); return false; }
+      if (i < 0) { avisoSistema('Este fornecedor foi excluído por outra pessoa enquanto você editava.\n\nNada foi salvo.'); return false; }
       const noServidor = lista[i];
-      if ((noServidor.alteradoEm || '') !== (aberto.alteradoEm || '') &&
-          !confirm((noServidor.alteradoPor || 'Outra pessoa') + ' alterou este fornecedor enquanto você editava.\n\n' +
-                   'OK = gravar a sua versão por cima\nCancelar = não gravar (feche e abra de novo para ver a versão nova)')) return false;
+      if ((noServidor.alteradoEm || '') !== (aberto.alteradoEm || '') && !porCima) {
+        conflito = noServidor.alteradoPor || 'Outra pessoa';
+        return false;
+      }
       const mudou = Object.keys(CAD_ROTULO_CAMPO).filter(function (k) {
         return JSON.stringify(noServidor[k] || (k === 'categorias' ? [] : '')) !== JSON.stringify(novo[k] || (k === 'categorias' ? [] : ''));
       });
@@ -1920,7 +1925,15 @@ async function salvarFornecedor() {
     }
     lista.push(Object.assign({ id: id }, novo, { criadoPor: eu, criadoEm: new Date().toISOString(), alteradoPor: eu, alteradoEm: new Date().toISOString() }));
     return { acao: 'cadastrou ' + novo.nome, fornId: id };
-  });
+  };
+  let ok = await gravarCadastros(aplicar);
+  if (!ok && conflito) {
+    if (await confirmarSistema('Alterado por outra pessoa\n\n' + conflito + ' alterou este fornecedor enquanto você editava.\n\n' +
+        'Se não gravar, feche e abra de novo para ver a versão nova.', 'Gravar a minha versão por cima', 'Não gravar')) {
+      porCima = true; conflito = null;
+      ok = await gravarCadastros(aplicar);
+    }
+  }
   if (ok) fecharFornecedor();
 }
 
@@ -1942,17 +1955,17 @@ async function contarLancamentosDoFornecedor(nome) {
   return conferiu ? n : (n || null);
 }
 async function alternarInativoFornecedor(motivo) {
-  if (!podeExcluirCadastros()) { alert('Só o gerente ou o administrador pode inativar ou reativar.'); return false; }
+  if (!podeExcluirCadastros()) { avisoSistema('Só o gerente ou o administrador pode inativar ou reativar.'); return false; }
   const f = _fornAberto;
   if (!f) return false;
   const inativar = !f.inativo;
-  if (!motivo && !confirm(inativar
+  if (!motivo && !await confirmarSistema(inativar
       ? 'Inativar o fornecedor "' + f.nome + '"?\n\nEle continua no cadastro (com o histórico e o PIX), mas deixa de aparecer nas sugestões do Compras e do Financeiro. Dá para reativar depois.'
       : 'Reativar o fornecedor "' + f.nome + '"?\n\nEle volta a aparecer nas sugestões do Compras e do Financeiro.')) return false;
   const eu = sessionStorage.getItem('portal-user') || meuLogin();
   const ok = await gravarCadastros(function (dados) {
     const i = dados.fornecedores.findIndex(function (x) { return x.id === f.id; });
-    if (i < 0) { alert('Este fornecedor não está mais no cadastro.'); return false; }
+    if (i < 0) { avisoSistema('Este fornecedor não está mais no cadastro.'); return false; }
     const x = Object.assign({}, dados.fornecedores[i]);
     if (inativar) { x.inativo = true; x.inativadoEm = new Date().toISOString(); x.inativadoPor = eu; }
     else { delete x.inativo; delete x.inativadoEm; delete x.inativadoPor; }
@@ -1964,25 +1977,25 @@ async function alternarInativoFornecedor(motivo) {
   return ok;
 }
 async function excluirFornecedor() {
-  if (!podeExcluirCadastros()) { alert('Só o gerente ou o administrador pode excluir.'); return; }
+  if (!podeExcluirCadastros()) { avisoSistema('Só o gerente ou o administrador pode excluir.'); return; }
   const f = _fornAberto;
   if (!f) return;
   // Com lancamento no nome dele, nao exclui: inativa (pedido do Ander, 20/10/2026).
   const n = await contarLancamentosDoFornecedor(f.nome);
   if (n !== 0) {
     if (f.inativo) {
-      alert((n === null ? 'Não consegui conferir se "' + f.nome + '" tem lançamentos.' : '"' + f.nome + '" tem ' + n + ' lançamento(s) no nome dele.') +
+      avisoSistema((n === null ? 'Não consegui conferir se "' + f.nome + '" tem lançamentos.' : '"' + f.nome + '" tem ' + n + ' lançamento(s) no nome dele.') +
         '\n\nPor isso ele não é excluído — e já está inativo.');
       return;
     }
-    if (!confirm((n === null
+    if (!await confirmarSistema((n === null
         ? 'Não consegui conferir se "' + f.nome + '" tem lançamentos no Compras e no Financeiro.'
         : '"' + f.nome + '" tem ' + n + ' lançamento(s) no nome dele (Compras / Financeiro).') +
         '\n\nPor isso ele não será excluído. Quer INATIVAR?\n\nEle continua no cadastro, mas some das sugestões do Compras e do Financeiro.')) return;
     await alternarInativoFornecedor(n === null ? 'no lugar de excluir — lançamentos não conferidos' : 'no lugar de excluir — ' + n + ' lançamento(s)');
     return;
   }
-  if (!confirm('Excluir o fornecedor "' + f.nome + '" do cadastro?\n\nNão há lançamento no nome dele. Esta ação não pode ser desfeita pela tela.')) return;
+  if (!await confirmarSistema('Excluir o fornecedor "' + f.nome + '" do cadastro?\n\nNão há lançamento no nome dele. Esta ação não pode ser desfeita pela tela.')) return;
   const ok = await gravarCadastros(function (dados) {
     const i = dados.fornecedores.findIndex(function (x) { return x.id === f.id; });
     if (i < 0) return false;
@@ -2130,7 +2143,7 @@ async function importarFornecedores() {
     const r2 = await fetch(WORKER_URL + '?t=' + Date.now(), { cache: 'no-store', headers: cabecalhos(teste ? 'financeiro_teste' : 'financeiro') });
     if (!r1.ok || !r2.ok) throw new Error('Erro ' + (!r1.ok ? r1.status : r2.status));
     compras = await r1.json() || {}; fin = await r2.json() || {};
-  } catch (e) { alert('Não consegui ler as compras e o Financeiro.\n\n' + e.message); return; }
+  } catch (e) { avisoSistema('Não consegui ler as compras e o Financeiro.\n\n' + e.message); return; }
   const grupos = {};
   const anotar = function (nome, origem, reg, quando) {
     const nome0 = String(nome || '').trim();
@@ -2160,10 +2173,10 @@ async function importarFornecedores() {
     const uso = g.origens.compras && g.origens.financeiro ? 'ambos' : g.origens.compras ? 'compras' : 'financeiro';
     return Object.assign({ nome: nome, uso: uso }, g.pag || {});
   }).sort(function (a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); });
-  if (!novos.length) { alert('Nenhum fornecedor novo nos lançamentos: todos já estão no cadastro.'); return; }
+  if (!novos.length) { avisoSistema('Nenhum fornecedor novo nos lançamentos: todos já estão no cadastro.'); return; }
   const conta = { compras: 0, financeiro: 0, ambos: 0 };
   novos.forEach(function (n) { conta[n.uso]++; });
-  if (!confirm('Encontrei ' + novos.length + ' fornecedor(es) que ainda não estão no cadastro:\n\n' +
+  if (!await confirmarSistema('Encontrei ' + novos.length + ' fornecedor(es) que ainda não estão no cadastro:\n\n' +
       '• ' + conta.compras + ' só no Compras\n• ' + conta.financeiro + ' só no Financeiro\n• ' + conta.ambos + ' nos dois (entram como Ambos)\n' +
       '• ' + novos.filter(function (n) { return n.pix; }).length + ' com PIX aproveitado das compras\n\n' +
       'Exemplos: ' + novos.slice(0, 8).map(function (n) { return n.nome; }).join(', ') + (novos.length > 8 ? '…' : '') + '\n\n' +
@@ -2440,7 +2453,7 @@ async function protegerAnexos(soUm){
 // os alcanca. Aqui a lista vem do proprio Cloudinary: tudo o que ainda for
 // publico vira privado. So protege; nao apaga nada.
 async function varrerAnexos(){
-  if(!confirm('Tornar privado TODO arquivo ainda aberto na conta do Cloudinary, inclusive os que foram excluídos das fichas?\n\nNada é apagado.')) return;
+  if(!await confirmarSistema('Tornar privado TODO arquivo ainda aberto na conta do Cloudinary, inclusive os que foram excluídos das fichas?\n\nNada é apagado.')) return;
   const st=document.getElementById('prot-status'), b=document.getElementById('prot-varrer');
   b.disabled=true;
   let rodada=0, prot=0, falhas=[], j;
@@ -2477,12 +2490,12 @@ async function abrirAmostraProtegida(){
     const j=await r.json();
     if(!r.ok||!j.url) throw new Error(j.erro||('erro '+r.status));
     if(aba){ aba.opener=null; aba.location.href=j.url; } else location.href=j.url;
-  }catch(e){ if(aba) aba.close(); alert('Não consegui abrir: '+e.message); }
+  }catch(e){ if(aba) aba.close(); avisoSistema('Não consegui abrir: '+e.message); }
 }
 
 function recusarSeNaoForAdmin(oque){
   if(soAdmin()) return false;
-  alert('Isto é só para o administrador.\n\n' + oque);
+  avisoSistema('Isto é só para o administrador.\n\n' + oque);
   return true;
 }
 
@@ -2497,7 +2510,7 @@ function ajustarCadastroDeUsuarios(){
 function openUsuarios(){
   // Esconder o cartão não basta: a trava fica aqui.
   if(ambienteDeTeste()){
-    alert('O cadastro de usuários é único e fica em produção.\n\n' +
+    avisoSistema('O cadastro de usuários é único e fica em produção.\n\n' +
           'O login sempre consulta a lista de lá, em qualquer ambiente. ' +
           'Cadastrar por aqui criaria alguém que nunca conseguiria entrar.\n\n' +
           'Use daluminium.github.io/portal/');
@@ -2525,9 +2538,9 @@ async function verComo(i){
     let j=null; try{ j=await r.json(); }catch(e){}
     if(!r.ok||!j||!j.token) throw new Error((j&&j.erro)||('erro '+r.status+' no servidor'));
     const destino=location.origin+location.pathname+'#espelho='+encodeURIComponent(j.token);
-    if(!aba){ alert('O navegador bloqueou a aba nova. Permita janelas deste site e tente de novo.'); return; }
+    if(!aba){ await avisoSistema('O navegador bloqueou a aba nova. Permita janelas deste site e tente de novo.'); return; }
     aba.opener=null; aba.location.href=destino;
-  }catch(e){ if(aba) aba.close(); alert('Não consegui abrir o Ver como: '+e.message); }
+  }catch(e){ if(aba) aba.close(); avisoSistema('Não consegui abrir o Ver como: '+e.message); }
 }
 function renderUserList(){
   const list=document.getElementById('user-list-portal');
@@ -2587,20 +2600,20 @@ async function addUsuario(){
   if(document.getElementById('nu-mod-crm').checked) modulos.push('crm');
   if(document.getElementById('nu-mod-acompanhamento').checked) modulos.push('acompanhamento');
   if(document.getElementById('nu-mod-estoque').checked) modulos.push('estoque');
-  if(!name||!username||!pass){ alert('Preencha nome, usuário e senha.'); return; }
-  if(pass.length<6){ alert('A senha precisa de pelo menos 6 caracteres.'); return; }
-  if(ADMINS.find(a=>a.user===username)){ alert('Usuário reservado para administradores.'); return; }
-  if(portalData.usuarios.find(u=>u.username===username)){ alert('Usuário já cadastrado.'); return; }
-  if(!modulos.length){ alert('Selecione pelo menos 1 módulo.'); return; }
+  if(!name||!username||!pass){ avisoSistema('Preencha nome, usuário e senha.'); return; }
+  if(pass.length<6){ avisoSistema('A senha precisa de pelo menos 6 caracteres.'); return; }
+  if(ADMINS.find(a=>a.user===username)){ avisoSistema('Usuário reservado para administradores.'); return; }
+  if(portalData.usuarios.find(u=>u.username===username)){ avisoSistema('Usuário já cadastrado.'); return; }
+  if(!modulos.length){ avisoSistema('Selecione pelo menos 1 módulo.'); return; }
   {
     const pode=modulosQuePossoDar();
     const fora=modulos.filter(function(m){ return pode.indexOf(m)<0; });
-    if(fora.length){ alert('Você não pode liberar: '+fora.join(', ')+'.\n\nSó dá para liberar os módulos que você mesmo tem.'); return; }
+    if(fora.length){ avisoSistema('Você não pode liberar: '+fora.join(', ')+'.\n\nSó dá para liberar os módulos que você mesmo tem.'); return; }
   }
   // A trava fica aqui, e nao so na lista de opcoes: sem isto, bastaria
   // mexer na pagina para criar alguem do mesmo nivel ou acima.
   if(papeisQuePossoDar().indexOf(role)<0){
-    alert('Você não pode criar um usuário com essa função.\n\n' +
+    avisoSistema('Você não pode criar um usuário com essa função.\n\n' +
           'Só dá para cadastrar quem fica abaixo de você.');
     return;
   }
@@ -2622,7 +2635,7 @@ async function addUsuario(){
   await savePortalData();
   // A senha vai DEPOIS da lista: o Worker confere se o usuario existe.
   if(!await definirSenha(username,pass)){
-    alert('O usuário "'+username+'" foi cadastrado, mas ficou SEM senha.\n\nClique em Editar nele e defina a senha de novo.');
+    avisoSistema('O usuário "'+username+'" foi cadastrado, mas ficou SEM senha.\n\nClique em Editar nele e defina a senha de novo.');
     renderUserList();
     return;
   }
@@ -2639,7 +2652,7 @@ async function addUsuario(){
   });
   document.getElementById('nu-anexos-compras').checked=false;
   renderUserList();
-  alert('Usuário cadastrado e salvo! ✅');
+  avisoSistema('Usuário cadastrado e salvo! ✅');
 }
 
 // Qual usuário está aberto na janela de edição. Nulo = nenhuma.
@@ -2671,7 +2684,7 @@ function editUsuario(idx){
   // Não dá para editar quem está no mesmo nível ou acima. Sem isto, um gerente
   // trocaria a senha de outro gerente e entraria no lugar dele.
   if(!podeMexerEm(u)){
-    alert('Você não pode editar este usuário.\n\nSó dá para alterar quem fica abaixo de você.');
+    avisoSistema('Você não pode editar este usuário.\n\nSó dá para alterar quem fica abaixo de você.');
     return;
   }
   _editandoUsuario=idx;
@@ -2715,21 +2728,21 @@ async function salvarEdicaoUsuario(){
   // Confere de novo na hora de gravar: a janela pode ter ficado aberta enquanto
   // a lista mudou, e esconder botão nunca foi trava.
   if(!u||!podeMexerEm(u)){
-    alert('Você não pode editar este usuário.\n\nSó dá para alterar quem fica abaixo de você.');
+    avisoSistema('Você não pode editar este usuário.\n\nSó dá para alterar quem fica abaixo de você.');
     fecharEdicaoUsuario();
     return;
   }
   const nome=document.getElementById('eu-name').value.trim();
-  if(!nome){ alert('Preencha o nome completo.'); return; }
+  if(!nome){ avisoSistema('Preencha o nome completo.'); return; }
   const role=document.getElementById('eu-role').value;
   if(papeisQuePossoDar().indexOf(role)<0){
-    alert('Você não pode dar a função "'+role+'".\n\nSó dá para escolher quem fica abaixo de você.');
+    avisoSistema('Você não pode dar a função "'+role+'".\n\nSó dá para escolher quem fica abaixo de você.');
     return;
   }
   const modulos=MODULOS_DO_SISTEMA.filter(function(m){ return document.getElementById('eu-mod-'+m).checked; });
-  if(!modulos.length){ alert('Marque pelo menos um módulo.\n\nSem módulo, a pessoa entra no portal e não vê nada.'); return; }
+  if(!modulos.length){ avisoSistema('Marque pelo menos um módulo.\n\nSem módulo, a pessoa entra no portal e não vê nada.'); return; }
   const senha=document.getElementById('eu-pass').value.trim();
-  if(senha && senha.length<6){ alert('A senha precisa de pelo menos 6 caracteres.\n\nDeixe em branco para manter a atual.'); return; }
+  if(senha && senha.length<6){ avisoSistema('A senha precisa de pelo menos 6 caracteres.\n\nDeixe em branco para manter a atual.'); return; }
   u.name=nome;
   // Só os dígitos: o número é usado para montar o link do WhatsApp, e
   // parêntese, traço e espaço atrapalham.
@@ -2745,7 +2758,7 @@ async function salvarEdicaoUsuario(){
     const souEu=!!(tk&&tk.dados&&String(tk.dados.u||'').toLowerCase()===String(u.username||'').toLowerCase());
     let atual='';
     if(souEu){
-      atual=prompt('Você está trocando a SUA senha.\n\nDigite sua senha ATUAL:','');
+      atual=await perguntarSistema('Você está trocando a SUA senha.\n\nDigite sua senha ATUAL:','');
       if(!atual) return;
     }
     if(!await definirSenha(u.username,senha,atual)) return;
@@ -2754,12 +2767,12 @@ async function salvarEdicaoUsuario(){
   await savePortalData();
   fecharEdicaoUsuario();
   renderUserList();
-  alert('Usuário atualizado! ✅');
+  avisoSistema('Usuário atualizado! ✅');
 }
 
 async function toggleUsuario(idx){
   if(!podeMexerEm(portalData.usuarios[idx])){
-    alert('Você não pode desativar este usuário.\n\n' +
+    avisoSistema('Você não pode desativar este usuário.\n\n' +
           'Só dá para mexer em quem fica abaixo de você.');
     return;
   }
@@ -2770,11 +2783,11 @@ async function toggleUsuario(idx){
 
 async function removeUsuario(idx){
   if(!podeMexerEm(portalData.usuarios[idx])){
-    alert('Você não pode remover este usuário.\n\n' +
+    avisoSistema('Você não pode remover este usuário.\n\n' +
           'Só dá para mexer em quem fica abaixo de você.');
     return;
   }
-  if(!confirm(`Remover "${portalData.usuarios[idx].name}"?`)) return;
+  if(!await confirmarSistema(`Remover "${portalData.usuarios[idx].name}"?`)) return;
   portalData.usuarios.splice(idx,1);
   await savePortalData();
   renderUserList();
@@ -2784,32 +2797,32 @@ async function removeUsuario(idx){
 async function changeMyPass(){
   // A senha atual primeiro (pedido do Ander, 21/09/2026). Quem confere e o
   // Worker: pular esta pergunta mexendo na pagina nao adianta.
-  const atual=prompt('Digite sua senha ATUAL:','');
-  if(!atual){ alert('Senha não alterada.'); return; }
-  const nova=prompt('Nova senha (mínimo 6 caracteres):','');
-  if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
-  if(prompt('Confirme a nova senha:','')!==nova.trim()){ alert('Senhas não coincidem.'); return; }
+  const atual=await perguntarSistema('Digite sua senha ATUAL:','');
+  if(!atual){ avisoSistema('Senha não alterada.'); return; }
+  const nova=await perguntarSistema('Nova senha (mínimo 6 caracteres):','');
+  if(!nova||nova.trim().length<6){ avisoSistema('Senha não alterada.'); return; }
+  if(await perguntarSistema('Confirme a nova senha:','')!==nova.trim()){ avisoSistema('Senhas não coincidem.'); return; }
   // Quem troca e quem esta logado: o usuario vem do cracha, nao do nome.
   const tk=lerToken(); const eu=tk&&tk.dados?String(tk.dados.u||'').toLowerCase():'';
   const idx=portalData.usuarios.findIndex(u=>String(u.username||'').toLowerCase()===eu);
-  if(idx<0){ alert('Usuário não encontrado na base. Senha não alterada.'); return; }
+  if(idx<0){ avisoSistema('Usuário não encontrado na base. Senha não alterada.'); return; }
   if(!await definirSenha(eu,nova.trim(),atual)) return;
   portalData.usuarios[idx].tempPass=false;
   await savePortalData();
-  alert('Senha alterada! ✅ Vale em qualquer computador.');
+  avisoSistema('Senha alterada! ✅ Vale em qualquer computador.');
 }
 
 
 async function trocarSenhaUser(found){
-  const nova=prompt(`Bem-vindo(a), ${found.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
-  if(!nova||nova.trim().length<6){ alert('Senha não alterada.'); return; }
-  if(prompt('Confirme:','')!==nova.trim()){ alert('Senhas não coincidem.'); return; }
+  const nova=await perguntarSistema(`Bem-vindo(a), ${found.name}!\n\nSenha temporária detectada.\nDigite sua nova senha (mínimo 6 caracteres):`,'');
+  if(!nova||nova.trim().length<6){ avisoSistema('Senha não alterada.'); return; }
+  if(await perguntarSistema('Confirme:','')!==nova.trim()){ avisoSistema('Senhas não coincidem.'); return; }
   const idx=portalData.usuarios.findIndex(u=>u.username===found.username);
   if(idx<0) return;
   if(!await definirSenha(found.username,nova.trim())) return;
   portalData.usuarios[idx].tempPass=false;
   await savePortalData();
-  alert('Senha alterada! ✅');
+  avisoSistema('Senha alterada! ✅');
 }
 
 // ---- INIT ----
@@ -2910,15 +2923,15 @@ async function forceLogout(sessionId, nome){
   // Encerrar a sessao de outra pessoa e so do admin — e agora quem confere
   // isso e o Worker, nao o botao estar escondido.
   if(recusarSeNaoForAdmin('Encerrar a sessão de outra pessoa é só do administrador.')) return;
-  if(!confirm('Deslogar '+nome+'? O usuário será redirecionado para o login.')) return;
+  if(!await confirmarSistema('Deslogar '+nome+'? O usuário será redirecionado para o login.')) return;
   try{
     // Pode vir mais de um id: o painel mostra uma linha por pessoa.
     await acaoSessao('sessao-derrubar',{ids:String(sessionId||'').split(',').filter(Boolean)});
-    alert(nome+' vai ser desconectado(a) assim que a tela dele(a) der sinal — em poucos segundos.\n\n'
+    avisoSistema(nome+' vai ser desconectado(a) assim que a tela dele(a) der sinal — em poucos segundos.\n\n'
       +'Se o computador estiver suspenso ou o navegador fechado, acontece quando ele voltar. '
       +'A sessão sai da lista sozinha depois de 1 hora sem sinal.');
     setTimeout(loadSessoes,2000);
-  }catch(e){ alert('Erro ao deslogar usuário.'); }
+  }catch(e){ avisoSistema('Erro ao deslogar usuário.'); }
 }
 
 // ---- SSO ----
@@ -2970,7 +2983,7 @@ async function acaoSessao(nome, corpo){
     // login, em vez de deixar o portal aberto sem servir para nada.
     if(!_avisouFalhaSessao && !_saiuDeProposito){
       _avisouFalhaSessao=true;
-      alert('O seu acesso venceu.\n\nVocê vai voltar para a tela de entrada.');
+      avisoSistema('O seu acesso venceu.\n\nVocê vai voltar para a tela de entrada.');
       forcarSaida();
     }
     throw Object.assign(new Error('acesso recusado'),{status:401});
@@ -3059,7 +3072,7 @@ async function checkForceLogoutPortal(){
   if(outroUsuarioEntrouAqui()){
     if(_avisouTrocaDeUsuario) return;
     _avisouTrocaDeUsuario=true;
-    alert('Outro usuário entrou neste navegador.\n\n'
+    await avisoSistema('Outro usuário entrou neste navegador.\n\n'
       +'Cada navegador guarda um acesso por vez. Esta tela vai recarregar com quem entrou.');
     location.reload();
     return;
@@ -3069,7 +3082,7 @@ async function checkForceLogoutPortal(){
   let r=null;
   try{ r=await acaoSessao('sessao-sinal',{sistema:'portal'}); }catch(e){ return; }
   if(!r||!r.derrubado) return;
-  alert(r.motivo==='outro-login'
+  avisoSistema(r.motivo==='outro-login'
     ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
     :'Sua sessão foi encerrada pelo administrador.');
   forcarSaida();
@@ -3141,7 +3154,7 @@ async function salvarLembretes(mudar){
   const resp=await fetch(WORKER_URL,{method:'PATCH',
     headers:cabecalhos(SISTEMA_LEMBRETES,{'Content-Type':'application/json'}),
     body:JSON.stringify({data:{lembretes:novo}})});
-  if(!resp.ok){ alert('Não consegui salvar o lembrete.\n\nVerifique a internet e tente de novo.'); return false; }
+  if(!resp.ok){ avisoSistema('Não consegui salvar o lembrete.\n\nVerifique a internet e tente de novo.'); return false; }
   _lembretes=novo;
   mostrarAvisoLembretes();
   renderLembretes();
@@ -3217,8 +3230,8 @@ function renderLembretes(){
 async function addLembrete(){
   const texto=document.getElementById('lem-texto').value.trim();
   const data=document.getElementById('lem-data').value;
-  if(!texto){ alert('Escreva o que você não quer esquecer.'); return; }
-  if(!data){ alert('Escolha a data em que quer ser lembrado.'); return; }
+  if(!texto){ avisoSistema('Escreva o que você não quer esquecer.'); return; }
+  if(!data){ avisoSistema('Escolha a data em que quer ser lembrado.'); return; }
   const novo={id:'lem-'+Math.random().toString(36).slice(2)+Date.now().toString(36),
               user:meuLogin(), texto:texto, data:data, feito:false, criadoEm:new Date().toISOString()};
 
@@ -3235,7 +3248,7 @@ async function addLembrete(){
   // Não abre aba nenhuma aqui. Quem atende é o aplicativo do WhatsApp, chamado
   // direto depois de gravar — e aplicativo não depende de o clique estar
   // "fresco", diferente de abrir aba.
-  const querCopia = !!meu && confirm('Quer mandar uma cópia deste lembrete para o seu WhatsApp agora?\n\n(A mensagem chega neste momento, não na data — o sistema mostra o lembrete no dia certo quando você entrar.)');
+  const querCopia = !!meu && await confirmarSistema('Quer mandar uma cópia deste lembrete para o seu WhatsApp agora?\n\n(A mensagem chega neste momento, não na data — o sistema mostra o lembrete no dia certo quando você entrar.)');
 
   const ok=await salvarLembretes(function(meus){ return meus.concat([novo]); });
   if(ok){
@@ -3254,7 +3267,7 @@ async function marcarLembrete(id,feito){
   });
 }
 async function excluirLembrete(id){
-  if(!confirm('Excluir este lembrete?')) return;
+  if(!await confirmarSistema('Excluir este lembrete?')) return;
   await salvarLembretes(function(meus){ return meus.filter(function(l){ return l.id!==id; }); });
 }
 
@@ -3456,7 +3469,7 @@ function relatoEscolheuImagem(input){
       '<button type="button" class="btn btn-outline" style="margin-top:6px;font-size:11px;padding:4px 10px" onclick="relatoTirarImagem()">Remover imagem</button>';
     URL.revokeObjectURL(url);
   };
-  img.onerror=function(){ URL.revokeObjectURL(url); alert('Não consegui ler esta imagem. Tente outra.'); };
+  img.onerror=function(){ URL.revokeObjectURL(url); avisoSistema('Não consegui ler esta imagem. Tente outra.'); };
   img.src=url;
 }
 function relatoTirarImagem(){
@@ -3470,9 +3483,9 @@ function relatoBlob(tela,tipo,qualidade){
 
 async function enviarRelato(){
   const texto=document.getElementById('rel-texto').value.trim();
-  if(!texto){ alert('Escreva o que aconteceu, nem que seja em poucas palavras.'); return; }
+  if(!texto){ avisoSistema('Escreva o que aconteceu, nem que seja em poucas palavras.'); return; }
   const num=numeroWhats(numeroDoAdmin());
-  if(!num){ alert('Não encontrei o WhatsApp do administrador no cadastro.'); return; }
+  if(!num){ avisoSistema('Não encontrei o WhatsApp do administrador no cadastro.'); return; }
 
   const rotulo={erro:'ERRO NO SISTEMA',alteracao:'PEDIDO DE ALTERACAO',duvida:'DUVIDA'};
   const tipo=document.getElementById('rel-tipo').value;
@@ -3501,7 +3514,7 @@ async function enviarRelato(){
   abrirWhats('https://api.whatsapp.com/send?phone='+num+'&text='+encodeURIComponent(msg));
   fecharRelato();
   if(_relatoTela){
-    alert(copiou
+    avisoSistema(copiou
       ? 'A imagem ja esta copiada: dentro da conversa do WhatsApp, aperte Ctrl+V para colar antes de enviar.'
       : 'Nao consegui copiar a imagem sozinho — anexe o print pela propria conversa do WhatsApp.');
   }
@@ -3514,7 +3527,7 @@ async function enviarRelato(){
 let _tempoUltimo=[];
 
 function openTempoUso(){
-  if(!soAdmin()){ alert('Acesso restrito ao administrador.'); return; }
+  if(!soAdmin()){ avisoSistema('Acesso restrito ao administrador.'); return; }
   document.getElementById('tempo-panel').style.display='block';
   loadTempoUso();
 }
@@ -3590,7 +3603,7 @@ async function loadTempoUso(){
 
 function exportTempoUso(){
   if(recusarSeNaoForAdmin('Exportar o tempo de uso é só do administrador.')) return;
-  if(!_tempoUltimo.length){ alert('Nada para exportar neste período.'); return; }
+  if(!_tempoUltimo.length){ avisoSistema('Nada para exportar neste período.'); return; }
   const aspas=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
   const linhas=[['Usuário','Módulo','Início','Fim','Minutos','Situação'].map(aspas).join(';')];
   _tempoUltimo.slice().sort((a,b)=>b.inicio-a.inicio).forEach(p=>{
@@ -3740,6 +3753,90 @@ function reabrirModuloSalvo(){
   let m=null;
   try{ m=JSON.parse(sessionStorage.getItem('portal-modulo-aberto')||'null'); }catch(e){}
   if(m&&m.url&&m.titulo) abrirModulo(m.url,m.titulo);
+}
+
+// ---- JANELAS DO PROPRIO SISTEMA (pedido do Ander, 17/11/2026) ----
+// No lugar do alert/confirm/prompt do navegador ("daluminium.github.io diz").
+// O estilo vem embutido para ficar igual em todos os modulos. Tudo devolve
+// Promise: quem precisa da resposta usa "await".
+//   avisoSistema(msg)               -> no lugar do alert (nao trava o codigo)
+//   await confirmarSistema(msg)     -> no lugar do confirm (true/false)
+//   await perguntarSistema(msg,val) -> no lugar do prompt (texto ou null)
+// A mensagem que comeca com uma frase curta seguida de linha em branco usa
+// essa frase como titulo da janela.
+function janelaSistemaGeral(op){
+  return new Promise(function(resolve){
+    const anterior=document.activeElement;
+    const j=document.createElement('dialog');
+    j.style.cssText='border:0;padding:0;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.25);'+
+      'max-width:500px;width:calc(100vw - 32px);position:fixed;inset:0;margin:auto;height:fit-content;'+
+      'max-height:calc(100vh - 32px);overflow:auto;font-family:inherit;color:#23282F;background:#fff';
+    const cab='padding:14px 18px;border-bottom:1px solid #EEF0F2;display:flex;justify-content:space-between;align-items:center;gap:10px';
+    const btn='padding:8px 16px;border-radius:8px;font:inherit;font-size:13px;font-weight:500;cursor:pointer;border:1px solid ';
+    j.innerHTML='<div style="'+cab+'"><strong data-t style="font-size:15px"></strong>'+
+      '<button type="button" data-x aria-label="Fechar" style="border:1px solid #DEE1E5;background:#fff;border-radius:6px;width:28px;height:28px;cursor:pointer;color:#5A6370">✕</button></div>'+
+      '<div style="padding:16px 18px"><div data-m style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-size:14px"></div>'+
+      (op.campo?'<label data-r style="display:block;margin-top:12px;font-size:12px;color:#5A6370"></label>'+
+        '<input data-c type="'+(op.campo.senha?'password':'text')+'" autocomplete="'+(op.campo.senha?'new-password':'off')+'" '+
+        'style="width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border:1px solid #DEE1E5;border-radius:8px;font:inherit;font-size:14px">':'')+
+      '</div><div data-b style="padding:12px 18px;border-top:1px solid #EEF0F2;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap"></div>';
+    j.querySelector('[data-t]').textContent=op.titulo||'Aviso';
+    j.querySelector('[data-m]').textContent=op.mensagem||'';
+    let escolha=null;
+    const fechar=function(v){ escolha=v; j.close(); };
+    const botoes=op.botoes||[{rotulo:'OK', valor:'ok', principal:true}];
+    botoes.forEach(function(b){
+      const e=document.createElement('button');
+      e.type='button'; e.textContent=b.rotulo;
+      e.style.cssText=btn+(b.principal?'#0E8FA6;background:#1FB6CF;color:#fff':'#DEE1E5;background:#fff;color:#23282F');
+      e.onclick=function(){ fechar(b.valor); };
+      j.querySelector('[data-b]').appendChild(e);
+    });
+    if(op.campo){
+      j.querySelector('[data-r]').textContent=op.campo.rotulo||'';
+      const c=j.querySelector('[data-c]');
+      c.value=op.campo.valor||'';
+      c.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); fechar(botoes[botoes.length-1].valor); } });
+    }
+    j.querySelector('[data-x]').onclick=function(){ fechar(null); };
+    j.addEventListener('keydown',function(e){ e.stopPropagation(); });
+    j.addEventListener('close',function(){
+      const texto=op.campo?j.querySelector('[data-c]').value:'';
+      j.remove();
+      if(anterior&&anterior.isConnected&&anterior.focus) anterior.focus();
+      resolve({botao:escolha, texto:texto});
+    },{once:true});
+    document.body.appendChild(j);
+    j.showModal();
+    const foco=op.campo?j.querySelector('[data-c]'):j.querySelector('[data-b]').lastChild;
+    if(foco) foco.focus();
+  });
+}
+function separarTituloSistema(msg, padrao){
+  const t=String(msg==null?'':msg);
+  const i=t.indexOf('\n\n');
+  if(i>0 && i<=60 && t.slice(0,i).indexOf('\n')<0) return {titulo:t.slice(0,i).replace(/[.:]\s*$/,''), corpo:t.slice(i+2)};
+  return {titulo:padrao, corpo:t};
+}
+function avisoSistema(msg){
+  const p=separarTituloSistema(msg,'Aviso');
+  return janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo});
+}
+async function confirmarSistema(msg, rotuloOk, rotuloCancelar){
+  const p=separarTituloSistema(msg,'Confirmar');
+  const r=await janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo, botoes:[
+    {rotulo:rotuloCancelar||'Cancelar', valor:'nao'},{rotulo:rotuloOk||'Confirmar', valor:'sim', principal:true}]});
+  return r.botao==='sim';
+}
+// Devolve o texto digitado, ou null se cancelou (igual ao prompt). Pergunta
+// que fala de senha ganha campo escondido.
+async function perguntarSistema(msg, valorInicial){
+  const p=separarTituloSistema(msg,'Informe');
+  const senha=/senha/i.test(String(msg||''));
+  const r=await janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo,
+    campo:{rotulo:'', valor:valorInicial==null?'':String(valorInicial), senha:senha},
+    botoes:[{rotulo:'Cancelar', valor:'nao'},{rotulo:'OK', valor:'sim', principal:true}]});
+  return r.botao==='sim' ? r.texto : null;
 }
 </script>
 </body>

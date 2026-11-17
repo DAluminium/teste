@@ -428,15 +428,15 @@ async function checkForceLogout(){
   let r=null;
   try{ r=await acaoSessao('sessao-sinal',{sistema:'acompanhamento'}); }catch(e){ return; }
   if(!r||!r.derrubado) return;
-  alert(r.motivo==='outro-login'
+  await avisoSistema(r.motivo==='outro-login'
     ?'Sua sessão foi encerrada porque este usuário entrou em outro navegador.'
     :'Sua sessão foi encerrada pelo administrador.');
   loginGuardaApagar(TOKEN_KEY); loginGuardaApagar('dalum-sso'); apagarDadosLocais();
   location.reload();
 }
 async function sairDoModulo(){
-  if(temRascunho() && !confirm('Há medidas não salvas. Sair mesmo assim?')) return;
-  if(!temRascunho() && !confirm('Deseja sair?')) return;
+  if(temRascunho() && !await confirmarSistema('Há medidas não salvas. Sair mesmo assim?')) return;
+  if(!temRascunho() && !await confirmarSistema('Deseja sair?')) return;
   try{ await acaoSessao('sessao-sair',{}); }catch(e){}
   loginGuardaApagar(TOKEN_KEY); loginGuardaApagar('dalum-sso'); apagarDadosLocais();
   rascunho={};
@@ -484,8 +484,8 @@ async function conferirVersao(){
     '<button type="button" class="btn btn-cor btn-sm" id="barra-versao-ok">Atualizar agora</button>'+
     '<button type="button" class="btn btn-outline btn-sm" id="barra-versao-x">Agora não</button>';
   document.body.appendChild(b);
-  b.querySelector('#barra-versao-ok').onclick=function(){
-    if(temRascunho() && !confirm('Há medidas não salvas. Atualizar mesmo assim?')) return;
+  b.querySelector('#barra-versao-ok').onclick=async function(){
+    if(temRascunho() && !await confirmarSistema('Há medidas não salvas. Atualizar mesmo assim?')) return;
     try{ if(window.self!==window.top){ window.parent.postMessage('atualizar-versao','*'); return; } }catch(e){}
     location.replace(location.pathname+'?v='+encodeURIComponent(v));
   };
@@ -1128,7 +1128,7 @@ async function tirarDaEsquadria(esqId, lista, itemId, rotulo){
   const it=e0&&(e0[lista]||[]).find(function(x){ return x.id===itemId; });
   if(!it) return;
   if(!podeTirar(it)){ aviso('Não dá para tirar','Só quem pôs o arquivo, o gerente ou o administrador pode tirar.'); return; }
-  if(!confirm('Tirar '+rotulo+' "'+it.nome+'"?')) return;
+  if(!await confirmarSistema('Tirar '+rotulo+' "'+it.nome+'"?')) return;
   const o=obraPorId(obraAberta)||{};
   const deu=await alterar(function(base){
     const a=base.acompanhamentos.find(function(x){ return x.ctoId===obraAberta; });
@@ -1457,7 +1457,7 @@ async function relatorioDaVisita(enviar){
   if(!_visita||!_visita.id) return;
   if(visitaMudou()){
     if(!ehConsulta() && (podeTirar(_visita))){
-      if(!confirm('Há alterações nesta visita. Salvar antes de gerar o relatório?')) return;
+      if(!await confirmarSistema('Há alterações nesta visita. Salvar antes de gerar o relatório?')) return;
       const id=_visita.id;
       await salvarVisita();
       if(_visita) return;           // nao salvou: o aviso ja apareceu
@@ -1475,8 +1475,8 @@ function tirarFotoDaVisita(fid){
   _visita.fotos=_visita.fotos.filter(function(x){ return x.id!==fid; });
   desenharVisita();
 }
-function fecharVisita(){
-  if(_visitaNovas.length && !confirm('As fotos que você pôs nesta visita serão descartadas. Fechar sem salvar?')) return;
+async function fecharVisita(){
+  if(_visitaNovas.length && !await confirmarSistema('As fotos que você pôs nesta visita serão descartadas. Fechar sem salvar?')) return;
   // Fotos enviadas e nao salvas: apagadas (ninguem cita, o Worker apaga).
   _visitaNovas.forEach(function(u){ excluirArquivoDoAnexo(u); });
   _visitaNovas=[]; _visita=null;
@@ -1516,7 +1516,7 @@ async function salvarVisita(){
 }
 async function excluirVisita(){
   const v=_visita; if(!v||!v.id) return;
-  if(!confirm('Excluir a visita de '+fmtData(v.data)+'? As fotos dela também saem.')) return;
+  if(!await confirmarSistema('Excluir a visita de '+fmtData(v.data)+'? As fotos dela também saem.')) return;
   const antes=((acompDaObra(obraAberta)||{}).visitas||[]).find(function(x){ return x.id===v.id; })||v;
   const o=obraPorId(obraAberta)||{};
   const deu=await alterar(function(base){
@@ -2080,8 +2080,8 @@ async function trocarCroqui(esqId,croqui){
     if(a&&e){ const d=document.getElementById('desenho-'+esqId); if(d) d.textContent='carregando...'; mostrarDesenho(a,e); }
   }
 }
-function voltarDesenhoDoPdf(esqId){
-  if(!confirm('Voltar a usar o desenho que veio no PDF?')) return;
+async function voltarDesenhoDoPdf(esqId){
+  if(!await confirmarSistema('Voltar a usar o desenho que veio no PDF?')) return;
   trocarCroqui(esqId,null);
 }
 
@@ -2388,8 +2388,8 @@ function abrirObra(id){
   // Primeira vez que a obra e aberta com o PDF anexado: monta sozinho.
   if(o && !acompDaObra(id) && docsDeMedicao(o).length && !ehConsulta()) montarFichas(o,false);
 }
-function voltarParaLista(){
-  if(temRascunho() && !confirm('Há medidas não salvas nesta obra. Voltar e perder o que foi digitado?')) return;
+async function voltarParaLista(){
+  if(temRascunho() && !await confirmarSistema('Há medidas não salvas nesta obra. Voltar e perder o que foi digitado?')) return;
   rascunho={}; baseFichas={};
   obraAberta=null;
   try{ sessionStorage.removeItem('dalum-acomp-aberta'); }catch(e){}
@@ -2728,8 +2728,8 @@ function atualizarBarraSalvar(){
   b.classList.toggle('visivel', n>0 && !!obraAberta);
   document.getElementById('barra-salvar-txt').textContent=n===1?'1 esquadria com alteração não salva':n+' esquadrias com alteração não salva';
 }
-function descartarRascunho(){
-  if(!confirm('Descartar o que foi digitado e não salvo?')) return;
+async function descartarRascunho(){
+  if(!await confirmarSistema('Descartar o que foi digitado e não salvo?')) return;
   rascunho={}; baseFichas={};
   render();
 }
@@ -2860,6 +2860,90 @@ async function atualizarDoBanco(){
   try{ (window.top||window).location.replace(PORTAL_URL); }
   catch(e){ window.location.replace(PORTAL_URL); }
 })();
+
+// ---- JANELAS DO PROPRIO SISTEMA (pedido do Ander, 17/11/2026) ----
+// No lugar do alert/confirm/prompt do navegador ("daluminium.github.io diz").
+// O estilo vem embutido para ficar igual em todos os modulos. Tudo devolve
+// Promise: quem precisa da resposta usa "await".
+//   avisoSistema(msg)               -> no lugar do alert (nao trava o codigo)
+//   await confirmarSistema(msg)     -> no lugar do confirm (true/false)
+//   await perguntarSistema(msg,val) -> no lugar do prompt (texto ou null)
+// A mensagem que comeca com uma frase curta seguida de linha em branco usa
+// essa frase como titulo da janela.
+function janelaSistemaGeral(op){
+  return new Promise(function(resolve){
+    const anterior=document.activeElement;
+    const j=document.createElement('dialog');
+    j.style.cssText='border:0;padding:0;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.25);'+
+      'max-width:500px;width:calc(100vw - 32px);position:fixed;inset:0;margin:auto;height:fit-content;'+
+      'max-height:calc(100vh - 32px);overflow:auto;font-family:inherit;color:#23282F;background:#fff';
+    const cab='padding:14px 18px;border-bottom:1px solid #EEF0F2;display:flex;justify-content:space-between;align-items:center;gap:10px';
+    const btn='padding:8px 16px;border-radius:8px;font:inherit;font-size:13px;font-weight:500;cursor:pointer;border:1px solid ';
+    j.innerHTML='<div style="'+cab+'"><strong data-t style="font-size:15px"></strong>'+
+      '<button type="button" data-x aria-label="Fechar" style="border:1px solid #DEE1E5;background:#fff;border-radius:6px;width:28px;height:28px;cursor:pointer;color:#5A6370">✕</button></div>'+
+      '<div style="padding:16px 18px"><div data-m style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-size:14px"></div>'+
+      (op.campo?'<label data-r style="display:block;margin-top:12px;font-size:12px;color:#5A6370"></label>'+
+        '<input data-c type="'+(op.campo.senha?'password':'text')+'" autocomplete="'+(op.campo.senha?'new-password':'off')+'" '+
+        'style="width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border:1px solid #DEE1E5;border-radius:8px;font:inherit;font-size:14px">':'')+
+      '</div><div data-b style="padding:12px 18px;border-top:1px solid #EEF0F2;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap"></div>';
+    j.querySelector('[data-t]').textContent=op.titulo||'Aviso';
+    j.querySelector('[data-m]').textContent=op.mensagem||'';
+    let escolha=null;
+    const fechar=function(v){ escolha=v; j.close(); };
+    const botoes=op.botoes||[{rotulo:'OK', valor:'ok', principal:true}];
+    botoes.forEach(function(b){
+      const e=document.createElement('button');
+      e.type='button'; e.textContent=b.rotulo;
+      e.style.cssText=btn+(b.principal?'#0E8FA6;background:#1FB6CF;color:#fff':'#DEE1E5;background:#fff;color:#23282F');
+      e.onclick=function(){ fechar(b.valor); };
+      j.querySelector('[data-b]').appendChild(e);
+    });
+    if(op.campo){
+      j.querySelector('[data-r]').textContent=op.campo.rotulo||'';
+      const c=j.querySelector('[data-c]');
+      c.value=op.campo.valor||'';
+      c.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); fechar(botoes[botoes.length-1].valor); } });
+    }
+    j.querySelector('[data-x]').onclick=function(){ fechar(null); };
+    j.addEventListener('keydown',function(e){ e.stopPropagation(); });
+    j.addEventListener('close',function(){
+      const texto=op.campo?j.querySelector('[data-c]').value:'';
+      j.remove();
+      if(anterior&&anterior.isConnected&&anterior.focus) anterior.focus();
+      resolve({botao:escolha, texto:texto});
+    },{once:true});
+    document.body.appendChild(j);
+    j.showModal();
+    const foco=op.campo?j.querySelector('[data-c]'):j.querySelector('[data-b]').lastChild;
+    if(foco) foco.focus();
+  });
+}
+function separarTituloSistema(msg, padrao){
+  const t=String(msg==null?'':msg);
+  const i=t.indexOf('\n\n');
+  if(i>0 && i<=60 && t.slice(0,i).indexOf('\n')<0) return {titulo:t.slice(0,i).replace(/[.:]\s*$/,''), corpo:t.slice(i+2)};
+  return {titulo:padrao, corpo:t};
+}
+function avisoSistema(msg){
+  const p=separarTituloSistema(msg,'Aviso');
+  return janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo});
+}
+async function confirmarSistema(msg, rotuloOk, rotuloCancelar){
+  const p=separarTituloSistema(msg,'Confirmar');
+  const r=await janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo, botoes:[
+    {rotulo:rotuloCancelar||'Cancelar', valor:'nao'},{rotulo:rotuloOk||'Confirmar', valor:'sim', principal:true}]});
+  return r.botao==='sim';
+}
+// Devolve o texto digitado, ou null se cancelou (igual ao prompt). Pergunta
+// que fala de senha ganha campo escondido.
+async function perguntarSistema(msg, valorInicial){
+  const p=separarTituloSistema(msg,'Informe');
+  const senha=/senha/i.test(String(msg||''));
+  const r=await janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo,
+    campo:{rotulo:'', valor:valorInicial==null?'':String(valorInicial), senha:senha},
+    botoes:[{rotulo:'Cancelar', valor:'nao'},{rotulo:'OK', valor:'sim', principal:true}]});
+  return r.botao==='sim' ? r.texto : null;
+}
 </script>
 </body>
 </html>

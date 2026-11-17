@@ -619,7 +619,7 @@ function podeExcluir(){ const p=papelDoCracha(); return p==='admin'||p==='gerent
 function ehConsulta(){ return papelDoCracha()==='consulta'; }
 function recusarExcluir(){
   if(podeExcluir()) return false;
-  alert('S\u00f3 o gerente ou o administrador pode excluir.\n\nPe\u00e7a a quem gerencia este m\u00f3dulo.');
+  avisoSistema('S\u00f3 o gerente ou o administrador pode excluir.\n\nPe\u00e7a a quem gerencia este m\u00f3dulo.');
   return true;
 }
 // Na Consulta toda gravacao para aqui. O aviso aparece no maximo a cada
@@ -629,13 +629,13 @@ function recusarSeConsulta(){
   // Espelho ("Ver como", 16/10/2026): a tela mostra os botoes da pessoa, mas
   // nada grava. Avisa aqui, antes de ir ao Worker (que recusaria do mesmo jeito).
   try{ if(sessionStorage.getItem('dalum-espelho')){
-    alert('\u{1F441} Modo espelho: voc\u00ea est\u00e1 vendo o sistema como outra pessoa, s\u00f3 para olhar.\n\nNada foi gravado.');
+    avisoSistema('\u{1F441} Modo espelho: voc\u00ea est\u00e1 vendo o sistema como outra pessoa, s\u00f3 para olhar.\n\nNada foi gravado.');
     return true;
   } }catch(e){}
   if(!ehConsulta()) return false;
   if(Date.now()-_avisouConsulta>60000){
     _avisouConsulta=Date.now();
-    alert('Voc\u00ea est\u00e1 no modo consulta: pode olhar, mas n\u00e3o alterar.\n\nA altera\u00e7\u00e3o n\u00e3o foi salva.');
+    avisoSistema('Voc\u00ea est\u00e1 no modo consulta: pode olhar, mas n\u00e3o alterar.\n\nA altera\u00e7\u00e3o n\u00e3o foi salva.');
   }
   return true;
 }
@@ -775,7 +775,7 @@ async function checkForceLogoutCrm(){
     });
 }
 async function sairDoCrm(){
-  if(!confirm('Deseja sair?')) return;
+  if(!await confirmarSistema('Deseja sair?')) return;
   await removerSessaoCrm();
   loginGuardaApagar(TOKEN_KEY);
   loginGuardaApagar('dalum-sso');
@@ -1503,9 +1503,9 @@ async function moverParaEtapa(id, etapaId){
 // pelo WhatsApp (mensagem pronta; quem envia e a pessoa — ver "WhatsApp: chamar
 // o aplicativo"). O vendedor completa na ficha e salva: o cartao mostra que ele
 // completou, e quem orca segue.
-function perguntarOQueFalta(o){
+async function perguntarOQueFalta(o){
   const nome=(o.vendedorNome||nomeDoVendedor(o.vendedor)||'o vendedor');
-  const t=prompt('O que está faltando para orçar "'+(o.cliente||'este negócio')+'"?\n\n'+
+  const t=await perguntarSistema('O que está faltando para orçar "'+(o.cliente||'este negócio')+'"?\n\n'+
     nome+' vai receber esta mensagem pelo WhatsApp.','');
   if(t===null) return null;
   return t.trim()||'(não especificado)';
@@ -1517,7 +1517,7 @@ function marcarFaltaInformacao(alvo, falta){
   alvo.notas.push({id:novoId(), ts:agoraISO(), por:usuario, texto:'Falta informação: '+falta});
 }
 async function mandarParaFaltaInformacao(o, etapaId){
-  const falta=perguntarOQueFalta(o);
+  const falta=await perguntarOQueFalta(o);
   if(falta===null) return;
   const e=etapaDe(etapaId);
   const ok=await alterar(function(base){
@@ -1675,9 +1675,9 @@ function htmlRetornos(){
 async function retornoFeito(id){
   const o=ativos().find(function(x){ return x.id===id; });
   if(!o) return;
-  const como=prompt('Retorno feito com '+(o.cliente||'o cliente')+'.\n\nO que ficou combinado? (opcional)','');
+  const como=await perguntarSistema('Retorno feito com '+(o.cliente||'o cliente')+'.\n\nO que ficou combinado? (opcional)','');
   if(como===null) return;
-  const prox=prompt('Marcar o próximo retorno?\n\nDigite a data (dd/mm/aaaa) ou deixe em branco para não marcar.','');
+  const prox=await perguntarSistema('Marcar o próximo retorno?\n\nDigite a data (dd/mm/aaaa) ou deixe em branco para não marcar.','');
   if(prox===null) return;
   let proxISO='';
   if(prox.trim()){
@@ -2113,7 +2113,7 @@ async function corrigirNota(id){
   const o=negocioDaFicha(); if(!o) return;
   const n=(o.notas||[]).find(function(x){ return x.id===id; });
   if(!notaEditavel(n)){ aviso('Não dá mais para corrigir','Só dá para corrigir a sua própria anotação no mesmo dia. Para retificar, faça uma anotação nova.'); return; }
-  const novo=prompt('Corrigir a anotação:', n.texto||'');
+  const novo=await perguntarSistema('Corrigir a anotação:', n.texto||'');
   if(novo===null) return;
   const t=String(novo).trim();
   if(!t || t===n.texto) return;
@@ -2130,7 +2130,7 @@ async function apagarNota(id){
   const o=negocioDaFicha(); if(!o) return;
   const n=(o.notas||[]).find(function(x){ return x.id===id; });
   if(!notaEditavel(n)){ aviso('Não dá mais para apagar','Só dá para apagar a sua própria anotação no mesmo dia.'); return; }
-  if(!confirm('Apagar esta anotação?\n\n"'+String(n.texto||'').slice(0,120)+'"')) return;
+  if(!await confirmarSistema('Apagar esta anotação?\n\n"'+String(n.texto||'').slice(0,120)+'"')) return;
   await alterar(function(base){
     const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
     if(!alvo) return false;
@@ -2354,7 +2354,7 @@ async function baixarPeloSistema(url,nome){
     d.href=l+(l.indexOf('/anexo/')>0?'&baixar=1':'');
     if(l.indexOf('/anexo/')<0) d.download=nome||'arquivo';
     document.body.appendChild(d); d.click(); d.remove();
-  }catch(e){ alert('Não consegui baixar o anexo.\n\n'+e.message); }
+  }catch(e){ avisoSistema('Não consegui baixar o anexo.\n\n'+e.message); }
 }
 async function enviarArquivoPrivado(arquivo,pasta,tipoRecurso){
   const r=await fetch(WORKER,{method:'POST',cache:'no-store',
@@ -2550,10 +2550,10 @@ async function anexarLinkCrm(){
   if(ehConsulta()){ aviso('Sem permissão','Você não pode anexar.'); return; }
   const o=negocioDaFicha();
   if(o && !podeEditarNegocio(o)){ aviso('Sem permissão','Você não pode anexar neste negócio.'); return; }
-  const link=String(prompt('Cole o link do arquivo (Drive, WeTransfer, Dropbox...):','')||'').trim();
+  const link=String(await perguntarSistema('Cole o link do arquivo (Drive, WeTransfer, Dropbox...):','')||'').trim();
   if(!link) return;
   if(!/^https:\/\/\S+$/i.test(link)){ aviso('Link inválido','O link precisa começar com https://'); return; }
-  const nome=String(prompt('Nome para aparecer no negócio (ex.: Projeto da fachada):','')||'').trim()||link.replace(/^https:\/\//,'').slice(0,60);
+  const nome=String(await perguntarSistema('Nome para aparecer no negócio (ex.: Projeto da fachada):','')||'').trim()||link.replace(/^https:\/\//,'').slice(0,60);
   if(!o){ _anexosPendentes.push({id:novoId(), nome:nome, link:link}); renderDocsCrm(null); return; }
   await gravarDocsCrm([{id:novoId(), nome:nome, link:link, quem:usuario, quemLogin:meuLoginDeAnexo(), quando:agoraISO()}]);
 }
@@ -2576,7 +2576,7 @@ async function removerDocCrm(id){
   const d=(o.docs||[]).find(function(x){ return x.id===id; }); if(!d) return;
   if(recusarSeConsulta()) return;
   if(!anexoEhMeu(d) && recusarExcluir()) return;
-  if(!confirm('Tirar "'+(d.nome||'este anexo')+'" deste negócio?')) return;
+  if(!await confirmarSistema('Tirar "'+(d.nome||'este anexo')+'" deste negócio?')) return;
   const ok=await alterar(function(base){
     const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
     if(!alvo) return false;
@@ -2679,9 +2679,9 @@ function travarFicha(travar){
     el.disabled=travar;
   });
 }
-function fecharFicha(){
-  if(_notasNovas.length && !confirm('Há contato anotado que ainda não foi salvo.\n\nFechar e perder essa anotação?')) return;
-  if(_anexosPendentes.length && !confirm('Há '+(_anexosPendentes.length===1?'1 anexo':_anexosPendentes.length+' anexos')+' esperando o Salvar.\n\nFechar sem salvar e perder os anexos?')) return;
+async function fecharFicha(){
+  if(_notasNovas.length && !await confirmarSistema('Há contato anotado que ainda não foi salvo.\n\nFechar e perder essa anotação?')) return;
+  if(_anexosPendentes.length && !await confirmarSistema('Há '+(_anexosPendentes.length===1?'1 anexo':_anexosPendentes.length+' anexos')+' esperando o Salvar.\n\nFechar sem salvar e perder os anexos?')) return;
   document.getElementById('ficha-ov').classList.remove('open');
   fichaId=null; _notasNovas=[]; _anexosPendentes=[];
 }
@@ -2713,7 +2713,7 @@ async function salvarFicha(){
   if(!f.cliente){ aviso('Falta o cliente','Preencha o nome do cliente ou da obra.'); document.getElementById('o-cliente').focus(); return; }
   if(!f.vendedor){ aviso('Falta o vendedor','Escolha de quem é este negócio.'); return; }
   if(f.telefone && !numeroWhats(f.telefone)){
-    if(!confirm('O telefone "'+f.telefone+'" parece incompleto (falta o DDD?).\n\nSalvar assim mesmo?')) return;
+    if(!await confirmarSistema('O telefone "'+f.telefone+'" parece incompleto (falta o DDD?).\n\nSalvar assim mesmo?')) return;
   }
   if(f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)){
     aviso('E-mail inválido','Confira o e-mail digitado, ou deixe em branco.'); return;
@@ -2727,7 +2727,7 @@ async function salvarFicha(){
   // Guarda contra CPF digitado por engano (LGPD: o CRM nao guarda documento).
   const juntos=[f.obs,f.interesse,f.cliente].concat(_notasNovas.map(function(n){ return n.texto; })).join(' ');
   if(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/.test(juntos)){
-    if(!confirm('Parece que há um CPF (ou outro documento) no texto.\n\nO CRM não deve guardar documento do cliente (LGPD) — o CPF entra só no contrato, na Obra.\n\nSalvar assim mesmo?')) return;
+    if(!await confirmarSistema('Parece que há um CPF (ou outro documento) no texto.\n\nO CRM não deve guardar documento do cliente (LGPD) — o CPF entra só no contrato, na Obra.\n\nSalvar assim mesmo?')) return;
   }
   const id=fichaId||novoId();
   const novo=!fichaId;
@@ -2736,7 +2736,7 @@ async function salvarFicha(){
   // falta, como no arrastar, e avisa o vendedor depois de salvar.
   let faltaPedida=null;
   if(!novo && antes.etapa!==f.etapa && vendedorCompletaNaEtapa(f.etapa) && (ehOrcamentista()||podeGerenciar())){
-    faltaPedida=perguntarOQueFalta(antes);
+    faltaPedida=await perguntarOQueFalta(antes);
     if(faltaPedida===null) return;
   }
   // Vendedor salvando na etapa em que falta informacao = completou.
@@ -2819,11 +2819,11 @@ async function salvarFicha(){
 // Arrastar e so dentro do mesmo funil. Para passar de Orcamentos para Vendas
 // (orcamento pronto) ou de Vendas para Orcamentos (cliente pediu revisao), a
 // pessoa escolhe a coluna de destino numa lista.
-function enviarParaOutroFunil(){
+async function enviarParaOutroFunil(){
   const o=(dados.oportunidades||[]).find(function(x){ return x.id===fichaId; });
   if(!o) return;
   if(!podeEnviarParaOutroFunil(o)){ aviso('Sem permissão','Você não pode enviar este negócio para o outro funil.'); return; }
-  if(_notasNovas.length && !confirm('Há contato anotado que ainda não foi salvo.\n\nEnviar mesmo assim e perder essa anotação?')) return;
+  if(_notasNovas.length && !await confirmarSistema('Há contato anotado que ainda não foi salvo.\n\nEnviar mesmo assim e perder essa anotação?')) return;
   const destino=funilDoNegocio(o)==='orcamentos'?'vendas':'orcamentos';
   const lista=etapasDoFunil(destino).filter(function(e){ return e.tipo==='aberta'; });
   if(!lista.length){ aviso('Funil sem etapas','O funil de '+nomeDoFunil(destino)+' não tem etapas. Peça ao gerente para cadastrar em Cadastros.'); return; }
@@ -2880,7 +2880,7 @@ async function excluirNegocio(){
   if(!o) return;
   if(recusarSeConsulta()) return;
   if(!podeGerenciar() && !(o.vendedor===usuarioLogin && lancouEste(o))){ aviso('Sem permissão','Você só pode excluir os negócios que você mesma lançou.'); return; }
-  if(!confirm('Mandar "'+(o.cliente||'este negócio')+'" para a lixeira?\n\nO gerente consegue restaurar depois.')) return;
+  if(!await confirmarSistema('Mandar "'+(o.cliente||'este negócio')+'" para a lixeira?\n\nO gerente consegue restaurar depois.')) return;
   const ok=await alterar(function(base){
     const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
     if(!alvo) return false;
@@ -2919,11 +2919,11 @@ async function apagarDadosPessoais(){
   if(!soAdmin()){ aviso('Só o administrador','Apagar dados pessoais a pedido do cliente é feito só pelo administrador.'); return; }
   const o=(dados.oportunidades||[]).find(function(x){ return x.id===fichaId; });
   if(!o) return;
-  if(!confirm('Apagar os dados pessoais de "'+(o.cliente||'este negócio')+'"?\n\n'+
+  if(!await confirmarSistema('Apagar os dados pessoais de "'+(o.cliente||'este negócio')+'"?\n\n'+
     'Somem: nome, telefone, e-mail, bairro, o que o cliente queria, observações e contatos anotados.\n'+
     'Ficam (sem identificar ninguém): etapa, valor, origem, cidade e datas — para os números de venda.\n\n'+
     'Use quando o cliente pedir para ser esquecido. NÃO TEM VOLTA.')) return;
-  if(prompt('Para confirmar, digite APAGAR')!=='APAGAR') return;
+  if(await perguntarSistema('Para confirmar, digite APAGAR')!=='APAGAR') return;
   const ok=await alterar(function(base){
     const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
     if(!alvo) return false;
@@ -2942,7 +2942,7 @@ async function levarParaObra(){
   if(!podeLevarParaObra()){ aviso('Sem acesso à Obra','Só administrador ou gerente com o módulo Obra cadastra contrato.'); return; }
   const o=(dados.oportunidades||[]).find(function(x){ return x.id===fichaId; });
   if(!o) return;
-  if(o.enviadoObraEm && !confirm('Este negócio já foi levado à Obra em '+fmtData(o.enviadoObraEm)+'.\n\nAbrir outro contrato novo mesmo assim?')) return;
+  if(o.enviadoObraEm && !await confirmarSistema('Este negócio já foi levado à Obra em '+fmtData(o.enviadoObraEm)+'.\n\nAbrir outro contrato novo mesmo assim?')) return;
   const ok=await alterar(function(base){
     const alvo=(base.oportunidades||[]).find(function(x){ return x.id===o.id; });
     if(!alvo) return false;
@@ -3031,7 +3031,7 @@ async function importarEvoluti(){
   let fila=_imp.negocios.filter(function(n){ return !jaTem[n.id]; });
   if(document.getElementById('imp-so3').checked) fila=fila.slice(0,3);
   if(!fila.length) return;
-  if(!confirm('Importar '+fila.length+' negócio(s) do Evoluti?\n\nOs anexos sobem um por um; pode levar alguns minutos. Não feche esta tela.')) return;
+  if(!await confirmarSistema('Importar '+fila.length+' negócio(s) do Evoluti?\n\nOs anexos sobem um por um; pode levar alguns minutos. Não feche esta tela.')) return;
   _imp.rodando=true;
   document.getElementById('imp-btn').disabled=true;
   let feitos=0;
@@ -3243,12 +3243,12 @@ function addEtapa(funil){
     if(pos<0) base.etapas.push(nova); else base.etapas.splice(pos,0,nova);
   },{acao:'criou etapa', alvo:'CRM · etapa', detalhe:nomeDoFunil(funil)+': '+nome});
 }
-function removerEtapa(id){
+async function removerEtapa(id){
   const e=etapaDe(id); if(!e||e.tipo!=='aberta') return;
   const usa=emUso(id);
   if(usa){ aviso('Etapa em uso',usa+' negócio'+(usa>1?'s estão':' está')+' em "'+e.nome+'". Mude esses negócios de etapa antes de remover.'); return; }
   if(etapasDoFunil(e.funil||'vendas').filter(function(x){ return x.tipo==='aberta'; }).length<=1){ aviso('Última etapa','O funil precisa de pelo menos uma coluna em aberto.'); return; }
-  if(!confirm('Remover a etapa "'+e.nome+'"?')) return;
+  if(!await confirmarSistema('Remover a etapa "'+e.nome+'"?')) return;
   mexerCadastro(function(base){
     if((base.oportunidades||[]).some(function(o){ return o.etapa===id; })){ aviso('Etapa em uso','Alguém acabou de colocar um negócio nesta etapa.'); return false; }
     base.etapas=base.etapas.filter(function(x){ return x.id!==id; });
@@ -3260,17 +3260,17 @@ function addNaLista(campo){
   if((dados[campo]||[]).some(function(x){ return normTexto(x)===normTexto(t); })){ aviso('Já existe','Esse item já está na lista.'); return; }
   mexerCadastro(function(base){ base[campo].push(t); });
 }
-function removerDaLista(campo,i){
+async function removerDaLista(campo,i){
   const x=(dados[campo]||[])[i]; if(x==null) return;
   if((dados[campo]||[]).length<=1){ aviso('Último item','A lista precisa de pelo menos um item.'); return; }
-  if(!confirm('Remover "'+x+'" da lista?\n\nOs negócios que já usam continuam mostrando.')) return;
+  if(!await confirmarSistema('Remover "'+x+'" da lista?\n\nOs negócios que já usam continuam mostrando.')) return;
   mexerCadastro(function(base){ base[campo]=base[campo].filter(function(y){ return y!==x; }); });
 }
 async function limparAntigos(){
   if(!soAdmin()){ aviso('Só o administrador','A limpeza de dados antigos (LGPD) é feita só pelo administrador.'); return; }
   const l=paraLimpar();
   if(!l.length) return;
-  if(!confirm('Apagar os dados pessoais de '+l.length+' negócio(s) perdido(s) há mais de '+MESES_GUARDAR_PERDIDO+' meses?\n\nOs números de venda continuam. NÃO TEM VOLTA.')) return;
+  if(!await confirmarSistema('Apagar os dados pessoais de '+l.length+' negócio(s) perdido(s) há mais de '+MESES_GUARDAR_PERDIDO+' meses?\n\nOs números de venda continuam. NÃO TEM VOLTA.')) return;
   const ids={}; l.forEach(function(o){ ids[o.id]=1; });
   await mexerCadastro(function(base){
     let n=0;
@@ -3398,6 +3398,90 @@ function abrirApp(nome,papelDoUsuario,login){
   try{ (window.top||window).location.replace(PORTAL_URL); }
   catch(e){ window.location.replace(PORTAL_URL); }
 })();
+
+// ---- JANELAS DO PROPRIO SISTEMA (pedido do Ander, 17/11/2026) ----
+// No lugar do alert/confirm/prompt do navegador ("daluminium.github.io diz").
+// O estilo vem embutido para ficar igual em todos os modulos. Tudo devolve
+// Promise: quem precisa da resposta usa "await".
+//   avisoSistema(msg)               -> no lugar do alert (nao trava o codigo)
+//   await confirmarSistema(msg)     -> no lugar do confirm (true/false)
+//   await perguntarSistema(msg,val) -> no lugar do prompt (texto ou null)
+// A mensagem que comeca com uma frase curta seguida de linha em branco usa
+// essa frase como titulo da janela.
+function janelaSistemaGeral(op){
+  return new Promise(function(resolve){
+    const anterior=document.activeElement;
+    const j=document.createElement('dialog');
+    j.style.cssText='border:0;padding:0;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.25);'+
+      'max-width:500px;width:calc(100vw - 32px);position:fixed;inset:0;margin:auto;height:fit-content;'+
+      'max-height:calc(100vh - 32px);overflow:auto;font-family:inherit;color:#23282F;background:#fff';
+    const cab='padding:14px 18px;border-bottom:1px solid #EEF0F2;display:flex;justify-content:space-between;align-items:center;gap:10px';
+    const btn='padding:8px 16px;border-radius:8px;font:inherit;font-size:13px;font-weight:500;cursor:pointer;border:1px solid ';
+    j.innerHTML='<div style="'+cab+'"><strong data-t style="font-size:15px"></strong>'+
+      '<button type="button" data-x aria-label="Fechar" style="border:1px solid #DEE1E5;background:#fff;border-radius:6px;width:28px;height:28px;cursor:pointer;color:#5A6370">✕</button></div>'+
+      '<div style="padding:16px 18px"><div data-m style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-size:14px"></div>'+
+      (op.campo?'<label data-r style="display:block;margin-top:12px;font-size:12px;color:#5A6370"></label>'+
+        '<input data-c type="'+(op.campo.senha?'password':'text')+'" autocomplete="'+(op.campo.senha?'new-password':'off')+'" '+
+        'style="width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border:1px solid #DEE1E5;border-radius:8px;font:inherit;font-size:14px">':'')+
+      '</div><div data-b style="padding:12px 18px;border-top:1px solid #EEF0F2;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap"></div>';
+    j.querySelector('[data-t]').textContent=op.titulo||'Aviso';
+    j.querySelector('[data-m]').textContent=op.mensagem||'';
+    let escolha=null;
+    const fechar=function(v){ escolha=v; j.close(); };
+    const botoes=op.botoes||[{rotulo:'OK', valor:'ok', principal:true}];
+    botoes.forEach(function(b){
+      const e=document.createElement('button');
+      e.type='button'; e.textContent=b.rotulo;
+      e.style.cssText=btn+(b.principal?'#0E8FA6;background:#1FB6CF;color:#fff':'#DEE1E5;background:#fff;color:#23282F');
+      e.onclick=function(){ fechar(b.valor); };
+      j.querySelector('[data-b]').appendChild(e);
+    });
+    if(op.campo){
+      j.querySelector('[data-r]').textContent=op.campo.rotulo||'';
+      const c=j.querySelector('[data-c]');
+      c.value=op.campo.valor||'';
+      c.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); fechar(botoes[botoes.length-1].valor); } });
+    }
+    j.querySelector('[data-x]').onclick=function(){ fechar(null); };
+    j.addEventListener('keydown',function(e){ e.stopPropagation(); });
+    j.addEventListener('close',function(){
+      const texto=op.campo?j.querySelector('[data-c]').value:'';
+      j.remove();
+      if(anterior&&anterior.isConnected&&anterior.focus) anterior.focus();
+      resolve({botao:escolha, texto:texto});
+    },{once:true});
+    document.body.appendChild(j);
+    j.showModal();
+    const foco=op.campo?j.querySelector('[data-c]'):j.querySelector('[data-b]').lastChild;
+    if(foco) foco.focus();
+  });
+}
+function separarTituloSistema(msg, padrao){
+  const t=String(msg==null?'':msg);
+  const i=t.indexOf('\n\n');
+  if(i>0 && i<=60 && t.slice(0,i).indexOf('\n')<0) return {titulo:t.slice(0,i).replace(/[.:]\s*$/,''), corpo:t.slice(i+2)};
+  return {titulo:padrao, corpo:t};
+}
+function avisoSistema(msg){
+  const p=separarTituloSistema(msg,'Aviso');
+  return janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo});
+}
+async function confirmarSistema(msg, rotuloOk, rotuloCancelar){
+  const p=separarTituloSistema(msg,'Confirmar');
+  const r=await janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo, botoes:[
+    {rotulo:rotuloCancelar||'Cancelar', valor:'nao'},{rotulo:rotuloOk||'Confirmar', valor:'sim', principal:true}]});
+  return r.botao==='sim';
+}
+// Devolve o texto digitado, ou null se cancelou (igual ao prompt). Pergunta
+// que fala de senha ganha campo escondido.
+async function perguntarSistema(msg, valorInicial){
+  const p=separarTituloSistema(msg,'Informe');
+  const senha=/senha/i.test(String(msg||''));
+  const r=await janelaSistemaGeral({titulo:p.titulo, mensagem:p.corpo,
+    campo:{rotulo:'', valor:valorInicial==null?'':String(valorInicial), senha:senha},
+    botoes:[{rotulo:'Cancelar', valor:'nao'},{rotulo:'OK', valor:'sim', principal:true}]});
+  return r.botao==='sim' ? r.texto : null;
+}
 </script>
 </body>
 </html>
