@@ -845,12 +845,14 @@ function comprarAte(r){
   return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
 }
 // Dias de hoje ate o marco (entrada na obra ou entrega). null sem data.
+// A data e lida no horario LOCAL. O jeito antigo, new Date('2026-11-17'),
+// le como meia-noite de Londres — em Porto Velho (UTC-4) vira 16/11 as 20h,
+// e o aviso dizia "entrega HOJE" um dia antes e contava um dia a mais de
+// atraso (achado em 16/11/2026).
 function diasAteOMarco(r){
   const m=marcoDoPrazo(r);
   if(!m) return null;
-  const today=new Date(); today.setHours(0,0,0,0);
-  const dt=new Date(m.data); dt.setHours(0,0,0,0);
-  return Math.round((dt-today)/(1000*60*60*24));
+  return diasAte(m.data);
 }
 // Embaixo da entrega, na tabela: o que veio da Obra.
 function blocoDatasObra(r){
@@ -862,20 +864,68 @@ function blocoDatasObra(r){
   return '<span class="td-by" style="color:var(--teal-dark)" title="Datas do Gerenciamento de Obra">'+
     '🏗️ vem da Obra'+(d.projEntrada?' · entrada '+fmtDate(d.projEntrada):'')+(med?'<br>'+med:'')+'</span>';
 }
-// A coluna "Comprar até": vermelha quando passou, amarela nos últimos 7 dias.
-function celulaComprarAte(r){
-  const ate=comprarAte(r);
-  if(!ate) return '<td>—</td>';
-  const m=marcoDoPrazo(r);
+// ---- ONDE AINDA DA PARA COMPRAR (pedido do Ander, 16/11/2026) ----
+// A compra depende do caixa. Fora do estado e mais barato, mas leva 30 dias
+// (padrao) ou 60 (especial); se o caixa nao deixar comprar a tempo, os dias
+// passam e a compra tem que vir para dentro do estado:
+//   Padrao   — fora do estado ate entrada − 30 dias corridos;
+//              Ji-Parana (preto e branco, mais barato) ate entrada − 2 dias
+//              uteis: 1 para separar, 1 para a transportadora, contados do
+//              pagamento;
+//              Porto Velho (retira no mesmo dia, um pouco mais caro) ate a
+//              vespera util da entrada.
+//   Especial — so fora do estado, ate entrada − 60 dias: no estado quase
+//              nunca se acha. Passou disso, e urgencia.
+// Dias uteis aqui pulam so sabado e domingo (o Compras nao tem feriados).
+function voltaDiasUteisIso(iso, dias){
+  const [y,mo,d]=String(iso).split('-').map(Number);
+  const dt=new Date(y, mo-1, d);
+  let tirados=0;
+  while(tirados<dias){ dt.setDate(dt.getDate()-1); const w=dt.getDay(); if(w!==0&&w!==6) tirados++; }
+  return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+}
+function diasAte(iso){
+  const [y,mo,d]=String(iso).split('-').map(Number);
   const hoje=new Date(); hoje.setHours(0,0,0,0);
-  const [y,mo,d]=ate.split('-').map(Number);
-  const falta=Math.round((new Date(y,mo-1,d)-hoje)/(1000*60*60*24));
-  const cor=falta<0?'var(--red)':(falta<=7?'var(--amber)':'inherit');
-  const quando=falta<0?'venceu há '+(-falta)+' dia'+(falta===-1?'':'s')
-    :(falta===0?'é hoje':'faltam '+falta+' dia'+(falta===1?'':'s'));
-  return '<td style="white-space:nowrap"><span style="color:'+cor+';font-weight:600">'+fmtDate(ate)+'</span>'+
-    '<span class="td-by" title="'+diasDeAntecedencia(r)+' dias antes da '+m.nome+'">'+quando+
-    ' · '+diasDeAntecedencia(r)+'d antes da '+m.nome+'</span></td>';
+  return Math.round((new Date(y,mo-1,d)-hoje)/(1000*60*60*24));
+}
+// As janelas de compra deste pedido, em ordem, e em qual delas estamos hoje.
+function faseDaCompra(r){
+  const m=marcoDoPrazo(r);
+  if(!m) return null;
+  const especial=r.tipo==='especial';
+  const janelas=[{onde:'Fora do estado', ate:comprarAte(r), cor:'var(--green)', icone:'🟢'}];
+  if(!especial){
+    janelas.push({onde:'Ji-Paraná', ate:voltaDiasUteisIso(m.data,2), cor:'var(--amber)', icone:'🟡'});
+    janelas.push({onde:'Porto Velho', ate:voltaDiasUteisIso(m.data,1), cor:'#D35400', icone:'🟠'});
+  }
+  const atual=janelas.find(function(j){ return diasAte(j.ate)>=0; })||null;
+  return {marco:m, especial:especial, janelas:janelas, atual:atual,
+    // Ja nao da para comprar fora do estado? E a hora de trocar de fornecedor.
+    foraVenceu: diasAte(janelas[0].ate)<0};
+}
+// A coluna "Comprar até": a janela em que o pedido esta hoje e a seguinte.
+function celulaComprarAte(r){
+  const f=faseDaCompra(r);
+  if(!f) return '<td>—</td>';
+  if(!f.atual){
+    const txt=f.especial
+      ? 'Prazo de fora venceu em '+fmtDate(f.janelas[0].ate)+'. Especial quase nunca tem no estado: urgente.'
+      : 'Nem Porto Velho chega a tempo da '+f.marco.nome+' ('+fmtDate(f.marco.data)+').';
+    return '<td style="min-width:150px"><span style="color:var(--red);font-weight:700">🔴 Atrasado</span>'+
+      '<span class="td-by" style="white-space:normal">'+txt+'</span></td>';
+  }
+  const a=f.atual;
+  const falta=diasAte(a.ate);
+  const quando=falta===0?'é hoje':'faltam '+falta+' dia'+(falta===1?'':'s');
+  const idx=f.janelas.indexOf(a);
+  const prox=f.janelas[idx+1];
+  return '<td style="min-width:150px">'+
+    '<span style="color:'+a.cor+';font-weight:700">'+a.icone+' '+a.onde+'</span>'+
+    '<span class="td-by" style="white-space:normal">até <b>'+fmtDate(a.ate)+'</b> · '+quando+
+    (idx>0?'<br>prazo de fora venceu em '+fmtDate(f.janelas[0].ate):'')+
+    (prox?'<br>depois: '+prox.onde+' até '+fmtDate(prox.ate):'')+
+    '</span></td>';
 }
 function statusClass(s){ return s==='Aguardando cliente'?'pill-aguardando':s==='Atrasada'?'pill-atrasada':s==='OK'?'pill-ok':'pill-pendente'; }
 function genId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -3688,7 +3738,12 @@ function checkNotifications(){
     const label = `${r.obra} — ${r.fornecedor} [${tipoLabel}] (R$ ${fmtBR(r.valor)}) · ${marco.nome} ${fmtDate(marco.data)}`;
     if(diff < 0) overdue.push({label, days: Math.abs(diff), tipo: r.tipo||'padrao', marco: marco.nome});
     else if(diff === 0) dueToday.push({label, tipo: r.tipo||'padrao', marco: marco.nome});
-    else if(diff <= threshold) leadCompromised.push({label, days: diff, threshold, tipo: r.tipo||'padrao', marco: marco.nome});
+    else if(diff <= threshold){
+      // Onde ainda da para comprar (16/11/2026): o aviso diz para onde mudar.
+      const fase=faseDaCompra(r);
+      const agora=fase&&fase.atual?(fase.atual.onde+' até '+fmtDate(fase.atual.ate)):'';
+      leadCompromised.push({label, days: diff, threshold, tipo: r.tipo||'padrao', marco: marco.nome, agora});
+    }
   });
 
   // Manutenção pendentes (não compradas)
@@ -3747,11 +3802,11 @@ function showBanner(overdue, dueToday, leadCompromised, manutHoje, manutSemana, 
     html+=`<div class="notif-banner notif-banner-error" style="background:#FFF0F0;border-left-color:#8B0000">
       <div style="flex:1">
         <strong>🔴 ${leadCompromised.length} obra${leadCompromised.length>1?'s':''} com LEAD TIME COMPROMETIDO — compra urgente!</strong>
-        <div style="font-size:11px;color:#8B0000;margin:4px 0 8px">O prazo de entrega do material já está comprometido. Compre imediatamente!</div>
+        <div style="font-size:11px;color:#8B0000;margin:4px 0 8px">Já não dá tempo de comprar fora do estado. Padrão: mudar a compra para Ji-Paraná ou Porto Velho. Especial: quase nunca tem no estado — urgente.</div>
         ${padrao.length?`<div style="font-size:11px;font-weight:700;color:#8B0000;margin-bottom:4px">📦 Padrão (Lead Time 30 dias)</div>
-          ${padrao.map(o=>`<div class="notif-item">🔴 ${o.label} — ${o.marco||'entrega'} em <strong>${o.days} dia${o.days>1?'s':''}</strong> — compra atrasada ${o.threshold-o.days} dia${o.threshold-o.days>1?'s':''}</div>`).join('')}`:''}
+          ${padrao.map(o=>`<div class="notif-item">🔴 ${o.label} — ${o.marco||'entrega'} em <strong>${o.days} dia${o.days>1?'s':''}</strong> — ${o.agora?('comprar em <strong>'+o.agora+'</strong>'):(o.tipo==='especial'?'prazo de fora venceu; no estado quase nunca tem':'nem Porto Velho chega a tempo')}</div>`).join('')}`:''}
         ${especial.length?`<div style="font-size:11px;font-weight:700;color:#8B0000;margin-top:6px;margin-bottom:4px">Especial (Lead Time 60 dias)</div>
-          ${especial.map(o=>`<div class="notif-item">🔴 ${o.label} — ${o.marco||'entrega'} em <strong>${o.days} dia${o.days>1?'s':''}</strong> — compra atrasada ${o.threshold-o.days} dia${o.threshold-o.days>1?'s':''}</div>`).join('')}`:''}
+          ${especial.map(o=>`<div class="notif-item">🔴 ${o.label} — ${o.marco||'entrega'} em <strong>${o.days} dia${o.days>1?'s':''}</strong> — ${o.agora?('comprar em <strong>'+o.agora+'</strong>'):(o.tipo==='especial'?'prazo de fora venceu; no estado quase nunca tem':'nem Porto Velho chega a tempo')}</div>`).join('')}`:''}
       </div>
       <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
     </div>`;
