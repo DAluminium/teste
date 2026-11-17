@@ -808,7 +808,7 @@ const INITIAL = {
   ]
 };
 
-let data = {urgente:[],importante:[],pago:[],manutencao:[],manutComprada:[],historico:[],usuarios:[]};
+let data = {urgente:[],importante:[],pago:[],manutencao:[],manutComprada:[],historico:[],usuarios:[],cotacoesGuardadas:[]};
 let dataReady=false;
 let currentTab = 'urgente';
 let editId = null;
@@ -1044,14 +1044,14 @@ function renderTable(type,isPago){
         <button class="act" onclick="duplicateEntry('${type}',${i})" title="Duplicar (outro fornecedor, mesma obra)"><svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
         ${type==='importante'?`<button class="act act-move-urgent" onclick="moveEntry('importante','urgente',${i})" title="Mover para Urgentes 🔴"><svg class="icon" viewBox="0 0 24 24"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg></button>`:''}
         ${type==='urgente'?`<button class="act act-move-important" onclick="moveEntry('urgente','importante',${i})" title="Mover para Importantes 🟡"><svg class="icon" viewBox="0 0 24 24"><polyline points="17 6 12 11 7 6"/><polyline points="17 13 12 18 7 13"/></svg></button>`:''}
-        <button class="act act-pay" onclick="markPaid('${type}',${i})" title="Marcar como pago"><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>
+        <button class="act act-pay" onclick="fazerPedido('${type}',${i})" title="${r.pedidoFeito?'Pedido feito — clique para desfazer':'Fazer pedido (manda as parcelas para o Financeiro)'}" ${r.pedidoFeito?'style="background:var(--green-light);color:var(--green);border-color:var(--green)"':''}><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>
         <button class="act act-del" onclick="removeEntry('${type}',${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
       </td>`;
     const obsLabel=r.obs?`<span class="td-by" style="color:#5E35B1;display:block;margin-top:2px;white-space:normal">📝 ${r.obs}</span>`:'';
     const pixInfo=r.pix?`<span class="td-by" style="display:flex;align-items:center;gap:3px"><svg style="width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>${r.pix}</span>`:'';
     return`<tr>
       <td class="td-num">${i+1}</td>
-      <td class="td-obra">${highlight(r.obra)}${contratoLabel}${byLabel}${obsLabel}${blocoPedido(type,i,r)}</td>
+      <td class="td-obra">${highlight(r.obra)}${contratoLabel}${byLabel}${obsLabel}${blocoPedido(type,i,r)}${blocoPedidoFeito(r)}</td>
       <td>${r.material||'—'}</td>
       <td style="color:var(--gray-4)">${r.nrOrc||'—'}</td>
       <td>${r.fornecedor}${pixInfo}</td>
@@ -1338,6 +1338,9 @@ function saveEntry(){
     // prazo voltaria a contar da entrega ate a Obra salvar de novo.
     datasObra: editId!==null ? (data[modalType][editId].datasObra||null)
       : (duplicandoDe ? (duplicandoDe.datasObra||null) : null),
+    // Pedido feito (16/11/2026): sem esta linha, editar o orcamento apagaria
+    // a marca do pedido e o vinculo com as contas do Financeiro.
+    pedidoFeito: editId!==null ? (data[modalType][editId].pedidoFeito||null) : null,
     // Pagamento combinado e material (16/11/2026).
     pagamento: lerPagamentoDoModal(editId!==null ? data[modalType][editId] : null),
     // 'producao' e nao 'material': 'material' ja e o NOME do material
@@ -1393,6 +1396,8 @@ function saveEntry(){
   }
 
   if(isEdit){ data[modalType][editId]=entry; } else { data[modalType].push(entry); }
+  // Pedido ja feito: parcelas ou previsao mudaram, o Financeiro acompanha.
+  if(entry.pedidoFeito) setTimeout(function(){ enviarPedidosAoFinanceiro([entry],[]); },0);
   logAction(byVal, isEdit?'Editou':'Criou', entry, isEdit?'Dados atualizados':duplicandoDe?('Cotação duplicada do orçamento de '+(duplicandoDe.fornecedor||'—')):'Novo orçamento lançado');
   if(_paraQuem.length && _textoPedido){
     logAction(_quemPede,'Pediu material',entry,
@@ -1503,9 +1508,248 @@ function removeEntry(type,idx){
   if(!confirm(`Remover "${r.obra}" e todos os seus anexos?`)) return;
   (r.attachments||[]).forEach(()=>{});
   logAction(user.trim(),'Removeu',r,`Valor: R$ ${fmtBR(r.valor)}`);
+  if(r.pedidoFeito) enviarPedidosAoFinanceiro([],[r.id]);
   data[type].splice(idx,1);
   persist(); render();
 }
+// ---- FAZER PEDIDO -> CONTAS A PAGAR DO FINANCEIRO (pedido do Ander, 16/11/2026) ----
+// Cotacao nao vai para o Financeiro: so o pedido feito. No clique, cada
+// parcela combinada vira conta a pagar la (pelo Worker, acao
+// 'compras-a-pagar'), e as outras cotacoes da mesma obra e material saem da
+// lista para 'cotacoesGuardadas' — guardadas, porque o fornecedor escolhido
+// pode faltar com um produto ou demorar, e ai se volta a outro.
+// Quem da baixa e o Financeiro. O Compras le so o que foi pago (acao
+// 'compras-situacao') e, quitado, leva o pedido sozinho para Obras pagas.
+let _situacaoPg={};      // pedidoId -> parcelaId -> {pago, pagoEm, valor}
+let _situacaoLidaEm=0;
+function situacaoDaParcela(pid, parId){ return ((_situacaoPg[pid]||{})[parId])||null; }
+function parcelasParaFinanceiro(r){
+  const prev=(r.producao||{}).previsaoPronto||'';
+  return ((r.pagamento||{}).parcelas||[]).map(function(p){
+    return {id:p.id, desc:p.desc||'', valor:centavos(p.valor), venc:vencimentoDaParcela(p, prev)};
+  });
+}
+async function enviarPedidosAoFinanceiro(pedidos, cancelar){
+  const corpo={
+    pedidos:(pedidos||[]).map(function(r){
+      return {pedidoId:r.id, obra:r.obra||'', contrato:r.contrato||'', material:r.material||'',
+        fornecedor:r.fornecedor||'', nrPedido:(r.pedidoFeito&&r.pedidoFeito.nr)||'', parcelas:parcelasParaFinanceiro(r)};
+    }),
+    cancelar:cancelar||[]
+  };
+  let resultado={ok:false, erro:''};
+  try{
+    const resp=await fetch(WORKER_URL,{method:'POST',cache:'no-store',
+      headers:cabecalhos(SUPA_SISTEMA,{'Content-Type':'application/json','X-Action':'compras-a-pagar'}),
+      body:JSON.stringify(corpo)});
+    const j=await resp.json().catch(function(){ return {}; });
+    if(!resp.ok) resultado={ok:false, erro:j.erro||('erro '+resp.status)};
+    else { resultado={ok:true, feito:j.feito||{}}; if(Array.isArray(j.contas)) guardarSituacao(j.contas); }
+  }catch(e){ resultado={ok:false, erro:'sem conexão'}; }
+  // Anota no pedido se o Financeiro recebeu. Pendente e tentado de novo na
+  // proxima leitura da situacao.
+  let mudou=false;
+  (pedidos||[]).forEach(function(r){
+    if(!r.pedidoFeito) return;
+    const novo=resultado.ok?'ok':'pendente';
+    if(r.pedidoFeito.financeiro!==novo){ r.pedidoFeito.financeiro=novo; mudou=true; }
+  });
+  if(mudou){ persist(); }
+  render();
+  return resultado;
+}
+function guardarSituacao(contas){
+  const m={};
+  (contas||[]).forEach(function(c){
+    if(!m[c.pedido]) m[c.pedido]={};
+    m[c.pedido][c.parcela]={pago:Number(c.pago)||0, pagoEm:c.pagoEm||'', valor:Number(c.valor)||0, venc:c.venc||''};
+  });
+  _situacaoPg=m;
+  _situacaoLidaEm=Date.now();
+}
+async function atualizarSituacaoPagamentos(){
+  if(!lerToken()) return;
+  try{
+    const resp=await fetch(WORKER_URL+'?t='+Date.now(),{cache:'no-store',
+      headers:cabecalhos(SUPA_SISTEMA,{'X-Action':'compras-situacao'})});
+    if(!resp.ok) return;
+    const j=await resp.json();
+    guardarSituacao(j.contas||[]);
+  }catch(e){ return; }
+  // Pedido que nao chegou ao Financeiro: tenta de novo.
+  const pendentes=[...(data.urgente||[]),...(data.importante||[]),...(data.pago||[])]
+    .filter(function(r){ return r.pedidoFeito && r.pedidoFeito.financeiro==='pendente'; });
+  if(pendentes.length && !ehConsulta()) await enviarPedidosAoFinanceiro(pendentes,[]);
+  aplicarSituacaoDoFinanceiro();
+}
+// Entrada paga: o material passa a "Em producao". Tudo pago: vai para Obras
+// pagas, com a data do ultimo pagamento — sem ninguem clicar.
+function aplicarSituacaoDoFinanceiro(){
+  if(ehConsulta()) { render(); return; }
+  let mudou=false;
+  ['urgente','importante'].forEach(function(aba){
+    for(let i=(data[aba]||[]).length-1;i>=0;i--){
+      const r=data[aba][i];
+      if(!r.pedidoFeito || !_situacaoPg[r.id]) continue;
+      const parcelas=(r.pagamento||{}).parcelas||[];
+      const total=centavos(parcelas.reduce(function(a,p){ return a+(Number(p.valor)||0); },0));
+      let pago=0, ultimo='';
+      parcelas.forEach(function(p){ const s=situacaoDaParcela(r.id,p.id); if(s){ pago+=s.pago; if(s.pagoEm>ultimo) ultimo=s.pagoEm; } });
+      pago=centavos(pago);
+      if(pago>0 && (r.producao||{}).situacao==='aguardando'){
+        r.producao=Object.assign({},r.producao,{situacao:'producao', em:new Date().toISOString(), por:'Financeiro (pagamento)'});
+        logAction('Financeiro','Material em produção (entrada paga)',r,'Pago R$ '+fmtBR(pago)+' de R$ '+fmtBR(total));
+        mudou=true;
+      }
+      if(total>0 && pago>=total-0.01){
+        const quitado=Object.assign({},r,{dataPag:ultimo||hojeIsoLocal(), listaAntes:aba});
+        delete quitado.status;
+        data.pago.push(quitado);
+        data[aba].splice(i,1);
+        logAction('Financeiro','Pago no Financeiro',r,'R$ '+fmtBR(pago)+' — foi para Obras pagas');
+        mudou=true;
+      }
+    }
+  });
+  if(mudou) persist();
+  render();
+}
+function chaveCotacao(r){ return [normalizarTxt(r.obra), normalizarTxt(r.contrato), normalizarTxt(r.material)].join('|'); }
+function blocoPedidoFeito(r){
+  let h='';
+  if(r.pedidoFeito){
+    const pf=r.pedidoFeito;
+    h+='<span class="td-by" style="color:var(--green);font-weight:600;display:block;margin-top:3px">📦 Pedido feito '+fmtDate(pf.em)+
+      (pf.nr?' · nº '+escHtml(pf.nr):'')+'</span>';
+    if(pf.financeiro==='pendente') h+='<span class="td-by" style="color:var(--red)">⚠️ ainda não chegou ao Financeiro — tentando de novo</span>';
+  }
+  const guardadas=(data.cotacoesGuardadas||[]).filter(function(c){ return c.guardada && c.guardada.pedidoId===r.id; }).length;
+  if(guardadas) h+='<a href="#" onclick="abrirCotacoesGuardadas(\''+r.id+'\');return false" class="td-by" style="color:var(--teal-dark);text-decoration:underline">📁 '+
+    guardadas+' cotaç'+(guardadas===1?'ão guardada':'ões guardadas')+'</a>';
+  return h;
+}
+async function fazerPedido(type,idx){
+  if(recusarSeConsulta()) return;
+  const r=data[type][idx];
+  if(!r) return;
+  if(r.pedidoFeito){ return desfazerPedido(type,idx); }
+  const pg=r.pagamento;
+  if(!pg||!(pg.parcelas||[]).length){
+    if(confirm('"'+r.obra+'" não tem pagamento combinado.\n\n'+
+      'OK = marcar como pago direto, como era antes (não vai para o Financeiro).\n'+
+      'Cancelar = voltar e combinar o pagamento no "Editar orçamento".')) markPaid(type,idx);
+    return;
+  }
+  const total=centavos(r.valor);
+  const soma=centavos(pg.parcelas.reduce(function(a,p){ return a+(Number(p.valor)||0); },0));
+  if(Math.abs(soma-total)>=0.01){
+    alert('As parcelas somam R$ '+fmtBR(soma)+', mas o orçamento é R$ '+fmtBR(total)+'.\n\nAcerte no "Editar orçamento" antes de fazer o pedido.');
+    return;
+  }
+  const prev=(r.producao||{}).previsaoPronto||'';
+  const semData=pg.parcelas.filter(function(p){ return (Number(p.valor)||0)>0 && !vencimentoDaParcela(p,prev); });
+  if(semData.length){
+    const temPronto=semData.some(function(p){ return p.quando==='pronto'; });
+    alert('Falta o vencimento de: '+semData.map(function(p){ return '"'+(p.desc||'parcela')+'"'; }).join(', ')+'.\n\n'+
+      (temPronto?'A parcela "quando ficar pronto" vence na PREVISÃO DE PRONTO: preencha a previsão no "Editar orçamento".'
+                :'Preencha a data no "Editar orçamento".'));
+    return;
+  }
+  const nr=prompt('Nº do pedido no fornecedor (opcional):', r.nrOrc||'');
+  if(nr===null) return;
+  const resumo=pg.parcelas.map(function(p){ return '• '+(p.desc||'Parcela')+': R$ '+fmtBR(p.valor)+' — vence '+fmtDate(vencimentoDaParcela(p,prev)); }).join('\n');
+  if(!confirm('Fazer o pedido de "'+r.obra+'" com '+(r.fornecedor||'o fornecedor')+'?\n\n'+resumo+
+    '\n\nAs parcelas vão para o Contas a Pagar do Financeiro.')) return;
+  // As outras cotacoes da mesma obra e material.
+  const chave=chaveCotacao(r);
+  const outras=[];
+  ['urgente','importante'].forEach(function(aba){
+    (data[aba]||[]).forEach(function(x){ if(x!==r && !x.pedidoFeito && chaveCotacao(x)===chave) outras.push({aba:aba, reg:x}); });
+  });
+  let guardar=false;
+  if(outras.length){
+    guardar=confirm('Há '+outras.length+' outra'+(outras.length>1?'s':'')+' cotaç'+(outras.length>1?'ões':'ão')+' de "'+(r.material||r.obra)+'" para esta obra:\n\n'+
+      outras.map(function(o){ return '• '+(o.reg.fornecedor||'sem fornecedor')+' — R$ '+fmtBR(o.reg.valor); }).join('\n')+
+      '\n\nOK = tirar da lista e GUARDAR (dá para voltar depois, se este fornecedor falhar).\nCancelar = deixar na lista.');
+  }
+  const quem=usuarioLogado()||'—';
+  r.pedidoFeito={em:hojeIsoLocal(), por:quem, nr:String(nr||'').trim(), financeiro:'enviando'};
+  if(!r.producao||!r.producao.situacao) r.producao=Object.assign({},r.producao||{},{situacao:'aguardando', em:new Date().toISOString(), por:quem});
+  if(guardar){
+    if(!Array.isArray(data.cotacoesGuardadas)) data.cotacoesGuardadas=[];
+    outras.forEach(function(o){
+      const i=data[o.aba].indexOf(o.reg);
+      if(i<0) return;
+      data[o.aba].splice(i,1);
+      data.cotacoesGuardadas.push(Object.assign({},o.reg,{guardada:{em:new Date().toISOString(), por:quem, pedidoId:r.id, aba:o.aba,
+        motivo:'Pedido feito com '+(r.fornecedor||'outro fornecedor')}}));
+    });
+  }
+  logAction(quem,'Fez pedido',r,'Fornecedor '+(r.fornecedor||'—')+(r.pedidoFeito.nr?' · nº '+r.pedidoFeito.nr:'')+
+    ' · '+pg.parcelas.length+' parcela(s)'+(guardar?' · '+outras.length+' cotação(ões) guardada(s)':''));
+  await persist();
+  render();
+  const res=await enviarPedidosAoFinanceiro([r],[]);
+  if(!res.ok) alert('O pedido foi feito, mas as parcelas ainda não chegaram ao Financeiro ('+res.erro+').\n\nO sistema tenta de novo sozinho daqui a pouco.');
+}
+async function desfazerPedido(type,idx){
+  const r=data[type][idx];
+  if(!r||!r.pedidoFeito) return;
+  const temPago=((r.pagamento||{}).parcelas||[]).some(function(p){ const s=situacaoDaParcela(r.id,p.id); return s&&s.pago>0; });
+  if(!confirm('Desfazer o pedido de "'+r.obra+'" ('+(r.fornecedor||'—')+')?\n\n'+
+    'As parcelas que ainda não foram pagas saem do Contas a Pagar do Financeiro.'+
+    (temPago?'\n\n⚠️ Já há pagamento registrado: essa parte continua no Financeiro.':''))) return;
+  const quem=usuarioLogado()||'—';
+  const pid=r.id;
+  delete r.pedidoFeito;
+  logAction(quem,'Desfez pedido',r,'Fornecedor '+(r.fornecedor||'—'));
+  await persist();
+  render();
+  const res=await enviarPedidosAoFinanceiro([],[pid]);
+  if(!res.ok) alert('O pedido foi desfeito aqui, mas não consegui avisar o Financeiro ('+res.erro+').\n\nPeça ao financeiro para conferir as contas desta compra.');
+}
+function abrirCotacoesGuardadas(pid){
+  const lista=(data.cotacoesGuardadas||[]).filter(function(c){ return c.guardada&&c.guardada.pedidoId===pid; });
+  const pedido=[...(data.urgente||[]),...(data.importante||[]),...(data.pago||[])].find(function(x){ return x.id===pid; })||{};
+  const velho=document.getElementById('cotacoes-guardadas-ov'); if(velho) velho.remove();
+  const el=document.createElement('div');
+  el.id='cotacoes-guardadas-ov'; el.className='modal-overlay open';
+  el.innerHTML='<div class="modal" style="max-width:560px"><div class="modal-header"><div class="modal-title">Cotações guardadas</div>'+
+    '<button class="act" data-fechar="1" aria-label="Fechar">✕</button></div><div class="modal-body">'+
+    '<p style="margin:0 0 10px">Pedido feito com <strong>'+escHtml(pedido.fornecedor||'—')+'</strong> para <strong>'+escHtml(pedido.obra||'')+'</strong>'+
+    (pedido.material?' ('+escHtml(pedido.material)+')':'')+'. Se ele faltar com algum produto ou demorar, traga outra cotação de volta para a lista.</p>'+
+    (lista.length?lista.map(function(c){
+      return '<div style="border:1px solid var(--gray-2);border-radius:var(--radius);padding:10px;margin-top:8px;display:flex;gap:10px;align-items:center;justify-content:space-between">'+
+        '<div><strong>'+escHtml(c.fornecedor||'sem fornecedor')+'</strong> — R$ '+fmtBR(c.valor)+
+        (c.nrOrc?'<span class="td-by">orç. '+escHtml(c.nrOrc)+'</span>':'')+
+        '<span class="td-by">guardada em '+fmtDate(String(c.guardada.em).slice(0,10))+' por '+escHtml(c.guardada.por||'—')+'</span></div>'+
+        '<button class="btn btn-teal btn-sm" data-voltar="'+escHtml(c.id)+'">Voltar para a lista</button></div>';
+    }).join(''):'<p class="note">Nenhuma cotação guardada.</p>')+
+    '</div><div class="modal-footer"><button class="btn btn-outline" data-fechar="1">Fechar</button></div></div>';
+  el.addEventListener('click',function(ev){
+    const b=ev.target.closest('button'); if(!b) return;
+    if(b.dataset.fechar){ el.remove(); return; }
+    if(b.dataset.voltar){ voltarCotacaoGuardada(b.dataset.voltar); el.remove(); }
+  });
+  document.body.appendChild(el);
+}
+async function voltarCotacaoGuardada(id){
+  if(recusarSeConsulta()) return;
+  const i=(data.cotacoesGuardadas||[]).findIndex(function(c){ return c.id===id; });
+  if(i<0){ alert('A lista foi atualizada. Abra de novo.'); return; }
+  const c=data.cotacoesGuardadas[i];
+  const aba=(c.guardada&&c.guardada.aba)==='urgente'?'urgente':'importante';
+  const volta=Object.assign({},c,{status:'Pendente'});
+  delete volta.guardada;
+  data.cotacoesGuardadas.splice(i,1);
+  data[aba].push(volta);
+  logAction(usuarioLogado()||'—','Cotação voltou para a lista',volta,'Fornecedor '+(volta.fornecedor||'—')+' — guardada quando o pedido foi feito com outro');
+  await persist();
+  render();
+}
+// A situacao dos pagamentos vem do Financeiro a cada 3 minutos (e logo ao abrir).
+setTimeout(atualizarSituacaoPagamentos, 4000);
+setInterval(atualizarSituacaoPagamentos, 3*60*1000);
 function markPaid(type,idx){
   const r=data[type][idx];
   const user=prompt('Seu nome (obrigatório para registrar o pagamento):',lastBy||'');
@@ -2938,8 +3182,13 @@ function celulaPagamento(r){
     // Duas linhas por parcela: a descricao em cima e, embaixo, valor e
     // vencimento sem quebrar. Numa linha so, o valor partia ao meio ("R$" de
     // um lado e o numero do outro) — reclamacao do Ander em 16/11/2026.
+    const st=r.pedidoFeito?situacaoDaParcela(r.id,p.id):null;
+    const selo=!r.pedidoFeito?'':(st&&st.pago>=Number(p.valor)-0.01&&st.pago>0
+      ? ' <span style="color:var(--green);font-weight:600">✅ pago'+(st.pagoEm?' '+fmtDate(st.pagoEm):'')+'</span>'
+      : (st&&st.pago>0?' <span style="color:var(--amber);font-weight:600">◐ R$ '+fmtBR(st.pago)+' pago</span>'
+        : ' <span style="color:var(--gray-4)">⏳ a pagar</span>'));
     return '<div style="margin-top:4px;font-size:11px;line-height:1.35">'+
-      '<div style="color:var(--gray-5)">'+escHtml(p.desc||'Parcela')+'</div>'+
+      '<div style="color:var(--gray-5)">'+escHtml(p.desc||'Parcela')+selo+'</div>'+
       '<div style="white-space:nowrap">'+(p.pct!=null?fmtPct(p.pct)+'% · ':'')+'<b>R$ '+fmtBR(p.valor)+'</b> <span style="color:var(--gray-4)">· '+quando+'</span></div>'+
       '</div>';
   }).join('');
@@ -5167,7 +5416,8 @@ async function persistUsers(){
 // servidor, reabrir ou remover uma manutencao concluida era desfeito em
 // silencio quando outra pessoa gravava ao mesmo tempo — no caso do reabrir, o
 // registro ficava nas DUAS listas. (08/10/2026)
-const LISTAS_DADOS=['urgente','importante','pago','manutencao','manutComprada','historico','usuarios'];
+// cotacoesGuardadas (16/11/2026): as outras cotacoes de um pedido feito.
+const LISTAS_DADOS=['urgente','importante','pago','manutencao','manutComprada','historico','usuarios','cotacoesGuardadas'];
 // Registro COM id e comparado pelo id: da para distinguir edicao de inclusao.
 // Registro antigo, ainda SEM id, cai na comparacao por conteudo — nesse caso
 // uma edicao aparece como remocao + inclusao, e por isso a juncao automatica

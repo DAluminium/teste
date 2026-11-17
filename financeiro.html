@@ -389,6 +389,11 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <option value="despesas-cliente">Despesas com Cliente</option>
           <option value="outros">Outros</option>
         </select>
+        <select id="fil-pagar-origem" onchange="renderPagar()" title="Contas que vieram dos pedidos do Compras" style="font-size:12px;padding:4px 8px;border-radius:var(--radius);border:1px solid var(--gray-3)">
+          <option value="">Todas as origens</option>
+          <option value="compras">🛒 Só as do Compras</option>
+          <option value="outras">Sem as do Compras</option>
+        </select>
         <button class="btn btn-outline btn-sm" onclick="exportarPagarExcel()" title="Levar para o Excel a lista como está na tela">
           <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel
         </button>
@@ -3998,6 +4003,10 @@ function renderPagar(){
   let rows=data.pagar.map((r,i)=>({...r,_i:i,_status:calcStatus(r,'pagar')}));
   if(filtStatus) rows=rows.filter(r=>r._status===filtStatus);
   if(filtCat) rows=rows.filter(r=>r.cat===filtCat);
+  // Origem (16/11/2026): as contas que vieram dos pedidos do Compras.
+  const filtOrig=(document.getElementById('fil-pagar-origem')||{value:''}).value;
+  if(filtOrig==='compras') rows=rows.filter(r=>!!r.origemCompras);
+  if(filtOrig==='outras') rows=rows.filter(r=>!r.origemCompras);
 
   // Busca por descrição, fornecedor, valor ou vencimento. Sem acento e sem
   // diferenciar maiúscula, para "eletrica" achar "Elétrica". O valor entra
@@ -4019,6 +4028,7 @@ function renderPagar(){
       <td class="td-num" style="color:var(--gray-4)">${r._i+1}</td>
       <td><span class="td-desc">${r.desc}</span>
         ${r.forn?`<span class="td-sub">${r.forn}</span>`:''}
+        ${r.origemCompras?`<span class="td-sub" style="color:#0E8FA6;font-weight:600" title="Lançada pelo pedido feito no Compras. Enquanto não for paga, valor e vencimento acompanham o Compras.">🛒 veio do Compras${r.origemCompras.por?' · '+r.origemCompras.por:''}</span>`:''}
         ${r.totalParcelas>1?`<span class="td-sub" style="color:var(--purple)">📄 ${r.parcelaDesc||''} · Total: R$ ${fmtBR(r.totalValor)}</span>`:''}
       </td>
       <td><span style="font-size:11px;background:var(--gray-2);padding:2px 7px;border-radius:20px;color:var(--gray-5)">${CAT_LABEL[r.cat]||r.cat}</span></td>
@@ -4216,6 +4226,9 @@ async function savePagar(){
     }
     ajustarBaixasAoTrocarConta(g, reg, memoConta);
     if(g.attachments) reg.attachments=g.attachments;
+    // Conta que veio do Compras (16/11/2026): sem esta linha, editar aqui
+    // apagaria o vinculo, e o Compras deixaria de ver que ela foi paga.
+    if(g.origemCompras) reg.origemCompras=g.origemCompras;
     if(reg.dtPag && g.obsBaixa) reg.obsBaixa=g.obsBaixa;
     data.pagar.push(reg);
   });
