@@ -281,6 +281,9 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <button class="btn btn-ghost btn-sm" id="btn-acessos" onclick="abrirAcessos()" style="display:none" title="Quem abriu cada contrato, gerou o PDF ou abriu um anexo">
         <svg class="icon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Acessos
       </button>
+      <button class="btn btn-ghost btn-sm" id="btn-datas-compras" onclick="levarDatasDeTodosAoCompras()" style="display:none" title="Levar as datas de todos os contratos para os pedidos do Compras">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Datas → Compras
+      </button>
       <button class="btn btn-ghost btn-sm" id="btn-relato" onclick="abrirRelato()" style="display:none" title="Avisar o administrador sobre um erro ou pedir uma alteração">
         <svg class="icon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Relatar
       </button>
@@ -3043,6 +3046,9 @@ async function salvarFicha(manterAberta){
     // segundo ainda tenta. Os dois avisam por conta propria, e o contrato JA
     // esta salvo aqui em qualquer caso.
     await enviarParaCompras(salvo);
+    // Depois de criar/atualizar o pedido: as datas da obra vao para todos os
+    // pedidos deste contrato no Compras, inclusive os lancados a mao la.
+    await levarDatasDoContratoAoCompras(salvo);
     // Os dois anotaram o que aconteceu; agora o topo diz tudo de uma vez.
     mostrarEnvio();
     // Por último o WhatsApp: ele troca de aplicativo e tira a pessoa da tela.
@@ -4492,14 +4498,16 @@ const CAMPOS_DA_PLANILHA=[
 // Campos que JÁ existem na ficha e podem virar coluna da carteira (pedido do
 // Ander, 01/10/2026). Diferente do campo extra: aqui não se cria nada, só se
 // escolhe mostrar. Tirar a coluna não mexe no valor gravado no contrato.
-// "Comprar até" não é gravado: é a conta fechamento + prazo de material.
+// "Iniciar compra até" não é gravado: é a conta da medição − prazo de
+// material (ou fechamento + folga). Chamava-se "Comprar até" até 16/11/2026;
+// o nome ficou para o Compras, onde é a entrada na obra − 30/60 dias.
 const CAMPOS_FICHA_TABELA=[
   {campo:'respCom',        rotulo:'Resp. comercial',     tipo:'texto'},
   {campo:'cidade',         rotulo:'Cidade',              tipo:'texto'},
   {campo:'condominio',     rotulo:'Condomínio / Local',  tipo:'texto'},
   {campo:'fechamento',     rotulo:'Fechamento',          tipo:'data'},
   {campo:'prazoMaterial',  rotulo:'Prazo de material',   tipo:'numero'},
-  {campo:'limiteMaterial', rotulo:'Comprar até',         tipo:'data',
+  {campo:'limiteMaterial', rotulo:'Iniciar compra até',  tipo:'data',
     valor:function(c){ return contasDe(c).limiteMaterial; }},
   {campo:'medicao',        rotulo:'Medição prevista',    tipo:'data'},
   {campo:'medicaoFeita',   rotulo:'Medida',              tipo:'data'},
@@ -6426,7 +6434,7 @@ function lancamentoManualNoCompras(comp, c){
 // sem status, e a tela nao dizia isso). Agora os dois ANOTAM aqui e o topo diz
 // tudo de uma vez, inclusive o porque.
 let _envio={fab:null, comp:null};
-function zerarEnvio(){ _envio={fab:null, comp:null}; }
+function zerarEnvio(){ _envio={fab:null, comp:null, datas:null}; }
 // txt   — o pedaco que aparece no topo.
 // causa — vazio quando deu certo; preenchido quando a obra NAO foi (e ai o
 //         topo fica amarelo, para o "Salvo" nao passar como tudo certo).
@@ -6450,6 +6458,8 @@ function mostrarEnvio(){
     if(f){ partes.push(f.txt); if(f.causa) problema=true; }
     if(k){ partes.push(k.txt); if(k.causa) problema=true; }
   }
+  const dt=_envio.datas;
+  if(dt){ partes.push(dt.txt); if(dt.causa) problema=true; }
   const meio=partes.length?partes.join(' · ')+' · ':'';
   status((problema?'🟡 Salvo · ':'🟢 Salvo · ')+meio+agoraHora(), problema?'#ffe9b0':null);
 }
@@ -7317,6 +7327,125 @@ async function enviarParaCompras(c){
   }
 }
 
+// ---- DATAS DA OBRA NO COMPRAS (pedido do Ander, 16/11/2026) ----
+// Quem compra redigitava as datas da obra, e um adiamento aqui nao chegava la.
+// Agora, a cada contrato salvo, as datas vao para TODOS os pedidos dele no
+// Compras (Urgentes e Importantes; os pagos ficam como estao):
+//   - os que nasceram aqui, pelo `ctoId`;
+//   - os lancados a mao no Compras, pelo numero do CT — so quando esse CT e
+//     unico na carteira. A planilha tem CT repetido de proposito (116-84,
+//     116-89...), e o pedido manual nao guarda o ano: na duvida, nao mexe.
+// Ficam num objeto proprio (`datasObra`), separado dos campos que quem compra
+// digita; so a entrega e copiada para o campo de sempre, porque e dela que o
+// Compras ainda depende quando a obra nao tem projecao de entrada.
+const CAMPOS_DATAS_OBRA=['medicao','medicaoFeita','projEntrada','entrega'];
+function datasParaCompras(c){
+  const d={ct:String(c.ct||''), ano:String(c.ano||'')};
+  CAMPOS_DATAS_OBRA.forEach(function(k){ d[k]=String(c[k]||'').trim(); });
+  return d;
+}
+function ctUnicoNaCarteira(c){
+  const alvo=ctNormal(c.ct);
+  if(!alvo) return false;
+  return ativos().filter(function(x){ return ctNormal(x.ct)===alvo; }).length===1;
+}
+function pedidosDoContratoNoCompras(comp, c){
+  const alvo=ctUnicoNaCarteira(c)?ctNormal(c.ct):'';
+  const saida=[];
+  ['urgente','importante'].forEach(function(aba){
+    (comp[aba]||[]).forEach(function(r){
+      const meu=!!(r.ctoId && r.ctoId===c.id);
+      const manual=!r.ctoId && alvo && ctNormal(r.contrato)===alvo;
+      if(meu||manual) saida.push(r);
+    });
+  });
+  return saida;
+}
+// Devolve true se mudou alguma coisa. Sem mudanca nao grava nada — senao todo
+// salvar da ficha regravaria o Compras inteiro a toa.
+function aplicarDatasNoPedido(r, d){
+  const atual=(r.datasObra&&typeof r.datasObra==='object')?r.datasObra:{};
+  const igual=CAMPOS_DATAS_OBRA.every(function(k){ return String(atual[k]||'')===d[k]; }) &&
+    (!d.entrega || r.entrega===d.entrega);
+  if(igual) return false;
+  r.datasObra=Object.assign({}, d, {em:agoraISO(), por:usuario||'—'});
+  if(d.entrega) r.entrega=d.entrega;
+  return true;
+}
+// Leva as datas de uma lista de contratos numa gravacao so. Relê e tenta de
+// novo se outra pessoa gravou o Compras no meio (409). Devolve quantos
+// pedidos mudaram.
+async function levarDatasAoCompras(contratos, quem){
+  for(let tentativa=0; tentativa<3; tentativa++){
+    const comp=await lerCompras();
+    let mudou=0;
+    const nomes=[];
+    contratos.forEach(function(c){
+      const d=datasParaCompras(c);
+      pedidosDoContratoNoCompras(comp, c).forEach(function(r){
+        if(aplicarDatasNoPedido(r, d)){ mudou++; if(nomes.indexOf(c.cliente)<0) nomes.push(c.cliente); }
+      });
+    });
+    if(!mudou) return 0;
+    if(!Array.isArray(comp.historico)) comp.historico=[];
+    const um=contratos.length===1?contratos[0]:null;
+    comp.historico.unshift({
+      ts: agoraISO(), user: usuario||'—',
+      action:'Datas atualizadas pelo Gerenciamento de Obra',
+      obra: um?(um.cliente||'—'):(nomes.length+' obra(s)'),
+      contrato: um?(um.ct||'—'):'—',
+      detail: um
+        ? ('Medição '+(um.medicaoFeita?'realizada '+fmtData(um.medicaoFeita):(um.medicao?'prevista '+fmtData(um.medicao):'—'))+
+           ' · Entrada na obra '+(um.projEntrada?fmtData(um.projEntrada):'—')+
+           ' · Entrega '+(um.entrega?fmtData(um.entrega):'—')+' · '+mudou+' pedido(s)')
+        : (quem||'Atualização geral')+' · '+mudou+' pedido(s)'
+    });
+    if(comp.historico.length>500) comp.historico=comp.historico.slice(0,500);
+    const versaoLidaOutro=String(comp.atualizadoEm||'');
+    const carimbo=agoraISO();
+    comp.atualizadoEm=carimbo;
+    comp.atualizadoPor=usuario;
+    const r=await fetch(WORKER,{method:'PATCH',
+      headers:cabecalhosCompras(Object.assign({'Content-Type':'application/json'},versaoLidaOutro?{'X-Base':versaoLidaOutro}:{})),
+      body:JSON.stringify({data:comp})});
+    if(r.status===409) continue;
+    if(!r.ok) throw new Error('Compras '+r.status);
+    const confere=await lerCompras();
+    if(confere.atualizadoEm!==carimbo && !(new Date(String(confere.atualizadoEm).slice(0,24)).getTime()>new Date(carimbo).getTime())) throw new Error('não gravou');
+    _comprasDados=confere;
+    return mudou;
+  }
+  throw new Error('outra pessoa salvou o Compras ao mesmo tempo. Tente de novo');
+}
+// Depois de salvar a ficha. Falhar aqui nao desfaz nada: o contrato ja esta
+// salvo, so as datas do Compras ficam para o proximo salvar.
+async function levarDatasDoContratoAoCompras(c){
+  try{
+    const n=await levarDatasAoCompras([c]);
+    if(n) anotarEnvio('datas','datas levadas ao Compras · '+n+' pedido(s)','');
+  }catch(e){
+    anotarEnvio('datas','as datas não foram para o Compras ('+(e.message||'erro')+') — salve de novo daqui a pouco','erro');
+  }
+}
+// Botao do administrador, para os pedidos que ja existiam antes desta mudanca.
+async function levarDatasDeTodosAoCompras(){
+  if(!soAdmin()){ aviso('Só o administrador','Esta atualização mexe em todos os pedidos do Compras.'); return; }
+  if(!confirm('Levar as datas de TODOS os contratos para os pedidos do Compras?\n\n'+
+    'Atualiza medição, entrada na obra e entrega dos pedidos em Urgentes e Importantes. '+
+    'Pedidos pagos não mudam.')) return;
+  status('🔄 Levando as datas ao Compras...');
+  try{
+    const n=await levarDatasAoCompras(ativos(), 'Atualização geral pelo administrador');
+    status('');
+    aviso('Datas levadas ao Compras', n
+      ? n+' pedido(s) do Compras ficaram com as datas da Obra.'
+      : 'Os pedidos do Compras já estavam com as datas da Obra. Nada mudou.');
+  }catch(e){
+    status('');
+    aviso('Não deu para levar as datas', 'Nada foi alterado no Compras ('+(e.message||'erro')+'). Tente de novo daqui a pouco.');
+  }
+}
+
 // Tudo que o Compras tem deste contrato: o lançamento que nasceu daqui (achado
 // pelo `ctoId`) e os que quem compra lançou à mão (achados pelo número do CT).
 function comprasDoContrato(c){
@@ -7457,6 +7586,8 @@ function aplicarPermissoes(){
   if(l) l.style.display=gestor?'':'none';
   const ac=document.getElementById('btn-acessos');
   if(ac) ac.style.display=soAdmin()?'':'none';
+  const dc=document.getElementById('btn-datas-compras');
+  if(dc) dc.style.display=soAdmin()?'':'none';
 }
 
 // ---- NEGOCIO FECHADO NO CRM (09/10/2026) ----

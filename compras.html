@@ -305,7 +305,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </button>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Comprar até</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
       <tbody id="tbody-urgente"></tbody>
     </table></div>
     <div class="panel-footer">Total em aberto: <strong id="t-urgente">R$ 0,00</strong></div>
@@ -319,7 +319,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </button>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Comprar até</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
       <tbody id="tbody-importante"></tbody>
     </table></div>
     <div class="panel-footer">Total: <strong id="t-importante">R$ 0,00</strong></div>
@@ -439,7 +439,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
             <option value="especial">Especial — alerta 60 dias antes</option>
           </select>
         </div>
-        <div class="form-group"><label>Data de entrega da obra <span style="color:var(--red)">*</span></label><input id="f-entrega" type="date"></div>
+        <div class="form-group"><label>Data de entrega da obra <span style="color:var(--red)">*</span></label><input id="f-entrega" type="date"><span class="note" id="f-entrega-obra" style="display:none"></span></div>
 
         <!-- NOTIFICAÇÃO -->
         <div class="form-group span2" id="notif-group" style="background:var(--amber-light);border-radius:var(--radius);padding:10px 12px">
@@ -818,6 +818,65 @@ async function uploadToCloudinary(file){
 // ---- HELPERS ----
 function fmtBR(v){ return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function fmtDate(d){ if(!d||d==='—')return'—'; try{ const[y,m,dd]=d.split('-'); return`${dd}/${m}/${y}`; }catch{ return d||'—'; } }
+// ---- DATAS DA OBRA E PRAZO DE COMPRA (pedido do Ander, 16/11/2026) ----
+// O Gerenciamento de Obra grava em `datasObra` a medicao (prevista e
+// realizada), a projecao de entrada na obra e a entrega, sempre que o
+// contrato e salvo la. Aqui essas datas so sao lidas.
+// O prazo de comprar passou a contar da ENTRADA NA OBRA, e nao mais da
+// entrega: o material tem que estar na fabrica antes de a equipe ir para a
+// obra. Sem projecao de entrada (pedido sem vinculo com a Obra, ou obra ainda
+// sem previsao), vale a entrega, como era antes. Dias corridos.
+function datasDaObra(r){
+  return (r && r.datasObra && typeof r.datasObra==='object') ? r.datasObra : null;
+}
+function marcoDoPrazo(r){
+  const d=datasDaObra(r);
+  if(d && d.projEntrada) return {data:d.projEntrada, nome:'entrada na obra'};
+  if(r && r.entrega && r.entrega!=='—') return {data:r.entrega, nome:'entrega'};
+  return null;
+}
+function diasDeAntecedencia(r){ return (r&&r.tipo==='especial')?60:30; }
+function comprarAte(r){
+  const m=marcoDoPrazo(r);
+  if(!m) return '';
+  const [y,mo,d]=String(m.data).split('-').map(Number);
+  if(!y||!mo||!d) return '';
+  const dt=new Date(y, mo-1, d-diasDeAntecedencia(r));
+  return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+}
+// Dias de hoje ate o marco (entrada na obra ou entrega). null sem data.
+function diasAteOMarco(r){
+  const m=marcoDoPrazo(r);
+  if(!m) return null;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const dt=new Date(m.data); dt.setHours(0,0,0,0);
+  return Math.round((dt-today)/(1000*60*60*24));
+}
+// Embaixo da entrega, na tabela: o que veio da Obra.
+function blocoDatasObra(r){
+  const d=datasDaObra(r);
+  if(!d) return '';
+  const med=d.medicaoFeita
+    ? '📐 Medida '+fmtDate(d.medicaoFeita)
+    : (d.medicao?'📐 Med. prevista '+fmtDate(d.medicao):'');
+  return '<span class="td-by" style="color:var(--teal-dark)" title="Datas do Gerenciamento de Obra">'+
+    '🏗️ vem da Obra'+(d.projEntrada?' · entrada '+fmtDate(d.projEntrada):'')+(med?'<br>'+med:'')+'</span>';
+}
+// A coluna "Comprar até": vermelha quando passou, amarela nos últimos 7 dias.
+function celulaComprarAte(r){
+  const ate=comprarAte(r);
+  if(!ate) return '<td>—</td>';
+  const m=marcoDoPrazo(r);
+  const hoje=new Date(); hoje.setHours(0,0,0,0);
+  const [y,mo,d]=ate.split('-').map(Number);
+  const falta=Math.round((new Date(y,mo-1,d)-hoje)/(1000*60*60*24));
+  const cor=falta<0?'var(--red)':(falta<=7?'var(--amber)':'inherit');
+  const quando=falta<0?'venceu há '+(-falta)+' dia'+(falta===-1?'':'s')
+    :(falta===0?'é hoje':'faltam '+falta+' dia'+(falta===1?'':'s'));
+  return '<td style="white-space:nowrap"><span style="color:'+cor+';font-weight:600">'+fmtDate(ate)+'</span>'+
+    '<span class="td-by" title="'+diasDeAntecedencia(r)+' dias antes da '+m.nome+'">'+quando+
+    ' · '+diasDeAntecedencia(r)+'d antes da '+m.nome+'</span></td>';
+}
 function statusClass(s){ return s==='Aguardando cliente'?'pill-aguardando':s==='Atrasada'?'pill-atrasada':s==='OK'?'pill-ok':'pill-pendente'; }
 function genId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function fmtSize(b){ return b>1048576?(b/1048576).toFixed(1)+' MB':(b/1024).toFixed(0)+' KB'; }
@@ -832,11 +891,8 @@ function persist(){ localStorage.setItem('dalum-data',JSON.stringify(data)); }
 function reclassifyAll(){
   const today = new Date(); today.setHours(0,0,0,0);
 
-  function getDiff(r){
-    if(!r.entrega||r.entrega==='—') return null;
-    const dt=new Date(r.entrega); dt.setHours(0,0,0,0);
-    return Math.round((dt-today)/(1000*60*60*24));
-  }
+  // Conta a partir da entrada na obra quando a Obra informou (16/11/2026).
+  function getDiff(r){ return diasAteOMarco(r); }
 
   // Move importante → urgente when lead time is compromised
   const toUrgente=[];
@@ -939,7 +995,8 @@ function renderTable(type,isPago){
       <td>${r.fornecedor}${pixInfo}</td>
       <td class="td-valor">${val}</td>
       <td>${fmtDate(r.dataOrc)}</td>
-      <td>${fmtDate(r.entrega)}${r.medicao?`<span class="td-by" style="color:var(--teal-dark)">📐 Med: ${fmtDate(r.medicao)}</span>`:''}</td>
+      <td>${fmtDate(r.entrega)}${r.medicao?`<span class="td-by" style="color:var(--teal-dark)">📐 Med: ${fmtDate(r.medicao)}</span>`:''}${blocoDatasObra(r)}</td>
+      ${isPago?'':celulaComprarAte(r)}
       ${extraCol}
       ${statusCell}
       ${attachBtn}
@@ -1124,6 +1181,7 @@ function openModal(type,idx=null){
     popularNotificarSelect();
     limparMarcados();            // marcacao de outra obra nao vem junto
     mostrarStatusPedido(r.pedido);
+    mostrarDatasObraNoModal(r);
     document.getElementById('modal-title').textContent='Editar orçamento';
   } else {
     ['f-obra','f-contrato','f-material','f-nrorc','f-fornecedor','f-valor','f-dataorc','f-entrega','f-datapag','f-pix','f-pix-nome','f-banco','f-conta','f-medicao','f-obs'].forEach(id=>document.getElementById(id).value='');
@@ -1135,6 +1193,7 @@ function openModal(type,idx=null){
     limparMarcados();   // abre sempre sem ninguém marcado
     document.getElementById('f-pedido').value='';
     mostrarStatusPedido(null);
+    mostrarDatasObraNoModal(null);
     // Auto-fill nome do usuário logado
   const _nomeLogado=sessionStorage.getItem('dalum-user')||lastBy||'';
   document.getElementById('f-by').value=_nomeLogado;
@@ -1207,6 +1266,11 @@ function saveEntry(){
     // do zero a cada gravacao: sem esta linha, editar qualquer campo apagaria
     // o pedido em aberto — foi exatamente o que ja aconteceu com os anexos.
     pedido: editId!==null ? (data[modalType][editId].pedido||null) : null,
+    // As datas que o Gerenciamento de Obra mandou (16/11/2026). Mesmo motivo
+    // do pedido acima: sem isto, editar o orcamento apagaria o vinculo, e o
+    // prazo voltaria a contar da entrega ate a Obra salvar de novo.
+    datasObra: editId!==null ? (data[modalType][editId].datasObra||null)
+      : (duplicandoDe ? (duplicandoDe.datasObra||null) : null),
   };
   if(modalType==='pago') entry.dataPag=document.getElementById('f-datapag').value;
   if(!entry.obra||!entry.contrato){ alert('Obra / Cliente e Nº do Contrato são obrigatórios.'); return; }
@@ -2217,14 +2281,15 @@ function gerarImpressao(opts){
   const today=new Date(); today.setHours(0,0,0,0);
   const overdue=[],dueToday=[],dueSoon=[];
   [...data.urgente,...data.importante].forEach(r=>{
-    if(!r.entrega||r.entrega==='—') return;
+    // Mesma regra da tela (16/11/2026): conta da entrada na obra, se houver.
+    const marco=marcoDoPrazo(r);
+    if(!marco) return;
     if(r.status==='Aguardando cliente') return;
-    const dt=new Date(r.entrega); dt.setHours(0,0,0,0);
-    const diff=Math.round((dt-today)/(1000*60*60*24));
-    const threshold=r.tipo==='especial'?60:30;
+    const diff=diasAteOMarco(r);
+    const threshold=diasDeAntecedencia(r);
     const tipoLabel=r.tipo==='especial'?'Especial':'Padrão';
     const label=`${r.obra} — ${r.fornecedor} [${tipoLabel}] (R$ ${Number(r.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})})`;
-    const entregaStr=r.entrega?r.entrega.split('-').reverse().join('/'):'';
+    const entregaStr=(marco.nome==='entrada na obra'?'Entrada na obra: ':'Entrega: ')+marco.data.split('-').reverse().join('/');
     if(diff<0) overdue.push({label,days:Math.abs(diff),entrega:entregaStr});
     else if(diff===0) dueToday.push({label,entrega:entregaStr});
     else if(diff<=threshold) dueSoon.push({label,days:diff,threshold,entrega:entregaStr});
@@ -2238,16 +2303,16 @@ function gerarImpressao(opts){
       </div>`;
     if(overdue.length){
       html+=`<div style="background:#FDF0EE;border-left:4px solid #C0392B;border-radius:4px;padding:8px 12px;margin-bottom:8px">
-        <div style="font-size:11px;font-weight:700;color:#C0392B;margin-bottom:6px">🚨 ENTREGA ATRASADA (${overdue.length})</div>
+        <div style="font-size:11px;font-weight:700;color:#C0392B;margin-bottom:6px">🚨 DATA DA OBRA VENCIDA (${overdue.length})</div>
         <table style="width:100%;border-collapse:collapse;font-size:10px">
-          ${overdue.map(o=>`<tr><td style="padding:3px 0;border-bottom:1px solid #f5c4c4;width:65%">${o.label}</td><td style="text-align:right;color:#C0392B;font-weight:700;padding:3px 0;border-bottom:1px solid #f5c4c4">Entrega: ${o.entrega} · ${o.days} dia${o.days>1?'s':''} atrasado</td></tr>`).join('')}
+          ${overdue.map(o=>`<tr><td style="padding:3px 0;border-bottom:1px solid #f5c4c4;width:65%">${o.label}</td><td style="text-align:right;color:#C0392B;font-weight:700;padding:3px 0;border-bottom:1px solid #f5c4c4">${o.entrega} · ${o.days} dia${o.days>1?'s':''} atrasado</td></tr>`).join('')}
         </table></div>`;
     }
     if(dueToday.length){
       html+=`<div style="background:#FEF7E6;border-left:4px solid #B9770E;border-radius:4px;padding:8px 12px;margin-bottom:8px">
-        <div style="font-size:11px;font-weight:700;color:#B9770E;margin-bottom:6px">📅 ENTREGA HOJE (${dueToday.length})</div>
+        <div style="font-size:11px;font-weight:700;color:#B9770E;margin-bottom:6px">📅 ENTRADA NA OBRA OU ENTREGA HOJE (${dueToday.length})</div>
         <table style="width:100%;border-collapse:collapse;font-size:10px">
-          ${dueToday.map(o=>`<tr><td style="padding:3px 0;border-bottom:1px solid #f5d98a;width:65%">${o.label}</td><td style="text-align:right;color:#B9770E;font-weight:700;padding:3px 0;border-bottom:1px solid #f5d98a">Entrega: ${o.entrega}</td></tr>`).join('')}
+          ${dueToday.map(o=>`<tr><td style="padding:3px 0;border-bottom:1px solid #f5d98a;width:65%">${o.label}</td><td style="text-align:right;color:#B9770E;font-weight:700;padding:3px 0;border-bottom:1px solid #f5d98a">${o.entrega}</td></tr>`).join('')}
         </table></div>`;
     }
     if(dueSoon.length){
@@ -2255,7 +2320,7 @@ function gerarImpressao(opts){
         <div style="font-size:11px;font-weight:700;color:#8B0000;margin-bottom:2px">🔴 LEAD TIME COMPROMETIDO — COMPRA URGENTE! (${dueSoon.length})</div>
         <div style="font-size:9px;color:#8B0000;margin-bottom:6px">O prazo de entrega do material já passou. Compre imediatamente!</div>
         <table style="width:100%;border-collapse:collapse;font-size:10px">
-          ${dueSoon.map(o=>`<tr><td style="padding:3px 0;border-bottom:1px solid #f5c4c4;width:60%">${o.label}</td><td style="text-align:right;color:#8B0000;font-weight:700;padding:3px 0;border-bottom:1px solid #f5c4c4">Entrega: ${o.entrega} · em ${o.days}d · compra atrasada ${o.threshold-o.days}d (lead ${o.threshold}d)</td></tr>`).join('')}
+          ${dueSoon.map(o=>`<tr><td style="padding:3px 0;border-bottom:1px solid #f5c4c4;width:60%">${o.label}</td><td style="text-align:right;color:#8B0000;font-weight:700;padding:3px 0;border-bottom:1px solid #f5c4c4">${o.entrega} · em ${o.days}d · compra atrasada ${o.threshold-o.days}d (lead ${o.threshold}d)</td></tr>`).join('')}
         </table></div>`;
     }
     html+=`</div>`;
@@ -2485,6 +2550,28 @@ function addWorkdays(date, days){
   return d;
 }
 
+// No "Editar orçamento": quando a Obra mandou as datas, a entrega fica
+// travada aqui (quem muda é a Obra) e embaixo aparecem as outras datas e o
+// "Comprar até" (16/11/2026).
+function mostrarDatasObraNoModal(r){
+  const el=document.getElementById('f-entrega');
+  const nota=document.getElementById('f-entrega-obra');
+  const d=datasDaObra(r);
+  const travar=!!(d && d.entrega);
+  el.readOnly=travar;
+  el.style.background=travar?'var(--gray-1)':'';
+  if(!nota) return;
+  if(!d){ nota.style.display='none'; nota.textContent=''; return; }
+  const partes=[];
+  if(d.medicaoFeita) partes.push('medida em '+fmtDate(d.medicaoFeita));
+  else if(d.medicao) partes.push('medição prevista '+fmtDate(d.medicao));
+  if(d.projEntrada) partes.push('entrada na obra '+fmtDate(d.projEntrada));
+  const ate=comprarAte(r);
+  if(ate) partes.push('comprar até '+fmtDate(ate));
+  nota.textContent='🏗️ Vem do Gerenciamento de Obra'+(travar?' (para mudar a entrega, altere lá)':'')+
+    (partes.length?': '+partes.join(' · '):'')+'.';
+  nota.style.display='';
+}
 function calcEntregaPorMedicao(){
   const medicao = document.getElementById('f-medicao').value;
   const diasEl = document.getElementById('f-dias-uteis');
@@ -2496,6 +2583,8 @@ function calcEntregaPorMedicao(){
   const fmt = novaEntrega.toLocaleDateString('pt-BR');
   const iso = novaEntrega.toISOString().slice(0,10);
   resultado.textContent = fmt;
+  // Entrega que vem da Obra nao e sobrescrita pela conta daqui (16/11/2026).
+  if(document.getElementById('f-entrega').readOnly) return;
   document.getElementById('f-entrega').value = iso;
 }
 
@@ -3590,16 +3679,16 @@ function checkNotifications(){
   const overdue=[], dueToday=[], leadCompromised=[];
 
   [...data.urgente, ...data.importante].forEach(r=>{
-    if(!r.entrega || r.entrega==='—') return;
+    const marco=marcoDoPrazo(r);
+    if(!marco) return;
     if(r.status==='Aguardando cliente') return;
-    const dt = new Date(r.entrega); dt.setHours(0,0,0,0);
-    const diff = Math.round((dt-today)/(1000*60*60*24));
-    const threshold = r.tipo==='especial' ? 60 : 30;
+    const diff = diasAteOMarco(r);
+    const threshold = diasDeAntecedencia(r);
     const tipoLabel = r.tipo==='especial' ? 'Especial' : 'Padrão';
-    const label = `${r.obra} — ${r.fornecedor} [${tipoLabel}] (R$ ${fmtBR(r.valor)})`;
-    if(diff < 0) overdue.push({label, days: Math.abs(diff), tipo: r.tipo||'padrao'});
-    else if(diff === 0) dueToday.push({label, tipo: r.tipo||'padrao'});
-    else if(diff <= threshold) leadCompromised.push({label, days: diff, threshold, tipo: r.tipo||'padrao'});
+    const label = `${r.obra} — ${r.fornecedor} [${tipoLabel}] (R$ ${fmtBR(r.valor)}) · ${marco.nome} ${fmtDate(marco.data)}`;
+    if(diff < 0) overdue.push({label, days: Math.abs(diff), tipo: r.tipo||'padrao', marco: marco.nome});
+    else if(diff === 0) dueToday.push({label, tipo: r.tipo||'padrao', marco: marco.nome});
+    else if(diff <= threshold) leadCompromised.push({label, days: diff, threshold, tipo: r.tipo||'padrao', marco: marco.nome});
   });
 
   // Manutenção pendentes (não compradas)
@@ -3631,7 +3720,7 @@ function showBanner(overdue, dueToday, leadCompromised, manutHoje, manutSemana, 
   if(overdue.length){
     html+=`<div class="notif-banner notif-banner-error">
       <div style="flex:1">
-        <strong>🚨 ${overdue.length} obra${overdue.length>1?'s':''} com entrega ATRASADA</strong>
+        <strong>🚨 ${overdue.length} obra${overdue.length>1?'s':''} com a data da obra VENCIDA (entrada na obra ou entrega)</strong>
         <div style="margin-top:6px">
           ${overdue.map(o=>`<div class="notif-item">⚠️ ${o.label} — <strong>${o.days} dia${o.days>1?'s':''} de atraso</strong></div>`).join('')}
         </div>
@@ -3643,7 +3732,7 @@ function showBanner(overdue, dueToday, leadCompromised, manutHoje, manutSemana, 
   if(dueToday.length){
     html+=`<div class="notif-banner notif-banner-warning">
       <div style="flex:1">
-        <strong>📅 ${dueToday.length} obra${dueToday.length>1?'s':''} com entrega HOJE</strong>
+        <strong>📅 ${dueToday.length} obra${dueToday.length>1?'s':''} com entrada na obra ou entrega HOJE</strong>
         <div style="margin-top:6px">
           ${dueToday.map(o=>`<div class="notif-item">🔔 ${o.label}</div>`).join('')}
         </div>
@@ -3660,9 +3749,9 @@ function showBanner(overdue, dueToday, leadCompromised, manutHoje, manutSemana, 
         <strong>🔴 ${leadCompromised.length} obra${leadCompromised.length>1?'s':''} com LEAD TIME COMPROMETIDO — compra urgente!</strong>
         <div style="font-size:11px;color:#8B0000;margin:4px 0 8px">O prazo de entrega do material já está comprometido. Compre imediatamente!</div>
         ${padrao.length?`<div style="font-size:11px;font-weight:700;color:#8B0000;margin-bottom:4px">📦 Padrão (Lead Time 30 dias)</div>
-          ${padrao.map(o=>`<div class="notif-item">🔴 ${o.label} — entrega em <strong>${o.days} dia${o.days>1?'s':''}</strong> — compra atrasada ${o.threshold-o.days} dia${o.threshold-o.days>1?'s':''}</div>`).join('')}`:''}
+          ${padrao.map(o=>`<div class="notif-item">🔴 ${o.label} — ${o.marco||'entrega'} em <strong>${o.days} dia${o.days>1?'s':''}</strong> — compra atrasada ${o.threshold-o.days} dia${o.threshold-o.days>1?'s':''}</div>`).join('')}`:''}
         ${especial.length?`<div style="font-size:11px;font-weight:700;color:#8B0000;margin-top:6px;margin-bottom:4px">Especial (Lead Time 60 dias)</div>
-          ${especial.map(o=>`<div class="notif-item">🔴 ${o.label} — entrega em <strong>${o.days} dia${o.days>1?'s':''}</strong> — compra atrasada ${o.threshold-o.days} dia${o.threshold-o.days>1?'s':''}</div>`).join('')}`:''}
+          ${especial.map(o=>`<div class="notif-item">🔴 ${o.label} — ${o.marco||'entrega'} em <strong>${o.days} dia${o.days>1?'s':''}</strong> — compra atrasada ${o.threshold-o.days} dia${o.threshold-o.days>1?'s':''}</div>`).join('')}`:''}
       </div>
       <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
     </div>`;
@@ -3736,9 +3825,9 @@ async function sendBrowserNotifications(overdue, dueToday, leadCompromised, manu
     try{ new Notification(title,{body,icon:'/favicon.ico',tag:title}); }catch(e){}
   };
 
-  overdue.forEach(o=>send('🚨 Entrega Atrasada — Daluminium',`${o.label} — ${o.days} dia${o.days>1?'s':''} de atraso!`));
-  dueToday.forEach(o=>send('📅 Entrega Hoje — Daluminium', o.label));
-  leadCompromised.forEach(o=>send('🔴 Lead Time Comprometido — Daluminium',`${o.label} — entrega em ${o.days} dias!`));
+  overdue.forEach(o=>send('🚨 Data da obra vencida — Daluminium',`${o.label} — ${o.days} dia${o.days>1?'s':''} de atraso!`));
+  dueToday.forEach(o=>send('📅 Entrada na obra ou entrega hoje — Daluminium', o.label));
+  leadCompromised.forEach(o=>send('🔴 Lead Time Comprometido — Daluminium',`${o.label} — ${o.marco||'entrega'} em ${o.days} dias!`));
   if(manutHoje.length) send('🔧 Manutenção Urgente — Daluminium',`${manutHoje.length} compra${manutHoje.length>1?'s':''} para comprar HOJE!`);
   if(manutFora.length) send('🚚 Manutenção Fora do Estado — Daluminium',`${manutFora.length} item${manutFora.length>1?'ns':''} sem fornecedor local.`);
 }
