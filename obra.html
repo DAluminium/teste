@@ -1971,17 +1971,28 @@ function dataMedidaQueAparece(c){
 //   âmbar  — ainda é previsão; se a medição começou, vem o "5 de 12" junto;
 //   vazio  — não foi medida e não tem previsão.
 function celulaMedicao(c){
-  const real=dataMedidaQueAparece(c);
-  if(real) return '<td class="td-nowrap">'+pill(fmtData(real)||real,'pill-verde')+'</td>';
-  const resumo=resumoObraMedida(c);
-  // Medida no Acompanhamento sem visita registrada: não há data para mostrar,
-  // mas dizer "não medida" seria mentira.
-  if(resumo==='Sim') return '<td class="td-nowrap">'+pill('Medida','pill-verde')+'</td>';
+  // A CONTAGEM VEM PRIMEIRO. Antes isto olhava a data antes dos vãos: bastava
+  // existir uma visita de Medição para a obra ficar verde, mesmo faltando vão
+  // para medir — a obra FULL TIME, com 11 de 12, aparecia como pronta
+  // (17/11/2026).
+  const resumo=resumoObraMedida(c);          // 'Sim' · 'Não' · '11 de 12'
   const prevista=String((c&&c.medicao)||'').trim();
-  if(!prevista && resumo==='Não') return '<td class="td-nowrap td-fraco">—</td>';
-  const texto=(prevista?fmtData(prevista)||prevista:'Sem data')+
-              (resumo==='Não'?'':' · '+resumo);
-  return '<td class="td-nowrap">'+pill(texto,'pill-ambar')+'</td>';
+  if(resumo!=='Sim' && resumo!=='Não'){
+    // Falta vão: âmbar, com a contagem. A data mostrada é a prevista; não
+    // havendo, a da visita em que os vãos já medidos foram medidos.
+    const dia=prevista || dataMedidaQueAparece(c);
+    return '<td class="td-nowrap">'+
+      pill((dia?fmtData(dia)||dia:'Sem data')+' · '+resumo,'pill-ambar')+'</td>';
+  }
+  if(resumo==='Sim'){
+    const real=dataMedidaQueAparece(c);
+    // Medida no Acompanhamento sem visita registrada: não há data para
+    // mostrar, mas dizer "não medida" seria mentira.
+    return '<td class="td-nowrap">'+
+      pill(real?(fmtData(real)||real):'Medida','pill-verde')+'</td>';
+  }
+  if(!prevista) return '<td class="td-nowrap td-fraco">—</td>';
+  return '<td class="td-nowrap">'+pill(fmtData(prevista)||prevista,'pill-ambar')+'</td>';
 }
 // O valor da coluna para ordenar e para quem lê sem HTML: a data que vale.
 function dataDaColunaMedicao(c){
