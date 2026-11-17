@@ -340,7 +340,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
           <span class="dica" id="d-limite"></span></div>
         <div class="fg"><label>Medição prevista</label><input type="date" id="f-medicao" onchange="recalcular()"></div>
         <div class="fg"><label>Medição realizada em</label><input type="date" id="f-medicaofeita" onchange="recalcular()">
-          <span class="dica" id="d-medicaofeita"></span></div>
+          <span class="dica" id="d-medicaofeita"></span><span class="dica" id="d-medicaotrava"></span></div>
         <div class="fg"><label>Dias de produção (úteis)</label><input type="number" min="0" id="f-diasprod" oninput="recalcular()" placeholder="Ex.: 30"></div>
         <div class="fg"><label>Projeção de entrada na obra</label><input type="date" id="f-projentrada" onchange="marcarManual('projEntrada');recalcular()">
           <span class="dica" id="d-projentrada"></span></div>
@@ -2825,6 +2825,7 @@ function abrirFicha(id){
   fq.textContent=soAdmin()?quem.join(' · '):'';
   fq.style.display=soAdmin()?'':'none';
   recalcular();
+  travarMedicaoFeita(c);
   mostrarFabrica(c);
   mostrarCompras(c);
   popularNotificarSelect(); limparMarcados();
@@ -2853,6 +2854,25 @@ function travarFichaSeConsulta(){
     .forEach(function(el){ el.disabled=true; });
 }
 
+// TRAVA DA MEDICAO REALIZADA (pedido do Ander, 16/11/2026). Depois de gravada,
+// a data da medicao real e a base da entrega (e, depois, das datas do
+// Compras): quem nao e gerente nem administrador nao altera mais. Gerente e
+// administrador corrigem, mas o salvar pede o motivo e ele vai para o
+// historico. A mesma regra e reaplicada no salvarFicha — o campo desabilitado
+// so evita o susto, nao e a protecao.
+function travarMedicaoFeita(c){
+  const el=document.getElementById('f-medicaofeita');
+  const nota=document.getElementById('d-medicaotrava');
+  if(!el) return;
+  const gravada=!!(fichaId && String((c&&c.medicaoFeita)||'').trim());
+  el.disabled=gravada && !podeGerenciar();
+  if(!nota) return;
+  nota.textContent=!gravada ? ''
+    : (podeGerenciar()
+        ? '🔒 Data registrada. Para corrigir, altere e salve: o motivo será pedido e fica no histórico.'
+        : '🔒 Data registrada e travada. Só gerente ou administrador corrige.');
+}
+
 function fecharFicha(){
   document.getElementById('ficha-ov').classList.remove('open');
   fichaId=null;
@@ -2871,6 +2891,26 @@ async function salvarFicha(manterAberta){
   if(!c.ct){ aviso('Falta o contrato','Preencha o número do contrato (CT).'); document.getElementById('f-ct').focus(); return false; }
   if(!c.ano){ aviso('Falta o ano','Preencha o ano do contrato.'); document.getElementById('f-ano').focus(); return false; }
   if(!c.cliente){ aviso('Falta o cliente','Preencha o cliente ou o nome da obra.'); document.getElementById('f-cliente').focus(); return false; }
+
+  // Trava da medicao realizada (ver travarMedicaoFeita). Quem nao e gerente
+  // fica sempre com a data gravada; gerente/admin so corrige com motivo.
+  let motivoMedicao='';
+  {
+    const salvo=fichaId?((dados.contratos||[]).find(function(x){ return x.id===fichaId; })||{}):{};
+    const antes=String(salvo.medicaoFeita||'').trim();
+    if(antes && c.medicaoFeita!==antes){
+      if(!podeGerenciar()){
+        c.medicaoFeita=antes;
+      } else {
+        const m=prompt('A medição realizada estava registrada em '+fmtData(antes)+
+          (c.medicaoFeita?' e vai passar para '+fmtData(c.medicaoFeita):' e vai ser APAGADA')+
+          '.\n\nInforme o motivo da correção (fica no histórico):','');
+        if(m===null) return false;
+        if(!m.trim()){ aviso('Falta o motivo','Sem o motivo a correção da medição não é gravada.'); return false; }
+        motivoMedicao=m.trim();
+      }
+    }
+  }
 
   // Quem avisar e o que pedir. Pedido sem destinatario nao tem de quem cobrar.
   const txtPedido=(document.getElementById('f-pedido').value||'').trim();
@@ -2937,7 +2977,11 @@ async function salvarFicha(manterAberta){
     // minha tela não tem aquele campo — e substituir apagaria o valor dele.
     const extrasJuntos=Object.assign({}, alvo.extras||{}, c.extras||{});
     const pedidoDoAlvo=alvo.pedido||null;
+    // Releitura do servidor: se alguem gravou a medicao enquanto esta ficha
+    // estava aberta, quem nao e gerente tambem nao a apaga nem troca.
+    const medicaoDoServidor=String(alvo.medicaoFeita||'').trim();
     Object.assign(alvo, c);
+    if(medicaoDoServidor && !podeGerenciar()) alvo.medicaoFeita=medicaoDoServidor;
     alvo.extras=extrasJuntos;
     // Anexos: junta o que está no servidor com o que foi anexado nesta tela e
     // tira o que foi apagado aqui. Nessa ordem, o arquivo que um colega anexou
@@ -2973,7 +3017,8 @@ async function salvarFicha(manterAberta){
     // quando o prazosAntes acima ja foi preenchido com o que estava no
     // servidor. Em contrato novo nao ha o que comparar.
     return {acao:novo?'cadastrou':'alterou', alvo:'CT '+c.ct+' · '+c.cliente,
-      detalhe: prazosAntes?diferencaDePrazos(prazosAntes, c):''};
+      detalhe: (prazosAntes?diferencaDePrazos(prazosAntes, c):'')+
+        (motivoMedicao?' · Motivo da correção da medição: '+motivoMedicao:'')};
   });
 
   if(!ok) return false;
@@ -4457,7 +4502,7 @@ const CAMPOS_FICHA_TABELA=[
   {campo:'limiteMaterial', rotulo:'Comprar até',         tipo:'data',
     valor:function(c){ return contasDe(c).limiteMaterial; }},
   {campo:'medicao',        rotulo:'Medição prevista',    tipo:'data'},
-  {campo:'medicaoFeita',   rotulo:'Medida em',           tipo:'data'},
+  {campo:'medicaoFeita',   rotulo:'Medida',              tipo:'data'},
   {campo:'diasProd',       rotulo:'Dias de produção',    tipo:'numero'},
   {campo:'projEntrada',    rotulo:'Projeção de entrada', tipo:'data'},
   {campo:'diasInst',       rotulo:'Dias de instalação',  tipo:'numero'},
