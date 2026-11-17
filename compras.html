@@ -868,12 +868,11 @@ function blocoDatasObra(r){
 // A compra depende do caixa. Fora do estado e mais barato, mas leva 30 dias
 // (padrao) ou 60 (especial); se o caixa nao deixar comprar a tempo, os dias
 // passam e a compra tem que vir para dentro do estado:
-//   Padrao   — fora do estado ate entrada − 30 dias corridos;
-//              Ji-Parana (preto e branco, mais barato) ate entrada − 2 dias
-//              uteis: 1 para separar, 1 para a transportadora, contados do
-//              pagamento;
-//              Porto Velho (retira no mesmo dia, um pouco mais caro) ate a
-//              vespera util da entrada.
+//   Padrao   — fora do estado ate entrada − 30 dias corridos; depois LOCAL
+//              ate a vespera util da entrada. Local quer dizer Ji-Parana (2
+//              dias uteis) ou Porto Velho (retira no mesmo dia): o Ander pediu
+//              para nao separar as cidades, porque o comprador consegue o
+//              preco de Ji-Parana em Porto Velho (16/11/2026).
 //   Especial — so fora do estado, ate entrada − 60 dias: no estado quase
 //              nunca se acha. Passou disso, e urgencia.
 // Dias uteis aqui pulam so sabado e domingo (o Compras nao tem feriados).
@@ -896,8 +895,7 @@ function faseDaCompra(r){
   const especial=r.tipo==='especial';
   const janelas=[{onde:'Fora do estado', ate:comprarAte(r), cor:'var(--green)', icone:'🟢'}];
   if(!especial){
-    janelas.push({onde:'Ji-Paraná', ate:voltaDiasUteisIso(m.data,2), cor:'var(--amber)', icone:'🟡'});
-    janelas.push({onde:'Porto Velho', ate:voltaDiasUteisIso(m.data,1), cor:'#D35400', icone:'🟠'});
+    janelas.push({onde:'Local', ate:voltaDiasUteisIso(m.data,1), cor:'var(--amber)', icone:'🟡'});
   }
   const atual=janelas.find(function(j){ return diasAte(j.ate)>=0; })||null;
   return {marco:m, especial:especial, janelas:janelas, atual:atual,
@@ -911,7 +909,7 @@ function celulaComprarAte(r){
   if(!f.atual){
     const txt=f.especial
       ? 'Prazo de fora venceu em '+fmtDate(f.janelas[0].ate)+'. Especial quase nunca tem no estado: urgente.'
-      : 'Nem Porto Velho chega a tempo da '+f.marco.nome+' ('+fmtDate(f.marco.data)+').';
+      : 'Nem a compra local chega a tempo da '+f.marco.nome+' ('+fmtDate(f.marco.data)+').';
     return '<td style="min-width:150px"><span style="color:var(--red);font-weight:700">🔴 Atrasado</span>'+
       '<span class="td-by" style="white-space:normal">'+txt+'</span></td>';
   }
@@ -3802,11 +3800,11 @@ function showBanner(overdue, dueToday, leadCompromised, manutHoje, manutSemana, 
     html+=`<div class="notif-banner notif-banner-error" style="background:#FFF0F0;border-left-color:#8B0000">
       <div style="flex:1">
         <strong>🔴 ${leadCompromised.length} obra${leadCompromised.length>1?'s':''} com LEAD TIME COMPROMETIDO — compra urgente!</strong>
-        <div style="font-size:11px;color:#8B0000;margin:4px 0 8px">Já não dá tempo de comprar fora do estado. Padrão: mudar a compra para Ji-Paraná ou Porto Velho. Especial: quase nunca tem no estado — urgente.</div>
+        <div style="font-size:11px;color:#8B0000;margin:4px 0 8px">Já não dá tempo de comprar fora do estado. Padrão: mudar a compra para local. Especial: quase nunca tem no estado — urgente.</div>
         ${padrao.length?`<div style="font-size:11px;font-weight:700;color:#8B0000;margin-bottom:4px">📦 Padrão (Lead Time 30 dias)</div>
-          ${padrao.map(o=>`<div class="notif-item">🔴 ${o.label} — ${o.marco||'entrega'} em <strong>${o.days} dia${o.days>1?'s':''}</strong> — ${o.agora?('comprar em <strong>'+o.agora+'</strong>'):(o.tipo==='especial'?'prazo de fora venceu; no estado quase nunca tem':'nem Porto Velho chega a tempo')}</div>`).join('')}`:''}
+          ${padrao.map(o=>`<div class="notif-item">🔴 ${o.label} — ${o.marco||'entrega'} em <strong>${o.days} dia${o.days>1?'s':''}</strong> — ${o.agora?('comprar em <strong>'+o.agora+'</strong>'):(o.tipo==='especial'?'prazo de fora venceu; no estado quase nunca tem':'nem a compra local chega a tempo')}</div>`).join('')}`:''}
         ${especial.length?`<div style="font-size:11px;font-weight:700;color:#8B0000;margin-top:6px;margin-bottom:4px">Especial (Lead Time 60 dias)</div>
-          ${especial.map(o=>`<div class="notif-item">🔴 ${o.label} — ${o.marco||'entrega'} em <strong>${o.days} dia${o.days>1?'s':''}</strong> — ${o.agora?('comprar em <strong>'+o.agora+'</strong>'):(o.tipo==='especial'?'prazo de fora venceu; no estado quase nunca tem':'nem Porto Velho chega a tempo')}</div>`).join('')}`:''}
+          ${especial.map(o=>`<div class="notif-item">🔴 ${o.label} — ${o.marco||'entrega'} em <strong>${o.days} dia${o.days>1?'s':''}</strong> — ${o.agora?('comprar em <strong>'+o.agora+'</strong>'):(o.tipo==='especial'?'prazo de fora venceu; no estado quase nunca tem':'nem a compra local chega a tempo')}</div>`).join('')}`:''}
       </div>
       <span class="notif-close" onclick="this.parentElement.style.display='none'">✕</span>
     </div>`;
