@@ -959,6 +959,26 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
   </div>
 </div>
 
+<!-- MODAL CORRIGIR MARCA (18/11/2026): troca so a marca/plano de um lancamento
+     que ja existe, sem apagar e relancar. Valor, data e contas nao mudam. -->
+<div class="modal-overlay" id="marca-overlay">
+  <div class="modal" style="width:min(520px,100%)">
+    <div class="modal-header">
+      <div class="modal-title">🏷️ Corrigir marca</div>
+      <button class="act" onclick="closeMarca()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div id="mc-oque" style="background:var(--gray-1,#f5f5f5);border-radius:var(--radius);padding:10px 14px;font-size:13px;margin-bottom:14px"></div>
+      <div class="form-group"><label id="mc-lbl">Marcar como</label><select id="mc-marca"></select></div>
+      <div id="mc-dica" style="font-size:11px;color:var(--gray-4);margin-top:6px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeMarca()">Cancelar</button>
+      <button class="btn btn-green" onclick="saveMarca()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL SALDOS INICIAIS -->
 <div class="modal-overlay" id="saldos-overlay">
   <div class="modal" style="width:min(460px,100%)">
@@ -5386,8 +5406,8 @@ function movimentosDoCaixa(){
   // R$ 1.000 saindo do caixa na sexta.
   data.pagar.forEach(r=>{
     baixasDe(r,'pagar').forEach((b,i,todas)=>{
-      movs.push({data:b.data,
-        desc:r.desc+(todas.length>1?` (pagamento ${i+1} de ${todas.length})`:''),
+      movs.push({pid:r.id, data:b.data,
+        desc:r.desc+(todas.length>1?` (pagamento ${i+1} de ${todas.length})`:'')+(r.solutio===PLANO_DEV_SOLUTIO?' · 🏷️ Devolução Solutio':''),
         tipo:'Despesa',conta:b.conta||r.conta,saida:Number(b.valor)||0,entrada:0});
     });
   });
@@ -5515,7 +5535,7 @@ function renderCaixa(){
       <td style="color:var(--green);font-weight:600">${m.entrada?'R$ '+fmtBR(m.entrada):'—'}</td>
       <td style="color:var(--red);font-weight:600">${m.saida?'R$ '+fmtBR(m.saida):'—'}</td>
       <td style="font-weight:700;color:${m.saldo>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(m.saldo)}</td>
-      <td class="td-actions">${m.id?`<button class="act act-del" onclick="apagarMovimento('${m.id}')" title="Apagar este lançamento"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg></button>`:''}</td>
+      <td class="td-actions">${(!ehConsulta()&&(m.id||m.pid))?`<button class="act" onclick="${m.id?`abrirMarca('mov','${m.id}')`:`abrirMarca('pagar','${m.pid}')`}" title="Corrigir marca (empréstimo/devolução Solutio, plano de conta)">🏷️</button>`:''}${m.id?`<button class="act act-del" onclick="apagarMovimento('${m.id}')" title="Apagar este lançamento"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg></button>`:''}</td>
     </tr>`).join('')+linhaAnterior;
   }
   document.getElementById('t-caixa-footer').innerHTML=
@@ -5747,7 +5767,9 @@ function popularPlanoLanc(){
   const lista = tipo==='entrada'
     ? PLANO_ENTRADA
     : PLANO_SAIDA_EXTRA.concat(getCategorias().filter(function(c){
-        return c.ativo!==false && !PLANO_SAIDA_EXTRA.some(function(e){ return e.id===c.id; });
+        // "Emprestimo Solutio" e plano de ENTRADA; numa saida nao entra no
+        // Relatorio (18/11/2026: alguem criou essa categoria de despesa)
+        return c.ativo!==false && c.id!==PLANO_EMPR_SOLUTIO && !PLANO_SAIDA_EXTRA.some(function(e){ return e.id===c.id; });
       }));
   sel.innerHTML='<option value="">— sem plano de conta —</option>'+
     lista.map(function(c){ return '<option value="'+c.id+'">'+c.label+'</option>'; }).join('');
@@ -5780,6 +5802,81 @@ async function apagarMovimento(id){
   data.movimentos=lista.filter(function(x){ return x.id!==id; });
   logFin('Apagou lançamento', (m.tipo==='transferencia'?'Transferência':(m.desc||'Lançamento no banco')),
     quanto+' · '+fmtDate(m.data));
+  await persist(); render();
+}
+
+// ---- CORRIGIR MARCA (pedido da Ailime, 18/11/2026) ----
+// Os lancamentos da Solutio de ago-set/2026 entraram sem marca (transferencias
+// comuns, entradas sem plano e contas pagas na categoria "Emprestimo/Antecipacao").
+// Em vez de apagar e relancar um por um, troca-se so a marca: valor, data e
+// contas ficam como estao, entao nenhum saldo muda.
+let marcaAlvo=null;
+function opcoesMarca(lista, atual){
+  return lista.map(function(o){ return '<option value="'+escTxt(o.id)+'"'+(o.id===atual?' selected':'')+'>'+escTxt(o.label)+'</option>'; }).join('');
+}
+function abrirMarca(qual, id){
+  if(recusarSeConsulta()) return;
+  const sel=document.getElementById('mc-marca');
+  let oque='', dica='', opcoes=[], atual='';
+  if(qual==='pagar'){
+    const r=(data.pagar||[]).find(function(x){ return x.id===id; });
+    if(!r){ avisoSistema('Não encontrei esta conta.'); return; }
+    atual=r.solutio||'';
+    opcoes=[{id:'',label:'— não é da Solutio —'},{id:PLANO_DEV_SOLUTIO,label:'Devolução Solutio (dinheiro voltando para a Solutio)'}];
+    oque='<b>Conta paga</b> · '+escTxt(r.desc||'')+(r.fornecedor?' · '+escTxt(r.fornecedor):'')+'<br>R$ '+fmtBR(Number(r.valor)||0)+' · venc. '+fmtDate(r.venc);
+    dica='Marcada como Devolução Solutio, ela entra no resumo "Empréstimo Solutio", na aba Relatório. A categoria da conta não muda.';
+  } else {
+    const m=(data.movimentos||[]).find(function(x){ return x.id===id; });
+    if(!m){ avisoSistema('Não encontrei este lançamento.'); return; }
+    atual=m.plano||'';
+    if(m.tipo==='transferencia'){
+      opcoes=[{id:'',label:'— transferência comum —'},{id:PLANO_EMPR_SOLUTIO,label:'Empréstimo Solutio (dinheiro vindo da Solutio)'},{id:PLANO_DEV_SOLUTIO,label:'Devolução Solutio (dinheiro voltando para a Solutio)'}];
+      oque='<b>Transferência</b> · '+escTxt(CONTA_LABEL[m.origem]||m.origem)+' → '+escTxt(CONTA_LABEL[m.destino]||m.destino);
+      dica='Ex.: empréstimo = PagBank → Sicredi; devolução = Sicredi → PagBank.';
+    } else if(m.tipo==='entrada'){
+      opcoes=[{id:'',label:'— sem plano de conta —'}].concat(PLANO_ENTRADA);
+      oque='<b>Entrada no banco</b> · '+escTxt(m.desc||'')+' · '+escTxt(CONTA_LABEL[m.conta]||m.conta);
+      dica='Dinheiro vindo da Solutio: escolha "Empréstimo Solutio".';
+    } else {
+      opcoes=[{id:'',label:'— sem plano de conta —'}].concat(PLANO_SAIDA_EXTRA, getCategorias().filter(function(c){
+        return c.ativo!==false && c.id!==PLANO_EMPR_SOLUTIO && !PLANO_SAIDA_EXTRA.some(function(e){ return e.id===c.id; });
+      }));
+      oque='<b>Saída do banco</b> · '+escTxt(m.desc||'')+' · '+escTxt(CONTA_LABEL[m.conta]||m.conta);
+      dica='Dinheiro voltando para a Solutio: escolha "Devolução Solutio".';
+    }
+    oque+='<br>R$ '+fmtBR(Number(m.valor)||0)+' · '+fmtDate(m.data);
+    // plano antigo que nao esta mais na lista: mostra para nao sumir sem querer
+    if(atual && !opcoes.some(function(o){ return o.id===atual; })) opcoes.push({id:atual,label:planoLabelMov(m)+' (atual)'});
+  }
+  marcaAlvo={qual:qual,id:id};
+  document.getElementById('mc-oque').innerHTML=oque+'<div style="font-size:11px;color:var(--gray-4);margin-top:4px">Valor, data e contas não mudam — só a marca.</div>';
+  document.getElementById('mc-dica').textContent=dica;
+  sel.innerHTML=opcoesMarca(opcoes, atual);
+  sel.value=atual;
+  document.getElementById('marca-overlay').classList.add('open');
+}
+function closeMarca(){ marcaAlvo=null; document.getElementById('marca-overlay').classList.remove('open'); }
+async function saveMarca(){
+  if(!marcaAlvo) return;
+  if(recusarSeConsulta()) return;
+  const nova=document.getElementById('mc-marca').value;
+  const nomeNova=function(rot){ return nova?rot:'sem marca'; };
+  if(marcaAlvo.qual==='pagar'){
+    const r=(data.pagar||[]).find(function(x){ return x.id===marcaAlvo.id; });
+    if(!r){ avisoSistema('Esta conta não existe mais.'); closeMarca(); return; }
+    if(nova) r.solutio=nova; else delete r.solutio;
+    logFin('Corrigiu marca','A pagar · '+(r.desc||''), nomeNova('Devolução Solutio')+' · R$ '+fmtBR(Number(r.valor)||0));
+  } else {
+    const m=(data.movimentos||[]).find(function(x){ return x.id===marcaAlvo.id; });
+    if(!m){ avisoSistema('Este lançamento não existe mais.'); closeMarca(); return; }
+    if(nova) m.plano=nova; else delete m.plano;
+    const rot = m.tipo==='transferencia' ? (nova?rotuloTransfSolutio(nova):'') : planoLabelMov(m);
+    const alvo = m.tipo==='transferencia'
+      ? 'Transferência '+(CONTA_LABEL[m.origem]||m.origem)+' → '+(CONTA_LABEL[m.destino]||m.destino)
+      : (m.desc||'Lançamento no banco')+' · '+(CONTA_LABEL[m.conta]||m.conta);
+    logFin('Corrigiu marca', alvo, nomeNova(rot)+' · R$ '+fmtBR(Number(m.valor)||0)+' · '+fmtDate(m.data));
+  }
+  closeMarca();
   await persist(); render();
 }
 async function saveLanc(){
@@ -5950,7 +6047,17 @@ function secaoEmprestimoSolutio(mes){
     }
     const ent=m.tipo==='entrada';
     return {data:m.data, desc:m.desc||(ent?'Empréstimo':'Devolução'), conta:m.conta, emprestimo:ent?v:0, devolucao:ent?0:v};
-  }).sort(function(a,b){ return a.data.localeCompare(b.data); });
+  });
+  // Contas pagas marcadas como Devolucao Solutio (botao 🏷️, 18/11/2026):
+  // cada pagamento conta na data em que saiu do banco.
+  (data.pagar||[]).forEach(function(r){
+    if(r.solutio!==PLANO_DEV_SOLUTIO) return;
+    baixasDe(r,'pagar').forEach(function(b){
+      if(!b.data || b.data>fimMes) return;
+      todos.push({data:b.data, desc:r.desc||'Devolução', conta:b.conta||r.conta, emprestimo:0, devolucao:Number(b.valor)||0});
+    });
+  });
+  todos.sort(function(a,b){ return a.data.localeCompare(b.data); });
   if(!todos.length) return '';
   function soma(lista,campo){ return lista.reduce(function(a,i){ return a+i[campo]; },0); }
   const doMes=todos.filter(function(i){ return i.data.slice(0,7)===mes; });
@@ -6257,11 +6364,11 @@ async function init(){
   },10000);
 }
 
-['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','contasdados-overlay','empresa-overlay','empresas-overlay','editbaixas-overlay','relato-overlay'].forEach(id=>{
+['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','contasdados-overlay','marca-overlay','empresa-overlay','empresas-overlay','editbaixas-overlay','relato-overlay'].forEach(id=>{
   document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
 });
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','contasdados-overlay','empresa-overlay','empresas-overlay','editbaixas-overlay','relato-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
+  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','contasdados-overlay','marca-overlay','empresa-overlay','empresas-overlay','editbaixas-overlay','relato-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
 });
 document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
 
