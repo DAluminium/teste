@@ -573,6 +573,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
               <label data-so-admin title="Mesmo sendo funcionário, tira anexos de qualquer pessoa no Compras (os lançamentos continuam só com o gerente)"><input type="checkbox" id="nu-anexos-compras"> 🗑 Compras: tira anexo de qualquer pessoa</label>
               <label title="A pessoa abre a Fábrica para consultar a etapa dos projetos, mas não altera nada"><input type="checkbox" id="nu-ver-fabrica" onchange="if(this.checked) document.getElementById('nu-mod-fabrica').checked=true"> 👁️ Fábrica só para consultar</label>
               <label title="A pessoa abre o Gerenciamento de Obra para consultar os contratos e os prazos, mas não altera nada"><input type="checkbox" id="nu-ver-obra" onchange="if(this.checked) document.getElementById('nu-mod-obra').checked=true"> 👁️ Gerenciamento de Obra só para consultar</label>
+              <label title="A pessoa abre o Financeiro para consultar contas, saldos e relatórios, mas não altera nada"><input type="checkbox" id="nu-ver-financeiro" onchange="if(this.checked) document.getElementById('nu-mod-financeiro').checked=true"> 👁️ Financeiro só para consultar</label>
             </div>
           </div>
         </div>
@@ -618,6 +619,7 @@ font-size:11.5px;padding:10px 12px;border-radius:6px;margin:8px 0;line-height:1.
             <label data-so-admin title="Mesmo sendo funcionário, tira anexos de qualquer pessoa no Compras (os lançamentos continuam só com o gerente)"><input type="checkbox" id="eu-anexos-compras"> 🗑 Compras: tira anexo de qualquer pessoa</label>
             <label title="A pessoa abre a Fábrica para consultar a etapa dos projetos, mas não altera nada"><input type="checkbox" id="eu-ver-fabrica" onchange="if(this.checked) document.getElementById('eu-mod-fabrica').checked=true"> 👁️ Fábrica só para consultar</label>
             <label title="A pessoa abre o Gerenciamento de Obra para consultar os contratos e os prazos, mas não altera nada"><input type="checkbox" id="eu-ver-obra" onchange="if(this.checked) document.getElementById('eu-mod-obra').checked=true"> 👁️ Gerenciamento de Obra só para consultar</label>
+            <label title="A pessoa abre o Financeiro para consultar contas, saldos e relatórios, mas não altera nada"><input type="checkbox" id="eu-ver-financeiro" onchange="if(this.checked) document.getElementById('eu-mod-financeiro').checked=true"> 👁️ Financeiro só para consultar</label>
           </div>
         </div>
         <div class="form-group span2">
@@ -2665,7 +2667,9 @@ const MODULOS_DO_SISTEMA=['compras','financeiro','fabrica','obra','crm','acompan
 // pessoa — por isso nao servia.)
 // A caixa de cada um tem id <prefixo>-ver-<modulo>, e quem recusa a gravacao
 // de verdade e o Worker (soVeNoRegistro): a caixa aqui so conta para ele.
-const MODULOS_SO_VER=['fabrica','obra'];
+// O Financeiro entrou em 17/11/2026, a pedido do Ander (liberar o Financeiro
+// so para visualizacao). O Worker ja cobria: MODULOS_DO_REGISTRO tem o financeiro.
+const MODULOS_SO_VER=['fabrica','obra','financeiro'];
 function lerSoVer(prefixo){
   return MODULOS_SO_VER.filter(function(m){
     const el=document.getElementById(prefixo+'-ver-'+m);
