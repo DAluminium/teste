@@ -35,6 +35,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .topbar-logo{font-size:15px;font-weight:600;letter-spacing:.04em;display:flex;align-items:center;gap:8px}
 .topbar-logo span{opacity:.7;font-weight:400;font-size:12px}
 .topbar-actions{display:flex;align-items:center;gap:6px}
+/* Tela estreita: os botoes do topo descem de linha em vez de alargar a pagina
+   inteira — era isso que empurrava a coluna Acoes para fora da tela (18/11/2026). */
+.topbar{height:auto;min-height:54px;flex-wrap:wrap;gap:6px 12px;padding-top:6px;padding-bottom:6px}
+.topbar-actions{flex-wrap:wrap;justify-content:flex-end}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--radius);border:1px solid transparent;font-size:12px;font-family:inherit;cursor:pointer;font-weight:500;transition:background .1s;white-space:nowrap}
 .btn-ghost{background:rgba(255,255,255,.15);color:white;border-color:rgba(255,255,255,.25)}.btn-ghost:hover{background:rgba(255,255,255,.25)}
 .btn-teal{background:var(--teal);color:white;border-color:var(--teal-dark)}.btn-teal:hover{background:var(--teal-dark)}
@@ -103,6 +107,12 @@ tbody tr:hover td{background:var(--gray-1)}
 .td-sub{display:block;font-size:10px;font-weight:400;color:var(--gray-4)}
 .td-valor{font-weight:700;white-space:nowrap}
 .td-actions{white-space:nowrap;text-align:right}
+/* Fluxo de Caixa: a coluna Acoes (🏷️ e lixeira) fica presa na borda direita.
+   A tabela e mais larga que tela pequena e a coluna sumia (Ailime, 18/11/2026). */
+.tab-caixa thead th:last-child,
+.tab-caixa tbody tr:not(.empty-row) td:last-child{position:sticky;right:0;z-index:1;background:white;box-shadow:-8px 0 8px -8px rgba(0,0,0,.18)}
+.tab-caixa thead th:last-child{background:var(--gray-1)}
+.tab-caixa tbody tr:not(.empty-row):hover td:last-child{background:var(--gray-1)}
 .empty-row td{text-align:center;padding:2.5rem;color:var(--gray-4);font-size:13px}
 
 /* PILLS */
@@ -484,7 +494,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     </div>
     <div class="contas-grid" id="contas-saldos"></div>
     <div class="table-wrap">
-      <table>
+      <table class="tab-caixa">
         <thead><tr>
           <th>Data</th><th>Descrição</th><th>Tipo</th><th>Conta</th><th>Entrada</th><th>Saída</th><th>Saldo</th><th>Ações</th>
         </tr></thead>
