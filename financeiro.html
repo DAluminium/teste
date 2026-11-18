@@ -295,6 +295,9 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <button id="saldos-btn" class="btn btn-ghost btn-sm" onclick="openSaldosIniciais()" style="display:none" title="Configurar saldos iniciais dos bancos">
       <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Saldos iniciais
     </button>
+    <button id="bancos-btn" class="btn btn-ghost btn-sm" onclick="openContasDados()" style="display:none" title="Titular, CNPJ, agência e conta de cada banco">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M3 10l9-6 9 6"/><path d="M5 10v8M9 10v8M15 10v8M19 10v8"/><path d="M3 21h18"/></svg>Bancos
+    </button>
     <button id="emp-btn" class="btn btn-ghost btn-sm" onclick="openEmpresas()" style="display:none" title="Cadastrar as empresas que emitem comprovante">
       <svg class="icon" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M10 21v-6h4v6"/></svg>Empresas
     </button>
@@ -924,6 +927,26 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeEmpresa()">Cancelar</button>
       <button class="btn btn-green" onclick="confirmarEmpresa()">Emitir comprovante</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DADOS DOS BANCOS (18/11/2026) -->
+<div class="modal-overlay" id="contasdados-overlay">
+  <div class="modal" style="width:min(620px,100%)">
+    <div class="modal-header">
+      <div class="modal-title">🏦 Dados dos bancos</div>
+      <button class="act" onclick="closeContasDados()"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--teal-light);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--teal-dark);margin-bottom:16px">
+        ℹ️ De quem é cada conta: titular, CNPJ, agência e conta corrente. Aparece no cartão de cada conta, no Fluxo de Caixa, para conferir com o extrato. Todos os campos são opcionais.
+      </div>
+      <div id="contasdados-lista"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeContasDados()">Cancelar</button>
+      <button class="btn btn-green" onclick="saveContasDados()">Salvar</button>
     </div>
   </div>
 </div>
@@ -1897,6 +1920,8 @@ function updateSaldosBtn(){
   const role=sessionStorage.getItem('fin-role')||'';
   const btn=document.getElementById('saldos-btn');
   if(btn) btn.style.display=(role==='admin'||role==='gerente')?'flex':'none';
+  const bb=document.getElementById('bancos-btn');
+  if(bb) bb.style.display=(role==='admin'||role==='gerente')?'flex':'none';
   // Contas de despesa e Empresas: todos menos a Consulta (pedido do Ander,
   // 14/10/2026). Saldos iniciais continua so com gerente e admin: mexe no
   // saldo de todos os bancos de uma vez. A Consulta vem do cracha (o fin-role
@@ -1908,6 +1933,74 @@ function updateSaldosBtn(){
   if(eb) eb.style.display=lanca?'flex':'none';
   const hb=document.getElementById('tab-hist-btn');
   if(hb) hb.style.display=(role==='admin')?'block':'none';
+}
+
+// ---- DADOS DOS BANCOS (pedido do Ander, 18/11/2026) ----
+// Ninguem sabia de que CNPJ era o PagBank. Agora cada conta guarda titular,
+// CNPJ, agencia e c/c em data.contasDados (no banco de dados, NAO no codigo:
+// os repositorios sao publicos). So gerente e admin editam, como os saldos.
+const CONTAS_BANCO=['pagbank','inter','sicredi','antecipacao'];
+const CAMPOS_BANCO=[['titular','Titular (empresa)','Ex: Solution'],['cnpj','CNPJ','00.000.000/0000-00'],
+  ['agencia','Agência','Ex: 0001'],['conta','Conta corrente','Ex: 12345-6']];
+function escTxt(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function podeEditarBancos(){
+  const role=sessionStorage.getItem('fin-role')||'';
+  return role==='admin'||role==='gerente'||podeExcluir();
+}
+function linhaDadosConta(c){
+  const d=(data.contasDados||{})[c]; if(!d) return '';
+  const a=[];
+  if(d.titular) a.push(escTxt(d.titular));
+  if(d.cnpj) a.push('CNPJ '+escTxt(d.cnpj));
+  const b=[];
+  if(d.agencia) b.push('Ag. '+escTxt(d.agencia));
+  if(d.conta) b.push('C/C '+escTxt(d.conta));
+  if(!a.length&&!b.length) return '';
+  return '<div style="font-size:10px;color:var(--gray-5);margin-bottom:2px;line-height:1.35">'+
+    a.join(' · ')+(a.length&&b.length?'<br>':'')+b.join(' · ')+'</div>';
+}
+function openContasDados(){
+  if(!podeEditarBancos()){ avisoSistema('Só o gerente ou o administrador cadastra os dados dos bancos.'); return; }
+  const cd=data.contasDados||{};
+  const marcas=(empresasCadastradas()||[]).map(function(e){ return e.marca; }).filter(Boolean);
+  document.getElementById('contasdados-lista').innerHTML=
+    '<datalist id="cd-empresas">'+marcas.map(function(m){ return '<option value="'+escTxt(m)+'">'; }).join('')+'</datalist>'+
+    CONTAS_BANCO.map(function(c){
+      const d=cd[c]||{};
+      return '<div style="border:1px solid var(--gray-2);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px">'+
+        '<div style="font-weight:600;margin-bottom:6px">'+escTxt(CONTA_LABEL[c]||c)+'</div><div class="form-grid">'+
+        CAMPOS_BANCO.map(function(f){
+          return '<div class="form-group"><label>'+f[1]+'</label><input id="cd-'+c+'-'+f[0]+'" type="text" value="'+escTxt(d[f[0]]||'')+'" placeholder="'+f[2]+'"'+
+            (f[0]==='titular'?' list="cd-empresas"':'')+'></div>';
+        }).join('')+'</div></div>';
+    }).join('');
+  document.getElementById('contasdados-overlay').classList.add('open');
+}
+function closeContasDados(){ document.getElementById('contasdados-overlay').classList.remove('open'); }
+async function saveContasDados(){
+  if(!podeEditarBancos()){ avisoSistema('Só o gerente ou o administrador cadastra os dados dos bancos.'); return; }
+  const novo={};
+  for(const c of CONTAS_BANCO){
+    const d={};
+    CAMPOS_BANCO.forEach(function(f){ const v=(document.getElementById('cd-'+c+'-'+f[0]).value||'').trim(); if(v) d[f[0]]=v; });
+    if(d.cnpj){
+      const so=d.cnpj.replace(/\D/g,'');
+      if(so.length!==14 && so.length!==11){ avisoSistema(CONTA_LABEL[c]+': o CNPJ precisa ter 14 números (ou 11, se for CPF).'); return; }
+      d.cnpj = so.length===14 ? so.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5')
+                              : so.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/,'$1.$2.$3-$4');
+    }
+    if(Object.keys(d).length) novo[c]=d;
+  }
+  data.contasDados=novo;
+  logFin('Editou','Dados dos bancos',
+    CONTAS_BANCO.filter(function(c){ return novo[c]; }).map(function(c){
+      const d=novo[c]; return CONTA_LABEL[c]+': '+[d.titular,d.cnpj,d.agencia&&('Ag. '+d.agencia),d.conta&&('C/C '+d.conta)].filter(Boolean).join(' ');
+    }).join(' · ')||'(tudo em branco)');
+  const ok=await persist();
+  if(ok===false) return;
+  closeContasDados();
+  if(document.getElementById('panel-caixa').style.display!=='none') renderCaixa();
+  avisoSistema('Dados dos bancos salvos. ✅');
 }
 
 // ---- SALDOS INICIAIS ----
@@ -2371,7 +2464,7 @@ function chaveReg(r){ return (r&&r.id)?('id:'+r.id):('conteudo:'+JSON.stringify(
 // listas, entao uma mudanca nessas partes era invisivel para a conferencia de
 // conflito — e juntarAlteracoes() parte da versao do servidor, ou seja, a
 // mudanca ia embora calada. Estas duas linhas fecham esse buraco.
-const CAMPOS_DADOS=['saldosIniciais','categorias','empresas'];
+const CAMPOS_DADOS=['saldosIniciais','categorias','empresas','contasDados'];
 function camposMudados(antes,depois){
   return CAMPOS_DADOS.filter(function(k){
     return JSON.stringify((antes&&antes[k])!==undefined?antes[k]:null)
@@ -5381,6 +5474,7 @@ function renderCaixa(){
     const doPeriodo = mostraFim ? saldoContaAte(c, fimDoPeriodo) : null;
     return `<div class="conta-card">
       <div class="conta-nome" style="color:${cores[c]}">${nomesContas[c]}</div>
+      ${linhaDadosConta(c)}
       ${sInicial?`<div style="font-size:10px;color:var(--gray-4);margin-bottom:2px">Inicial: R$ ${fmtBR(sInicial)}${dataRef}</div>`:''}
       <div class="conta-saldo ${s>=0?'conta-pos':'conta-neg'}">R$ ${fmtBR(s)}</div>
       <div style="font-size:10px;color:var(--gray-4)">saldo de hoje</div>
@@ -6135,11 +6229,11 @@ async function init(){
   },10000);
 }
 
-['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','empresa-overlay','empresas-overlay','editbaixas-overlay','relato-overlay'].forEach(id=>{
+['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','contasdados-overlay','empresa-overlay','empresas-overlay','editbaixas-overlay','relato-overlay'].forEach(id=>{
   document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
 });
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','empresa-overlay','empresas-overlay','editbaixas-overlay','relato-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
+  if(e.key==='Escape') ['pagar-overlay','receber-overlay','transf-overlay','baixa-overlay','user-admin-overlay','attach-overlay','saldos-overlay','contasdados-overlay','empresa-overlay','empresas-overlay','editbaixas-overlay','relato-overlay'].forEach(id=>document.getElementById(id).classList.remove('open'));
 });
 document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
 
