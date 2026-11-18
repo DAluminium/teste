@@ -5590,6 +5590,7 @@ const PLANO_ENTRADA=[
   {id:'aporte-socio',             label:'Aporte de sócio'},
   {id:'emprestimo',               label:'Empréstimo recebido'},
   {id:'reembolso',                label:'Reembolso'},
+  {id:'emprestimo-solutio',       label:'Empréstimo Solutio'},
   {id:'transferencia-entre-empresas', label:'Transferência entre empresas'},
   {id:'outras-entradas',          label:'Outras entradas'}
 ];
@@ -5600,7 +5601,16 @@ const PLANO_DEVOLUCAO='devolucao-retirada-socia';
 // Na saida ele vem antes das categorias de despesa, porque nao e despesa.
 // (pedido da Ailime, 17/11/2026)
 const PLANO_EMPRESAS='transferencia-entre-empresas';
-const PLANO_SAIDA_EXTRA=[{id:PLANO_EMPRESAS, label:'Transferência entre empresas'}];
+// Emprestimo da Solutio (pedido de 18/11/2026): a Aretusa passa dinheiro da
+// Solutio para ca e depois devolve. Entrada = "Emprestimo Solutio"; saida =
+// "Devolucao Solutio". Como a conta da socia: nao e receita nem despesa, e o
+// Relatorio mostra quanto falta devolver (secaoEmprestimoSolutio).
+const PLANO_EMPR_SOLUTIO='emprestimo-solutio';
+const PLANO_DEV_SOLUTIO='devolucao-solutio';
+const PLANO_SAIDA_EXTRA=[
+  {id:PLANO_DEV_SOLUTIO, label:'Devolução Solutio'},
+  {id:PLANO_EMPRESAS, label:'Transferência entre empresas'}
+];
 // Retirada da socia: a categoria padrao e qualquer outra cadastrada com nome
 // comecando por "Retirada" (o cadastro de categorias e livre).
 function ehCatRetirada(id){
@@ -5625,7 +5635,9 @@ function popularPlanoLanc(){
   const tipo=document.getElementById('lc-tipo').value;
   const lista = tipo==='entrada'
     ? PLANO_ENTRADA
-    : PLANO_SAIDA_EXTRA.concat(getCategorias().filter(function(c){ return c.ativo!==false && c.id!==PLANO_EMPRESAS; }));
+    : PLANO_SAIDA_EXTRA.concat(getCategorias().filter(function(c){
+        return c.ativo!==false && !PLANO_SAIDA_EXTRA.some(function(e){ return e.id===c.id; });
+      }));
   sel.innerHTML='<option value="">— sem plano de conta —</option>'+
     lista.map(function(c){ return '<option value="'+c.id+'">'+c.label+'</option>'; }).join('');
 }
@@ -5793,8 +5805,48 @@ function renderRelatorio(){
     <div class="rel-row total"><span>SALDO TOTAL</span><span style="font-weight:700;color:${calcSaldoTotal()>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(calcSaldoTotal())}</span></div>
   </div>`;
   html+=secaoContaSocia(mes);
+  html+=secaoEmprestimoSolutio(mes);
   html+=secaoEntreEmpresas(mes);
   document.getElementById('relatorio-content').innerHTML=html;
+}
+
+// ---- EMPRESTIMO DA SOLUTIO: entrou x devolvido (pedido de 18/11/2026) ----
+// Lancamento no banco de ENTRADA com plano "Emprestimo Solutio" e de SAIDA com
+// "Devolucao Solutio". Mesmo desenho da conta da socia; so aparece se houver
+// algum lancamento ate o mes escolhido.
+function secaoEmprestimoSolutio(mes){
+  const fimMes=mes+'-31';
+  const inicioAno=mes.slice(0,4)+'-01-01';
+  const todos=(data.movimentos||[]).filter(function(m){
+    return m.data && m.data<=fimMes &&
+      ((m.tipo==='entrada' && m.plano===PLANO_EMPR_SOLUTIO) || (m.tipo==='saida' && m.plano===PLANO_DEV_SOLUTIO));
+  }).map(function(m){
+    const v=Number(m.valor)||0, ent=m.tipo==='entrada';
+    return {data:m.data, desc:m.desc||(ent?'Empréstimo':'Devolução'), conta:m.conta, emprestimo:ent?v:0, devolucao:ent?0:v};
+  }).sort(function(a,b){ return a.data.localeCompare(b.data); });
+  if(!todos.length) return '';
+  function soma(lista,campo){ return lista.reduce(function(a,i){ return a+i[campo]; },0); }
+  const doMes=todos.filter(function(i){ return i.data.slice(0,7)===mes; });
+  const doAno=todos.filter(function(i){ return i.data>=inicioAno; });
+  const falta=soma(todos,'emprestimo')-soma(todos,'devolucao');
+  const nomeMes=mesLabel(mes+'-01');
+  let h=`
+  <div class="rel-section">
+    <div class="rel-title">🏢 EMPRÉSTIMO SOLUTIO — ENTRADAS × DEVOLUÇÕES</div>
+    <div class="rel-row"><span>Entrou da Solutio em ${nomeMes}</span><span class="rel-pos">R$ ${fmtBR(soma(doMes,'emprestimo'))}</span></div>
+    <div class="rel-row"><span>Devolvido à Solutio em ${nomeMes}</span><span class="rel-neg">R$ ${fmtBR(soma(doMes,'devolucao'))}</span></div>
+    <div class="rel-row"><span>Entrou em ${mes.slice(0,4)} (até ${nomeMes})</span><span class="rel-pos">R$ ${fmtBR(soma(doAno,'emprestimo'))}</span></div>
+    <div class="rel-row"><span>Devolvido em ${mes.slice(0,4)} (até ${nomeMes})</span><span class="rel-neg">R$ ${fmtBR(soma(doAno,'devolucao'))}</span></div>
+    <div class="rel-row total"><span>${falta>=-0.004?'FALTA DEVOLVER À SOLUTIO (todo o período, até '+nomeMes+')':'DEVOLVEU A MAIS (todo o período, até '+nomeMes+')'}</span><span style="color:${falta>0.004?'var(--red)':'var(--green)'};font-weight:700">R$ ${fmtBR(Math.abs(falta))}</span></div>
+  </div>`;
+  if(doAno.length){
+    h+=`
+  <div class="rel-section">
+    <div class="rel-title">🏢 EXTRATO SOLUTIO — ${mes.slice(0,4)} (até ${nomeMes.toUpperCase()})</div>
+    ${doAno.map(function(i){ return `<div class="rel-row"><span>${fmtDate(i.data)} · ${i.emprestimo?'Empréstimo':'Devolução'} · ${i.desc} · ${CONTA_LABEL[i.conta]||i.conta||''}</span><span class="${i.emprestimo?'rel-pos':'rel-neg'}">${i.emprestimo?'+ ':'- '}R$ ${fmtBR(i.emprestimo||i.devolucao)}</span></div>`; }).join('')}
+  </div>`;
+  }
+  return h;
 }
 
 // ---- TRANSFERENCIAS ENTRE EMPRESAS no mes (pedido da Ailime, 17/11/2026) ----
