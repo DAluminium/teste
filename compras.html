@@ -31,7 +31,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .tabs-bar{display:flex;gap:4px;margin-bottom:1rem;background:white;border-radius:10px;padding:5px;box-shadow:var(--shadow)}
 .tab-btn{flex:1;padding:8px 12px;border-radius:7px;border:none;font-size:13px;font-family:inherit;cursor:pointer;background:transparent;color:var(--gray-5);font-weight:500;transition:all .15s}
 .tab-btn.active{color:white}
-.tab-urgent.active{background:var(--red)}.tab-important.active{background:var(--amber)}.tab-paid.active{background:var(--green)}.tab-hist.active{background:var(--teal-dark)}
+.tab-urgent.active{background:var(--red)}.tab-pedidos.active{background:#1A5276}.tab-important.active{background:var(--amber)}.tab-paid.active{background:var(--green)}.tab-hist.active{background:var(--teal-dark)}
 .tab-manut.active{background:#7B2D8B}
 .pill-local{background:#EDFAF3;color:#1A7A45}
 .pill-buscando{background:#FEF7E6;color:#B9770E}
@@ -292,6 +292,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
   <div class="tabs-bar">
     <button class="tab-btn tab-urgent active" onclick="setTab('urgente',this)">🔴 Urgentes</button>
     <button class="tab-btn tab-important" onclick="setTab('importante',this)">🟡 Importantes</button>
+    <button class="tab-btn tab-pedidos" onclick="setTab('pedidos',this)">📦 Pedidos feitos</button>
     <button class="tab-btn tab-paid" onclick="setTab('pago',this)">🟢 Obras pagas</button>
     <button class="tab-btn tab-manut" onclick="setTab('manutencao',this)">🔧 Manutenção</button>
     <button class="tab-btn tab-hist" id="tab-hist-btn" onclick="setTab('historico',this)" style="display:none">📋 Histórico</button>
@@ -323,6 +324,18 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <tbody id="tbody-urgente"></tbody>
     </table></div>
     <div class="panel-footer">Total em aberto: <strong id="t-urgente">R$ 0,00</strong></div>
+  </div>
+
+  <div id="panel-pedidos" class="panel" style="display:none">
+    <div class="panel-header">
+      <div class="panel-title"><span class="badge" style="background:#E8F4FD;color:#1A5276" id="badge-pd">0</span>Pedidos feitos — acompanhamento</div>
+      <span class="note" style="margin:0">Pedidos já feitos: acompanhe pagamento, produção e entrega. Vão para Obras pagas quando estiverem pagos e a caminho.</span>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Pedido feito em</th><th>Pagamento</th><th>Pronto previsto</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
+      <tbody id="tbody-pedidos"></tbody>
+    </table></div>
+    <div class="panel-footer">Total: <strong id="t-pedidos">R$ 0,00</strong> · Falta pagar: <strong id="t-pedidos-falta">R$ 0,00</strong></div>
   </div>
 
   <div id="panel-importante" class="panel" style="display:none">
@@ -975,6 +988,7 @@ function reclassifyAll(){
   // Move importante → urgente when lead time is compromised
   const toUrgente=[];
   data.importante.forEach((r,i)=>{
+    if(r.pedidoFeito) return;           // pedido feito nao muda de lista sozinho
     if(r.status==='Aguardando cliente') return;
     const diff=getDiff(r); if(diff===null) return;
     const threshold=r.tipo==='especial'?60:30;
@@ -989,6 +1003,7 @@ function reclassifyAll(){
   // Move urgente → importante when still within safe lead time
   const toImportante=[];
   data.urgente.forEach((r,i)=>{
+    if(r.pedidoFeito) return;           // pedido feito nao muda de lista sozinho
     if(r.status==='Aguardando cliente') return;
     const diff=getDiff(r); if(diff===null) return;
     const threshold=r.tipo==='especial'?60:30;
@@ -1004,6 +1019,7 @@ function reclassifyAll(){
 function render(){
   renderTable('urgente',false);
   renderTable('importante',false);
+  renderTable('pedidos',false);
   renderTable('pago',true);
   updateSummary();
   mostrarAbaHistorico();
@@ -1020,10 +1036,22 @@ function mostrarAbaHistorico(){
   if(b) b.style.display=isAdmin()?'block':'none';
 }
 
+// Em qual aba o lancamento APARECE (18/11/2026): pedido feito sai de
+// Urgentes/Importantes e aparece em "Pedidos feitos". Os dados nao mudam de
+// lista - so a tela.
+function abaVisivel(r, lista){ return lista==='pago' ? 'pago' : (r.pedidoFeito ? 'pedidos' : lista); }
+function linhasDaAba(type){
+  const saida=[];
+  const listas=type==='pedidos'?['urgente','importante']:[type];
+  listas.forEach(function(L){
+    (data[L]||[]).forEach(function(r,i){ if(abaVisivel(r,L)===type) saida.push({r:r, aba:L, i:i}); });
+  });
+  return saida;
+}
 function renderTable(type,isPago){
   const tbody = document.getElementById('tbody-'+type);
-  const allRows = data[type];
-  const rows = allRows.filter(function(r){ return (!searchTerm || matchesSearch(r)) && passaFiltroPg(r, type); });
+  const fonte = linhasDaAba(type).filter(function(x){ return (!searchTerm || matchesSearch(x.r)) && passaFiltroPg(x.r, x.aba); });
+  const rows = fonte.map(function(x){ return x.r; });
 
   if(searchTerm){
     const total=[...data.urgente,...data.importante,...data.pago].filter(matchesSearch).length;
@@ -1037,9 +1065,9 @@ function renderTable(type,isPago){
     // A busca acha em outra aba? Diz onde e leva ate la (pedido do Ander,
     // 16/11/2026: "1 resultado" no topo e a aba aberta vazia confundia).
     if(searchTerm){
-      const nomes={urgente:'Urgentes',importante:'Importantes',pago:'Obras pagas'};
-      const outras=['urgente','importante','pago'].filter(function(L){ return L!==type; }).map(function(L){
-        return {L:L, n:(data[L]||[]).filter(matchesSearch).length};
+      const nomes={urgente:'Urgentes',importante:'Importantes',pedidos:'Pedidos feitos',pago:'Obras pagas'};
+      const outras=['urgente','importante','pedidos','pago'].filter(function(L){ return L!==type; }).map(function(L){
+        return {L:L, n:linhasDaAba(L).filter(function(x){ return matchesSearch(x.r); }).length};
       }).filter(function(x){ return x.n>0; });
       if(outras.length) msg+='<br><span style="display:inline-flex;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center">'+
         outras.map(function(x){
@@ -1052,8 +1080,10 @@ function renderTable(type,isPago){
     tbody.innerHTML=`<tr class="empty-row"><td colspan="20">${msg}</td></tr>`;
     return;
   }
-  tbody.innerHTML = rows.map((r)=>{
-    const i = allRows.indexOf(r); // always use original index for edit/delete/actions
+  tbody.innerHTML = fonte.map((x,pos)=>{
+    // Lista de origem (t) e posicao nela (i): editar, mover, anexar e excluir
+    // agem no lugar certo, mesmo na aba "Pedidos feitos", que junta as duas.
+    const r=x.r, i=x.i, t=x.aba;
     const val='R$\u00a0'+fmtBR(r.valor);
     const byLabel=r.by?`<span class="td-by">por ${r.by}</span>`:'';
     const contratoLabel=r.contrato?`<span class="td-by" style="color:var(--teal-dark);font-weight:600">Contrato: ${r.contrato}</span>`:'';
@@ -1063,33 +1093,33 @@ function renderTable(type,isPago){
     const statusCell=isPago?`<td><span class="pill pill-pago">Pago</span>${resumoPagMat(r)}</td>`:`<td>${tipoLabel}<span class="pill ${statusClass(r.status)}">${r.status||'Pendente'}</span>${resumoPagMat(r)}</td>`;
     const extraCol=isPago?`<td>${fmtDate(r.dataPag)}</td>`:'';
     const hasFiles=(r.attachments&&r.attachments.length>0);
-    const attachBtn=`<td><button class="act act-attach ${hasFiles?'has-files':''}" onclick="openAttach('${type}',${i})" title="${hasFiles?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
+    const attachBtn=`<td><button class="act act-attach ${hasFiles?'has-files':''}" onclick="openAttach('${t}',${i})" title="${hasFiles?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
       <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
       ${hasFiles?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
     </button></td>`;
     const detalhesBtn=isPago?`<button class="act" onclick="abrirDetalhesPago(${i})" title="Ver detalhes da compra">🔎</button>`:'';
     const actions=isPago
-      ?`<td class="td-actions">${detalhesBtn}${!ehConsulta()?`<button class="act" onclick="voltarParaPendente(${i})" title="Voltar para pendente">↩</button>`:''}<button class="act act-del" onclick="removeEntry('${type}',${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`
+      ?`<td class="td-actions">${detalhesBtn}${!ehConsulta()?`<button class="act" onclick="voltarParaPendente(${i})" title="Voltar para pendente">↩</button>`:''}<button class="act act-del" onclick="removeEntry('${t}',${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`
       :`<td class="td-actions">
-        <button class="act" onclick="editEntry('${type}',${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-        <button class="act" onclick="duplicateEntry('${type}',${i})" title="Duplicar (outro fornecedor, mesma obra)"><svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
-        ${type==='importante'?`<button class="act act-move-urgent" onclick="moveEntry('importante','urgente',${i})" title="Mover para Urgentes 🔴"><svg class="icon" viewBox="0 0 24 24"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg></button>`:''}
-        ${type==='urgente'?`<button class="act act-move-important" onclick="moveEntry('urgente','importante',${i})" title="Mover para Importantes 🟡"><svg class="icon" viewBox="0 0 24 24"><polyline points="17 6 12 11 7 6"/><polyline points="17 13 12 18 7 13"/></svg></button>`:''}
-        <button class="act act-pay" onclick="fazerPedido('${type}',${i})" title="${r.pedidoFeito?'Pedido feito — clique para desfazer':'Fazer pedido (manda as parcelas para o Financeiro)'}" ${r.pedidoFeito?'style="background:var(--green-light);color:var(--green);border-color:var(--green)"':''}><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>
-        <button class="act act-del" onclick="removeEntry('${type}',${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+        <button class="act" onclick="editEntry('${t}',${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button class="act" onclick="duplicateEntry('${t}',${i})" title="Duplicar (outro fornecedor, mesma obra)"><svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+        ${(t==='importante'&&type!=='pedidos')?`<button class="act act-move-urgent" onclick="moveEntry('importante','urgente',${i})" title="Mover para Urgentes 🔴"><svg class="icon" viewBox="0 0 24 24"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg></button>`:''}
+        ${(t==='urgente'&&type!=='pedidos')?`<button class="act act-move-important" onclick="moveEntry('urgente','importante',${i})" title="Mover para Importantes 🟡"><svg class="icon" viewBox="0 0 24 24"><polyline points="17 6 12 11 7 6"/><polyline points="17 13 12 18 7 13"/></svg></button>`:''}
+        <button class="act act-pay" onclick="fazerPedido('${t}',${i})" title="${r.pedidoFeito?'Pedido feito — clique para desfazer':'Fazer pedido (manda as parcelas para o Financeiro)'}" ${r.pedidoFeito?'style="background:var(--green-light);color:var(--green);border-color:var(--green)"':''}><svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>
+        <button class="act act-del" onclick="removeEntry('${t}',${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
       </td>`;
     const obsLabel=r.obs?`<span class="td-by" style="color:#5E35B1;display:block;margin-top:2px;white-space:normal">📝 ${r.obs}</span>`:'';
     const pixInfo=r.pix?`<span class="td-by" style="display:flex;align-items:center;gap:3px"><svg style="width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>${r.pix}</span>`:'';
     return`<tr>
-      <td class="td-num">${i+1}</td>
-      <td class="td-obra">${highlight(r.obra)}${contratoLabel}${byLabel}${obsLabel}${blocoPedido(type,i,r)}${blocoPedidoFeito(r)}</td>
+      <td class="td-num">${pos+1}</td>
+      <td class="td-obra">${highlight(r.obra)}${contratoLabel}${byLabel}${obsLabel}${blocoPedido(t,i,r)}${blocoPedidoFeito(r)}</td>
       <td>${r.material||'—'}</td>
       <td style="color:var(--gray-4)">${r.nrOrc||'—'}</td>
       <td>${r.fornecedor}${pixInfo}</td>
       <td class="td-valor">${val}</td>
       <td>${fmtDate(r.dataOrc)}</td>
       <td>${fmtDate(r.entrega)}${r.medicao?`<span class="td-by" style="color:var(--teal-dark)">📐 Med: ${fmtDate(r.medicao)}</span>`:''}${blocoDatasObra(r)}</td>
-      ${isPago?'':celulaComprarAte(r)}
+      ${isPago?'':(type==='pedidos'?celulaPedidoFeitoEm(r):celulaComprarAte(r))}
       ${isPago?'':celulaPagamento(r)+celulaProntoPrevisto(r)}
       ${extraCol}
       ${isPago?celulaPagamento(r)+celulaProntoPrevisto(r):''}
@@ -1101,11 +1131,15 @@ function renderTable(type,isPago){
 }
 
 function updateSummary(){
-  const su=data.urgente.reduce((a,r)=>a+Number(r.valor||0),0);
-  const si=data.importante.reduce((a,r)=>a+Number(r.valor||0),0);
+  // Pedido feito nao e mais orcamento em aberto: sai das somas de Urgentes e
+  // Importantes e ganha a aba propria (18/11/2026).
+  const so=function(L){ return linhasDaAba(L).map(function(x){ return x.r; }); };
+  const uVis=so('urgente'), iVis=so('importante'), pVis=so('pedidos');
+  const su=uVis.reduce((a,r)=>a+Number(r.valor||0),0);
+  const si=iVis.reduce((a,r)=>a+Number(r.valor||0),0);
   const sp=data.pago.reduce((a,r)=>a+Number(r.valor||0),0);
-  document.getElementById('c-u-count').textContent=data.urgente.length+' obra'+(data.urgente.length!==1?'s':'');
-  document.getElementById('c-i-count').textContent=data.importante.length+' obra'+(data.importante.length!==1?'s':'');
+  document.getElementById('c-u-count').textContent=uVis.length+' obra'+(uVis.length!==1?'s':'');
+  document.getElementById('c-i-count').textContent=iVis.length+' obra'+(iVis.length!==1?'s':'');
   document.getElementById('c-p-count').textContent=data.pago.length+' obra'+(data.pago.length!==1?'s':'');
   document.getElementById('c-u-val').textContent='R$ '+fmtBR(su);
   document.getElementById('c-i-val').textContent='R$ '+fmtBR(si);
@@ -1118,8 +1152,15 @@ function updateSummary(){
   document.getElementById('c-m-count').textContent=(data.manutencao||[]).length+' item'+((data.manutencao||[]).length!==1?'s':'');
   document.getElementById('c-m-val').textContent='R$ '+fmtBR(sm);
   document.getElementById('t-manutencao').textContent='R$ '+fmtBR(sm);
-  document.getElementById('badge-u').textContent=data.urgente.length;
-  document.getElementById('badge-i').textContent=data.importante.length;
+  document.getElementById('badge-u').textContent=uVis.length;
+  document.getElementById('badge-i').textContent=iVis.length;
+  document.getElementById('badge-pd').textContent=pVis.length;
+  {
+    let tot=0, falta=0;
+    pVis.forEach(function(r){ const pp=pagoDoPedido(r); const v=pp&&pp.total>0?pp.total:Number(r.valor||0); tot+=v; falta+=(pp&&pp.total>0)?Math.max(0,pp.total-pp.pago):v; });
+    document.getElementById('t-pedidos').textContent='R$ '+fmtBR(tot);
+    document.getElementById('t-pedidos-falta').textContent='R$ '+fmtBR(falta);
+  }
   document.getElementById('badge-p').textContent=data.pago.length;
 }
 
@@ -1130,7 +1171,7 @@ function setTab(tab,el){
   currentTab=tab;
   document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
-  ['urgente','importante','pago','manutencao','historico'].forEach(t=>{
+  ['urgente','importante','pedidos','pago','manutencao','historico'].forEach(t=>{
     document.getElementById('panel-'+t).style.display=t===tab?'block':'none';
   });
   if(tab==='historico') renderHistorico();
@@ -1710,6 +1751,11 @@ function aplicarSituacaoDoFinanceiro(){
   render();
 }
 function chaveCotacao(r){ return [normalizarTxt(r.obra), normalizarTxt(r.contrato), normalizarTxt(r.material)].join('|'); }
+// Na aba Pedidos feitos o prazo de compra nao vale mais: mostra quando e quem fez.
+function celulaPedidoFeitoEm(r){
+  const pf=r.pedidoFeito||{};
+  return '<td><span style="font-weight:600;color:var(--green)">📦 '+fmtDate(pf.em)+'</span>'+(pf.por?'<span class="td-by" style="display:block">por '+escHtml(pf.por)+'</span>':'')+'</td>';
+}
 function blocoPedidoFeito(r){
   let h='';
   if(r.pedidoFeito){
@@ -5036,6 +5082,7 @@ function checkNotifications(){
   const overdue=[], dueToday=[], leadCompromised=[];
 
   [...data.urgente, ...data.importante].forEach(r=>{
+    if(r.pedidoFeito) return;           // ja comprado: o prazo de compra nao vale mais
     const marco=marcoDoPrazo(r);
     if(!marco) return;
     if(r.status==='Aguardando cliente') return;
