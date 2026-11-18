@@ -748,6 +748,14 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="form-group"><label>Valor <span style="color:var(--red)">*</span></label><input id="t-valor" type="text" placeholder="Ex: 5.000,00"></div>
         <div class="form-group"><label>Data</label><input id="t-data" type="date"></div>
         <div class="form-group span2"><label>Observação</label><input id="t-obs" type="text" placeholder="Ex: Suprimento de caixa"></div>
+        <div class="form-group span2"><label>Marcar como</label>
+          <select id="t-plano">
+            <option value="">— transferência comum —</option>
+            <option value="emprestimo-solutio">Empréstimo Solutio (dinheiro vindo da Solutio)</option>
+            <option value="devolucao-solutio">Devolução Solutio (dinheiro voltando para a Solutio)</option>
+          </select>
+          <div style="font-size:11px;color:var(--gray-4);margin-top:4px">Empréstimo e devolução da Solutio entram no resumo "Empréstimo Solutio", na aba Relatório. Ex.: empréstimo = PagBank → Sicredi; devolução = Sicredi → PagBank.</div>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -5404,8 +5412,9 @@ function movimentosDoCaixa(){
   // Transferências
   (data.movimentos||[]).forEach(m=>{
     if(m.tipo==='transferencia'){
-      movs.push({id:m.id,data:m.data,desc:'Transf. para '+CONTA_LABEL[m.destino],tipo:'Transferência',conta:m.origem,saida:m.valor,entrada:0});
-      movs.push({id:m.id,data:m.data,desc:'Transf. de '+CONTA_LABEL[m.origem],tipo:'Transferência',conta:m.destino,entrada:m.valor,saida:0});
+      const tt=m.plano?'Transferência · '+rotuloTransfSolutio(m.plano):'Transferência';
+      movs.push({id:m.id,data:m.data,desc:'Transf. para '+CONTA_LABEL[m.destino],tipo:tt,conta:m.origem,saida:m.valor,entrada:0});
+      movs.push({id:m.id,data:m.data,desc:'Transf. de '+CONTA_LABEL[m.origem],tipo:tt,conta:m.destino,entrada:m.valor,saida:0});
     }
   });
 
@@ -5671,7 +5680,7 @@ function printCaixa(){
 }
 
 // ---- TRANSFERÊNCIA ----
-function openModalTransferencia(){ document.getElementById('t-data').value=today(); document.getElementById('t-valor').value=''; document.getElementById('t-obs').value=''; document.getElementById('transf-overlay').classList.add('open'); }
+function openModalTransferencia(){ document.getElementById('t-data').value=today(); document.getElementById('t-valor').value=''; document.getElementById('t-obs').value=''; document.getElementById('t-plano').value=''; document.getElementById('transf-overlay').classList.add('open'); }
 function closeTransf(){ document.getElementById('transf-overlay').classList.remove('open'); }
 
 // ---- LANCAMENTO DIRETO NO BANCO (pedido da Hyllary, 28/09/2026) ----
@@ -5710,6 +5719,9 @@ const PLANO_SAIDA_EXTRA=[
   {id:PLANO_DEV_SOLUTIO, label:'Devolução Solutio'},
   {id:PLANO_EMPRESAS, label:'Transferência entre empresas'}
 ];
+function rotuloTransfSolutio(p){
+  return p===PLANO_EMPR_SOLUTIO?'Empréstimo Solutio':(p===PLANO_DEV_SOLUTIO?'Devolução Solutio':p);
+}
 // Retirada da socia: a categoria padrao e qualquer outra cadastrada com nome
 // comecando por "Retirada" (o cadastro de categorias e livre).
 function ehCatRetirada(id){
@@ -5803,8 +5815,15 @@ async function saveTransf(){
   if(!valor||!data_t){ avisoSistema('Preencha valor e data.'); return; }
   if(origem===destino){ avisoSistema('Conta de origem e destino devem ser diferentes.'); return; }
   if(!data.movimentos) data.movimentos=[];
-  data.movimentos.push({id:genId(),tipo:'transferencia',origem,destino,valor,data:data_t,obs:document.getElementById('t-obs').value});
-  logFin('Transferência',CONTA_LABEL[origem]+' → '+CONTA_LABEL[destino],
+  const novaT={id:genId(),tipo:'transferencia',origem,destino,valor,data:data_t,obs:document.getElementById('t-obs').value};
+  // Emprestimo/devolucao da Solutio (18/11/2026): a conta da Solutio (PagBank)
+  // esta no sistema, entao o dinheiro tem de sair de uma conta e entrar na
+  // outra — senao a conciliacao do PagBank nao bate. A marca e so para o
+  // Relatorio (secaoEmprestimoSolutio); o saldo e o de qualquer transferencia.
+  const planoT=document.getElementById('t-plano').value;
+  if(planoT) novaT.plano=planoT;
+  data.movimentos.push(novaT);
+  logFin('Transferência',CONTA_LABEL[origem]+' → '+CONTA_LABEL[destino]+(planoT?' ('+rotuloTransfSolutio(planoT)+')':''),
     'R$ '+fmtBR(valor)+' · '+fmtDate(data_t));
   await persist(); closeTransf(); renderCaixa();
 }
@@ -5916,11 +5935,20 @@ function renderRelatorio(){
 function secaoEmprestimoSolutio(mes){
   const fimMes=mes+'-31';
   const inicioAno=mes.slice(0,4)+'-01-01';
+  // Conta tambem a TRANSFERENCIA marcada (18/11/2026): e o jeito certo quando
+  // as duas contas estao no sistema (ex.: PagBank da Solutio -> Sicredi).
   const todos=(data.movimentos||[]).filter(function(m){
-    return m.data && m.data<=fimMes &&
-      ((m.tipo==='entrada' && m.plano===PLANO_EMPR_SOLUTIO) || (m.tipo==='saida' && m.plano===PLANO_DEV_SOLUTIO));
+    if(!m.data || m.data>fimMes) return false;
+    if(m.tipo==='transferencia') return m.plano===PLANO_EMPR_SOLUTIO || m.plano===PLANO_DEV_SOLUTIO;
+    return (m.tipo==='entrada' && m.plano===PLANO_EMPR_SOLUTIO) || (m.tipo==='saida' && m.plano===PLANO_DEV_SOLUTIO);
   }).map(function(m){
-    const v=Number(m.valor)||0, ent=m.tipo==='entrada';
+    const v=Number(m.valor)||0;
+    if(m.tipo==='transferencia'){
+      const ent=m.plano===PLANO_EMPR_SOLUTIO;
+      return {data:m.data, desc:m.obs||(ent?'Empréstimo':'Devolução'),
+        conta:(CONTA_LABEL[m.origem]||m.origem)+' → '+(CONTA_LABEL[m.destino]||m.destino), emprestimo:ent?v:0, devolucao:ent?0:v};
+    }
+    const ent=m.tipo==='entrada';
     return {data:m.data, desc:m.desc||(ent?'Empréstimo':'Devolução'), conta:m.conta, emprestimo:ent?v:0, devolucao:ent?0:v};
   }).sort(function(a,b){ return a.data.localeCompare(b.data); });
   if(!todos.length) return '';
