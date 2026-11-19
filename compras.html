@@ -285,7 +285,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
   <div class="summary">
     <div class="card card-urgent"><div class="card-label">Urgentes</div><div class="card-count" id="c-u-count">0 obras</div><div class="card-value" id="c-u-val">R$ 0,00</div></div>
     <div class="card card-important"><div class="card-label">Importantes</div><div class="card-count" id="c-i-count">0 obras</div><div class="card-value" id="c-i-val">R$ 0,00</div></div>
-    <div class="card card-paid"><div class="card-label">Obras pagas</div><div class="card-count" id="c-p-count">0 obras</div><div class="card-value" id="c-p-val">R$ 0,00</div></div>
+    <div class="card card-paid"><div class="card-label">Pedidos finalizados</div><div class="card-count" id="c-p-count">0 obras</div><div class="card-value" id="c-p-val">R$ 0,00</div></div>
     <div class="card card-total"><div class="card-label">Total em aberto</div><div class="card-count">urgentes + importantes</div><div class="card-value" id="c-t-val">R$ 0,00</div></div>
     <div class="card" style="border-left:3px solid #7B2D8B"><div class="card-label" style="color:#7B2D8B">Manutenção</div><div class="card-count" id="c-m-count">0 itens</div><div class="card-value" style="color:#7B2D8B" id="c-m-val">R$ 0,00</div></div>
   </div>
@@ -294,7 +294,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <button class="tab-btn tab-urgent active" onclick="setTab('urgente',this)">🔴 Urgentes</button>
     <button class="tab-btn tab-important" onclick="setTab('importante',this)">🟡 Importantes</button>
     <button class="tab-btn tab-pedidos" onclick="setTab('pedidos',this)">📦 Pedidos feitos</button>
-    <button class="tab-btn tab-paid" onclick="setTab('pago',this)">🟢 Obras pagas</button>
+    <button class="tab-btn tab-paid" onclick="setTab('pago',this)">✅ Pedidos finalizados</button>
     <button class="tab-btn tab-manut" onclick="setTab('manutencao',this)">🔧 Manutenção</button>
     <button class="tab-btn tab-hist" id="tab-hist-btn" onclick="setTab('historico',this)" style="display:none">📋 Histórico</button>
   </div>
@@ -330,7 +330,7 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
   <div id="panel-pedidos" class="panel" style="display:none">
     <div class="panel-header">
       <div class="panel-title"><span class="badge" style="background:#E8F4FD;color:#1A5276" id="badge-pd">0</span>Pedidos feitos — acompanhamento</div>
-      <span class="note" style="margin:0">Pedidos já feitos: acompanhe pagamento, produção e entrega. Vão para Obras pagas quando estiverem pagos e a caminho.</span>
+      <span class="note" style="margin:0">Pedidos feitos que ainda não chegaram. Quando o material chegar, clique em 📥: ele vai para Pedidos finalizados (se ainda faltar pagar, espera a baixa do Financeiro).</span>
     </div>
     <div class="table-wrap"><table>
       <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Pedido feito em</th><th>Pagamento</th><th>Pronto previsto</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
@@ -355,7 +355,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
 
   <div id="panel-pago" class="panel" style="display:none">
     <div class="panel-header">
-      <div class="panel-title"><span class="badge badge-paid" id="badge-p">0</span>Obras pagas</div>
+      <div class="panel-title"><span class="badge badge-paid" id="badge-p">0</span>Pedidos finalizados</div>
+      <span class="note" style="margin:0">Material recebido. Para trazer de volta ao acompanhamento, abra 🔎 e troque "Material no fornecedor".</span>
     </div>
     <div class="table-wrap"><table>
       <thead><tr><th>#</th><th>Obra / Cliente</th><th>Material</th><th>Nº Orç.</th><th>Fornecedor</th><th>Valor</th><th>Data Orç.</th><th>Entrega</th><th>Data Pag.</th><th>Pagamento</th><th>Pronto previsto</th><th>Status</th><th>Anexos</th><th style="text-align:right">Ações</th></tr></thead>
@@ -1042,10 +1043,18 @@ function mostrarAbaHistorico(){
 // Em qual aba o lancamento APARECE (18/11/2026): pedido feito sai de
 // Urgentes/Importantes e aparece em "Pedidos feitos". Os dados nao mudam de
 // lista - so a tela.
-function abaVisivel(r, lista){ return lista==='pago' ? 'pago' : (r.pedidoFeito ? 'pedidos' : lista); }
+// 19/11/2026: "Pedidos feitos" e o acompanhamento ate o material chegar —
+// inclusive os ja quitados (lista 'pago') que ainda estao no fornecedor ou na
+// transportadora. "Pedidos finalizados" (a lista 'pago') mostra so o que
+// chegou, e as antigas sem situacao do material.
+const MATERIAL_EM_ANDAMENTO=['aguardando','producao','pronto','transporte'];
+function abaVisivel(r, lista){
+  if(lista==='pago') return MATERIAL_EM_ANDAMENTO.indexOf(((r&&r.producao)||{}).situacao||'')>=0 ? 'pedidos' : 'pago';
+  return r.pedidoFeito ? 'pedidos' : lista;
+}
 function linhasDaAba(type){
   const saida=[];
-  const listas=type==='pedidos'?['urgente','importante']:[type];
+  const listas=type==='pedidos'?['urgente','importante','pago']:[type];
   listas.forEach(function(L){
     (data[L]||[]).forEach(function(r,i){ if(abaVisivel(r,L)===type) saida.push({r:r, aba:L, i:i}); });
   });
@@ -1141,7 +1150,7 @@ function renderTable(type,isPago){
     // A busca acha em outra aba? Diz onde e leva ate la (pedido do Ander,
     // 16/11/2026: "1 resultado" no topo e a aba aberta vazia confundia).
     if(searchTerm){
-      const nomes={urgente:'Urgentes',importante:'Importantes',pedidos:'Pedidos feitos',pago:'Obras pagas'};
+      const nomes={urgente:'Urgentes',importante:'Importantes',pedidos:'Pedidos feitos',pago:'Pedidos finalizados'};
       const outras=['urgente','importante','pedidos','pago'].filter(function(L){ return L!==type; }).map(function(L){
         return {L:L, n:linhasDaAba(L).filter(function(x){ return matchesSearch(x.r); }).length};
       }).filter(function(x){ return x.n>0; });
@@ -1163,20 +1172,23 @@ function renderTable(type,isPago){
     const val='R$\u00a0'+fmtBR(r.valor);
     const byLabel=r.by?`<span class="td-by">por ${r.by}</span>`:'';
     const contratoLabel=r.contrato?`<span class="td-by" style="color:var(--teal-dark);font-weight:600">Contrato: ${r.contrato}</span>`:'';
-    const tipoLabel=!isPago?(r.tipo==='especial'
+    // Linha que veio da lista 'pago' (quitada) usa os botoes de paga, mesmo
+    // aparecendo em Pedidos feitos.
+    const rowPago=(t==='pago');
+    const tipoLabel=!rowPago?(r.tipo==='especial'
       ?`<span class="badge-especial">✦ Especial</span> `
       :`<span class="badge-padrao">Padrão</span> `):'';
-    const statusCell=isPago?`<td><span class="pill pill-pago">Pago</span>${resumoPagMat(r)}</td>`:`<td>${tipoLabel}<span class="pill ${statusClass(r.status)}">${r.status||'Pendente'}</span>${resumoPagMat(r)}</td>`;
-    const extraCol=isPago?`<td>${fmtDate(r.dataPag)}</td>`:'';
+    const statusCell=rowPago?`<td><span class="pill pill-pago">Pago</span>${resumoPagMat(r)}</td>`:`<td>${tipoLabel}<span class="pill ${statusClass(r.status)}">${r.status||'Pendente'}</span>${resumoPagMat(r)}</td>`;
     const hasFiles=(r.attachments&&r.attachments.length>0);
     const attachBtn=`<td><button class="act act-attach ${hasFiles?'has-files':''}" onclick="openAttach('${t}',${i})" title="${hasFiles?r.attachments.length+' anexo(s)':'Adicionar anexo'}">
       <svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
       ${hasFiles?`<span style="font-size:10px;margin-left:1px">${r.attachments.length}</span>`:''}
     </button></td>`;
-    const detalhesBtn=isPago?`<button class="act" onclick="abrirDetalhesPago(${i})" title="Ver detalhes da compra">🔎</button>`:'';
-    const actions=isPago
-      ?`<td class="td-actions">${detalhesBtn}${!ehConsulta()?`<button class="act" onclick="voltarParaPendente(${i})" title="Voltar para pendente">↩</button>`:''}<button class="act act-del" onclick="removeEntry('${t}',${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`
-      :`<td class="td-actions">
+    const recebidoBtn=(type==='pedidos'&&!ehConsulta())?`<button class="act" onclick="marcarRecebido('${t}',${i})" title="Material chegou / foi retirado" style="color:var(--green);border-color:var(--green)">📥</button>`:'';
+    const detalhesBtn=rowPago?`<button class="act" onclick="abrirDetalhesPago(${i})" title="Ver detalhes da compra">🔎</button>`:'';
+    const actions=rowPago
+      ?`<td class="td-actions">${recebidoBtn}${detalhesBtn}${!ehConsulta()?`<button class="act" onclick="voltarParaPendente(${i})" title="Voltar para pendente">↩</button>`:''}<button class="act act-del" onclick="removeEntry('${t}',${i})" title="Remover"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`
+      :`<td class="td-actions">${recebidoBtn}
         <button class="act" onclick="editEntry('${t}',${i})" title="Editar"><svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
         <button class="act" onclick="duplicateEntry('${t}',${i})" title="Duplicar (outro fornecedor, mesma obra)"><svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
         ${(t==='importante'&&type!=='pedidos')?`<button class="act act-move-urgent" onclick="moveEntry('importante','urgente',${i})" title="Mover para Urgentes 🔴"><svg class="icon" viewBox="0 0 24 24"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg></button>`:''}
@@ -1195,10 +1207,8 @@ function renderTable(type,isPago){
       <td class="td-valor">${val}</td>
       <td>${fmtDate(r.dataOrc)}</td>
       <td>${fmtDate(r.entrega)}${r.medicao?`<span class="td-by" style="color:var(--teal-dark)">📐 Med: ${fmtDate(r.medicao)}</span>`:''}${blocoDatasObra(r)}</td>
-      ${isPago?'':(type==='pedidos'?celulaPedidoFeitoEm(r):celulaComprarAte(r))}
-      ${isPago?'':celulaPagamento(r)+celulaProntoPrevisto(r)}
-      ${extraCol}
-      ${isPago?celulaPagamento(r)+celulaProntoPrevisto(r):''}
+      ${type==='pago'?`<td>${fmtDate(r.dataPag)}</td>`:(type==='pedidos'?celulaPedidoFeitoEm(r):celulaComprarAte(r))}
+      ${celulaPagamento(r)+celulaProntoPrevisto(r)}
       ${statusCell}
       ${attachBtn}
       ${actions}
@@ -1210,13 +1220,13 @@ function updateSummary(){
   // Pedido feito nao e mais orcamento em aberto: sai das somas de Urgentes e
   // Importantes e ganha a aba propria (18/11/2026).
   const so=function(L){ return linhasDaAba(L).map(function(x){ return x.r; }); };
-  const uVis=so('urgente'), iVis=so('importante'), pVis=so('pedidos');
+  const uVis=so('urgente'), iVis=so('importante'), pVis=so('pedidos'), fVis=so('pago');
   const su=uVis.reduce((a,r)=>a+Number(r.valor||0),0);
   const si=iVis.reduce((a,r)=>a+Number(r.valor||0),0);
-  const sp=data.pago.reduce((a,r)=>a+Number(r.valor||0),0);
+  const sp=fVis.reduce((a,r)=>a+Number(r.valor||0),0);
   document.getElementById('c-u-count').textContent=uVis.length+' obra'+(uVis.length!==1?'s':'');
   document.getElementById('c-i-count').textContent=iVis.length+' obra'+(iVis.length!==1?'s':'');
-  document.getElementById('c-p-count').textContent=data.pago.length+' obra'+(data.pago.length!==1?'s':'');
+  document.getElementById('c-p-count').textContent=fVis.length+' pedido'+(fVis.length!==1?'s':'');
   document.getElementById('c-u-val').textContent='R$ '+fmtBR(su);
   document.getElementById('c-i-val').textContent='R$ '+fmtBR(si);
   document.getElementById('c-p-val').textContent='R$ '+fmtBR(sp);
@@ -1233,11 +1243,14 @@ function updateSummary(){
   document.getElementById('badge-pd').textContent=pVis.length;
   {
     let tot=0, falta=0;
-    pVis.forEach(function(r){ const pp=pagoDoPedido(r); const v=pp&&pp.total>0?pp.total:Number(r.valor||0); tot+=v; falta+=(pp&&pp.total>0)?Math.max(0,pp.total-pp.pago):v; });
+    linhasDaAba('pedidos').forEach(function(x){
+      const r=x.r, pp=pagoDoPedido(r); const v=pp&&pp.total>0?pp.total:Number(r.valor||0); tot+=v;
+      if(x.aba!=='pago') falta+=(pp&&pp.total>0)?Math.max(0,pp.total-pp.pago):v;   // a lista 'pago' ja esta quitada
+    });
     document.getElementById('t-pedidos').textContent='R$ '+fmtBR(tot);
     document.getElementById('t-pedidos-falta').textContent='R$ '+fmtBR(falta);
   }
-  document.getElementById('badge-p').textContent=data.pago.length;
+  document.getElementById('badge-p').textContent=fVis.length;
 }
 
 function setTab(tab,el){
@@ -1876,9 +1889,47 @@ function aplicarSituacaoDoFinanceiro(){
   if(mudou) persist();
   render();
 }
+// Material chegou / foi retirado (19/11/2026). Quitado, ou sem parcelas
+// combinadas: vai para Pedidos finalizados. Faltando pagar: fica em Pedidos
+// feitos, marcado como chegou, ate o Financeiro dar baixa — ai a regra de
+// sempre (quitado e a caminho) leva sozinha.
+async function marcarRecebido(lista, idx){
+  if(ehConsulta()) return;
+  const r0=(data[lista]||[])[idx];
+  if(!r0) return;
+  const id=r0.id;
+  const user=await nomeDeQuemUsa('o recebimento');
+  if(!user) return;
+  const pp0=pagoDoPedido(r0);
+  const falta0=(lista!=='pago' && pp0 && pp0.total>0) ? centavos(pp0.total-pp0.pago) : 0;
+  const msg='O material de "'+r0.obra+'" ('+(r0.material||'—')+') chegou ou foi retirado?'+
+    (falta0>0.01 ? '\n\nAinda falta pagar R$ '+fmtBR(falta0)+'. Ele fica em Pedidos feitos, marcado como chegou, até o Financeiro dar baixa.'
+                 : '\n\nEle vai para Pedidos finalizados.');
+  if(!await dlgConfirmar('Material recebido', msg, 'Sim, chegou', 'Cancelar')) return;
+  // Depois da janela os dados podem ter sido relidos: procura de novo.
+  let L=lista, k=-1;
+  if(id){ ['urgente','importante','pago'].some(function(n){ const p=(data[n]||[]).findIndex(function(x){ return x.id===id; }); if(p>=0){ L=n; k=p; return true; } return false; }); }
+  else if((data[lista]||[])[idx]===r0) k=idx;
+  if(k<0){ avisoSistema('A lista foi atualizada. Tente de novo.'); return; }
+  const r=data[L][k];
+  r.producao=Object.assign({}, r.producao||{}, {situacao:'retirado', recebidoEm:hojeIsoLocal(), em:new Date().toISOString(), por:user});
+  const pp=pagoDoPedido(r);
+  const falta=(L!=='pago' && pp && pp.total>0) ? centavos(pp.total-pp.pago) : 0;
+  if(L!=='pago' && falta<=0.01){
+    const fim=Object.assign({}, r, {dataPag:r.dataPag||hojeIsoLocal(), listaAntes:L});
+    delete fim.status;
+    data.pago.push(fim);
+    data[L].splice(k,1);
+    logAction(user,'Material recebido',r,'Foi para Pedidos finalizados');
+  } else {
+    logAction(user,'Material recebido',r, L==='pago' ? 'Foi para Pedidos finalizados' : 'Falta pagar R$ '+fmtBR(falta)+' — continua em Pedidos feitos');
+  }
+  persist(); render();
+}
 function chaveCotacao(r){ return [normalizarTxt(r.obra), normalizarTxt(r.contrato), normalizarTxt(r.material)].join('|'); }
 // Na aba Pedidos feitos o prazo de compra nao vale mais: mostra quando e quem fez.
 function celulaPedidoFeitoEm(r){
+  if(!r.pedidoFeito && r.dataPag) return '<td><span style="color:var(--gray-5)">pago '+fmtDate(r.dataPag)+'</span></td>';
   const pf=r.pedidoFeito||{};
   return '<td><span style="font-weight:600;color:var(--green)">📦 '+fmtDate(pf.em)+'</span>'+(pf.por?'<span class="td-by" style="display:block">por '+escHtml(pf.por)+'</span>':'')+'</td>';
 }
@@ -2228,7 +2279,7 @@ async function markPaid(type,idx){
   // Fica na aba em que estava: quem vai conferindo a lista marca uma obra
   // atrás da outra sem ir e voltar. Um aviso curto confirma para onde foi.
   const aviso=document.createElement('div');
-  aviso.textContent='✓ "'+r.obra+'" foi para Obras pagas';
+  aviso.textContent='✓ "'+r.obra+'" foi para '+(abaVisivel(r,'pago')==='pedidos'?'Pedidos feitos (pago, aguardando o material)':'Pedidos finalizados');
   aviso.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1A7A45;color:white;padding:12px 18px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.25);font-size:13px;z-index:9998;max-width:90vw';
   document.body.appendChild(aviso);
   setTimeout(function(){ aviso.remove(); },3000);
