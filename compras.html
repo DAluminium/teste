@@ -31,6 +31,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .tabs-bar{display:flex;gap:4px;margin-bottom:1rem;background:white;border-radius:10px;padding:5px;box-shadow:var(--shadow)}
 .tab-btn{flex:1;padding:8px 12px;border-radius:7px;border:none;font-size:13px;font-family:inherit;cursor:pointer;background:transparent;color:var(--gray-5);font-weight:500;transition:all .15s}
 .tab-btn.active{color:white}
+th.th-ordena{cursor:pointer;user-select:none;white-space:nowrap}th.th-ordena:hover{background:var(--teal-light);color:var(--teal-dark)}th.th-ordena.ativa{color:var(--teal-dark)}
 .tab-urgent.active{background:var(--red)}.tab-pedidos.active{background:#1A5276}.tab-important.active{background:var(--amber)}.tab-paid.active{background:var(--green)}.tab-hist.active{background:var(--teal-dark)}
 .tab-manut.active{background:#7B2D8B}
 .pill-local{background:#EDFAF3;color:#1A7A45}
@@ -1058,9 +1059,74 @@ function linhasDaAba(type){
   });
   return saida;
 }
+// ---- ORDENAR PELA COLUNA (19/11/2026, igual ao Gerenciamento de Obra) ----
+// Clique no titulo: crescente; de novo: decrescente. Vazio vai sempre para o
+// fim. Cada aba lembra a sua escolha (neste navegador). Sem escolha, fica a
+// ordem de sempre (Obras pagas: a mais recente em cima).
+let ordemColunas={};
+try{ ordemColunas=JSON.parse(localStorage.getItem('dalum-compras-ordem')||'{}')||{}; }catch(e){ ordemColunas={}; }
+function _dataOuVazio(v){ v=String(v||''); return /^\d{4}-\d{2}-\d{2}/.test(v)?v.slice(0,10):''; }
+const VALOR_DA_COLUNA={
+  'Obra / Cliente':  function(r){ return r.obra||''; },
+  'Material':        function(r){ return r.material||''; },
+  'Nº Orç.':         function(r){ return r.nrOrc||''; },
+  'Fornecedor':      function(r){ return r.fornecedor||''; },
+  'Valor':           function(r){ const n=Number(r.valor); return isFinite(n)&&r.valor!==''&&r.valor!=null?n:''; },
+  'Data Orç.':       function(r){ return _dataOuVazio(r.dataOrc); },
+  'Entrega':         function(r){ return _dataOuVazio(r.entrega); },
+  'Comprar até':     function(r){ return _dataOuVazio(comprarAte(r)); },
+  'Pedido feito em': function(r){ return _dataOuVazio(r.pedidoFeito&&r.pedidoFeito.em); },
+  'Data Pag.':       function(r){ return _dataOuVazio(r.dataPag); },
+  'Pagamento':       function(r){ const p=pagoDoPedido(r); return p&&p.total>0?p.pago/p.total:''; },
+  'Pronto previsto': function(r){ return _dataOuVazio(r.producao&&r.producao.previsaoPronto); },
+  'Status':          function(r){ return r.status||''; },
+  'Anexos':          function(r){ return (r.attachments||[]).length; }
+};
+function ordenarLinhas(type, lista){
+  const o=ordemColunas[type];
+  const pega=o&&VALOR_DA_COLUNA[o.col];
+  if(!pega) return lista;
+  const dir=o.dir===-1?-1:1;
+  return lista.map(function(x,pos){ return {x:x, pos:pos, v:pega(x.r)}; }).sort(function(a,b){
+    const va=a.v, vb=b.v, ea=(va===''||va==null), eb=(vb===''||vb==null);
+    if(ea&&eb) return a.pos-b.pos;
+    if(ea) return 1;            // vazio para o fim, sempre
+    if(eb) return -1;
+    let r;
+    if(typeof va==='number'&&typeof vb==='number') r=va-vb;
+    else r=String(va).localeCompare(String(vb),'pt-BR',{numeric:true,sensitivity:'base'});
+    return r!==0 ? r*dir : a.pos-b.pos;
+  }).map(function(y){ return y.x; });
+}
+function ordenarColuna(type, col){
+  const o=ordemColunas[type];
+  if(o&&o.col===col){
+    if(o.dir===1) o.dir=-1;
+    else delete ordemColunas[type];     // terceiro clique: volta a ordem de sempre
+  } else ordemColunas[type]={col:col, dir:1};
+  try{ localStorage.setItem('dalum-compras-ordem', JSON.stringify(ordemColunas)); }catch(e){}
+  renderTable(type, type==='pago');
+}
+function prepararCabecalho(type){
+  const tb=document.getElementById('tbody-'+type);
+  const tabela=tb&&tb.closest('table');
+  if(!tabela) return;
+  const o=ordemColunas[type];
+  tabela.querySelectorAll('thead th').forEach(function(th){
+    if(!th.dataset.rotulo) th.dataset.rotulo=th.textContent.trim();
+    const col=th.dataset.rotulo;
+    if(!VALOR_DA_COLUNA[col]) return;
+    const ativa=!!(o&&o.col===col);
+    th.className='th-ordena'+(ativa?' ativa':'');
+    th.title=ativa&&o.dir===-1?'Clique para voltar à ordem normal':'Ordenar por '+col;
+    th.textContent=col+(ativa?(o.dir===1?' ▲':' ▼'):'');
+    th.onclick=function(){ ordenarColuna(type, col); };
+  });
+}
 function renderTable(type,isPago){
   const tbody = document.getElementById('tbody-'+type);
-  const fonte = linhasDaAba(type).filter(function(x){ return (!searchTerm || matchesSearch(x.r)) && passaFiltroPg(x.r, x.aba); });
+  const fonte = ordenarLinhas(type, linhasDaAba(type).filter(function(x){ return (!searchTerm || matchesSearch(x.r)) && passaFiltroPg(x.r, x.aba); }));
+  prepararCabecalho(type);
   const rows = fonte.map(function(x){ return x.r; });
 
   if(searchTerm){
