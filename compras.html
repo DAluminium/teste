@@ -458,8 +458,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
     <div class="modal-body">
       <div class="form-grid">
         <div class="form-group span2"><label>Seu nome</label><input id="f-by" type="text" readonly style="background:var(--gray-1);color:var(--gray-5);cursor:default"><span class="note">Preenchido automaticamente com o usuário logado</span></div>
-        <div class="form-group span2"><label>Obra / Cliente <span style="color:var(--red)">*</span></label><input id="f-obra" type="text" placeholder="Ex: Wanderley — Casa 113"></div>
-        <div class="form-group span2"><label>Nº do Contrato <span style="color:var(--red)">*</span></label><input id="f-contrato" type="text" placeholder="Ex: 2026-0045"></div>
+        <div class="form-group span2"><label>Obra / Cliente <span style="color:var(--red)">*</span></label><input id="f-obra" type="text" placeholder="Digite o nome do cliente ou o nº do contrato" list="lista-contratos-obra" autocomplete="off" oninput="escolherContratoDaObra('obra')" onchange="escolherContratoDaObra('obra')"><span id="f-cto-dica" class="note" style="display:none;margin-top:4px;font-size:11.5px"></span></div>
+        <div class="form-group span2"><label>Nº do Contrato <span style="color:var(--red)">*</span></label><input id="f-contrato" type="text" placeholder="Ex: 2600871" list="lista-contratos-ct" autocomplete="off" oninput="escolherContratoDaObra('ct')" onchange="escolherContratoDaObra('ct')"></div>
         <div class="form-group"><label>Tipo de projeto <span style="color:var(--red)">*</span></label>
           <select id="f-tipo">
             <option value="padrao">Padrão — alerta 30 dias antes</option>
@@ -808,6 +808,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
 
 <input type="file" id="file-input" accept=".json" style="display:none" onchange="handleImport(event)">
 <datalist id="lista-forn-cad"></datalist>
+<datalist id="lista-contratos-obra"></datalist>
+<datalist id="lista-contratos-ct"></datalist>
 
 <script>
 
@@ -1046,6 +1048,14 @@ function linhasDaAba(type){
   listas.forEach(function(L){
     (data[L]||[]).forEach(function(r,i){ if(abaVisivel(r,L)===type) saida.push({r:r, aba:L, i:i}); });
   });
+  // Obras pagas: a mais recente em cima (pedido do escritorio, 19/11/2026) —
+  // a lista so cresce, e as que ainda se acompanham ficavam no fim. Ordena
+  // pela data do pagamento; empate ou sem data, a que entrou por ultimo.
+  if(type==='pago') saida.sort(function(a,b){
+    const da=String(a.r.dataPag||''), db=String(b.r.dataPag||'');
+    if(da!==db) return da<db?1:-1;
+    return b.i-a.i;
+  });
   return saida;
 }
 function renderTable(type,isPago){
@@ -1185,6 +1195,53 @@ function setTab(tab,el){
 // que estiverem VAZIOS — o que ja foi digitado na compra nunca e trocado.
 // Se a leitura falhar (Worker antigo, sem acesso), o campo continua sendo
 // texto livre, como sempre foi.
+// ---- CONTRATOS DA OBRA NO "NOVO ORCAMENTO" (pedido de 19/11/2026) ----
+// O Worker entrega so o recorte (id, CT, ano, cliente, status). Escolher da
+// lista preenche Obra/Cliente e Nº do Contrato e liga a compra ao contrato
+// (ctoId) — e por essa ligacao que a Obra manda as datas para ca. Digitar
+// livre continua valendo; se a leitura falhar, o campo e texto como sempre.
+let _contratosObra=null, _contratoEscolhido=null;
+function rotuloDoContrato(c){ return (c.cliente||'(sem nome)')+' — CT '+(c.ct||'?')+(c.ano?'/'+c.ano:''); }
+async function carregarContratosDaObra(){
+  try{
+    const r=await fetch(WORKER_URL+'?t='+Date.now(),{cache:'no-store',
+      headers:cabecalhos(SUPA_SISTEMA,{'X-Action':'obras-do-compras'})});
+    if(!r.ok) return;
+    const j=await r.json();
+    const lista=(Array.isArray(j.contratos)?j.contratos:[]).filter(function(c){ return c && c.id && (c.cliente||c.ct); });
+    lista.sort(function(a,b){ return String(a.cliente||'').localeCompare(String(b.cliente||''),'pt-BR'); });
+    _contratosObra=lista;
+    document.getElementById('lista-contratos-obra').innerHTML=lista.map(function(c){
+      return '<option value="'+escHtml(rotuloDoContrato(c))+'">'+escHtml(c.status||'')+'</option>'; }).join('');
+    document.getElementById('lista-contratos-ct').innerHTML=lista.filter(function(c){ return c.ct; }).map(function(c){
+      return '<option value="'+escHtml(c.ct)+'">'+escHtml((c.cliente||'')+(c.ano?' · '+c.ano:''))+'</option>'; }).join('');
+  }catch(e){}
+}
+function mostrarDicaContrato(){
+  const el=document.getElementById('f-cto-dica'); if(!el) return;
+  const c=_contratoEscolhido;
+  if(c){ el.style.display='block'; el.style.color='var(--green)';
+    el.textContent='🔗 Ligado ao contrato da Obra: '+rotuloDoContrato(c)+(c.status?' · '+c.status:''); }
+  else { el.style.display='none'; el.textContent=''; }
+}
+function escolherContratoDaObra(de){
+  if(!_contratosObra) return;
+  const fo=document.getElementById('f-obra'), fc=document.getElementById('f-contrato');
+  let c=null;
+  if(de==='obra'){
+    const v=fo.value.trim();
+    c=_contratosObra.find(function(x){ return rotuloDoContrato(x)===v; })||null;
+    if(c){ fo.value=c.cliente||fo.value; fc.value=c.ct||fc.value; }
+  } else {
+    const v=fc.value.trim();
+    const iguais=_contratosObra.filter(function(x){ return String(x.ct||'')===v; });
+    if(iguais.length===1){ c=iguais[0]; if(!fo.value.trim()) fo.value=c.cliente||''; }
+  }
+  if(c){ _contratoEscolhido=c; }
+  // Trocou o numero a mao depois de escolher: a ligacao deixa de valer.
+  else if(_contratoEscolhido && fc.value.trim()!==String(_contratoEscolhido.ct||'')) _contratoEscolhido=null;
+  mostrarDicaContrato();
+}
 let _fornCad = null, _fornCadInativos = {};
 function cadSistema(){ return AMBIENTE==='teste' ? 'cadastros_teste' : 'cadastros'; }
 function normalizarNomeForn(t){
@@ -1345,6 +1402,8 @@ function openModal(type,idx=null){
   iniciarFornecedorCad('f');
   aplicarFornecedorCad('f');
   carregarFornecedoresCad().then(function(){ aplicarFornecedorCad('f'); });
+  _contratoEscolhido=null; mostrarDicaContrato();
+  carregarContratosDaObra();
 }
 function closeModal(){ document.getElementById('modal-overlay').classList.remove('open'); editId=null; duplicandoDe=null; }
 
@@ -1420,6 +1479,7 @@ async function saveEntry(){
     producao: lerMaterialDoModal(editId!==null ? data[modalType][editId] : null),
   };
   if(modalType==='pago') entry.dataPag=document.getElementById('f-datapag').value;
+  if(_contratoEscolhido && String(entry.contrato)===String(_contratoEscolhido.ct||'')) entry.ctoId=_contratoEscolhido.id;
   if(!entry.obra||!entry.contrato){ avisoSistema('Obra / Cliente e Nº do Contrato são obrigatórios.'); return; }
   if(!entry.entrega||entry.entrega==='—'){ avisoSistema('Data de entrega da obra é obrigatória.'); document.getElementById('f-entrega').focus(); return; }
   if(!await confirmarSomaParcelas(entry)) return;
