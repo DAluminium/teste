@@ -465,7 +465,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div class="panel-actions">
         <select id="fil-caixa-conta" onchange="renderCaixa()" style="width:auto;font-size:12px;padding:4px 8px;border-radius:var(--radius);border:1px solid var(--gray-3)">
           <option value="">Todas as contas</option>
-          <option value="pagbank">PagBank</option>
+          <option value="pagbank">PagBank Solutio</option>
+          <option value="pagbankdal">PagBank D’Aluminium</option>
           <option value="inter">Inter</option>
           <option value="sicredi">Sicredi</option>
           <option value="caixa">Caixa (espécie)</option>
@@ -653,7 +654,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         </div>
         <div class="form-group"><label>Conta de pagamento</label>
           <select id="p-conta">
-            <option value="pagbank">PagBank</option>
+            <option value="pagbank">PagBank Solutio</option>
+            <option value="pagbankdal">PagBank D’Aluminium</option>
             <option value="inter">Inter</option>
             <option value="sicredi">Sicredi</option>
             <option value="caixa">Caixa (espécie)</option>
@@ -702,7 +704,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="form-group"><label>Boleto (R$)</label><input id="r-boleto" type="text" placeholder="0,00" oninput="calcTotalRec()"></div>
         <div class="form-group"><label>Conta destino</label>
           <select id="r-conta">
-            <option value="pagbank">PagBank</option>
+            <option value="pagbank">PagBank Solutio</option>
+            <option value="pagbankdal">PagBank D’Aluminium</option>
             <option value="inter">Inter</option>
             <option value="sicredi">Sicredi</option>
             <option value="caixa">Caixa (espécie)</option>
@@ -737,7 +740,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       <div class="form-grid">
         <div class="form-group"><label>Conta origem <span style="color:var(--red)">*</span></label>
           <select id="t-origem">
-            <option value="pagbank">PagBank</option>
+            <option value="pagbank">PagBank Solutio</option>
+            <option value="pagbankdal">PagBank D’Aluminium</option>
             <option value="inter">Inter</option>
             <option value="sicredi">Sicredi</option>
             <option value="caixa">Caixa (espécie)</option>
@@ -748,7 +752,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="form-group"><label>Conta destino <span style="color:var(--red)">*</span></label>
           <select id="t-destino">
             <option value="inter">Inter</option>
-            <option value="pagbank">PagBank</option>
+            <option value="pagbank">PagBank Solutio</option>
+            <option value="pagbankdal">PagBank D’Aluminium</option>
             <option value="sicredi">Sicredi</option>
             <option value="caixa">Caixa (espécie)</option>
           <option value="antecipacao">Antecipação de Boleto</option>
@@ -797,7 +802,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         </div>
         <div class="form-group"><label>Conta <span style="color:var(--red)">*</span></label>
           <select id="lc-conta">
-            <option value="pagbank">PagBank</option>
+            <option value="pagbank">PagBank Solutio</option>
+            <option value="pagbankdal">PagBank D’Aluminium</option>
             <option value="inter">Inter</option>
             <option value="sicredi">Sicredi</option>
             <option value="caixa">Caixa (espécie)</option>
@@ -834,7 +840,8 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
         <div class="form-group"><label>Data do pagamento <span style="color:var(--red)">*</span></label><input id="b-data" type="date"></div>
         <div class="form-group"><label>Conta utilizada</label>
           <select id="b-conta">
-            <option value="pagbank">PagBank</option>
+            <option value="pagbank">PagBank Solutio</option>
+            <option value="pagbankdal">PagBank D’Aluminium</option>
             <option value="inter">Inter</option>
             <option value="sicredi">Sicredi</option>
             <option value="caixa">Caixa (espécie)</option>
@@ -1002,8 +1009,12 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
       </div>
       <div class="form-grid">
         <div class="form-group">
-          <label>📱 PagBank</label>
+          <label>📱 PagBank Solutio</label>
           <input id="si-pagbank" type="text" placeholder="Ex: 5.230,00">
+        </div>
+        <div class="form-group">
+          <label>📱 PagBank D’Aluminium</label>
+          <input id="si-pagbankdal" type="text" placeholder="Ex: 0,00">
         </div>
         <div class="form-group">
           <label>🟠 Inter</label>
@@ -1784,7 +1795,7 @@ async function fazerLoginWorker(user,senha,codigo){
   return j;
 }
 
-let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,inter:0,sicredi:0,caixa:0,antecipacao:0,transitorio:0}, usuarios:[], historico:[] };
+let data = { pagar:[], receber:[], movimentos:[], saldosIniciais:{pagbank:0,pagbankdal:0,inter:0,sicredi:0,caixa:0,antecipacao:0,transitorio:0}, usuarios:[], historico:[] };
 let dataReady=false;
 let syncInterval = null;
 // Retrato do que o servidor tinha na ultima vez que lemos. Serve para saber,
@@ -1977,7 +1988,7 @@ function updateSaldosBtn(){
 // Ninguem sabia de que CNPJ era o PagBank. Agora cada conta guarda titular,
 // CNPJ, agencia e c/c em data.contasDados (no banco de dados, NAO no codigo:
 // os repositorios sao publicos). So gerente e admin editam, como os saldos.
-const CONTAS_BANCO=['pagbank','inter','sicredi','antecipacao'];
+const CONTAS_BANCO=['pagbank','pagbankdal','inter','sicredi','antecipacao'];
 const CAMPOS_BANCO=[['titular','Titular (empresa)','Ex: Solution'],['cnpj','CNPJ','00.000.000/0000-00'],
   ['agencia','Agência','Ex: 0001'],['conta','Conta corrente','Ex: 12345-6']];
 function escTxt(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -2045,6 +2056,7 @@ async function saveContasDados(){
 function openSaldosIniciais(){
   const si=data.saldosIniciais||{};
   document.getElementById('si-pagbank').value=si.pagbank?fmtBR(si.pagbank):'';
+  if(document.getElementById('si-pagbankdal')) document.getElementById('si-pagbankdal').value=si.pagbankdal?fmtBR(si.pagbankdal):'';
   document.getElementById('si-inter').value=si.inter?fmtBR(si.inter):'';
   document.getElementById('si-sicredi').value=si.sicredi?fmtBR(si.sicredi):'';
   document.getElementById('si-caixa').value=si.caixa?fmtBR(si.caixa):'';
@@ -2059,13 +2071,13 @@ function closeSaldosIniciais(){ document.getElementById('saldos-overlay').classL
 function calcSaldoTotal_si(){
   // A Transitorio fica FORA do total, como a Antecipacao de Boleto: e conta de
   // passagem, para o que ainda nao foi identificado (pedido da Hyllary, 25/09/2026).
-  const total=['si-pagbank','si-inter','si-sicredi','si-caixa']
+  const total=['si-pagbank','si-pagbankdal','si-inter','si-sicredi','si-caixa']
     .reduce((a,id)=>a+parseBR((document.getElementById(id)||{}).value||'0'),0);
   document.getElementById('si-total').textContent='R$ '+fmtBR(total);
 }
 // Bind input events
 setTimeout(()=>{
-  ['si-pagbank','si-inter','si-sicredi','si-caixa'].forEach(id=>{
+  ['si-pagbank','si-pagbankdal','si-inter','si-sicredi','si-caixa'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.addEventListener('input',calcSaldoTotal_si);
   });
@@ -2074,6 +2086,7 @@ setTimeout(()=>{
 async function saveSaldosIniciais(){
   data.saldosIniciais={
     pagbank:parseBR(document.getElementById('si-pagbank').value||'0'),
+    pagbankdal:parseBR(document.getElementById('si-pagbankdal')?document.getElementById('si-pagbankdal').value||'0':'0'),
     inter:parseBR(document.getElementById('si-inter').value||'0'),
     sicredi:parseBR(document.getElementById('si-sicredi').value||'0'),
     caixa:parseBR(document.getElementById('si-caixa').value||'0'),
@@ -2084,7 +2097,7 @@ async function saveSaldosIniciais(){
   {
     const si=data.saldosIniciais;
     logFin('Editou','Saldos iniciais',
-      ['pagbank','inter','sicredi','caixa','antecipacao','transitorio']
+      ['pagbank','pagbankdal','inter','sicredi','caixa','antecipacao','transitorio']
         .map(c=>CONTA_LABEL[c]+' R$ '+fmtBR(si[c])).join(' · ')+' · ref. '+fmtDate(si.dataRef));
   }
   await persist();
@@ -2839,7 +2852,7 @@ function today(){ return new Date().toISOString().slice(0,10); }
 function mesLabel(d){ const dt=new Date(d+'T00:00:00'); return dt.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}); }
 function genId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 
-const CONTA_LABEL={pagbank:'PagBank',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa',antecipacao:'Antecip. Boleto',transitorio:'Transitório'};
+const CONTA_LABEL={pagbank:'PagBank Solutio',pagbankdal:'PagBank D’Aluminium',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa',antecipacao:'Antecip. Boleto',transitorio:'Transitório'};
 const CAT_PADRAO=[{"id": "energia", "label": "Energia", "ativo": true}, {"id": "agua", "label": "Água", "ativo": true}, {"id": "salarios", "label": "Salários", "ativo": true}, {"id": "fornecedores", "label": "Fornecedores", "ativo": true}, {"id": "aluguel", "label": "Aluguel Máq./Equip.", "ativo": true}, {"id": "software", "label": "Software", "ativo": true}, {"id": "prestadores", "label": "Prestadores", "ativo": true}, {"id": "telefone", "label": "Telefone", "ativo": true}, {"id": "internet", "label": "Internet", "ativo": true}, {"id": "despesas-pessoal", "label": "Desp. Pessoal", "ativo": true}, {"id": "despesas-cliente", "label": "Desp. Cliente", "ativo": true}, {"id": "seguro", "label": "Seguro", "ativo": true}, {"id": "marketing", "label": "Marketing", "ativo": true}, {"id": "uso-consumo", "label": "Uso e consumo", "ativo": true}, {"id": "fgts", "label": "FGTS", "ativo": true}, {"id": "inss", "label": "INSS", "ativo": true}, {"id": "simples-nacional", "label": "Simples Nacional", "ativo": true}, {"id": "pis", "label": "PIS", "ativo": true}, {"id": "cofins", "label": "COFINS", "ativo": true}, {"id": "parcelamento-federal", "label": "Parcelamento federal", "ativo": true}, {"id": "parcelamento-estadual", "label": "Parcelamento estadual", "ativo": true}, {"id": "multa-juros", "label": "Multa e juros", "ativo": true}, {"id": "taxas", "label": "Taxas", "ativo": true}, {"id": "consultorias", "label": "Consultorias", "ativo": true}, {"id": "retirada-socia", "label": "Retirada sócia", "ativo": true}, {"id": "pro-labore", "label": "Pró-labore", "ativo": true}, {"id": "comissao", "label": "Comissão", "ativo": true}, {"id": "combustivel", "label": "Combustível", "ativo": true}, {"id": "manutencao-veiculo", "label": "Manutenção de veículo", "ativo": true}, {"id": "manutencao-predial", "label": "Manutenção predial", "ativo": true}, {"id": "honorarios-advocaticios", "label": "Honorários advocatícios", "ativo": true}, {"id": "honorarios-contabeis", "label": "Honorários contábeis", "ativo": true}, {"id": "ferias", "label": "Férias", "ativo": true}, {"id": "rescisao", "label": "Rescisão", "ativo": true}, {"id": "outros", "label": "Outros", "ativo": true}];
 let CAT_LABEL={};
 function getCategorias(){ if(!Array.isArray(data.categorias)||!data.categorias.length) data.categorias=JSON.parse(JSON.stringify(CAT_PADRAO)); return data.categorias; }
@@ -3997,7 +4010,7 @@ function updateSummary(){
 
 function calcSaldoTotal(){
   const si=data.saldosIniciais||{};
-  let saldo=(si.pagbank||0)+(si.inter||0)+(si.sicredi||0)+(si.caixa||0);
+  let saldo=(si.pagbank||0)+(si.pagbankdal||0)+(si.inter||0)+(si.sicredi||0)+(si.caixa||0);
   // Soma baixa a baixa: um pagamento feito em duas vezes tira do saldo os dois
   // valores, e nao o total cheio de uma vez so.
   data.receber.forEach(r=>{ baixasDe(r,'receber').forEach(b=>{ saldo+=Number(b.valor)||0; }); });
@@ -4649,7 +4662,7 @@ function lerCamposBaixas(){
 }
 
 function renderBaixasEdit(){
-  const contas=['pagbank','inter','sicredi','caixa','antecipacao','transitorio'];
+  const contas=['pagbank','pagbankdal','inter','sicredi','caixa','antecipacao','transitorio'];
   document.getElementById('bxe-lista').innerHTML=baixasEdit.length
     ? baixasEdit.map((b,i)=>`
       <div class="bxe-linha">
@@ -5457,7 +5470,7 @@ function movimentosDoCaixa(){
   // inicial mais tudo o que aconteceu antes do começo do período.
   const inicioPeriodo = (filtMes==='livre') ? de : (filtMes?filtMes+'-01':'');
   const si=data.saldosIniciais||{};
-  const contasNoFiltro = filtConta?[filtConta]:['pagbank','inter','sicredi','caixa','antecipacao','transitorio'];
+  const contasNoFiltro = filtConta?[filtConta]:['pagbank','pagbankdal','inter','sicredi','caixa','antecipacao','transitorio'];
   let saldoAnterior = contasNoFiltro.reduce((a,c)=>a+(Number(si[c])||0),0);
   if(inicioPeriodo){
     filtered.forEach(m=>{ if(m.data && m.data<inicioPeriodo) saldoAnterior+=(m.entrada-m.saida); });
@@ -5483,9 +5496,9 @@ function movimentosDoCaixa(){
 }
 
 function renderCaixa(){
-  const contas=['pagbank','inter','sicredi','caixa','antecipacao','transitorio'];
-  const nomesContas={pagbank:'PagBank',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa (espécie)',antecipacao:'Antecipação de Boleto',transitorio:'Transitório'};
-  const cores={pagbank:'#1A5276',inter:'#F57C00',sicredi:'#1B5E20',caixa:'#4A148C',antecipacao:'#880E4F',transitorio:'#455A64'};
+  const contas=['pagbank','pagbankdal','inter','sicredi','caixa','antecipacao','transitorio'];
+  const nomesContas={pagbank:'PagBank Solutio',pagbankdal:'PagBank D’Aluminium',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa (espécie)',antecipacao:'Antecipação de Boleto',transitorio:'Transitório'};
+  const cores={pagbank:'#1A5276',pagbankdal:'#0E6655',inter:'#F57C00',sicredi:'#1B5E20',caixa:'#4A148C',antecipacao:'#880E4F',transitorio:'#455A64'};
   const saldosDiv=document.getElementById('contas-saldos');
   const si=data.saldosIniciais||{};
   const dataRef=si.dataRef?` · Ref: ${fmtDate(si.dataRef)}`:'';
@@ -5595,8 +5608,8 @@ function mudouPeriodoCaixa(){
 // na própria tela porque isso levaria menus, abas, filtros e botões junto.
 function printCaixa(){
   const {filtConta,filtMes,de,ate,withSaldo,totalEnt,totalSai,saldoAnterior,saldoFinal,inicioPeriodo}=movimentosDoCaixa();
-  const contas=['pagbank','inter','sicredi','caixa','antecipacao','transitorio'];
-  const nomes={pagbank:'PagBank',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa (espécie)',antecipacao:'Antecipação de Boleto',transitorio:'Transitório'};
+  const contas=['pagbank','pagbankdal','inter','sicredi','caixa','antecipacao','transitorio'];
+  const nomes={pagbank:'PagBank Solutio',pagbankdal:'PagBank D’Aluminium',inter:'Inter',sicredi:'Sicredi',caixa:'Caixa (espécie)',antecipacao:'Antecipação de Boleto',transitorio:'Transitório'};
   const si=data.saldosIniciais||{};
   const periodo=nomeDoPeriodoCaixa(filtMes,de,ate);
   const alvo=filtConta?nomes[filtConta]:'Todas as contas';
@@ -6026,7 +6039,7 @@ function renderRelatorio(){
   </div>
   <div class="rel-section">
     <div class="rel-title">🏦 SALDOS POR CONTA</div>
-    ${['pagbank','inter','sicredi','caixa','transitorio'].map(c=>`<div class="rel-row"><span>${CONTA_LABEL[c]}</span><span style="font-weight:600;color:${calcSaldoConta(c)>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(calcSaldoConta(c))}</span></div>`).join('')}
+    ${['pagbank','pagbankdal','inter','sicredi','caixa','transitorio'].map(c=>`<div class="rel-row"><span>${CONTA_LABEL[c]}</span><span style="font-weight:600;color:${calcSaldoConta(c)>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(calcSaldoConta(c))}</span></div>`).join('')}
     <div class="rel-row total"><span>SALDO TOTAL</span><span style="font-weight:700;color:${calcSaldoTotal()>=0?'var(--green)':'var(--red)'}">R$ ${fmtBR(calcSaldoTotal())}</span></div>
   </div>`;
   html+=secaoContaSocia(mes);
