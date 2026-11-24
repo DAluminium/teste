@@ -2163,7 +2163,9 @@ async function fazerPedidoDeFato(type,idx){
 }
 // A pergunta "alguma parcela ja foi paga?". Devolve {ids, data, conta}
 // (ids vazio = nenhuma), ou null se a pessoa cancelou.
-const CONTAS_DE_PAGAMENTO=[['sicredi','Sicredi'],['inter','Inter'],['pagbank','PagBank'],['caixa','Caixa']];
+// 24/11/2026: dois PagBank (Solutio e D'Aluminium), os mesmos nomes do Financeiro.
+// Conta nova aqui precisa existir tambem no Worker (CONTAS_DO_FINANCEIRO).
+const CONTAS_DE_PAGAMENTO=[['sicredi','Sicredi'],['inter','Inter'],['pagbank','PagBank Solutio'],['pagbankdal','PagBank D’Aluminium'],['caixa','Caixa']];
 const CONTA_PADRAO_COMPRAS='sicredi';   // decisao do Ander, 17/11/2026
 function dlgParcelasJaPagas(parcelas){
   if(!parcelas.length) return Promise.resolve({ids:[]});
