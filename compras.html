@@ -19,7 +19,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .btn-red{background:var(--red);color:white;border-color:var(--red)}.btn-red:hover{opacity:.9}
 .btn-sm{padding:4px 10px;font-size:12px}
 .main{max-width:none;margin:0 auto;padding:1.5rem 1.5rem 3rem}
-.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:1.5rem}
+.summary{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:1.5rem}
 .card{background:white;border-radius:10px;padding:14px 16px;box-shadow:var(--shadow)}
 .card-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
 .card-count{font-size:12px;color:var(--gray-4);margin-bottom:3px}
@@ -285,9 +285,11 @@ catch(e){ document.documentElement.classList.add('dentro-do-portal'); }
   <div class="summary">
     <div class="card card-urgent"><div class="card-label">Urgentes</div><div class="card-count" id="c-u-count">0 obras</div><div class="card-value" id="c-u-val">R$ 0,00</div></div>
     <div class="card card-important"><div class="card-label">Importantes</div><div class="card-count" id="c-i-count">0 obras</div><div class="card-value" id="c-i-val">R$ 0,00</div></div>
-    <div class="card card-paid"><div class="card-label">Pedidos finalizados</div><div class="card-count" id="c-p-count">0 obras</div><div class="card-value" id="c-p-val">R$ 0,00</div></div>
     <div class="card card-total"><div class="card-label">Total em aberto</div><div class="card-count">urgentes + importantes</div><div class="card-value" id="c-t-val">R$ 0,00</div></div>
+    <!-- 25/11/2026: o que ainda falta pagar dos pedidos ja feitos (ex.: os outros 50% para liberar). -->
+    <div class="card" style="border-left:3px solid #1A5276;cursor:pointer" onclick="setTab('pedidos',document.querySelector('.tab-pedidos'))" title="Abrir Pedidos feitos"><div class="card-label" style="color:#1A5276">Pedidos feitos · a pagar</div><div class="card-count" id="c-pd-count">0 pedidos</div><div class="card-value" style="color:#1A5276" id="c-pd-val">R$ 0,00</div></div>
     <div class="card" style="border-left:3px solid #7B2D8B"><div class="card-label" style="color:#7B2D8B">Manutenção</div><div class="card-count" id="c-m-count">0 itens</div><div class="card-value" style="color:#7B2D8B" id="c-m-val">R$ 0,00</div></div>
+    <div class="card card-paid"><div class="card-label">Pedidos finalizados</div><div class="card-count" id="c-p-count">0 obras</div><div class="card-value" id="c-p-val">R$ 0,00</div></div>
   </div>
 
   <div class="tabs-bar">
@@ -1249,6 +1251,8 @@ function updateSummary(){
     });
     document.getElementById('t-pedidos').textContent='R$ '+fmtBR(tot);
     document.getElementById('t-pedidos-falta').textContent='R$ '+fmtBR(falta);
+    document.getElementById('c-pd-val').textContent='R$ '+fmtBR(falta);
+    document.getElementById('c-pd-count').textContent=pVis.length+' pedido'+(pVis.length!==1?'s':'')+' · falta pagar';
   }
   document.getElementById('badge-p').textContent=fVis.length;
 }
